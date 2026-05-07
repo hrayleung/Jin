@@ -39,7 +39,7 @@ final class BuiltinSearchToolHubTests: XCTestCase {
     }
 
     func testToolDefinitionsExposeSingleBuiltinToolWhenConfigured() async throws {
-        configurePluginDefaults(defaultProvider: .exa, exaKey: "exa-key")
+        configurePluginDefaults(defaultProvider: .exa, exaKey: " \n exa-key \t ")
 
         let controls = GenerationControls(
             webSearch: WebSearchControls(enabled: true),
@@ -61,6 +61,34 @@ final class BuiltinSearchToolHubTests: XCTestCase {
         }
         XCTAssertTrue(routes.contains(functionName: tool.name))
         XCTAssertEqual(routes.provider(for: tool.name), .exa)
+    }
+
+    func testBuiltinSearchHelperParsersTrimStringsAndCoerceScalars() async {
+        let hub = BuiltinSearchToolHub.shared
+        let dictionary: [String: Any] = [
+            "text": " \n Swift concurrency \t ",
+            "count": " 12 ",
+            "flag": " YES "
+        ]
+
+        let text = await hub.firstString(in: dictionary, keys: ["text"])
+        let count = await hub.firstInt(in: dictionary, keys: ["count"])
+        let flag = await hub.firstBool(in: dictionary, keys: ["flag"])
+
+        XCTAssertEqual(text, "Swift concurrency")
+        XCTAssertEqual(count, 12)
+        XCTAssertEqual(flag, true)
+    }
+
+    func testBuiltinSearchHelperParsersSkipBlankStrings() async {
+        let hub = BuiltinSearchToolHub.shared
+        let dictionary: [String: Any] = [
+            "blank": " \n\t ",
+            "fallback": " value "
+        ]
+
+        let value = await hub.firstString(in: dictionary, keys: ["blank", "fallback"])
+        XCTAssertEqual(value, "value")
     }
 
     func testToolDefinitionsDoNotFallbackWhenExplicitProviderMissingKey() async {

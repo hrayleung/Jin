@@ -17,10 +17,12 @@ extension ContentView {
         var didUpdateProviderIcon = false
 
         for provider in persistedProviders {
-            let current = provider.iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard current == nil || current?.isEmpty == true else { continue }
-            guard let providerType = ProviderType(rawValue: provider.typeRaw) else { continue }
-            provider.iconID = LobeProviderIconCatalog.defaultIconID(for: providerType)
+            let providerType = ProviderType(rawValue: provider.typeRaw)
+            guard let defaultIconID = ContentViewProviderBootstrapSupport.defaultIconIDIfNeeded(
+                currentIconID: provider.iconID,
+                providerType: providerType
+            ) else { continue }
+            provider.iconID = defaultIconID
             didUpdateProviderIcon = true
         }
 

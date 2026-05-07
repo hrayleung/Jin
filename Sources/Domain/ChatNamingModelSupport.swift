@@ -1,6 +1,30 @@
 import Foundation
 
 enum ChatNamingModelSupport {
+    static func resolvedTarget(
+        providers: [ProviderConfigEntity],
+        providerID: String,
+        modelID: String
+    ) -> (provider: ProviderConfig, modelID: String)? {
+        guard let providerID = providerID.trimmedNonEmpty,
+              let modelID = modelID.trimmedNonEmpty else { return nil }
+        guard let providerEntity = providers.first(where: { $0.id == providerID }),
+              let provider = try? providerEntity.toDomain() else {
+            return nil
+        }
+
+        let models = supportedModels(
+            from: providerEntity.enabledModels,
+            providerType: ProviderType(rawValue: providerEntity.typeRaw)
+        )
+        guard models.contains(where: { $0.id == modelID }),
+              isSupported(providerConfig: provider, modelID: modelID) else {
+            return nil
+        }
+
+        return (provider, modelID)
+    }
+
     static func isSupported(model: ModelInfo, providerType: ProviderType?) -> Bool {
         let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerType)
         return resolved.modelType == .chat

@@ -60,15 +60,13 @@ extension CodexAppServerAdapter {
         }
         guard !imageInputs.isEmpty else {
             let latestUserText = renderUserTextForCodex(from: lastMessage.content)
-            let trimmedUserText = latestUserText.trimmingCharacters(in: .whitespacesAndNewlines)
-            return [makeCodexTextInput(trimmedUserText.isEmpty ? "Continue." : trimmedUserText)]
+            return [makeCodexTextInput(trimmedValue(latestUserText) ?? "Continue.")]
         }
 
         let latestUserText = renderUserTextForCodex(from: lastMessage.content)
 
         var inputs: [Any] = []
-        let trimmedUserText = latestUserText.trimmingCharacters(in: .whitespacesAndNewlines)
-        inputs.append(makeCodexTextInput(trimmedUserText.isEmpty ? "Continue." : trimmedUserText))
+        inputs.append(makeCodexTextInput(trimmedValue(latestUserText) ?? "Continue."))
         inputs.append(contentsOf: imageInputs)
         return inputs.isEmpty ? [makeCodexTextInput(fallbackPrompt)] : inputs
     }
@@ -77,13 +75,11 @@ extension CodexAppServerAdapter {
         content.compactMap { part -> String? in
             switch part {
             case .text(let text):
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : trimmed
+                return trimmedValue(text)
             case .quote(let quote):
                 return renderQuote(quote.quotedText)
             case .thinking(let block):
-                let trimmed = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : "[Thinking] \(trimmed)"
+                return trimmedValue(block.text).map { "[Thinking] \($0)" }
             case .redactedThinking:
                 return "[Thinking redacted]"
             case .image(let image):
@@ -127,13 +123,11 @@ extension CodexAppServerAdapter {
                 let content = message.content.compactMap { part -> String? in
                     switch part {
                     case .text(let text):
-                        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                        return trimmed.isEmpty ? nil : trimmed
+                        return trimmedValue(text)
                     case .quote(let quote):
                         return renderQuote(quote.quotedText)
                     case .thinking(let block):
-                        let trimmed = block.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                        return trimmed.isEmpty ? nil : "[Thinking] \(trimmed)"
+                        return trimmedValue(block.text).map { "[Thinking] \($0)" }
                     case .redactedThinking:
                         return "[Thinking redacted]"
                     case .image(let image):
@@ -160,16 +154,11 @@ extension CodexAppServerAdapter {
             }
             .joined(separator: "\n\n")
 
-        let trimmed = rendered.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return "Continue."
-        }
-        return trimmed
+        return trimmedValue(rendered) ?? "Continue."
     }
 
     private nonisolated static func renderQuote(_ raw: String) -> String? {
-        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return nil }
+        guard trimmedValue(raw) != nil else { return nil }
         return "[Quote] \(raw)"
     }
 

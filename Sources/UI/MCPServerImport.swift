@@ -62,12 +62,8 @@ enum MCPServerImportParser {
             )
         }
 
-        let serverID = (file.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? UUID().uuidString
-            : (file.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let serverName = (file.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? serverID
-            : (file.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let serverID = MCPServerFormSupport.normalizedServerID(file.id ?? "")
+        let serverName = MCPServerFormSupport.normalizedServerName(file.name, fallback: serverID)
 
         let server = ImportServer(
             name: nil,
@@ -85,10 +81,10 @@ enum MCPServerImportParser {
 
     private static func resolveSingle(id: String, name: String, server: ImportServer) throws -> MCPImportedServer {
         if server.isHTTPLike {
-            guard let rawURL = server.url?.trimmingCharacters(in: .whitespacesAndNewlines), !rawURL.isEmpty else {
+            guard let rawURL = server.normalizedURLString else {
                 throw MCPServerImportError.missingHTTPURL
             }
-            guard let endpoint = URL(string: rawURL), endpoint.scheme != nil else {
+            guard let endpoint = MCPServerFormSupport.parsedEndpoint(rawURL) else {
                 throw MCPServerImportError.invalidHTTPURL(rawURL)
             }
 
@@ -109,7 +105,7 @@ enum MCPServerImportParser {
             )
         }
 
-        guard let command = server.command?.trimmingCharacters(in: .whitespacesAndNewlines), !command.isEmpty else {
+        guard let command = server.normalizedCommand else {
             throw MCPServerImportError.missingCommand
         }
 
@@ -124,6 +120,37 @@ enum MCPServerImportParser {
                 )
             )
         )
+    }
+}
+
+enum MCPServerImportErrorPresentation {
+    static func message(for error: Error) -> String {
+        if let decodingError = error as? DecodingError {
+            return message(for: decodingError)
+        }
+
+        if let importError = error as? MCPServerImportError {
+            return importError.localizedDescription
+        }
+
+        return error.localizedDescription
+    }
+
+    private static func message(for error: DecodingError) -> String {
+        func codingPathString(_ path: [CodingKey]) -> String {
+            guard !path.isEmpty else { return "(root)" }
+            return path.map(\.stringValue).joined(separator: ".")
+        }
+
+        switch error {
+        case .typeMismatch(_, let context),
+             .valueNotFound(_, let context),
+             .keyNotFound(_, let context),
+             .dataCorrupted(let context):
+            return "\(context.debugDescription)\nPath: \(codingPathString(context.codingPath))"
+        @unknown default:
+            return error.localizedDescription
+        }
     }
 }
 
@@ -156,18 +183,24 @@ private struct ImportServer: Decodable {
     let streaming: Bool?
 
     var isHTTPLike: Bool {
-        let normalizedType = type?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedType = type?.trimmedLowercased
         if normalizedType == "http" { return true }
-        if let url, !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if normalizedURLString != nil {
             return true
         }
         return false
     }
 
+    var normalizedURLString: String? {
+        url?.trimmedNonEmpty
+    }
+
+    var normalizedCommand: String? {
+        command?.trimmedNonEmpty
+    }
+
     var trimmedBearerToken: String? {
-        let value = bearerToken?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let value, !value.isEmpty else { return nil }
-        return value
+        bearerToken?.trimmedNonEmpty
     }
 
     func argsTokenized() throws -> [String] {
@@ -184,8 +217,9 @@ private struct ImportServer: Decodable {
         return headers
             .compactMapValues { $0.stringValue }
             .map { key, value in
-                MCPHeader(name: key, value: value, isSensitive: MCPHTTPTransportConfig.isSensitiveHeaderName(key))
+                MCPServerFormSupport.header(name: key, value: value)
             }
+            .compactMap(\.self)
             .sorted { lhs, rhs in
                 lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
             }
@@ -202,10 +236,9 @@ private struct ImportServer: Decodable {
             return .none
         }
 
-        let authValue = authHeader.value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if authValue.lowercased().hasPrefix("bearer ") {
-            let token = String(authValue.dropFirst("bearer ".count)).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !token.isEmpty {
+        if let authValue = authHeader.value.trimmedNonEmpty,
+           authValue.lowercased().hasPrefix("bearer ") {
+            if let token = String(authValue.dropFirst("bearer ".count)).trimmedNonEmpty {
                 return .bearerToken(token)
             }
         }

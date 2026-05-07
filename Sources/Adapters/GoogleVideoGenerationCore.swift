@@ -43,8 +43,7 @@ enum GoogleVideoGenerationCore {
         if isVeo3, let resolution = controls?.resolution {
             parameters["resolution"] = resolution.rawValue
         }
-        if let negativePrompt = controls?.negativePrompt?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !negativePrompt.isEmpty {
+        if let negativePrompt = controls?.negativePrompt?.trimmedNonEmpty {
             parameters["negativePrompt"] = negativePrompt
         }
         if let personGeneration = controls?.personGeneration {
@@ -81,8 +80,7 @@ enum GoogleVideoGenerationCore {
         if isVeo3, let resolution = controls?.resolution {
             parameters["resolution"] = resolution.rawValue
         }
-        if let negativePrompt = controls?.negativePrompt?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !negativePrompt.isEmpty {
+        if let negativePrompt = controls?.negativePrompt?.trimmedNonEmpty {
             parameters["negativePrompt"] = negativePrompt
         }
         if isVeo3, let generateAudio = controls?.generateAudio {
@@ -105,8 +103,7 @@ enum GoogleVideoGenerationCore {
         for message in messages.reversed() where message.role == .user {
             for part in message.content {
                 if case .text(let text) = part {
-                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty { return trimmed }
+                    if let trimmed = text.trimmedNonEmpty { return trimmed }
                 }
             }
         }

@@ -1,7 +1,5 @@
-import Collections
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 struct FileDropCaptureView: NSViewRepresentable {
     @Binding var isDropTargeted: Bool
@@ -74,12 +72,12 @@ struct FileDropCaptureView: NSViewRepresentable {
         }
 
         private func handlePasteboard(_ pasteboard: NSPasteboard, allowFilePromises: Bool) -> Bool {
-            let fileURLs = readFileURLs(from: pasteboard)
+            let fileURLs = PasteboardDropSupport.readFileURLs(from: pasteboard)
             if !fileURLs.isEmpty {
                 return onDropFileURLs(fileURLs)
             }
 
-            let parsedFromText = parseTextValues(from: pasteboard)
+            let parsedFromText = PasteboardDropSupport.parseTextValues(from: pasteboard)
             if !parsedFromText.fileURLs.isEmpty {
                 return onDropFileURLs(parsedFromText.fileURLs)
             }
@@ -87,7 +85,10 @@ struct FileDropCaptureView: NSViewRepresentable {
                 return onDropTextChunks(parsedFromText.textChunks)
             }
 
-            let images = readImages(from: pasteboard)
+            let images = PasteboardDropSupport.readImages(
+                from: pasteboard,
+                usesRawTypeFallback: false
+            )
             if !images.isEmpty {
                 return onDropImages(images)
             }
@@ -138,126 +139,22 @@ struct FileDropCaptureView: NSViewRepresentable {
             return true
         }
 
-        private func readFileURLs(from pasteboard: NSPasteboard) -> [URL] {
-            (pasteboard.readObjects(
-                forClasses: [NSURL.self],
-                options: [.urlReadingFileURLsOnly: true]
-            ) as? [NSURL] ?? []).map { $0 as URL }
-        }
-
-        private func readImages(from pasteboard: NSPasteboard) -> [NSImage] {
-            if let objects = pasteboard.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage],
-               !objects.isEmpty {
-                return objects
-            }
-
-            var images: [NSImage] = []
-            if let image = NSImage(pasteboard: pasteboard) {
-                images.append(image)
-            }
-
-            if let items = pasteboard.pasteboardItems {
-                for item in items {
-                    for type in item.types {
-                        guard isImageType(type),
-                              let data = item.data(forType: type),
-                              let image = NSImage(data: data) else { continue }
-                        images.append(image)
-                        break
-                    }
-                }
-            }
-
-            return images
-        }
-
-        private func parseTextValues(from pasteboard: NSPasteboard) -> (fileURLs: [URL], textChunks: [String]) {
-            var rawValues: [String] = []
-
-            if let value = pasteboard.string(forType: .string) {
-                rawValues.append(value)
-            }
-            if let value = pasteboard.string(forType: .URL) {
-                rawValues.append(value)
-            }
-            if let value = pasteboard.string(forType: .fileURL) {
-                rawValues.append(value)
-            }
-
-            if let items = pasteboard.pasteboardItems {
-                for item in items {
-                    for type in item.types {
-                        guard let utType = UTType(type.rawValue),
-                              utType.conforms(to: .text),
-                              let text = item.string(forType: type) else { continue }
-                        rawValues.append(text)
-                    }
-                }
-            }
-
-            var fileURLsByPath: OrderedDictionary<String, URL> = [:]
-            var textChunks = OrderedSet<String>()
-
-            func appendFileURL(_ url: URL) {
-                guard url.isFileURL else { return }
-                let key = url.standardizedFileURL.path
-                if fileURLsByPath[key] == nil {
-                    fileURLsByPath[key] = url
-                }
-            }
-
-            for value in rawValues {
-                let parsed = AttachmentImportPipeline.parseDroppedString(value)
-                for url in parsed.fileURLs {
-                    appendFileURL(url)
-                }
-                for text in parsed.textChunks {
-                    textChunks.append(text)
-                }
-            }
-
-            let rawURLs = (pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [NSURL] ?? [])
-                .map { $0 as URL }
-            for url in rawURLs {
-                appendFileURL(url)
-            }
-
-            return (Array(fileURLsByPath.values), Array(textChunks))
-        }
-
-        private func isImageType(_ type: NSPasteboard.PasteboardType) -> Bool {
-            if let utType = UTType(type.rawValue), utType.conforms(to: .image) {
-                return true
-            }
-
-            return type == .png || type == .tiff
-        }
     }
 }
 
 final class DropCaptureNSView: NSView {
     var onDragTargetedChanged: ((Bool) -> Void)?
     var onPerformDrop: ((NSDraggingInfo) -> Bool)?
-    private static let acceptedDraggedTypes: [NSPasteboard.PasteboardType] =
-        NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) } + [
-            .fileURL,
-            .URL,
-            .string,
-            .tiff,
-            .png,
-            NSPasteboard.PasteboardType(UTType.jpeg.identifier)
-        ]
-
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         autoresizingMask = [.width, .height]
-        registerForDraggedTypes(Self.acceptedDraggedTypes)
+        registerForDraggedTypes(PasteboardDropSupport.acceptedDraggedTypes)
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         autoresizingMask = [.width, .height]
-        registerForDraggedTypes(Self.acceptedDraggedTypes)
+        registerForDraggedTypes(PasteboardDropSupport.acceptedDraggedTypes)
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -268,7 +165,7 @@ final class DropCaptureNSView: NSView {
         super.viewDidMoveToWindow()
         // SwiftUI can rehost this NSView during layout/state transitions.
         // Re-register dragged types to keep drop capture stable afterwards.
-        registerForDraggedTypes(Self.acceptedDraggedTypes)
+        registerForDraggedTypes(PasteboardDropSupport.acceptedDraggedTypes)
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -312,25 +209,6 @@ final class DropCaptureNSView: NSView {
     }
 
     private func canAcceptDrag(_ pasteboard: NSPasteboard) -> Bool {
-        guard let types = pasteboard.types, !types.isEmpty else { return false }
-
-        let accepted = Set(Self.acceptedDraggedTypes)
-        for type in types where accepted.contains(type) {
-            return true
-        }
-
-        for type in types {
-            guard let utType = UTType(type.rawValue) else { continue }
-            if utType.conforms(to: .fileURL)
-                || utType.conforms(to: .url)
-                || utType.conforms(to: .text)
-                || utType.conforms(to: .image)
-                || utType.conforms(to: .data)
-                || utType.conforms(to: .item) {
-                return true
-            }
-        }
-
-        return false
+        PasteboardDropSupport.canAcceptDrag(pasteboard)
     }
 }

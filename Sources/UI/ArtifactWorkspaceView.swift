@@ -3,27 +3,11 @@ import AppKit
 import UniformTypeIdentifiers
 
 struct ArtifactWorkspaceView: View {
-    private enum DisplayMode: String, CaseIterable, Identifiable {
-        case preview
-        case code
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .preview:
-                return "Preview"
-            case .code:
-                return "Code"
-            }
-        }
-    }
-
     let catalog: ArtifactCatalog
     @Binding var selectedArtifactID: String?
     @Binding var selectedArtifactVersion: Int?
     let onClose: () -> Void
-    @State private var displayMode: DisplayMode = .preview
+    @State private var displayMode: ArtifactWorkspaceSupport.DisplayMode = .preview
     @State private var isShowingCopyFeedback = false
     @State private var isShowingSaveFeedback = false
 
@@ -40,7 +24,7 @@ struct ArtifactWorkspaceView: View {
                         ArtifactWebRenderer(artifact: artifact)
                     } else {
                         ScrollView {
-                            MarkdownWebRenderer(markdownText: highlightedCodeMarkdown(for: artifact))
+                            MarkdownWebRenderer(markdownText: ArtifactWorkspaceSupport.highlightedCodeMarkdown(for: artifact))
                                 .padding(14)
                         }
                     }
@@ -68,16 +52,18 @@ struct ArtifactWorkspaceView: View {
     }
 
     private var selectedArtifact: RenderedArtifactVersion? {
-        guard let artifactID = resolvedArtifactID else { return nil }
-        return catalog.version(artifactID: artifactID, version: selectedArtifactVersion)
+        ArtifactWorkspaceSupport.selectedArtifact(
+            in: catalog,
+            selectedArtifactID: selectedArtifactID,
+            selectedArtifactVersion: selectedArtifactVersion
+        )
     }
 
     private var resolvedArtifactID: String? {
-        if let selectedArtifactID,
-           !catalog.versions(for: selectedArtifactID).isEmpty {
-            return selectedArtifactID
-        }
-        return catalog.latestVersion?.artifactID
+        ArtifactWorkspaceSupport.resolvedArtifactID(
+            in: catalog,
+            selectedArtifactID: selectedArtifactID
+        )
     }
 
     private var availableArtifactIDs: [String] {
@@ -85,16 +71,18 @@ struct ArtifactWorkspaceView: View {
     }
 
     private var availableVersions: [RenderedArtifactVersion] {
-        guard let resolvedArtifactID else { return [] }
-        return catalog.versions(for: resolvedArtifactID)
+        ArtifactWorkspaceSupport.availableVersions(
+            in: catalog,
+            selectedArtifactID: selectedArtifactID
+        )
     }
 
     private var showsArtifactPicker: Bool {
-        availableArtifactIDs.count > 1
+        ArtifactWorkspaceSupport.showsArtifactPicker(in: catalog)
     }
 
     private var showsVersionPicker: Bool {
-        availableVersions.count > 1
+        ArtifactWorkspaceSupport.showsVersionPicker(for: availableVersions)
     }
 
     private var header: some View {
@@ -130,7 +118,7 @@ struct ArtifactWorkspaceView: View {
             Spacer(minLength: 0)
 
             Picker("", selection: $displayMode) {
-                ForEach(DisplayMode.allCases) { mode in
+                ForEach(ArtifactWorkspaceSupport.DisplayMode.allCases) { mode in
                     Text(mode.title).tag(mode)
                 }
             }
@@ -185,8 +173,12 @@ struct ArtifactWorkspaceView: View {
         Binding(
             get: { resolvedArtifactID },
             set: { newValue in
-                selectedArtifactID = newValue
-                selectedArtifactVersion = catalog.latestVersion(for: newValue ?? "")?.version
+                let selection = ArtifactWorkspaceSupport.selectionAfterArtifactChange(
+                    newValue,
+                    in: catalog
+                )
+                selectedArtifactID = selection.artifactID
+                selectedArtifactVersion = selection.version
             }
         )
     }
@@ -201,19 +193,13 @@ struct ArtifactWorkspaceView: View {
     }
 
     private func syncSelection() {
-        guard let latest = catalog.latestVersion else {
-            selectedArtifactID = nil
-            selectedArtifactVersion = nil
-            return
-        }
-
-        if let currentID = selectedArtifactID,
-           catalog.version(artifactID: currentID, version: selectedArtifactVersion) != nil {
-            return
-        }
-
-        selectedArtifactID = latest.artifactID
-        selectedArtifactVersion = latest.version
+        let selection = ArtifactWorkspaceSupport.selectionAfterSync(
+            in: catalog,
+            selectedArtifactID: selectedArtifactID,
+            selectedArtifactVersion: selectedArtifactVersion
+        )
+        selectedArtifactID = selection.artifactID
+        selectedArtifactVersion = selection.version
     }
 
     private func copySource(_ source: String) {
@@ -266,35 +252,9 @@ struct ArtifactWorkspaceView: View {
     }
 
     private func filenameStem(for artifact: RenderedArtifactVersion) -> String {
-        let fallback = artifact.artifactID.isEmpty ? "artifact" : artifact.artifactID
-        let base = artifact.title.isEmpty ? fallback : artifact.title
-        let invalid = CharacterSet(charactersIn: "/:\\?%*|\"<>")
-        let cleanedScalars = base.unicodeScalars.map { invalid.contains($0) ? "-" : String($0) }
-        let cleaned = cleanedScalars.joined().trimmingCharacters(in: .whitespacesAndNewlines)
-        let name = cleaned.isEmpty ? fallback : cleaned
-        if showsVersionPicker {
-            return "\(name)-v\(artifact.version)"
-        }
-        return name
-    }
-
-    private func highlightedCodeMarkdown(for artifact: RenderedArtifactVersion) -> String {
-        let fenceLength = max(3, maximumBacktickRunLength(in: artifact.content) + 1)
-        let fence = String(repeating: "`", count: fenceLength)
-        return "\(fence)\(artifact.contentType.codeFenceLanguage)\n\(artifact.content)\n\(fence)"
-    }
-
-    private func maximumBacktickRunLength(in text: String) -> Int {
-        var maximum = 0
-        var current = 0
-        for character in text {
-            if character == "`" {
-                current += 1
-                maximum = max(maximum, current)
-            } else {
-                current = 0
-            }
-        }
-        return maximum
+        ArtifactWorkspaceSupport.filenameStem(
+            for: artifact,
+            showsVersionPicker: showsVersionPicker
+        )
     }
 }

@@ -15,7 +15,7 @@ struct StreamingMessageView: View {
     var body: some View {
         let hidesManagedAgentInternalUI = ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType)
         let visibleText = state.visibleText
-        let showsCopyButton = !visibleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let showsCopyButton = visibleText.trimmedNonEmpty != nil
         let visibleToolCalls = hidesManagedAgentInternalUI ? [] : state.streamingToolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
             && !isGoogleProviderNativeToolName(call.name)
@@ -39,7 +39,7 @@ struct StreamingMessageView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        if let label = modelLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
+                        if let label = modelLabel?.trimmedNonEmpty {
                             Text(label)
                                 .jinTagStyle()
                         }

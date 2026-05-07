@@ -99,4 +99,16 @@ final class SSEParserTests: XCTestCase {
             XCTFail("Expected .done, got .event")
         }
     }
+
+    func testJSONLineParserTrimsLinesAndIgnoresBlankLines() {
+        var parser = JSONLineParser()
+        let input = " \n {\"ok\":true} \n"
+
+        for byte in input.utf8 {
+            parser.append(byte)
+        }
+
+        XCTAssertEqual(parser.nextEvent(), "{\"ok\":true}")
+        XCTAssertNil(parser.nextEvent())
+    }
 }

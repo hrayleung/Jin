@@ -3,8 +3,9 @@ import SwiftData
 
 extension ChatView {
     func draftQuote(from snapshot: MessageSelectionSnapshot, sourceModelName: String?) -> DraftQuote? {
-        let trimmed = snapshot.selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard let selectedText = MessageSelectionSupport.normalizedSelectedText(snapshot.selectedText) else {
+            return nil
+        }
 
         return DraftQuote(
             content: QuoteContent(
@@ -13,7 +14,7 @@ extension ChatView {
                 // Quotes currently originate from assistant reply selection only.
                 sourceRole: .assistant,
                 sourceModelName: sourceModelName,
-                quotedText: trimmed,
+                quotedText: selectedText,
                 prefixContext: snapshot.prefixContext,
                 suffixContext: snapshot.suffixContext
             )
@@ -42,8 +43,9 @@ extension ChatView {
     }
 
     func persistHighlight(from snapshot: MessageSelectionSnapshot) {
-        let trimmed = snapshot.selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard let selectedText = MessageSelectionSupport.normalizedSelectedText(snapshot.selectedText) else {
+            return
+        }
         guard let messageEntity = renderCache.messageEntitiesByID[snapshot.messageID]
                 ?? conversationEntity.messages.first(where: { $0.id == snapshot.messageID }) else {
             return
@@ -53,7 +55,7 @@ extension ChatView {
             $0.anchorID == snapshot.anchorID
                 && $0.startOffset == snapshot.startOffset
                 && $0.endOffset == snapshot.endOffset
-                && $0.selectedText == trimmed
+                && $0.selectedText == selectedText
         }
         guard !duplicate else { return }
 
@@ -62,7 +64,7 @@ extension ChatView {
             conversationID: conversationEntity.id,
             contextThreadID: snapshot.contextThreadID,
             anchorID: snapshot.anchorID,
-            selectedText: trimmed,
+            selectedText: selectedText,
             prefixContext: snapshot.prefixContext,
             suffixContext: snapshot.suffixContext,
             startOffset: snapshot.startOffset,

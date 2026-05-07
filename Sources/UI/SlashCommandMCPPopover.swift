@@ -1,11 +1,5 @@
 import SwiftUI
 
-struct SlashCommandMCPServerItem: Identifiable, Equatable {
-    let id: String
-    let name: String
-    let isSelected: Bool
-}
-
 struct SlashCommandMCPPopover: View {
     let servers: [SlashCommandMCPServerItem]
     let filterText: String
@@ -14,13 +8,7 @@ struct SlashCommandMCPPopover: View {
     let onDismiss: () -> Void
 
     private var filteredServers: [SlashCommandMCPServerItem] {
-        if filterText.isEmpty {
-            return servers
-        }
-        return servers.filter {
-            $0.name.localizedCaseInsensitiveContains(filterText) ||
-            $0.id.localizedCaseInsensitiveContains(filterText)
-        }
+        SlashCommandDetection.filteredServers(servers: servers, filterText: filterText)
     }
 
     var body: some View {
@@ -128,67 +116,5 @@ struct SlashCommandMCPPopover: View {
         )
         .padding(.horizontal, JinSpacing.xSmall)
         .contentShape(Rectangle())
-    }
-}
-
-// MARK: - Slash Command Detection
-
-enum SlashCommandDetection {
-    /// Detects a `/` trigger at the end of the text that starts a word boundary.
-    /// Returns the filter text after the `/`, or `nil` if no active slash command.
-    static func detectFilter(in text: String) -> String? {
-        // Match "/" at start of text or after whitespace, followed by non-whitespace, non-slash chars until end
-        guard let range = text.range(
-            of: "(?:^|(?<=\\s))/([^\\s/]*)$",
-            options: .regularExpression
-        ) else {
-            return nil
-        }
-        let matched = String(text[range])
-        // Drop the leading "/"
-        return String(matched.dropFirst())
-    }
-
-    /// Removes the slash command token (e.g. "/filt") from the end of the text.
-    static func removeSlashToken(from text: String) -> String {
-        guard let range = text.range(
-            of: "(?:^|(?<=\\s))/[^\\s/]*$",
-            options: .regularExpression
-        ) else {
-            return text
-        }
-        var result = text
-        result.removeSubrange(range)
-        return result
-    }
-
-    /// Returns the ID of the highlighted server given the current filter and index.
-    static func highlightedServerID(
-        servers: [SlashCommandMCPServerItem],
-        filterText: String,
-        highlightedIndex: Int
-    ) -> String? {
-        let filtered = filteredServers(servers: servers, filterText: filterText)
-        guard !filtered.isEmpty else { return nil }
-        let clamped = max(0, min(highlightedIndex, filtered.count - 1))
-        return filtered[clamped].id
-    }
-
-    static func filteredServers(
-        servers: [SlashCommandMCPServerItem],
-        filterText: String
-    ) -> [SlashCommandMCPServerItem] {
-        if filterText.isEmpty { return servers }
-        return servers.filter {
-            $0.name.localizedCaseInsensitiveContains(filterText) ||
-            $0.id.localizedCaseInsensitiveContains(filterText)
-        }
-    }
-
-    static func filteredCount(
-        servers: [SlashCommandMCPServerItem],
-        filterText: String
-    ) -> Int {
-        filteredServers(servers: servers, filterText: filterText).count
     }
 }

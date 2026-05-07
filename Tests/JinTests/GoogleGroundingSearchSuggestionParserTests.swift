@@ -61,6 +61,28 @@ final class GoogleGroundingSearchSuggestionParserTests: XCTestCase {
         XCTAssertEqual(suggestions[0].url, "https://Example.com/search?q=swift")
     }
 
+    func testParseTrimsBlobURLsAndQueries() throws {
+        let payload = [
+            [
+                "query": "  swift actors  ",
+                "url": "  https://www.google.com/search?q=swift+actors  "
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        let blob = "  \(data.base64EncodedString())  "
+
+        let suggestions = GoogleGroundingSearchSuggestionParser.parse(sdkBlob: blob)
+        XCTAssertEqual(suggestions.count, 1)
+        XCTAssertEqual(suggestions[0].query, "swift actors")
+        XCTAssertEqual(suggestions[0].url, "https://www.google.com/search?q=swift+actors")
+    }
+
+    func testURLDeduplicationKeyTrimsAndNormalizesSchemeAndHost() {
+        let key = SearchActivityURLDeduplication.key(for: "  HTTPS://Example.com/Docs?q=Swift  ")
+        XCTAssertEqual(key, "https://example.com/Docs?q=Swift")
+        XCTAssertEqual(SearchActivityURLDeduplication.key(for: "   "), "")
+    }
+
     func testParsePreservesCaseSensitivePathVariants() throws {
         let payload = [
             [

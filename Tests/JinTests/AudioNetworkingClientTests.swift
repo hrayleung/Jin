@@ -7,6 +7,28 @@ final class AudioNetworkingClientTests: XCTestCase {
         MockURLProtocol.requestHandler = nil
     }
 
+    func testOpenAICompatibleAudioFieldsOmitBlankOptionalTextFields() {
+        let fields = OpenAICompatibleAudioClientSupport.transcriptionFields(
+            model: "whisper-1",
+            language: " ",
+            prompt: "\n",
+            responseFormat: "\t",
+            temperature: nil,
+            timestampGranularities: nil
+        )
+
+        XCTAssertEqual(fields.map(\.name), ["model"])
+    }
+
+    func testOpenAICompatibleAudioResponseFormatIsTrimmedBeforeDecoding() throws {
+        let text = try OpenAICompatibleAudioClientSupport.decodeTranscriptionResponse(
+            Data("{\"text\":\"Hello\"}".utf8),
+            responseFormat: " JSON\n"
+        )
+
+        XCTAssertEqual(text, "Hello")
+    }
+
     func testOpenAIAudioClientCreateSpeechBuildsJSONRequest() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -303,6 +325,57 @@ final class AudioNetworkingClientTests: XCTestCase {
         }
 
         XCTAssertFalse(didMakeRequest)
+    }
+
+    func testElevenLabsTTSClientCreateSpeechOmitsBlankOutputFormatQuery() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.scheme, "https")
+            XCTAssertEqual(request.url?.host, "example.com")
+            XCTAssertEqual(request.url?.path, "/v1/text-to-speech/voice-1")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "xi-api-key"), "test-key")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+
+            let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+            let queryItems = components.queryItems ?? []
+            XCTAssertFalse(queryItems.contains { $0.name == "output_format" })
+            XCTAssertTrue(queryItems.contains(URLQueryItem(name: "optimize_streaming_latency", value: "2")))
+            XCTAssertTrue(queryItems.contains(URLQueryItem(name: "enable_logging", value: "false")))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["text"] as? String, "Hello")
+            XCTAssertEqual(json["model_id"] as? String, "eleven_multilingual_v2")
+            XCTAssertEqual(json["language_code"] as? String, "en")
+            XCTAssertEqual((json["seed"] as? NSNumber)?.intValue, 42)
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("AUDIO".utf8)
+            )
+        }
+
+        let client = ElevenLabsTTSClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://example.com/v1")!,
+            networkManager: networkManager
+        )
+
+        let data = try await client.createSpeech(
+            text: "Hello",
+            voiceId: "voice-1",
+            modelId: "eleven_multilingual_v2",
+            outputFormat: " \n ",
+            optimizeStreamingLatency: 2,
+            enableLogging: false,
+            languageCode: "en",
+            seed: 42
+        )
+
+        XCTAssertEqual(data, Data("AUDIO".utf8))
     }
 
     func testElevenLabsSTTClientListModelsDecodesAvailableModels() async throws {

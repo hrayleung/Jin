@@ -35,8 +35,7 @@ extension ChatView {
         if isGoogleMapsEnabled, controls.googleMaps?.hasLocation == true {
             Divider()
             Button("Clear Location") {
-                controls.googleMaps?.latitude = nil
-                controls.googleMaps?.longitude = nil
+                controls = ChatAuxiliaryControlSupport.clearGoogleMapsLocation(controls: controls)
                 persistControlsToConversation()
             }
         }
@@ -69,10 +68,12 @@ extension ChatView {
             latitudeDraft: googleMapsLatitudeDraft,
             longitudeDraft: googleMapsLongitudeDraft,
             languageCodeDraft: googleMapsLanguageCodeDraft,
-            providerType: providerType
+            providerType: providerType,
+            controls: controls
         ) {
-        case .success(let draft):
-            controls.googleMaps = draft
+        case .success(let applied):
+            controls = applied.controls
+            googleMapsDraft = applied.googleMaps ?? GoogleMapsControls(enabled: false)
             googleMapsDraftError = nil
             persistControlsToConversation()
             return true
@@ -102,19 +103,14 @@ extension ChatView {
 
     func openCodeExecutionSheet() {
         codeExecutionDraftError = nil
-        codeExecutionDraft = controls.codeExecution ?? CodeExecutionControls(enabled: isCodeExecutionEnabled)
-
-        let openAISettings = codeExecutionDraft.openAI?.normalized()
-        codeExecutionOpenAIUseExistingContainer = openAISettings?.normalizedExistingContainerID != nil
-        codeExecutionOpenAIFileIDsDraft = openAISettings?.container?.normalizedFileIDs?.joined(separator: "\n") ?? ""
-
-        if (providerType == .openai || providerType == .openaiWebSocket),
-           !codeExecutionOpenAIUseExistingContainer,
-           codeExecutionDraft.openAI == nil {
-            codeExecutionDraft.openAI = OpenAICodeExecutionOptions(
-                container: CodeExecutionContainer(type: "auto")
-            )
-        }
+        let prepared = CodeExecutionSheetSupport.preparedDraft(
+            current: controls.codeExecution,
+            isEnabled: isCodeExecutionEnabled,
+            providerType: providerType
+        )
+        codeExecutionDraft = prepared.controls
+        codeExecutionOpenAIUseExistingContainer = prepared.openAIUseExistingContainer
+        codeExecutionOpenAIFileIDsDraft = prepared.openAIFileIDsDraft
 
         showingCodeExecutionSheet = true
     }
@@ -123,56 +119,46 @@ extension ChatView {
     func applyCodeExecutionDraft() -> Bool {
         codeExecutionDraftError = nil
 
-        if providerType == .openai || providerType == .openaiWebSocket {
-            var openAI = codeExecutionDraft.openAI ?? OpenAICodeExecutionOptions()
-
-            if codeExecutionOpenAIUseExistingContainer {
-                guard let existingContainerID = openAI.normalizedExistingContainerID else {
-                    codeExecutionDraftError = "Enter an OpenAI container ID."
-                    return false
-                }
-                openAI.existingContainerID = existingContainerID
-                openAI.container = nil
-            } else {
-                var container = openAI.container ?? CodeExecutionContainer(type: "auto")
-                container.type = "auto"
-                container.fileIDs = parsedCodeExecutionOpenAIFileIDsDraft
-                openAI.container = container.normalized()
-                openAI.existingContainerID = nil
-            }
-
-            codeExecutionDraft.openAI = openAI.normalized()
+        let applied = CodeExecutionSheetSupport.appliedControls(
+            codeExecutionDraft,
+            to: controls,
+            providerType: providerType,
+            openAIUseExistingContainer: codeExecutionOpenAIUseExistingContainer,
+            openAIFileIDsDraft: codeExecutionOpenAIFileIDsDraft
+        )
+        guard applied.isValid else {
+            codeExecutionDraftError = applied.errorMessage
+            return false
         }
 
-        if providerType == .anthropic {
-            codeExecutionDraft.anthropic = codeExecutionDraft.anthropic?.normalized()
-        }
-
-        controls.codeExecution = codeExecutionDraft
+        codeExecutionDraft = applied.codeExecution
+        controls = applied.controls
         persistControlsToConversation()
         return true
     }
 
     func setOpenAIServiceTier(_ serviceTier: OpenAIServiceTier?) {
-        controls.openAIServiceTier = serviceTier
+        controls = ChatAuxiliaryControlSupport.setOpenAIServiceTier(
+            serviceTier,
+            controls: controls
+        )
         persistControlsToConversation()
     }
 
     var webSearchEnabledBinding: Binding<Bool> {
         Binding(
             get: {
-                if providerType == .perplexity {
-                    return controls.webSearch?.enabled ?? true
-                }
-                return controls.webSearch?.enabled ?? false
+                ChatAuxiliaryControlSupport.webSearchEnabledValue(
+                    providerType: providerType,
+                    controls: controls
+                )
             },
             set: { enabled in
-                if controls.webSearch == nil {
-                    controls.webSearch = defaultWebSearchControls(enabled: enabled)
-                } else {
-                    controls.webSearch?.enabled = enabled
-                    ensureValidWebSearchDefaultsIfEnabled()
-                }
+                controls = ChatAuxiliaryControlSupport.setWebSearchEnabled(
+                    enabled,
+                    controls: controls,
+                    providerType: providerType
+                )
                 persistControlsToConversation()
             }
         )
@@ -180,9 +166,16 @@ extension ChatView {
 
     var anthropicDynamicFilteringBinding: Binding<Bool> {
         Binding(
-            get: { controls.webSearch?.dynamicFiltering ?? false },
+            get: {
+                ChatAuxiliaryControlSupport.anthropicDynamicFilteringValue(
+                    controls: controls
+                )
+            },
             set: { newValue in
-                controls.webSearch?.dynamicFiltering = newValue ? true : nil
+                controls = ChatAuxiliaryControlSupport.setAnthropicDynamicFiltering(
+                    newValue,
+                    controls: controls
+                )
                 persistControlsToConversation()
             }
         )
@@ -190,19 +183,33 @@ extension ChatView {
 
     @ViewBuilder
     var webSearchMenuContent: some View {
+        let webSearchPluginSettings = WebSearchPluginSettingsStore.load()
         WebSearchControlMenuView(
             isEnabled: webSearchEnabledBinding,
             isWebSearchEnabled: isWebSearchEnabled,
             supportsSearchEngineModeSwitch: supportsSearchEngineModeSwitch,
             usesBuiltinSearchPlugin: usesBuiltinSearchPlugin,
             effectiveSearchPluginProvider: effectiveSearchPluginProvider,
-            builtinMaxResults: controls.searchPlugin?.maxResults ?? WebSearchPluginSettingsStore.load().defaultMaxResults,
-            builtinRecencyDays: controls.searchPlugin?.recencyDays,
+            builtinMaxResults: ChatAuxiliaryControlSupport.builtinSearchMaxResultsValue(
+                controls: controls,
+                settings: webSearchPluginSettings
+            ),
+            builtinRecencyDays: ChatAuxiliaryControlSupport.builtinSearchRecencyDaysValue(
+                controls: controls
+            ),
             providerType: providerType,
-            openAIContextSize: controls.webSearch?.contextSize ?? .medium,
-            perplexityContextSize: controls.webSearch?.contextSize ?? .low,
-            xaiSourcesAreEmpty: Set(controls.webSearch?.sources ?? []).isEmpty,
-            anthropicMaxUses: controls.webSearch?.maxUses,
+            openAIContextSize: ChatAuxiliaryControlSupport.openAIWebSearchContextSizeValue(
+                controls: controls
+            ),
+            perplexityContextSize: ChatAuxiliaryControlSupport.perplexityWebSearchContextSizeValue(
+                controls: controls
+            ),
+            xaiSourcesAreEmpty: ChatAuxiliaryControlSupport.xaiWebSearchSourcesAreEmpty(
+                controls: controls
+            ),
+            anthropicMaxUses: ChatAuxiliaryControlSupport.anthropicWebSearchMaxUsesValue(
+                controls: controls
+            ),
             supportsAnthropicDynamicFiltering: supportsAnthropicDynamicFiltering,
             builtinSearchIncludeRawBinding: builtinSearchIncludeRawBinding,
             builtinSearchFetchPageBinding: builtinSearchFetchPageBinding,
@@ -217,39 +224,37 @@ extension ChatView {
                 setSearchEnginePreference(useJinSearch: useJinSearch)
             },
             onSelectSearchProvider: { provider in
-                if controls.searchPlugin == nil {
-                    controls.searchPlugin = SearchPluginControls()
-                }
-                controls.searchPlugin?.provider = provider
+                controls = ChatAuxiliaryControlSupport.setSearchPluginProvider(provider, controls: controls)
                 persistControlsToConversation()
             },
             onSelectBuiltinMaxResults: { value in
-                if controls.searchPlugin == nil {
-                    controls.searchPlugin = SearchPluginControls()
-                }
-                controls.searchPlugin?.maxResults = value
+                controls = ChatAuxiliaryControlSupport.setSearchPluginMaxResults(value, controls: controls)
                 persistControlsToConversation()
             },
             onSelectBuiltinRecencyDays: { value in
-                if controls.searchPlugin == nil {
-                    controls.searchPlugin = SearchPluginControls()
-                }
-                controls.searchPlugin?.recencyDays = value
+                controls = ChatAuxiliaryControlSupport.setSearchPluginRecencyDays(value, controls: controls)
                 persistControlsToConversation()
             },
             onSelectOpenAIContextSize: { size in
-                controls.webSearch?.contextSize = size
+                controls = ChatAuxiliaryControlSupport.setExistingWebSearchContextSize(
+                    size,
+                    controls: controls
+                )
                 persistControlsToConversation()
             },
             onSelectPerplexityContextSize: { size in
-                if controls.webSearch == nil {
-                    controls.webSearch = defaultWebSearchControls(enabled: true)
-                }
-                controls.webSearch?.contextSize = size
+                controls = ChatAuxiliaryControlSupport.setPerplexityWebSearchContextSize(
+                    size,
+                    controls: controls,
+                    providerType: providerType
+                )
                 persistControlsToConversation()
             },
             onSelectAnthropicMaxUses: { value in
-                controls.webSearch?.maxUses = value
+                controls = ChatAuxiliaryControlSupport.setAnthropicWebSearchMaxUses(
+                    value,
+                    controls: controls
+                )
                 persistControlsToConversation()
             },
             onOpenAnthropicConfiguration: {
@@ -259,10 +264,10 @@ extension ChatView {
     }
 
     func setSearchEnginePreference(useJinSearch: Bool) {
-        if controls.searchPlugin == nil {
-            controls.searchPlugin = SearchPluginControls()
-        }
-        controls.searchPlugin?.preferJinSearch = useJinSearch
+        controls = ChatAuxiliaryControlSupport.setSearchEnginePreference(
+            useJinSearch: useJinSearch,
+            controls: controls
+        )
         persistControlsToConversation()
     }
 
@@ -273,41 +278,25 @@ extension ChatView {
             supportsExplicitContextCacheMode: supportsExplicitContextCacheMode,
             showsReset: controls.contextCache != nil,
             onTurnOff: {
-                controls.contextCache = ContextCacheControls(mode: .off)
+                controls = ChatAuxiliaryControlSupport.turnOffContextCache(controls: controls)
                 persistControlsToConversation()
             },
             onSetImplicit: {
-                var cache = controls.contextCache ?? ContextCacheControls(mode: .implicit)
-                cache.mode = .implicit
-                if providerType != .anthropic {
-                    cache.strategy = nil
-                }
-                if providerType != .openai && providerType != .openaiWebSocket && providerType != .xai {
-                    cache.cacheKey = nil
-                }
-                if providerType != .xai {
-                    cache.minTokensThreshold = nil
-                }
-                if providerType != .xai {
-                    cache.conversationID = nil
-                }
-                if providerType != .gemini && providerType != .vertexai {
-                    cache.cachedContentName = nil
-                }
-                controls.contextCache = cache
+                controls = ChatAuxiliaryControlSupport.setImplicitContextCache(
+                    controls: controls,
+                    providerType: providerType
+                )
                 persistControlsToConversation()
             },
             onSetExplicit: {
-                var cache = controls.contextCache ?? ContextCacheControls(mode: .explicit)
-                cache.mode = .explicit
-                controls.contextCache = cache
+                controls = ChatAuxiliaryControlSupport.setExplicitContextCache(controls: controls)
                 persistControlsToConversation()
             },
             onConfigure: {
                 openContextCacheEditor()
             },
             onReset: {
-                controls.contextCache = nil
+                controls = ChatAuxiliaryControlSupport.resetContextCache(controls: controls)
                 persistControlsToConversation()
             },
             menuItemLabel: { title, isSelected in
@@ -318,13 +307,13 @@ extension ChatView {
 
     var mcpToolsEnabledBinding: Binding<Bool> {
         Binding(
-            get: { controls.mcpTools?.enabled == true },
+            get: {
+                ChatAuxiliaryControlSupport.mcpToolsEnabledValue(
+                    controls: controls
+                )
+            },
             set: { enabled in
-                if controls.mcpTools == nil {
-                    controls.mcpTools = MCPToolsControls(enabled: enabled)
-                } else {
-                    controls.mcpTools?.enabled = enabled
-                }
+                controls = ChatAuxiliaryControlSupport.setMCPToolsEnabled(enabled, controls: controls)
                 persistControlsToConversation()
             }
         )
@@ -337,7 +326,9 @@ extension ChatView {
             isMCPToolsEnabled: isMCPToolsEnabled,
             servers: mcpServerMenuItems,
             selectedServerIDs: selectedMCPServerIDs,
-            usesCustomServerSelection: controls.mcpTools?.enabledServerIDs != nil,
+            usesCustomServerSelection: ChatAuxiliaryControlSupport.usesCustomMCPServerSelection(
+                controls: controls
+            ),
             onUseAllServers: {
                 resetMCPServerSelection()
             }

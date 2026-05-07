@@ -31,29 +31,31 @@ struct WebSearchPluginSettingsView: View {
     @State private var credentialEditorProviderRaw = SearchPluginProvider.exa.rawValue
     @State private var hasInitializedCredentialEditorProvider = false
 
-    private let recencyChoices: [(label: String, value: Int)] = [
-        ("Any time", 0),
-        ("Past day", 1),
-        ("Past week", 7),
-        ("Past month", 30)
-    ]
-
     private var defaultProvider: SearchPluginProvider {
-        SearchPluginProvider(rawValue: defaultProviderRaw) ?? .exa
+        WebSearchPluginSettingsSupport.provider(rawValue: defaultProviderRaw)
     }
 
     private var credentialEditorProvider: SearchPluginProvider {
-        SearchPluginProvider(rawValue: credentialEditorProviderRaw) ?? .exa
+        WebSearchPluginSettingsSupport.provider(rawValue: credentialEditorProviderRaw)
     }
 
     private var configuredProviders: [SearchPluginProvider] {
-        SearchPluginProvider.allCases.filter { provider in
-            !apiKeyBinding(for: provider).wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
+        WebSearchPluginSettingsSupport.configuredProviders(apiKeys: providerAPIKeys)
     }
 
     private var effectiveDefaultMaxResults: Int {
-        max(1, min(50, defaultMaxResults == 0 ? 8 : defaultMaxResults))
+        WebSearchPluginSettingsSupport.effectiveMaxResults(defaultMaxResults)
+    }
+
+    private var providerAPIKeys: [SearchPluginProvider: String] {
+        [
+            .exa: exaAPIKey,
+            .brave: braveAPIKey,
+            .jina: jinaAPIKey,
+            .firecrawl: firecrawlAPIKey,
+            .tavily: tavilyAPIKey,
+            .perplexity: perplexityAPIKey
+        ]
     }
 
     var body: some View {
@@ -88,7 +90,7 @@ struct WebSearchPluginSettingsView: View {
     private var formContent: some View {
         JinSettingsPage {
             JinSettingsSection("Web Search") {
-                Toggle("Enable Web Search", isOn: $pluginEnabled)
+                JinSettingsToggleRow("Enable Web Search", isOn: $pluginEnabled)
             }
 
             defaultsSection
@@ -107,7 +109,7 @@ struct WebSearchPluginSettingsView: View {
 
     private var defaultsSection: some View {
         JinSettingsSection("Search Defaults") {
-            settingsPickerRow(
+            JinSettingsPickerRow(
                 "Default search provider",
                 supportingText: "Used when chat does not explicitly choose a web search provider.",
                 selection: $defaultProviderRaw
@@ -124,7 +126,7 @@ struct WebSearchPluginSettingsView: View {
                 Stepper(
                     value: Binding(
                         get: { effectiveDefaultMaxResults },
-                        set: { defaultMaxResults = max(1, min(50, $0)) }
+                        set: { defaultMaxResults = WebSearchPluginSettingsSupport.effectiveMaxResults($0) }
                     ),
                     in: 1...50
                 ) {
@@ -132,12 +134,12 @@ struct WebSearchPluginSettingsView: View {
                 }
             }
 
-            settingsPickerRow(
+            JinSettingsPickerRow(
                 "Default recency",
                 supportingText: "Filters for recent content when the selected provider supports recency windows.",
                 selection: $defaultRecencyDays
             ) {
-                ForEach(recencyChoices, id: \.value) { choice in
+                ForEach(WebSearchPluginSettingsSupport.recencyChoices) { choice in
                     Text(choice.label).tag(choice.value)
                 }
             }
@@ -149,7 +151,7 @@ struct WebSearchPluginSettingsView: View {
             "Search Providers",
             detail: "Only providers with configured API keys are available in chat."
         ) {
-            settingsPickerRow(
+            JinSettingsPickerRow(
                 "Provider",
                 supportingText: "Choose which provider you want to edit.",
                 selection: $credentialEditorProviderRaw
@@ -159,174 +161,37 @@ struct WebSearchPluginSettingsView: View {
                 }
             }
 
-            apiKeyRow(
+            WebSearchAPIKeyRow(
                 label: "\(credentialEditorProvider.displayName) API Key",
                 text: apiKeyBinding(for: credentialEditorProvider),
-                isVisible: keyVisibilityBinding(for: credentialEditorProvider)
+                isRevealed: keyVisibilityBinding(for: credentialEditorProvider)
             )
 
-            JinSettingsControlRow(
-                "Status",
-                supportingText: "Clearing removes the stored key for the selected provider."
+            WebSearchCredentialStatusRow(
+                provider: credentialEditorProvider,
+                apiKey: apiKeyBinding(for: credentialEditorProvider).wrappedValue
             ) {
-                HStack(spacing: JinSpacing.small) {
-                    Text(apiKeyBinding(for: credentialEditorProvider).wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? "Not configured"
-                        : "Configured"
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                    Spacer(minLength: JinSpacing.small)
-
-                    if !apiKeyBinding(for: credentialEditorProvider).wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Button("Clear", role: .destructive) {
-                            apiKeyBinding(for: credentialEditorProvider).wrappedValue = ""
-                            keyVisibilityBinding(for: credentialEditorProvider).wrappedValue = false
-                        }
-                        .font(.caption)
-                        .help("Clear the stored API key for \(credentialEditorProvider.displayName).")
-                    }
-                }
+                apiKeyBinding(for: credentialEditorProvider).wrappedValue = ""
+                keyVisibilityBinding(for: credentialEditorProvider).wrappedValue = false
             }
 
-            JinSettingsControlRow(
-                "Configured",
-                supportingText: "Only configured providers appear in chat."
-            ) {
-                VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                    Text("\(configuredProviders.count)/\(SearchPluginProvider.allCases.count)")
-                        .foregroundStyle(.secondary)
-
-                    if !configuredProviders.isEmpty {
-                        Text(configuredProviders.map(\.displayName).joined(separator: " · "))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-        }
-    }
-
-    private func apiKeyRow(label: String, text: Binding<String>, isVisible: Binding<Bool>) -> some View {
-        JinSettingsControlRow(
-            label,
-            supportingText: "Leave blank to keep this provider unavailable in chat."
-        ) {
-            JinRevealableSecureField(
-                title: label,
-                text: text,
-                isRevealed: isVisible,
-                usesMonospacedFont: true,
-                revealHelp: "Show API key",
-                concealHelp: "Hide API key"
-            )
+            WebSearchConfiguredProvidersRow(configuredProviders: configuredProviders)
         }
     }
 
     @ViewBuilder
     private func providerAdvancedContent() -> some View {
-        switch defaultProvider {
-        case .exa:
-            settingsPickerRow(
-                "Search type",
-                supportingText: "Auto works well for most queries. Pick a type only when you need a stronger bias.",
-                selection: $exaSearchTypeRaw
-            ) {
-                Text("Auto").tag("")
-                ForEach(ExaSearchType.publicCases, id: \.self) { value in
-                    Text(value.rawValue.capitalized).tag(value.rawValue)
-                }
-            }
-        case .brave:
-            JinSettingsControlRow(
-                "Country",
-                supportingText: "Optional 2-letter country code such as US, SG, or DE."
-            ) {
-                TextField("Country", text: $braveCountry, prompt: Text("Country (2-letter, optional)"))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-            }
-
-            JinSettingsControlRow(
-                "Language",
-                supportingText: "Optional language hint such as en or zh-hans."
-            ) {
-                TextField("Language", text: $braveLanguage, prompt: Text("Language (e.g. en, zh-hans)"))
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-            }
-
-            settingsPickerRow(
-                "Safesearch",
-                supportingText: "Uses Brave's provider-side safe search filter.",
-                selection: $braveSafesearch
-            ) {
-                Text("Provider default").tag("")
-                Text("Off").tag("off")
-                Text("Moderate").tag("moderate")
-                Text("Strict").tag("strict")
-            }
-        case .jina:
-            JinSettingsControlRow(
-                "Fetch pages with Jina Reader",
-                supportingText: "Requests Jina Reader content for pages before sending results back to chat."
-            ) {
-                Toggle("Fetch pages with Jina Reader", isOn: $jinaReadPages)
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        case .firecrawl:
-            JinSettingsControlRow(
-                "Extract markdown content",
-                supportingText: "When enabled, Firecrawl returns extracted page content instead of just the search hit."
-            ) {
-                Toggle("Extract markdown content", isOn: $firecrawlExtractContent)
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        case .tavily:
-            settingsPickerRow(
-                "Search depth",
-                supportingText: "Deeper searches can improve coverage but may consume more credits.",
-                selection: $tavilySearchDepth
-            ) {
-                Text("Basic (1 credit)").tag("basic")
-                Text("Fast (1 credit)").tag("fast")
-                Text("Advanced (2 credits)").tag("advanced")
-                Text("Ultra-fast (2 credits)").tag("ultra-fast")
-            }
-
-            settingsPickerRow(
-                "Topic",
-                supportingText: "Choose a topic hint when you want results tuned for a specific domain.",
-                selection: $tavilyTopic
-            ) {
-                Text("General").tag("general")
-                Text("News").tag("news")
-                Text("Finance").tag("finance")
-            }
-        case .perplexity:
-            Text("Perplexity Search currently has no plugin-specific options.")
-                .jinInfoCallout()
-        }
-    }
-
-    private func settingsPickerRow<SelectionValue: Hashable, Content: View>(
-        _ title: String,
-        supportingText: String? = nil,
-        selection: Binding<SelectionValue>,
-        @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        JinSettingsControlRow(title, supportingText: supportingText) {
-            Picker(title, selection: selection) {
-                content()
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        WebSearchAdvancedProviderSettingsView(
+            provider: defaultProvider,
+            exaSearchTypeRaw: $exaSearchTypeRaw,
+            braveCountry: $braveCountry,
+            braveLanguage: $braveLanguage,
+            braveSafesearch: $braveSafesearch,
+            jinaReadPages: $jinaReadPages,
+            firecrawlExtractContent: $firecrawlExtractContent,
+            tavilySearchDepth: $tavilySearchDepth,
+            tavilyTopic: $tavilyTopic
+        )
     }
 
     private func apiKeyBinding(for provider: SearchPluginProvider) -> Binding<String> {
@@ -367,11 +232,10 @@ struct WebSearchPluginSettingsView: View {
         guard !hasInitializedCredentialEditorProvider else { return }
         hasInitializedCredentialEditorProvider = true
 
-        if let firstConfigured = configuredProviders.first {
-            credentialEditorProviderRaw = firstConfigured.rawValue
-            return
-        }
-        credentialEditorProviderRaw = defaultProvider.rawValue
+        credentialEditorProviderRaw = WebSearchPluginSettingsSupport.initialCredentialEditorProvider(
+            configuredProviders: configuredProviders,
+            defaultProvider: defaultProvider
+        ).rawValue
     }
 
     private func notifyCredentialsChanged() {

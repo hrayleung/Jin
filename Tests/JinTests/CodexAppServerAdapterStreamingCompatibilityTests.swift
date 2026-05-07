@@ -23,6 +23,23 @@ final class CodexAppServerAdapterStreamingCompatibilityTests: XCTestCase {
         XCTAssertEqual(CodexAppServerAdapter.parseAgentMessageText(from: item), "Hello world")
     }
 
+    func testParseAgentMessageTextReturnsNilForWhitespaceOnlyFragments() throws {
+        let payload: [String: Any] = [
+            "type": "agentMessage",
+            "message": [
+                "content": [
+                    [
+                        "type": "output_text",
+                        "text": " \n "
+                    ]
+                ]
+            ]
+        ]
+
+        let item = try TestJSONHelpers.makeJSONObject(payload)
+        XCTAssertNil(CodexAppServerAdapter.parseAgentMessageText(from: item))
+    }
+
     func testAssistantTextSuffixReturnsTailWhenSnapshotExtendsEmittedText() {
         let suffix = CodexAppServerAdapter.assistantTextSuffix(
             fromSnapshot: "Hello world",

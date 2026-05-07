@@ -34,7 +34,7 @@ struct GoogleVideoGenerationControls: Codable {
         durationSeconds == nil
             && aspectRatio == nil
             && resolution == nil
-            && (negativePrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            && negativePrompt?.trimmedNonEmpty == nil
             && generateAudio == nil
             && personGeneration == nil
             && seed == nil

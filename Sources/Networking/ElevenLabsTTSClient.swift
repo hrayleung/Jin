@@ -162,7 +162,7 @@ actor ElevenLabsTTSClient {
         var components = URLComponents(url: baseURL.appendingPathComponent("text-to-speech/\(voiceId)"), resolvingAgainstBaseURL: false)
         var queryItems: [URLQueryItem] = []
 
-        if let outputFormat, !outputFormat.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if outputFormat?.trimmedNonEmpty != nil {
             queryItems.append(URLQueryItem(name: "output_format", value: outputFormat))
         }
         if let optimizeStreamingLatency {

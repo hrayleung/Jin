@@ -20,6 +20,23 @@ final class SpreadsheetTextExtractorTests: XCTestCase {
         XCTAssertTrue(text.contains("Tokyo Exchange\t东京大学"))
         XCTAssertTrue(text.contains("Kyoto Program\t京都大学"))
     }
+
+    func testExtractTextFromXLSXFallsBackToWorksheetListWhenWorkbookMetadataMissing() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let xlsxURL = try makeWorksheetOnlyXLSX(at: tempDir)
+        let extracted = SpreadsheetTextExtractor.extractText(
+            fromXLSX: xlsxURL,
+            maxCharacters: AttachmentConstants.maxSpreadsheetExtractedCharacters
+        )
+
+        let text = try XCTUnwrap(extracted)
+        XCTAssertTrue(text.contains("Sheet: Sheet 1"))
+        XCTAssertTrue(text.contains("Name\tScore"))
+        XCTAssertTrue(text.contains("Ava\t42"))
+    }
 }
 
 private func makeSampleXLSX(at tempDir: URL) throws -> URL {
@@ -91,6 +108,41 @@ private func makeSampleXLSX(at tempDir: URL) throws -> URL {
 
     let xlsxURL = tempDir.appendingPathComponent("sample.xlsx")
 
+    try zipDirectory(root, to: xlsxURL)
+
+    return xlsxURL
+}
+
+private func makeWorksheetOnlyXLSX(at tempDir: URL) throws -> URL {
+    let root = tempDir.appendingPathComponent("xlsx-src-fallback", isDirectory: true)
+    try FileManager.default.createDirectory(at: root.appendingPathComponent("xl/worksheets", isDirectory: true), withIntermediateDirectories: true)
+
+    try """
+    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+      <sheetData>
+        <row r="1">
+          <c r="A1" t="inlineStr"><is><t>Name</t></is></c>
+          <c r="B1" t="inlineStr"><is><t>Score</t></is></c>
+        </row>
+        <row r="2">
+          <c r="A2" t="inlineStr"><is><t>Ava</t></is></c>
+          <c r="B2"><v>42</v></c>
+        </row>
+      </sheetData>
+    </worksheet>
+    """.write(
+        to: root.appendingPathComponent("xl/worksheets/sheet1.xml"),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    let xlsxURL = tempDir.appendingPathComponent("fallback.xlsx")
+    try zipDirectory(root, to: xlsxURL)
+    return xlsxURL
+}
+
+private func zipDirectory(_ root: URL, to xlsxURL: URL) throws {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
     process.currentDirectoryURL = root
@@ -102,6 +154,4 @@ private func makeSampleXLSX(at tempDir: URL) throws -> URL {
     if process.terminationStatus != 0 {
         throw NSError(domain: "SpreadsheetTextExtractorTests", code: Int(process.terminationStatus))
     }
-
-    return xlsxURL
 }

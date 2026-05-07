@@ -25,16 +25,14 @@ enum NPMRCUtils {
     }
 
     private static func parseLine(_ line: String) -> (key: String, value: String)? {
-        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard let trimmed = line.trimmedNonEmpty else { return nil }
         if trimmed.hasPrefix("#") || trimmed.hasPrefix(";") { return nil }
 
         let parts = trimmed.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
         guard parts.count == 2 else { return nil }
 
-        let key = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { return nil }
-        let value = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let key = String(parts[0]).trimmedNonEmpty else { return nil }
+        let value = String(parts[1]).trimmed
         return (key, value)
     }
 
@@ -75,4 +73,3 @@ enum NPMRCUtils {
         return false
     }
 }
-

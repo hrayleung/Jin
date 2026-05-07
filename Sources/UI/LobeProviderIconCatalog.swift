@@ -257,9 +257,7 @@ enum LobeProviderIconCatalog {
     })
 
     static func icon(forID id: String?) -> LobeProviderIcon? {
-        guard let id else { return nil }
-        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard let trimmed = id?.trimmedNonEmpty else { return nil }
         return iconByLowercasedID[trimmed.lowercased()]
     }
 
@@ -327,11 +325,8 @@ enum LobeProviderIconCatalog {
 
 extension ProviderConfigEntity {
     var resolvedProviderIconID: String? {
-        if let iconID {
-            let trimmed = iconID.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                return trimmed
-            }
+        if let iconID = iconID?.trimmedNonEmpty {
+            return iconID
         }
 
         guard let providerType = ProviderType(rawValue: typeRaw) else { return nil }

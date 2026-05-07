@@ -14,6 +14,30 @@ final class CodexAppServerRequestSupportTests: XCTestCase {
         XCTAssertEqual(params["persistExtendedHistory"] as? Bool, false)
     }
 
+    func testThreadParamsNormalizeInstructionFields() {
+        var controls = GenerationControls(providerSpecific: [
+            "codex_base_instructions": AnyCodable("  Base instructions\n"),
+            "codex_developer_instructions": AnyCodable("\nDeveloper instructions  ")
+        ])
+
+        let startParams = CodexAppServerRequestBuilder.threadStartParams(
+            modelID: "gpt-5-codex",
+            controls: controls
+        )
+
+        XCTAssertEqual(startParams["baseInstructions"] as? String, "Base instructions")
+        XCTAssertEqual(startParams["developerInstructions"] as? String, "Developer instructions")
+
+        controls.providerSpecific["codex_developer_instructions"] = AnyCodable(" \n ")
+        let resumeParams = CodexAppServerRequestBuilder.threadResumeParams(
+            threadID: "remote-thread-1",
+            modelID: "gpt-5-codex",
+            controls: controls
+        )
+
+        XCTAssertEqual(resumeParams["baseInstructions"] as? String, "Base instructions")
+        XCTAssertNil(resumeParams["developerInstructions"])
+    }
 
     func testThreadResumeParamsMirrorSafeDefaults() {
         var controls = GenerationControls()
@@ -35,6 +59,7 @@ final class CodexAppServerRequestSupportTests: XCTestCase {
         XCTAssertEqual(params["personality"] as? String, CodexPersonality.friendly.rawValue)
         XCTAssertEqual(params["cwd"] as? String, "/tmp/repo")
     }
+
     func testTurnStartParamsIncludeSandboxPolicyAndReasoningSummary() throws {
         var controls = GenerationControls(
             reasoning: ReasoningControls(enabled: true, effort: .high, summary: ReasoningSummary.none)

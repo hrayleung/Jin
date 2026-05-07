@@ -55,28 +55,28 @@ struct AppearanceSettingsView: View {
     var body: some View {
         JinSettingsPage {
             JinSettingsSection("Theme") {
-                Picker("Mode", selection: $appAppearanceMode) {
+                JinSettingsPickerRow("Mode", selection: $appAppearanceMode) {
                     ForEach(AppAppearanceMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
 
-                Toggle("Overlay Scrollbars", isOn: $useOverlayScrollbars)
-
-                Text("When enabled, scrollbars fade in during scrolling and hide when idle. Turn off to follow the system preference.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                JinSettingsToggleRow(
+                    "Overlay Scrollbars",
+                    supportingText: "When enabled, scrollbars fade in during scrolling and hide when idle. Turn off to follow the system preference.",
+                    isOn: $useOverlayScrollbars
+                )
             }
 
             JinSettingsSection("Fonts") {
-                LabeledContent("App Font") {
+                JinSettingsControlRow("App Font") {
                     Button(appFontDisplayName) {
                         showingAppFontPicker = true
                     }
                     .buttonStyle(.borderless)
                 }
 
-                LabeledContent("Code Font") {
+                JinSettingsControlRow("Code Font") {
                     Button(codeFontDisplayName) {
                         showingCodeFontPicker = true
                     }
@@ -85,82 +85,83 @@ struct AppearanceSettingsView: View {
             }
 
             JinSettingsSection("Code Blocks") {
-                Picker("Long Blocks", selection: codeBlockDisplayMode) {
+                JinSettingsPickerRow(
+                    "Long Blocks",
+                    supportingText: codeBlockDisplayMode.wrappedValue.description,
+                    selection: codeBlockDisplayMode
+                ) {
                     ForEach(CodeBlockDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
 
-                Toggle("Show Line Numbers", isOn: $codeBlockShowLineNumbers)
+                JinSettingsToggleRow("Show Line Numbers", isOn: $codeBlockShowLineNumbers)
 
-                HStack {
-                    Text("Collapse After")
-                    TextField(
-                        "",
-                        value: $codeBlockCollapseLineThreshold,
-                        format: .number
-                    )
-                    .frame(width: 52)
-                    .textFieldStyle(.roundedBorder)
-                    .multilineTextAlignment(.center)
-                    .onSubmit {
-                        codeBlockCollapseLineThreshold = max(1, codeBlockCollapseLineThreshold)
+                JinSettingsControlRow("Collapse After") {
+                    HStack {
+                        TextField(
+                            "",
+                            value: $codeBlockCollapseLineThreshold,
+                            format: .number
+                        )
+                        .frame(width: 52)
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.center)
+                        .onSubmit {
+                            codeBlockCollapseLineThreshold = max(1, codeBlockCollapseLineThreshold)
+                        }
+                        Text("Lines")
                     }
-                    Text("Lines")
                 }
                 .disabled(codeBlockDisplayMode.wrappedValue == .expanded)
-
-                Text(codeBlockDisplayMode.wrappedValue.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             JinSettingsSection("Thinking Blocks") {
-                Picker("Display Mode", selection: thinkingDisplayMode) {
+                JinSettingsPickerRow(
+                    "Display Mode",
+                    supportingText: thinkingDisplayMode.wrappedValue.description,
+                    selection: thinkingDisplayMode
+                ) {
                     ForEach(ThinkingBlockDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
-
-                Text(thinkingDisplayMode.wrappedValue.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             JinSettingsSection("Code Execution") {
-                Picker("Display Mode", selection: codeExecutionDisplayMode) {
+                JinSettingsPickerRow(
+                    "Display Mode",
+                    supportingText: codeExecutionDisplayMode.wrappedValue.description,
+                    selection: codeExecutionDisplayMode
+                ) {
                     ForEach(CodeExecutionDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
-
-                Text(codeExecutionDisplayMode.wrappedValue.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             JinSettingsSection("Codex Tool Activities") {
-                Picker("Display Mode", selection: codexToolDisplayMode) {
+                JinSettingsPickerRow(
+                    "Display Mode",
+                    supportingText: codexToolDisplayMode.wrappedValue.description,
+                    selection: codexToolDisplayMode
+                ) {
                     ForEach(CodexToolDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
-
-                Text(codexToolDisplayMode.wrappedValue.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             JinSettingsSection("Agent Tool Activities") {
-                Picker("Display Mode", selection: agentToolDisplayMode) {
+                JinSettingsPickerRow(
+                    "Display Mode",
+                    supportingText: agentToolDisplayMode.wrappedValue.description,
+                    selection: agentToolDisplayMode
+                ) {
                     ForEach(AgentToolDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
-
-                Text(agentToolDisplayMode.wrappedValue.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .navigationTitle("Appearance")

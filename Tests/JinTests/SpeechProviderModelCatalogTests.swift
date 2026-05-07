@@ -2,6 +2,13 @@ import XCTest
 @testable import Jin
 
 final class SpeechProviderModelCatalogTests: XCTestCase {
+    func testModelChoiceTrimsIDAndFallsBackToIDForBlankName() {
+        let choice = SpeechProviderModelChoice(id: "  custom-model\n", name: " \t ")
+
+        XCTAssertEqual(choice.id, "custom-model")
+        XCTAssertEqual(choice.name, "custom-model")
+    }
+
     func testOpenAITextToSpeechChoicesFilterToSupportedSpeechModels() {
         let models = SpeechProviderModelCatalog.textToSpeechChoices(
             for: .openai,
@@ -113,10 +120,21 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
             [
                 SpeechProviderModelChoice(id: "gpt-4o-mini-tts", name: "GPT-4o mini TTS")
             ],
-            selectedModelID: "custom-audio-model"
+            selectedModelID: " custom-audio-model\n"
         )
 
         XCTAssertEqual(models.map(\.id), ["custom-audio-model", "gpt-4o-mini-tts"])
+    }
+
+    func testPresentingChoicesIgnoreBlankSelection() {
+        let choices = [
+            SpeechProviderModelChoice(id: "gpt-4o-mini-tts", name: "GPT-4o mini TTS")
+        ]
+
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.presentingChoices(choices, selectedModelID: " \n\t "),
+            choices
+        )
     }
 
     func testDefaultSpeechChoicesProvidePickerFallbacks() {

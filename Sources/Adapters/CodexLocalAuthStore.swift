@@ -24,16 +24,12 @@ struct CodexLocalAuthStore {
     }
 
     static func authFileURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
-        if let codexHome = environment["CODEX_HOME"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !codexHome.isEmpty {
+        if let codexHome = environment["CODEX_HOME"]?.trimmedNonEmpty {
             return URL(fileURLWithPath: codexHome, isDirectory: true)
                 .appendingPathComponent("auth.json", isDirectory: false)
         }
 
-        let homeDirectory = environment["HOME"]?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nonEmpty
+        let homeDirectory = environment["HOME"]?.trimmedNonEmpty
             ?? NSHomeDirectory()
         return URL(fileURLWithPath: homeDirectory, isDirectory: true)
             .appendingPathComponent(".codex", isDirectory: true)
@@ -43,16 +39,10 @@ struct CodexLocalAuthStore {
     static func extractAPIKey(from payload: [String: Any]) -> String? {
         for key in apiKeyCandidates {
             if let value = payload[key] as? String,
-               let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+               let trimmed = value.trimmedNonEmpty {
                 return trimmed
             }
         }
         return nil
-    }
-}
-
-private extension String {
-    var nonEmpty: String? {
-        isEmpty ? nil : self
     }
 }

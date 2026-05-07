@@ -377,14 +377,14 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 XCTAssertEqual(queryItems["pageSize"], "200")
                 response = [
                     "models": [
-                        ["name": "accounts/fireworks/models/qwen3p6-plus"],
+                        ["name": "  accounts/fireworks/models/qwen3p6-plus  "],
                         ["name": "accounts/fireworks/models/DeepSeek-V4-Pro"],
                         ["name": "accounts/fireworks/models/deepseek-v3p2"],
                         ["name": "accounts/fireworks/models/kimi-k2-instruct-0905"],
                         ["name": "accounts/fireworks/models/kimi-k2p6"],
                         ["name": "accounts/fireworks/models/glm-5"]
                     ],
-                    "nextPageToken": "page-2"
+                    "nextPageToken": " page-2\n"
                 ]
             case ("/v1/accounts/fireworks/models", "page-2"):
                 XCTAssertEqual(queryItems["filter"], "supports_serverless=true")
@@ -1491,6 +1491,11 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
             let webSearchTool = try XCTUnwrap(toolObjects.first { ($0["type"] as? String) == "web_search" })
             XCTAssertEqual(webSearchTool["limit"] as? Int, 2)
+            let userLocation = try XCTUnwrap(webSearchTool["user_location"] as? [String: Any])
+            XCTAssertEqual(userLocation["type"] as? String, "approximate")
+            XCTAssertEqual(userLocation["city"] as? String, "Tokyo")
+            XCTAssertEqual(userLocation["region"] as? String, "Tokyo")
+            XCTAssertEqual(userLocation["country"] as? String, "JP")
 
             let functionTool = try XCTUnwrap(toolObjects.first { ($0["type"] as? String) == "function" })
             XCTAssertEqual(functionTool["type"] as? String, "function")
@@ -1521,7 +1526,15 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             controls: GenerationControls(
                 maxTokens: 2048,
                 reasoning: ReasoningControls(enabled: true, effort: .medium),
-                webSearch: WebSearchControls(enabled: true, maxUses: 2)
+                webSearch: WebSearchControls(
+                    enabled: true,
+                    maxUses: 2,
+                    userLocation: WebSearchUserLocation(
+                        city: " Tokyo ",
+                        region: " Tokyo ",
+                        country: " JP "
+                    )
+                )
             ),
             tools: [
                 ToolDefinition(
@@ -3756,6 +3769,84 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertNil(image.reasoningConfig)
     }
 
+    func testMorphLLMAdapterBuildsChatRequestWithRootBaseURLAndProviderSpecificOverrides() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "morph",
+            name: "MorphLLM",
+            type: .morphllm,
+            apiKey: "ignored",
+            baseURL: "https://api.morphllm.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.morphllm.com/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "morph-v3-large")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertEqual(root["temperature"] as? Double, 0.3)
+            XCTAssertEqual(root["max_tokens"] as? Int, 64)
+            XCTAssertEqual(root["custom_option"] as? String, "enabled")
+            XCTAssertNil(root["tools"])
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 2)
+            XCTAssertEqual(messages[0]["role"] as? String, "system")
+            XCTAssertEqual(messages[0]["content"] as? String, "Apply edits carefully.")
+            XCTAssertEqual(messages[1]["role"] as? String, "user")
+            XCTAssertEqual(messages[1]["content"] as? String, "Rewrite this function.")
+
+            let response: [String: Any] = [
+                "id": "cmpl_morph",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK",
+                        ],
+                        "finish_reason": "stop",
+                    ],
+                ],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = MorphLLMAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .system, content: [.text("Apply edits carefully.")]),
+                Message(role: .user, content: [.text("Rewrite this function.")]),
+            ],
+            modelID: "morph-v3-large",
+            controls: GenerationControls(
+                temperature: 0.3,
+                maxTokens: 64,
+                providerSpecific: ["custom_option": AnyCodable("enabled")]
+            ),
+            tools: [
+                ToolDefinition(
+                    id: "tool_1",
+                    name: "lookup",
+                    description: "Should not be emitted for MorphLLM.",
+                    parameters: ParameterSchema(properties: [:], required: []),
+                    source: .builtin
+                )
+            ],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testTogetherAdapterFetchModelsUsesArrayShapeWithoutFilteringByModelType() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -4531,6 +4622,28 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             return XCTFail("Expected messageStart")
         }
         XCTAssertEqual(id, "vid_seed_123")
+    }
+
+    func testOpenRouterVideoGenerationPromptTrimsUserTextAndDropsBlankParts() async throws {
+        let adapter = OpenRouterAdapter(
+            providerConfig: ProviderConfig(id: "or", name: "OpenRouter", type: .openrouter),
+            apiKey: "test-key",
+            networkManager: NetworkManager(configuration: .ephemeral)
+        )
+
+        let prompt = try await adapter.videoGenerationPrompt(
+            from: [
+                Message(role: .user, content: [.text(" older prompt ")]),
+                Message(role: .assistant, content: [.text(" ignored ")]),
+                Message(role: .user, content: [
+                    .text(" \n\t "),
+                    .text("  Animate this character  "),
+                    .text("\nwith camera movement\n")
+                ])
+            ]
+        )
+
+        XCTAssertEqual(prompt, "Animate this character\n\nwith camera movement")
     }
 
     func testOpenRouterVideoGenerationDropsUnsupportedSeedanceControlsFromRequestBody() async throws {

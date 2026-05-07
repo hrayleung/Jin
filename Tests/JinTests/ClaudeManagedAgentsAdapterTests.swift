@@ -132,6 +132,96 @@ final class ClaudeManagedAgentsAdapterTests: XCTestCase {
         XCTAssertEqual(finalUsage?.cacheCreationTokens, 34)
     }
 
+    func testManagedAgentStreamingDoneClosesOpenMessageWithoutIdleEvent() async throws {
+        let (configuration, protocolType) = makeClaudeManagedAgentsMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "claude-managed",
+            name: "Claude Managed Agents",
+            type: .claudeManagedAgents,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            try assertManagedAgentsBetaRequest(request, expectedPath: url.path)
+
+            switch (request.httpMethod, url.path) {
+            case ("POST", "/v1/sessions"):
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "id": "sess_done"
+                ])
+                return (
+                    HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    payload
+                )
+
+            case ("POST", "/v1/sessions/sess_done/events"):
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "ok": true
+                ])
+                return (
+                    HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    payload
+                )
+
+            case ("GET", "/v1/sessions/sess_done/events/stream"):
+                let sse = """
+                data: {"type":"agent.message","id":"msg_done","text":"Partial response"}
+
+                data: [DONE]
+
+                """
+                return (
+                    HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "text/event-stream"])!,
+                    Data(sse.utf8)
+                )
+
+            default:
+                throw URLError(.badServerResponse)
+            }
+        }
+
+        let adapter = ClaudeManagedAgentsAdapter(
+            providerConfig: providerConfig,
+            apiKey: "test-key",
+            networkManager: networkManager
+        )
+
+        var controls = GenerationControls()
+        controls.claudeManagedAgentID = "agent_123"
+        controls.claudeManagedEnvironmentID = "env_456"
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("Continue")])],
+            modelID: "claude-sonnet-4-6",
+            controls: controls,
+            tools: [],
+            streaming: true
+        )
+
+        var didEndMessage = false
+        var textDeltas: [String] = []
+
+        for try await event in stream {
+            switch event {
+            case .contentDelta(.text(let text)):
+                textDeltas.append(text)
+            case .messageEnd:
+                didEndMessage = true
+            default:
+                break
+            }
+        }
+
+        XCTAssertEqual(textDeltas, ["Partial response"])
+        XCTAssertTrue(didEndMessage)
+    }
+
     func testManagedAgentCatalogRequestsUseManagedAgentsBetaRequestShape() async throws {
         let (configuration, protocolType) = makeClaudeManagedAgentsMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

@@ -43,4 +43,10 @@ final class AppPreferencesPluginDefaultsTests: XCTestCase {
             defaults: defaults
         ))
     }
+
+    func testDecodeStringArrayJSONTrimsInputAndDropsBlankOrInvalidValues() {
+        XCTAssertEqual(AppPreferences.decodeStringArrayJSON(" \n [\"alpha\",\"beta\"] \t "), ["alpha", "beta"])
+        XCTAssertEqual(AppPreferences.decodeStringArrayJSON(" \n\t "), [])
+        XCTAssertEqual(AppPreferences.decodeStringArrayJSON("not-json"), [])
+    }
 }

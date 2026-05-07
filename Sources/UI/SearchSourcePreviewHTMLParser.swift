@@ -48,29 +48,31 @@ enum SearchSourcePreviewHTMLParser {
     }
 
     static func extractPreview(from html: String) -> String? {
-        let metaValues = metaContentValues(in: html)
+        previewCandidates(in: html).max(by: { candidateScore($0) < candidateScore($1) })?.text
+    }
+
+    private static func previewCandidates(in html: String) -> [Candidate] {
         let sanitizedHTML = sanitizeHTML(html)
-        var candidates: [Candidate] = []
+        return metaCandidates(from: metaContentValues(in: html))
+            + fallbackCandidates(in: html, sanitizedHTML: sanitizedHTML)
+    }
 
-        for (index, key) in preferredMetaKeys.enumerated() {
-            if let value = metaValues[key] {
-                candidates.append(Candidate(text: value, source: .meta(index: index)))
-            }
+    private static func metaCandidates(from values: [String: String]) -> [Candidate] {
+        preferredMetaKeys.enumerated().compactMap { index, key in
+            values[key].map { Candidate(text: $0, source: .meta(index: index)) }
         }
+    }
 
-        if let jsonLD = jsonLDDescription(in: html) {
-            candidates.append(Candidate(text: jsonLD, source: .jsonLD))
-        }
+    private static func fallbackCandidates(in html: String, sanitizedHTML: String) -> [Candidate] {
+        [
+            candidate(text: jsonLDDescription(in: html), source: .jsonLD),
+            candidate(text: firstTagText(using: paragraphRegex, in: sanitizedHTML), source: .paragraph),
+            candidate(text: firstTagText(using: titleRegex, in: sanitizedHTML), source: .title)
+        ].compactMap { $0 }
+    }
 
-        if let firstParagraph = firstTagText(using: paragraphRegex, in: sanitizedHTML) {
-            candidates.append(Candidate(text: firstParagraph, source: .paragraph))
-        }
-
-        if let title = firstTagText(using: titleRegex, in: sanitizedHTML) {
-            candidates.append(Candidate(text: title, source: .title))
-        }
-
-        return candidates.max(by: { candidateScore($0) < candidateScore($1) })?.text
+    private static func candidate(text: String?, source: CandidateSource) -> Candidate? {
+        text.map { Candidate(text: $0, source: source) }
     }
 
     private static func sanitizeHTML(_ html: String) -> String {
@@ -102,8 +104,8 @@ enum SearchSourcePreviewHTMLParser {
 
         for match in matches where match.numberOfRanges > 2 {
             let rawJSON = nsHTML.substring(with: match.range(at: 2))
-            let decodedJSON = decodeHTMLEntities(rawJSON).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !decodedJSON.isEmpty, let data = decodedJSON.data(using: .utf8) else { continue }
+            guard let decodedJSON = decodeHTMLEntities(rawJSON).trimmedNonEmpty,
+                  let data = decodedJSON.data(using: .utf8) else { continue }
             guard let object = try? JSONSerialization.jsonObject(with: data) else { continue }
 
             if let description = firstStringValue(forKeys: ["description", "headline"], in: object),
@@ -177,7 +179,7 @@ enum SearchSourcePreviewHTMLParser {
         let decoded = decodeHTMLEntities(withoutTags)
         let collapsed = decoded
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmed
 
         guard !collapsed.isEmpty else { return nil }
         if collapsed.count <= maxPreviewLength {

@@ -126,7 +126,6 @@ enum ChatContextUsageEstimator {
     }
 
     private static func normalizedSystemPrompt(_ systemPrompt: String?) -> String? {
-        let trimmed = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed?.isEmpty == false ? trimmed : nil
+        systemPrompt?.trimmedNonEmpty
     }
 }

@@ -70,8 +70,7 @@ enum GoogleGroundingSearchActivities {
 
         let orderedQueries = mergedGroundingQueries(from: grounding)
         for (index, query) in orderedQueries.enumerated() {
-            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
+            guard let trimmed = query.trimmedNonEmpty else { continue }
             out.append(
                 .searchActivity(
                     SearchActivity(
@@ -96,16 +95,15 @@ enum GoogleGroundingSearchActivities {
             sourceKind: String? = nil,
             mapsPlaceID: String? = nil
         ) {
-            let url = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !url.isEmpty else { return }
+            guard let url = rawURL?.trimmedNonEmpty else { return }
             let dedupeKey = SearchActivityURLDeduplication.key(for: url)
-            let title = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = rawTitle?.trimmedNonEmpty
 
             if case .searchActivity(let existing)? = sourceEventsByURLKey[dedupeKey] {
                 var mergedArguments = existing.arguments
                 var didChange = false
 
-                if let title, !title.isEmpty, mergedArguments["title"]?.value as? String == nil {
+                if let title, mergedArguments["title"]?.value as? String == nil {
                     mergedArguments["title"] = AnyCodable(title)
                     didChange = true
                 }
@@ -140,7 +138,7 @@ enum GoogleGroundingSearchActivities {
             }
 
             var args: [String: AnyCodable] = ["url": AnyCodable(url)]
-            if let title, !title.isEmpty {
+            if let title {
                 args["title"] = AnyCodable(title)
             }
             if let sourceKind, !sourceKind.isEmpty {
@@ -198,7 +196,7 @@ enum GoogleGroundingSearchActivities {
         var out: [String] = []
 
         for query in (grounding.webSearchQueries ?? []) + (grounding.retrievalQueries ?? []) {
-            let key = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let key = query.trimmedLowercased
             guard !key.isEmpty, !seen.contains(key) else { continue }
             seen.insert(key)
             out.append(query)
@@ -209,8 +207,7 @@ enum GoogleGroundingSearchActivities {
 
     private static func activityID(prefix: String, value: String, index: Int) -> String {
         let normalized = value
-            .lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmedLowercased
             .replacingOccurrences(of: " ", with: "_")
             .replacingOccurrences(of: "/", with: "_")
         let suffix = String(normalized.prefix(80))

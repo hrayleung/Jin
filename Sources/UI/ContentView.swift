@@ -4,26 +4,6 @@ import SwiftData
 import AppKit
 #endif
 
-enum AssistantSidebarLayout: String {
-    case list
-    case grid
-    case dropdown
-}
-
-enum AssistantSidebarSort: String, CaseIterable {
-    case custom
-    case name
-    case recent
-
-    var label: String {
-        switch self {
-        case .custom: return "Custom"
-        case .name: return "Name"
-        case .recent: return "Recent"
-        }
-    }
-}
-
 struct ContentView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var streamingStore: ConversationStreamingStore
@@ -75,10 +55,6 @@ struct ContentView: View {
     @FocusState var isSidebarSearchFieldFocused: Bool
     let conversationTitleGenerator = ConversationTitleGenerator()
 
-    private var sidebarSearchFieldIsActive: Bool {
-        isSidebarSearchFieldFocused || !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     private var resolvedSidebarWidth: CGFloat {
         if let sidebarLiveResizeWidth {
             return SidebarWidthPersistence.clamped(sidebarLiveResizeWidth)
@@ -92,67 +68,10 @@ struct ContentView: View {
     }
 
     var body: some View {
-        rootSplitView
-            .mainWindowToolbarChromeCompat(chromeLayout: $mainWindowChromeLayout)
-            .task {
-                bootstrapDefaultProvidersIfNeeded()
-                bootstrapDefaultAssistantsIfNeeded()
-                await updateManager.checkForUpdatesOnLaunchIfNeeded()
-            }
-            .sheet(isPresented: $isAssistantInspectorPresented) {
-                if let selectedAssistant {
-                    AssistantInspectorView(assistant: selectedAssistant)
-                }
-            }
-            .confirmationDialog(
-                "Delete assistant?",
-                isPresented: $showingDeleteAssistantConfirmation,
-                presenting: assistantPendingDeletion
-            ) { assistant in
-                Button("Delete", role: .destructive) { deleteAssistant(assistant) }
-            } message: { assistant in
-                Text("This will permanently delete \u{201C}\(assistant.displayName)\u{201D} and all of its chats.")
-            }
-            .confirmationDialog(
-                "Delete chat?",
-                isPresented: $showingDeleteConversationConfirmation,
-                presenting: conversationPendingDeletion
-            ) { conversation in
-                Button("Delete", role: .destructive) { deleteConversation(conversation) }
-            } message: { conversation in
-                Text("This will permanently delete \u{201C}\(conversation.title)\u{201D}.")
-            }
-            .alert("Rename Chat", isPresented: $showingRenameConversationAlert, presenting: conversationPendingRename) { _ in
-                TextField("Chat title", text: $renameConversationDraftTitle)
-                Button("Cancel", role: .cancel) { conversationPendingRename = nil }
-                Button("Save") { applyManualConversationRename() }
-                    .disabled(renameConversationDraftTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            } message: { _ in
-                Text("Enter a new title for this chat.")
-            }
-            .alert("Title Regeneration Failed", isPresented: $showingTitleRegenerationError) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(titleRegenerationErrorMessage)
-            }
-            .focusedSceneValue(
-                \.workspaceActions,
-                WorkspaceFocusedActions(
-                    isSidebarVisible: isSidebarVisible,
-                    canRenameSelectedChat: selectedConversation != nil,
-                    canToggleSelectedChatStar: selectedConversation != nil,
-                    canDeleteSelectedChat: selectedConversation != nil,
-                    selectedChatIsStarred: selectedConversation?.isStarred == true,
-                    toggleSidebar: toggleSidebarVisibility,
-                    focusChatSearch: focusChatSearch,
-                    createNewChat: createNewConversation,
-                    createAssistant: createAssistant,
-                    openAssistantSettings: openAssistantSettings,
-                    renameSelectedChat: requestRenameSelectedConversation,
-                    toggleSelectedChatStar: toggleSelectedConversationStar,
-                    deleteSelectedChat: requestDeleteSelectedConversation
-                )
-            )
+        contentPresentations(
+            rootSplitView
+                .mainWindowToolbarChromeCompat(chromeLayout: $mainWindowChromeLayout)
+        )
     }
 
     private var rootSplitView: some View {
@@ -177,54 +96,30 @@ struct ContentView: View {
     }
 
     private var sidebarOverlayPane: some View {
-        ZStack(alignment: .trailing) {
+        ContentViewSidebarOverlayPane(
+            width: resolvedSidebarWidth,
+            isVisible: isSidebarVisible,
+            onResizeChanged: updateSidebarResize,
+            onResizeEnded: persistSidebarResize
+        ) {
             sidebarPane
-                .frame(
-                    minWidth: resolvedSidebarWidth,
-                    idealWidth: resolvedSidebarWidth,
-                    maxWidth: resolvedSidebarWidth,
-                    maxHeight: .infinity
-                )
-                .clipped()
-                .shadow(color: .black.opacity(isSidebarVisible ? 0.12 : 0), radius: 14, x: 4, y: 0)
-
-            sidebarResizeHandle
-                .offset(x: 4)
-                .opacity(isSidebarVisible ? 1 : 0)
         }
-        .frame(
-            minWidth: resolvedSidebarWidth,
-            idealWidth: resolvedSidebarWidth,
-            maxWidth: resolvedSidebarWidth,
-            maxHeight: .infinity
-        )
-        .offset(x: isSidebarVisible ? 0 : -resolvedSidebarWidth)
-        .allowsHitTesting(isSidebarVisible)
-        .zIndex(2)
     }
 
-    private var sidebarResizeHandle: some View {
-        Rectangle()
-            .fill(Color.clear)
-            .frame(width: 8)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        let startWidth = sidebarResizeStartWidth ?? resolvedSidebarWidth
-                        sidebarResizeStartWidth = startWidth
-                        let nextWidth = SidebarWidthPersistence.clamped(startWidth + value.translation.width)
-                        guard abs(nextWidth - resolvedSidebarWidth) > 0.5 else { return }
-                        sidebarLiveResizeWidth = nextWidth
-                    }
-                    .onEnded { _ in
-                        if let sidebarLiveResizeWidth {
-                            persistedSidebarWidth = Double(sidebarLiveResizeWidth)
-                        }
-                        sidebarResizeStartWidth = nil
-                        sidebarLiveResizeWidth = nil
-                    }
-            )
+    private func updateSidebarResize(translationWidth: CGFloat) {
+        let startWidth = sidebarResizeStartWidth ?? resolvedSidebarWidth
+        sidebarResizeStartWidth = startWidth
+        let nextWidth = SidebarWidthPersistence.clamped(startWidth + translationWidth)
+        guard abs(nextWidth - resolvedSidebarWidth) > 0.5 else { return }
+        sidebarLiveResizeWidth = nextWidth
+    }
+
+    private func persistSidebarResize() {
+        if let sidebarLiveResizeWidth {
+            persistedSidebarWidth = Double(sidebarLiveResizeWidth)
+        }
+        sidebarResizeStartWidth = nil
+        sidebarLiveResizeWidth = nil
     }
 
     private var sidebarContent: some View {
@@ -247,70 +142,17 @@ struct ContentView: View {
     }
 
     private var sidebarPinnedChrome: some View {
-        VStack(spacing: 0) {
-            SidebarHeaderView(
-                assistantDisplayName: selectedAssistant?.displayName ?? "Default",
-                extendsContentIntoTitlebar: mainWindowChromeLayout.extendsContentIntoTitlebar,
-                titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset,
-                titlebarTopInset: mainWindowChromeLayout.titlebarTopInset,
-                onNewChat: createNewConversation,
-                onHideSidebar: toggleSidebarVisibility,
-                shortcutsStore: shortcutsStore
-            )
-
-            sidebarSearchField
-        }
-        .padding(.bottom, JinSpacing.small)
-        .background(JinSemanticColor.sidebarSurface)
-        .overlay(alignment: .bottom) {
-            LinearGradient(
-                colors: [
-                    JinSemanticColor.separator.opacity(0.08),
-                    .clear
-                ],
-                startPoint: .bottom,
-                endPoint: .top
-            )
-            .frame(height: 10)
-            .allowsHitTesting(false)
-        }
-    }
-
-    private var sidebarSearchField: some View {
-        HStack(spacing: JinSpacing.xSmall) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            TextField(text: $searchText, prompt: Text("Search chats")) {
-                EmptyView()
-            }
-            .textFieldStyle(.plain)
-            .font(.system(size: 15))
-            .focused($isSidebarSearchFieldFocused)
-            .accessibilityLabel("Search chats")
-        }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small + 2)
-        .background(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(
-                    sidebarSearchFieldIsActive
-                        ? JinSemanticColor.surface
-                        : JinSemanticColor.surface.opacity(0.9)
-                )
+        ContentViewSidebarPinnedChromeView(
+            assistantDisplayName: selectedAssistant?.displayName ?? "Default",
+            extendsContentIntoTitlebar: mainWindowChromeLayout.extendsContentIntoTitlebar,
+            titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset,
+            titlebarTopInset: mainWindowChromeLayout.titlebarTopInset,
+            shortcutsStore: shortcutsStore,
+            onNewChat: createNewConversation,
+            onHideSidebar: toggleSidebarVisibility,
+            searchText: $searchText,
+            searchFieldFocus: $isSidebarSearchFieldFocused
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(
-                    sidebarSearchFieldIsActive
-                        ? JinSemanticColor.separator.opacity(0.28)
-                        : JinSemanticColor.separator.opacity(0.16),
-                    lineWidth: JinStrokeWidth.hairline
-                )
-        }
-        .padding(.horizontal, JinSpacing.medium)
-        .animation(.easeInOut(duration: 0.12), value: sidebarSearchFieldIsActive)
     }
 
     // MARK: - Detail
@@ -335,8 +177,20 @@ struct ContentView: View {
                 .environmentObject(ttsPlaybackManager)
             } else {
                 VStack(spacing: 0) {
-                    emptyDetailHeaderBar
-                    noConversationSelectedView
+                    ContentViewEmptyDetailHeaderView(
+                        isSidebarVisible: isSidebarVisible,
+                        leadingPadding: detailHeaderLeadingPadding,
+                        assistantSettingsShortcut: shortcutsStore.keyboardShortcut(for: .openAssistantSettings),
+                        onToggleSidebar: toggleSidebarVisibility,
+                        onNewChat: createNewConversation,
+                        onOpenAssistantSettings: openAssistantSettings
+                    )
+                    ContentViewEmptyDetailView(
+                        sidebarWidth: sidebarWidthForDetailLayout,
+                        isSidebarHidden: !isSidebarVisible,
+                        compensationRatio: sidebarCompensationRatio,
+                        onNewChat: createNewConversation
+                    )
                 }
                     .background(JinSemanticColor.detailSurface)
             }
@@ -356,75 +210,12 @@ struct ContentView: View {
             .allowsHitTesting(false)
         }
         .overlay(alignment: .top) {
-            if miniPlayerEnabled,
-               ttsPlaybackManager.state != .idle,
-               let ctx = ttsPlaybackManager.playbackContext {
-                TTSMiniPlayerView(
-                    manager: ttsPlaybackManager,
-                    onNavigate: ctx.conversationID == selectedConversation?.id
-                        ? nil
-                        : { conversationID in
-                            if let conv = conversations.first(where: { $0.id == conversationID }) {
-                                selectConversation(conv)
-                            }
-                        }
-                )
-                .frame(width: TTSMiniPlayerMetrics.width, height: TTSMiniPlayerMetrics.height)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, TTSMiniPlayerMetrics.topOffset)
-                .transition(
-                    .asymmetric(
-                        insertion: .scale(scale: 0.92, anchor: .top)
-                            .combined(with: .opacity)
-                            .combined(with: .offset(y: -8)),
-                        removal: .scale(scale: 0.96, anchor: .top)
-                            .combined(with: .opacity)
-                    )
-                )
-                .zIndex(1)
-            }
-        }
-        .animation(.spring(response: 0.4, dampingFraction: 0.82), value: miniPlayerEnabled && ttsPlaybackManager.state != .idle)
-    }
-
-    private var emptyDetailHeaderBar: some View {
-        HStack(spacing: JinSpacing.small) {
-            if !isSidebarVisible {
-                Button(action: toggleSidebarVisibility) {
-                    Image(systemName: "sidebar.leading")
-                        .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-                }
-                .buttonStyle(JinIconButtonStyle(showBackground: false))
-                .help("Show Sidebar")
-
-                Button(action: createNewConversation) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-                }
-                .buttonStyle(JinIconButtonStyle(showBackground: false))
-                .help("New Chat")
-            }
-
-            Spacer(minLength: 0)
-
-            Button(action: openAssistantSettings) {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-            }
-            .buttonStyle(JinIconButtonStyle())
-            .help("Assistant Settings")
-            .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .openAssistantSettings))
-        }
-        .padding(.leading, detailHeaderLeadingPadding)
-        .padding(.trailing, JinSpacing.medium)
-        .padding(.top, JinSpacing.small)
-        .padding(.bottom, JinSpacing.small)
-        .frame(minHeight: 38)
-        .background(JinSemanticColor.detailSurface)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.45))
-                .frame(height: JinStrokeWidth.hairline)
+            ContentViewTTSMiniPlayerOverlay(
+                manager: ttsPlaybackManager,
+                isEnabled: miniPlayerEnabled,
+                selectedConversationID: selectedConversation?.id,
+                onNavigate: navigateToConversation
+            )
         }
     }
 
@@ -462,49 +253,12 @@ struct ContentView: View {
         isAssistantInspectorPresented = true
     }
 
-    // MARK: - Empty State
-
-    private var noConversationSelectedView: some View {
-        GeometryReader { geometry in
-            let visibleWidth = ChatConversationLayoutMetrics.visibleContainerWidth(
-                containerWidth: geometry.size.width,
-                sidebarWidth: sidebarWidthForDetailLayout,
-                isSidebarHidden: !isSidebarVisible
-            )
-            let offset = ChatConversationLayoutMetrics.sidebarCompensationOffset(
-                sidebarWidth: sidebarWidthForDetailLayout,
-                isSidebarHidden: !isSidebarVisible,
-                compensationRatio: sidebarCompensationRatio
-            )
-
-            VStack(spacing: JinSpacing.large) {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundStyle(.tertiary)
-
-                VStack(spacing: JinSpacing.xSmall + 2) {
-                    Text("No Conversation Selected")
-                        .font(.title3)
-                        .fontWeight(.semibold)
-
-                    Text("Pick a conversation from the sidebar, or start a new one.")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                }
-                .multilineTextAlignment(.center)
-
-                Button("New Chat") {
-                    createNewConversation()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            }
-            .padding(.horizontal, JinSpacing.xLarge)
-            .frame(width: visibleWidth, height: geometry.size.height)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .offset(x: offset)
-        }
+    func navigateToConversation(_ conversationID: UUID) {
+        guard let conversation = conversations.first(where: { $0.id == conversationID }) else { return }
+        selectConversation(conversation)
     }
+
+    // MARK: - Empty State
 
     private var sidebarCompensationRatio: CGFloat {
         mainWindowChromeLayout.isFullScreen

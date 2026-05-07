@@ -294,9 +294,7 @@ actor WhisperKitService {
         }
 
         let task: DecodingTask = translateToEnglish ? .translate : .transcribe
-        let lang = language
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .flatMap { $0.isEmpty ? nil : $0 }
+        let lang = language?.trimmedNonEmpty
 
         let options = DecodingOptions(
             task: task,
@@ -311,7 +309,7 @@ actor WhisperKitService {
         )
 
         let text = results.map(\.text).joined(separator: " ")
-        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if text.trimmed.isEmpty {
             throw SpeechExtensionError.whisperKitTranscriptionFailed("No speech detected in recording.")
         }
 

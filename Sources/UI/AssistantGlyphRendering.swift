@@ -3,6 +3,10 @@ import SwiftUI
 
 /// Shared rules for assistant icons: SF Symbol names, emoji / arbitrary glyphs, or placeholders.
 enum AssistantGlyphRendering {
+    static func normalizedGlyph(_ glyph: String?) -> String {
+        glyph?.trimmed ?? ""
+    }
+
     static func isSFSymbolName(_ s: String) -> Bool {
         NSImage(systemSymbolName: s, accessibilityDescription: nil) != nil
     }

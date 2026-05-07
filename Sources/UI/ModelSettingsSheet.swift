@@ -53,24 +53,21 @@ struct ModelSettingsSheet: View {
         NavigationStack {
             Form {
                 Section("Type") {
-                    Picker("Type", selection: $modelType) {
+                    JinSettingsPickerRow("Type", selection: $modelType) {
                         ForEach(ModelType.allCases, id: \.self) { type in
                             Text(type.displayName).tag(type)
                         }
                     }
-                    .pickerStyle(.menu)
                 }
 
                 Section("Token Limits") {
-                    TextField("Context length", text: $contextWindowText)
-                        .textFieldStyle(.roundedBorder)
+                    JinSettingsTextFieldRow("Context length", text: $contextWindowText)
 
-                    TextField("Max output", text: $maxOutputTokensText)
-                        .textFieldStyle(.roundedBorder)
+                    JinSettingsTextFieldRow("Max output", text: $maxOutputTokensText)
                 }
 
                 Section("Capabilities") {
-                    Toggle("Web Search", isOn: $webSearchSupported)
+                    JinSettingsToggleRow("Web Search", isOn: $webSearchSupported)
                     capabilityToggle("Image input", capability: .vision)
                     capabilityToggle("Image output", capability: .imageGeneration)
                     capabilityToggle("Audio input", capability: .audio)
@@ -79,34 +76,32 @@ struct ModelSettingsSheet: View {
                 }
 
                 Section("Reasoning") {
-                    Toggle("Reasoning model (can output thinking)", isOn: $reasoningEnabled)
+                    JinSettingsToggleRow("Reasoning model (can output thinking)", isOn: $reasoningEnabled)
 
                     if reasoningEnabled {
-                        Picker("Reasoning mode", selection: $reasoningType) {
+                        JinSettingsPickerRow("Reasoning mode", selection: $reasoningType) {
                             Text("Reasoning effort").tag(ReasoningConfigType.effort)
                             Text("Reasoning budget").tag(ReasoningConfigType.budget)
                             Text("Toggle only").tag(ReasoningConfigType.toggle)
                         }
 
                         if reasoningType == .effort {
-                            Picker("Default effort", selection: $reasoningEffort) {
+                            JinSettingsPickerRow("Default effort", selection: $reasoningEffort) {
                                 ForEach(availableReasoningEffortLevels, id: \.self) { effort in
                                     Text(effort.displayName).tag(effort)
                                 }
                             }
                         } else if reasoningType == .budget {
-                            TextField("Default budget tokens", text: $reasoningBudgetText)
-                                .textFieldStyle(.roundedBorder)
+                            JinSettingsTextFieldRow("Default budget tokens", text: $reasoningBudgetText)
                         }
 
-                        Toggle("Can disable reasoning", isOn: $reasoningCanDisable)
+                        JinSettingsToggleRow("Can disable reasoning", isOn: $reasoningCanDisable)
                     }
                 }
 
                 if let validationError {
                     Section {
-                        Text(validationError)
-                            .foregroundStyle(.red)
+                        JinSettingsErrorText(text: validationError)
                     }
                 }
             }
@@ -150,7 +145,7 @@ struct ModelSettingsSheet: View {
     }
 
     private func capabilityToggle(_ title: String, capability: ModelCapability) -> some View {
-        Toggle(
+        JinSettingsToggleRow(
             title,
             isOn: Binding(
                 get: { capabilities.contains(capability) },
@@ -173,13 +168,18 @@ struct ModelSettingsSheet: View {
     }
 
     private func save() {
-        guard let contextWindow = parsedPositiveInt(from: contextWindowText) else {
+        guard let contextWindow = ModelSettingsSheetSupport.positiveInteger(from: contextWindowText) else {
             validationError = "Context length must be a positive integer."
             return
         }
 
-        let maxOutputTokens = parsedOptionalPositiveInt(from: maxOutputTokensText)
-        if !maxOutputTokensText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, maxOutputTokens == nil {
+        let maxOutputTokens: Int?
+        switch ModelSettingsSheetSupport.optionalPositiveInteger(from: maxOutputTokensText) {
+        case .empty:
+            maxOutputTokens = nil
+        case .value(let value):
+            maxOutputTokens = value
+        case .invalid:
             validationError = "Max output must be a positive integer."
             return
         }
@@ -213,7 +213,7 @@ struct ModelSettingsSheet: View {
                 )
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: normalizedEffort)
             case .budget:
-                guard let budget = parsedPositiveInt(from: reasoningBudgetText) else {
+                guard let budget = ModelSettingsSheetSupport.positiveInteger(from: reasoningBudgetText) else {
                     validationError = "Reasoning budget must be a positive integer."
                     return
                 }
@@ -287,18 +287,5 @@ struct ModelSettingsSheet: View {
             )
         )
         dismiss()
-    }
-
-    private func parsedPositiveInt(from raw: String) -> Int? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let value = Int(trimmed), value > 0 else { return nil }
-        return value
-    }
-
-    private func parsedOptionalPositiveInt(from raw: String) -> Int? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        guard let value = Int(trimmed), value > 0 else { return nil }
-        return value
     }
 }

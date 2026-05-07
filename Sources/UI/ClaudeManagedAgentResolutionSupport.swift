@@ -16,7 +16,7 @@ enum ClaudeManagedAgentResolutionSupport {
             )
         }
 
-        let trimmedRequestedModelID = requestedModelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedRequestedModelID = requestedModelID.trimmed
 
         if let descriptor = ClaudeManagedAgentRuntime.syntheticThreadDescriptor(
             modelID: trimmedRequestedModelID,

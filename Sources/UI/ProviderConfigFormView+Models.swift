@@ -1,9 +1,13 @@
-import Collections
 import SwiftUI
 
 // MARK: - Model Management
 
 extension ProviderConfigFormView {
+
+    struct FetchedModelsSelectionState: Identifiable {
+        let id = UUID()
+        let models: [ModelInfo]
+    }
 
     func isFullySupportedModel(_ modelID: String) -> Bool {
         guard let providerType else { return false }
@@ -15,37 +19,38 @@ extension ProviderConfigFormView {
     }
 
     var filteredModels: [ModelInfo] {
-        let query = modelSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !query.isEmpty else { return decodedModels }
+        ProviderFormSupport.filteredModels(decodedModels, searchText: modelSearchText)
+    }
 
-        return decodedModels.filter { model in
-            model.name.lowercased().contains(query) || model.id.lowercased().contains(query)
-        }
+    var modelListSummary: ProviderFormSupport.ModelListSummary {
+        ProviderFormSupport.modelListSummary(
+            models: decodedModels,
+            isFullySupported: isFullySupportedModel
+        )
     }
 
     var enabledModelCount: Int {
-        decodedModels.filter(\.isEnabled).count
+        modelListSummary.enabledCount
     }
 
     var fullySupportedModelsCount: Int {
-        decodedModels.filter { isFullySupportedModel($0.id) }.count
+        modelListSummary.fullySupportedCount
     }
 
     var nonFullySupportedModelsCount: Int {
-        decodedModels.count - fullySupportedModelsCount
+        modelListSummary.nonFullySupportedCount
     }
 
     var disabledModelCount: Int {
-        decodedModels.count - enabledModelCount
+        modelListSummary.disabledCount
     }
 
     var canKeepFullySupportedModels: Bool {
-        guard providerType != nil else { return false }
-        return fullySupportedModelsCount > 0 && nonFullySupportedModelsCount > 0
+        modelListSummary.canKeepFullySupportedModels(hasProviderType: providerType != nil)
     }
 
     var canKeepEnabledModels: Bool {
-        enabledModelCount > 0 && disabledModelCount > 0
+        modelListSummary.canKeepEnabledModels
     }
 
     func setModels(_ models: [ModelInfo]) {
@@ -58,9 +63,7 @@ extension ProviderConfigFormView {
     }
 
     func updateModel(_ updated: ModelInfo) {
-        var models = decodedModels
-        guard let index = models.firstIndex(where: { $0.id == updated.id }) else { return }
-        models[index] = updated
+        guard let models = ProviderFormSupport.modelUpdating(decodedModels, with: updated) else { return }
         setModels(models)
     }
 
@@ -79,34 +82,22 @@ extension ProviderConfigFormView {
     }
 
     func setAllModelsEnabled(_ enabled: Bool) {
-        guard !decodedModels.isEmpty else { return }
-        let models = decodedModels.map { model in
-            ModelInfo(
-                id: model.id,
-                name: model.name,
-                capabilities: model.capabilities,
-                contextWindow: model.contextWindow,
-                maxOutputTokens: model.maxOutputTokens,
-                reasoningConfig: model.reasoningConfig,
-                overrides: model.overrides,
-                catalogMetadata: model.catalogMetadata,
-                isEnabled: enabled
-            )
-        }
+        guard let models = ProviderFormSupport.modelsSettingEnabled(decodedModels, enabled: enabled) else { return }
         setModels(models)
     }
 
     func keepOnlyFullySupportedModels() {
-        guard providerType != nil else { return }
-        let filteredModels = decodedModels.filter { isFullySupportedModel($0.id) }
-        guard !filteredModels.isEmpty else { return }
-        setModels(filteredModels)
+        guard let models = ProviderFormSupport.modelsKeepingOnlyFullySupported(
+            decodedModels,
+            hasProviderType: providerType != nil,
+            isFullySupported: isFullySupportedModel
+        ) else { return }
+        setModels(models)
     }
 
     func keepOnlyEnabledModels() {
-        let filteredModels = decodedModels.filter(\.isEnabled)
-        guard !filteredModels.isEmpty, filteredModels.count < decodedModels.count else { return }
-        setModels(filteredModels)
+        guard let models = ProviderFormSupport.modelsKeepingOnlyEnabled(decodedModels) else { return }
+        setModels(models)
     }
 
     func requestDeleteModel(_ model: ModelInfo) {
@@ -115,31 +106,23 @@ extension ProviderConfigFormView {
     }
 
     func deleteModel(_ model: ModelInfo) {
-        var updatedModels = decodedModels
-        guard let index = updatedModels.firstIndex(where: { $0.id == model.id }) else {
+        guard let models = ProviderFormSupport.modelsDeleting(decodedModels, modelID: model.id) else {
             modelPendingDeletion = nil
             return
         }
-        updatedModels.remove(at: index)
-        setModels(updatedModels)
+        setModels(models)
         modelPendingDeletion = nil
     }
 
     var isFetchModelsDisabled: Bool {
-        guard !isFetchingModels else { return true }
-        switch providerType {
-        case .codexAppServer:
-            return !codexCanUseCurrentAuthenticationMode || codexAuthStatus == .working
-        case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-             .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
-            return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .vertexai:
-            return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .none:
-            return true
-        }
+        ProviderFormSupport.isFetchModelsDisabled(
+            isFetchingModels: isFetchingModels,
+            providerType: providerType,
+            codexCanUseCurrentAuthenticationMode: codexCanUseCurrentAuthenticationMode,
+            codexAuthIsWorking: codexAuthStatus == .working,
+            apiKey: apiKey,
+            serviceAccountJSON: serviceAccountJSON
+        )
     }
 
     func fetchModels() async {
@@ -161,13 +144,7 @@ extension ProviderConfigFormView {
             }
             let adapter = try await providerManager.createAdapter(for: config)
             let fetched = try await adapter.fetchAvailableModels()
-            var seenIDs = OrderedSet<String>()
-            let deduplicated = fetched.filter { model in
-                guard !seenIDs.contains(model.id) else { return false }
-                seenIDs.append(model.id)
-                return true
-            }
-            let sorted = deduplicated.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            let sorted = ProviderFormSupport.normalizedFetchedModels(fetched)
             await MainActor.run {
                 if sorted.isEmpty {
                     fetchedModelsForSelection = nil
@@ -185,61 +162,11 @@ extension ProviderConfigFormView {
     /// existing models that appeared in the fetch, regardless of selection.
     /// User overrides and enabled state are always preserved.
     func addSelectedAndRefreshExisting(selected: [ModelInfo], allFetched: [ModelInfo]) -> [ModelInfo] {
-        let existingByID = decodedModels.reduce(into: [String: ModelInfo]()) { $0[$1.id] = $1 }
-        let fetchedByID = allFetched.reduce(into: [String: ModelInfo]()) { $0[$1.id] = $1 }
-        var resultByID = existingByID
-
-        func mergedModel(from fetched: ModelInfo, preserving existing: ModelInfo) -> ModelInfo {
-            ModelInfo(
-                id: fetched.id,
-                name: fetched.name,
-                capabilities: fetched.capabilities,
-                contextWindow: fetched.contextWindow,
-                maxOutputTokens: fetched.maxOutputTokens,
-                reasoningConfig: fetched.reasoningConfig,
-                overrides: existing.overrides,
-                catalogMetadata: fetched.catalogMetadata,
-                isEnabled: existing.isEnabled
-            )
-        }
-
-        // Refresh metadata for existing models that appeared in the fetch
-        for (id, fetched) in fetchedByID where existingByID[id] != nil {
-            let existing = existingByID[id]!
-            resultByID[id] = mergedModel(from: fetched, preserving: existing)
-        }
-
-        if providerType == .githubCopilot {
-            for (legacyID, existing) in existingByID where fetchedByID[legacyID] == nil {
-                guard let migrated = ProviderModelAliasResolver.resolvedModel(
-                    for: legacyID,
-                    providerType: .githubCopilot,
-                    availableModels: allFetched
-                ), migrated.id != legacyID else {
-                    continue
-                }
-                resultByID.removeValue(forKey: legacyID)
-                resultByID[migrated.id] = mergedModel(from: migrated, preserving: existing)
-            }
-        }
-
-        // Add newly selected models that don't already exist
-        for model in selected where existingByID[model.id] == nil {
-            resultByID[model.id] = ModelInfo(
-                id: model.id,
-                name: model.name,
-                capabilities: model.capabilities,
-                contextWindow: model.contextWindow,
-                maxOutputTokens: model.maxOutputTokens,
-                reasoningConfig: model.reasoningConfig,
-                overrides: nil,
-                catalogMetadata: model.catalogMetadata,
-                isEnabled: true
-            )
-        }
-
-        return resultByID.values.sorted { lhs, rhs in
-            lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
-        }
+        ProviderFormSupport.modelsAddingSelectedAndRefreshingExisting(
+            existingModels: decodedModels,
+            selectedModels: selected,
+            allFetchedModels: allFetched,
+            providerType: providerType
+        )
     }
 }

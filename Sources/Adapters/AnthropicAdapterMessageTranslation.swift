@@ -50,8 +50,7 @@ extension AnthropicAdapter {
     ) {
         guard let toolResults = message.toolResults else { return }
         for result in toolResults {
-            let trimmed = result.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            let safeContent = trimmed.isEmpty ? "<empty_content>" : result.content
+            let safeContent = result.content.trimmedNonEmpty == nil ? "<empty_content>" : result.content
 
             var block: [String: Any] = [
                 "type": "tool_result",

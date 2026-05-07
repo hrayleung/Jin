@@ -2,31 +2,6 @@ import SwiftUI
 import AppKit
 import Foundation
 
-// MARK: - User Message MCP Badge Row
-
-struct UserMessageMCPBadgeRow: View {
-    let serverNames: [String]
-
-    var body: some View {
-        HStack(spacing: JinSpacing.xSmall) {
-            Image(systemName: "hammer")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            ForEach(serverNames, id: \.self) { name in
-                Text(name)
-                    .font(.caption2.weight(.medium))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        Capsule()
-                            .fill(Color.primary.opacity(0.08))
-                    )
-            }
-        }
-    }
-}
-
 // MARK: - Message Row
 
 struct MessageRow: View {
@@ -62,62 +37,36 @@ struct MessageRow: View {
     let renderMode: MessageRenderMode
     let onExpandCollapsedContent: (UUID) -> Void
     let onActivate: (() -> Void)?
-    @State private var isResponseMetricsPopoverPresented = false
-    @State private var showingDeleteConfirmation = false
-    @State private var pendingDeleteAction: DeleteAction?
-    private enum DeleteAction { case message, response }
 
     var body: some View {
-        let isUser = item.isUser
-        let isAssistant = item.isAssistant
-        let isTool = item.isTool
-        let hidesManagedAgentInternalUI = ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType)
-        let isEditingUserMessage = isUser && editingUserMessageID == item.id
-        let assistantModelLabel = item.assistantModelLabel
-        let copyText = item.copyText
-        let showsCopyButton = (isUser || isAssistant) && !copyText.isEmpty
-        let canEditUserMessage = item.canEditUserMessage
-        let canDeleteResponse = item.canDeleteResponse
-        let sanitizedMaxBubbleWidth = maxBubbleWidth.isFinite && maxBubbleWidth > 0
-            ? maxBubbleWidth
-            : 0
-        let effectiveMaxBubbleWidth: CGFloat = {
-            guard sanitizedMaxBubbleWidth > 0 else { return 0 }
-            if isUser {
-                return ChatConversationLayoutMetrics.userBubbleMaxWidth(for: sanitizedMaxBubbleWidth)
-            }
-            return ChatConversationLayoutMetrics.assistantBubbleMaxWidth(for: sanitizedMaxBubbleWidth)
-        }()
-        let collapsedPreview = item.collapsedPreviewForDisplay(in: renderMode)
-        let visibleToolCalls = hidesManagedAgentInternalUI ? [] : item.visibleToolCalls
-        let visibleCodexToolActivities = hidesManagedAgentInternalUI ? [] : item.codexToolActivities
-        let visibleAgentToolActivities = hidesManagedAgentInternalUI ? [] : item.agentToolActivities
-        let visibleCodeExecutionActivities = hidesManagedAgentInternalUI ? [] : item.codeExecutionActivities
-        let visibleRenderedBlocks = item.renderedBlocks.filter {
-            ManagedAgentUIVisibilitySupport.isVisibleRenderedBlock($0, providerType: providerType)
-        }
-        let hasVisibleAssistantPresentation = collapsedPreview != nil
-            || !item.searchActivities.isEmpty
-            || !visibleCodexToolActivities.isEmpty
-            || !visibleAgentToolActivities.isEmpty
-            || !visibleCodeExecutionActivities.isEmpty
-            || !visibleRenderedBlocks.isEmpty
-            || !visibleToolCalls.isEmpty
+        let presentation = MessageRowPresentationSupport.Presentation(
+            item: item,
+            maxBubbleWidth: maxBubbleWidth,
+            providerType: providerType,
+            renderMode: renderMode,
+            editingUserMessageID: editingUserMessageID
+        )
         Group {
-            if isAssistant && !hasVisibleAssistantPresentation {
+            if !presentation.rendersRow {
                 EmptyView()
             } else {
                 HStack(alignment: .top, spacing: 0) {
-                    if isUser {
+                    if presentation.isUser {
                         Spacer(minLength: 0)
                     }
 
-                    ConstrainedWidth(effectiveMaxBubbleWidth) {
-                        VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
-                            headerView(isUser: isUser, isTool: isTool, assistantModelLabel: assistantModelLabel)
+                    ConstrainedWidth(presentation.effectiveMaxBubbleWidth) {
+                        VStack(alignment: presentation.isUser ? .trailing : .leading, spacing: 6) {
+                            MessageRowHeaderView(
+                                isUser: presentation.isUser,
+                                isTool: presentation.isTool,
+                                assistantDisplayName: assistantDisplayName,
+                                assistantModelLabel: presentation.assistantModelLabel,
+                                providerIconID: item.assistantProviderIconID ?? providerIconID
+                            )
 
                             VStack(alignment: .leading, spacing: 8) {
-                                if isEditingUserMessage {
+                                if presentation.isEditingUserMessage {
                                     if editSlashCommand.isActive {
                                         SlashCommandMCPPopover(
                                             servers: editSlashCommand.servers,
@@ -159,8 +108,8 @@ struct MessageRow: View {
                                     )
                                     .frame(minHeight: 36, maxHeight: 400)
                                 } else {
-                                    if isUser,
-                                       !hidesManagedAgentInternalUI,
+                                    if presentation.isUser,
+                                       !presentation.hidesManagedAgentInternalUI,
                                        !item.perMessageMCPServerNames.isEmpty {
                                         UserMessageMCPBadgeRow(serverNames: item.perMessageMCPServerNames)
                                     }
@@ -170,37 +119,39 @@ struct MessageRow: View {
                                             activities: item.searchActivities,
                                             isStreaming: false,
                                             providerLabel: assistantDisplayName == "Assistant" ? nil : assistantDisplayName,
-                                            modelLabel: assistantModelLabel
+                                            modelLabel: presentation.assistantModelLabel
                                         )
                                     }
 
-                                    if !visibleCodexToolActivities.isEmpty {
+                                    if !presentation.visibleCodexToolActivities.isEmpty {
                                         CodexToolTimelineView(
-                                            activities: visibleCodexToolActivities,
+                                            activities: presentation.visibleCodexToolActivities,
                                             isStreaming: false
                                         )
                                     }
 
-                                    if !visibleAgentToolActivities.isEmpty {
+                                    if !presentation.visibleAgentToolActivities.isEmpty {
                                         AgentToolTimelineView(
-                                            activities: visibleAgentToolActivities,
+                                            activities: presentation.visibleAgentToolActivities,
                                             isStreaming: false
                                         )
                                     }
 
-                                    if !visibleCodeExecutionActivities.isEmpty {
+                                    if !presentation.visibleCodeExecutionActivities.isEmpty {
                                         CodeExecutionTimelineView(
-                                            activities: visibleCodeExecutionActivities,
+                                            activities: presentation.visibleCodeExecutionActivities,
                                             isStreaming: false
                                         )
                                     }
 
-                                    if collapsedPreview != nil {
-                                        collapsedAssistantPreview(preview: collapsedPreview)
-                                    } else if isUser {
+                                    if let collapsedPreview = presentation.collapsedPreview {
+                                        CollapsedAssistantPreviewView(preview: collapsedPreview) {
+                                            onExpandCollapsedContent(item.id)
+                                        }
+                                    } else if presentation.isUser {
                                         userBlocksView(blocks: item.renderedBlocks)
                                     } else {
-                                        ForEach(Array(visibleRenderedBlocks.enumerated()), id: \.offset) { _, block in
+                                        ForEach(Array(presentation.visibleRenderedBlocks.enumerated()), id: \.offset) { _, block in
                                             switch block {
                                             case .content(let anchorID, let part):
                                                 ContentPartView(
@@ -224,9 +175,9 @@ struct MessageRow: View {
                                         }
                                     }
 
-                                    if !visibleToolCalls.isEmpty {
+                                    if !presentation.visibleToolCalls.isEmpty {
                                         MCPToolTimelineView(
-                                            toolCalls: visibleToolCalls,
+                                            toolCalls: presentation.visibleToolCalls,
                                             toolResultsByCallID: toolResultsByCallID,
                                             isStreaming: false
                                         )
@@ -234,54 +185,56 @@ struct MessageRow: View {
                                 }
                             }
                             .padding(JinSpacing.medium)
-                            .jinSurface(bubbleBackground(isUser: isUser, isTool: isTool), cornerRadius: JinRadius.medium)
+                            .jinSurface(
+                                bubbleBackground(
+                                    isUser: presentation.isUser,
+                                    isTool: presentation.isTool
+                                ),
+                                cornerRadius: JinRadius.medium
+                            )
 
-                            if isUser || isAssistant {
-                                footerView(
-                                    isUser: isUser,
-                                    isAssistant: isAssistant,
-                                    isEditingUserMessage: isEditingUserMessage,
-                                    showsCopyButton: showsCopyButton,
-                                    copyText: copyText,
-                                    canEditUserMessage: canEditUserMessage,
-                                    canDeleteResponse: canDeleteResponse,
-                                    responseMetrics: item.responseMetrics
+                            if presentation.isUser || presentation.isAssistant {
+                                MessageRowFooterView(
+                                    itemID: item.id,
+                                    timestamp: item.timestamp,
+                                    isUser: presentation.isUser,
+                                    isAssistant: presentation.isAssistant,
+                                    isEditingUserMessage: presentation.isEditingUserMessage,
+                                    showsCopyButton: presentation.showsCopyButton,
+                                    copyText: presentation.copyText,
+                                    canEditUserMessage: presentation.canEditUserMessage,
+                                    canDeleteResponse: presentation.canDeleteResponse,
+                                    responseMetrics: item.responseMetrics,
+                                    textToSpeechEnabled: textToSpeechEnabled,
+                                    textToSpeechConfigured: textToSpeechConfigured,
+                                    textToSpeechIsGenerating: textToSpeechIsGenerating,
+                                    textToSpeechIsPlaying: textToSpeechIsPlaying,
+                                    textToSpeechIsPaused: textToSpeechIsPaused,
+                                    onToggleSpeakAssistantMessage: onToggleSpeakAssistantMessage,
+                                    onStopSpeakAssistantMessage: onStopSpeakAssistantMessage,
+                                    onRegenerate: onRegenerate,
+                                    onEditUserMessage: onEditUserMessage,
+                                    onDeleteMessage: onDeleteMessage,
+                                    onDeleteResponse: onDeleteResponse,
+                                    onSubmitUserEdit: onSubmitUserEdit,
+                                    onCancelUserEdit: onCancelUserEdit
                                 )
                                 .padding(.top, 2)
                             }
                         }
                     }
-                    .padding(.horizontal, isUser ? 0 : JinSpacing.small)
+                    .padding(.horizontal, presentation.isUser ? 0 : JinSpacing.small)
 
-                    if !isUser {
+                    if !presentation.isUser {
                         Spacer(minLength: 0)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+                .frame(maxWidth: .infinity, alignment: presentation.isUser ? .trailing : .leading)
                 .padding(.vertical, JinSpacing.small)
                 .onTapGesture {
                     onActivate?()
                 }
                 .contentShape(Rectangle())
-                .alert(
-                    pendingDeleteAction == .response ? "Delete response?" : "Delete message?",
-                    isPresented: $showingDeleteConfirmation
-                ) {
-                    Button("Delete", role: .destructive) {
-                        switch pendingDeleteAction {
-                        case .message:
-                            onDeleteMessage(item.id)
-                        case .response:
-                            onDeleteResponse(item.id)
-                        case .none:
-                            break
-                        }
-                        pendingDeleteAction = nil
-                    }
-                    Button("Cancel", role: .cancel) {
-                        pendingDeleteAction = nil
-                    }
-                }
             }
         }
     }
@@ -302,249 +255,12 @@ struct MessageRow: View {
     }
 
     @ViewBuilder
-    private func collapsedAssistantPreview(preview: LightweightMessagePreview?) -> some View {
-        Group {
-            if let preview {
-                VStack(alignment: .leading, spacing: JinSpacing.small) {
-                    HStack(alignment: .top, spacing: JinSpacing.small) {
-                        Image(systemName: preview.containsCode ? "curlybraces.square" : "doc.text")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 18, height: 18)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(preview.headline)
-                                .font(.callout.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .lineLimit(2)
-
-                            if !preview.body.isEmpty {
-                                Text(preview.body)
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(4)
-                                    .multilineTextAlignment(.leading)
-                            }
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-
-                    HStack(spacing: JinSpacing.small) {
-                        if preview.containsCode {
-                            Text("Code")
-                                .jinTagStyle()
-                        }
-
-                        if preview.lineCount > 1 {
-                            Text("\(preview.lineCount) lines")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-
-                        Spacer(minLength: 0)
-
-                        Button("Expand") {
-                            onExpandCollapsedContent(item.id)
-                        }
-                        .buttonStyle(.borderless)
-                        .font(.caption.weight(.semibold))
-                    }
-                }
-                .frame(maxWidth: 420, alignment: .leading)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func headerView(isUser: Bool, isTool: Bool, assistantModelLabel: String?) -> some View {
-        if isUser {
-            EmptyView()
-        } else {
-            HStack(spacing: JinSpacing.small - 2) {
-                if !isTool {
-                    ProviderBadgeIcon(iconID: item.assistantProviderIconID ?? providerIconID)
-                }
-
-                if isTool {
-                    Image(systemName: "hammer")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text("Tool Output")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if assistantDisplayName != "Assistant" {
-                    Text(assistantDisplayName)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-                }
-
-                if !isTool, let label = assistantModelLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
-                    Text(label)
-                        .jinTagStyle()
-                }
-            }
-            .padding(.horizontal, JinSpacing.medium)
-            .padding(.bottom, 2)
-        }
-    }
-
-    @ViewBuilder
-    private func footerView(
-        isUser: Bool,
-        isAssistant: Bool,
-        isEditingUserMessage: Bool,
-        showsCopyButton: Bool,
-        copyText: String,
-        canEditUserMessage: Bool,
-        canDeleteResponse: Bool,
-        responseMetrics: ResponseMetrics?
-    ) -> some View {
-        if isAssistant {
-            HStack(spacing: JinSpacing.small) {
-                if showsCopyButton {
-                    CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
-                        .accessibilityLabel("Copy message")
-                }
-
-                if let responseMetrics {
-                    actionIconButton(systemName: "gauge", helpText: "Response metrics") {
-                        isResponseMetricsPopoverPresented.toggle()
-                    }
-                    .popover(isPresented: $isResponseMetricsPopoverPresented, arrowEdge: .top) {
-                        ResponseMetricsPopover(metrics: responseMetrics)
-                    }
-                }
-
-                if textToSpeechEnabled {
-                    Button {
-                        onToggleSpeakAssistantMessage(item.id, copyText)
-                    } label: {
-                        if textToSpeechIsGenerating {
-                            ProgressView()
-                                .controlSize(.small)
-                                .frame(width: 14, height: 14)
-                        } else {
-                            Image(systemName: textToSpeechPrimarySystemName)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 14, height: 14)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .help(textToSpeechHelpText)
-                    .disabled(copyText.isEmpty || !textToSpeechConfigured)
-
-                    if textToSpeechIsActive {
-                        actionIconButton(systemName: "stop.circle", helpText: textToSpeechStopHelpText) {
-                            onStopSpeakAssistantMessage(item.id)
-                        }
-                    }
-                }
-
-                actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
-                    onRegenerate(item.id)
-                }
-
-                Menu {
-                    Button(role: .destructive) {
-                        pendingDeleteAction = .message
-                        showingDeleteConfirmation = true
-                    } label: {
-                        deleteActionMenuLabel("Delete message", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .frame(width: 20)
-                .help("More actions")
-
-                Spacer(minLength: 0)
-
-                Text(formattedTimestamp(item.timestamp))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
-        } else if isUser {
-            HStack(spacing: JinSpacing.small) {
-                if isEditingUserMessage {
-                    actionIconButton(systemName: "xmark", helpText: "Cancel editing") {
-                        onCancelUserEdit()
-                    }
-
-                    actionIconButton(systemName: "paperplane", helpText: "Resend") {
-                        onSubmitUserEdit(item.id)
-                    }
-                } else {
-                    Spacer(minLength: 0)
-
-                    if showsCopyButton {
-                        CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
-                            .accessibilityLabel("Copy message")
-                    }
-
-                    actionIconButton(systemName: "arrow.clockwise", helpText: "Regenerate") {
-                        onRegenerate(item.id)
-                    }
-
-                    if canEditUserMessage {
-                        actionIconButton(systemName: "pencil", helpText: "Edit") {
-                            onEditUserMessage(item.id)
-                        }
-                    }
-
-                    Menu {
-                        Button(role: .destructive) {
-                            pendingDeleteAction = .message
-                            showingDeleteConfirmation = true
-                        } label: {
-                            deleteActionMenuLabel("Delete message", systemImage: "trash")
-                        }
-
-                        if canDeleteResponse {
-                            Button(role: .destructive) {
-                                pendingDeleteAction = .response
-                                showingDeleteConfirmation = true
-                            } label: {
-                                deleteActionMenuLabel("Delete response", systemImage: "text.badge.minus")
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 20, height: 20)
-                    }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .frame(width: 20)
-                    .help("More actions")
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
     private func userBlocksView(blocks: [RenderedMessageBlock]) -> some View {
-        let imageBlocks = blocks.compactMap { block -> RenderedContentPart? in
-            if case .content(_, let part) = block, case .image = part { return part }
-            return nil
-        }
-        let nonImageBlocks = blocks.filter { block in
-            if case .content(_, let part) = block, case .image = part { return false }
-            return true
-        }
+        let partition = MessageRowPresentationSupport.UserBlockPartition(blocks: blocks)
 
-        if !imageBlocks.isEmpty {
+        if !partition.imageParts.isEmpty {
             HStack(spacing: JinSpacing.small) {
-                ForEach(Array(imageBlocks.enumerated()), id: \.offset) { _, part in
+                ForEach(Array(partition.imageParts.enumerated()), id: \.offset) { _, part in
                     ContentPartView(
                         part: part,
                         isUser: true,
@@ -555,7 +271,7 @@ struct MessageRow: View {
             }
         }
 
-        ForEach(Array(nonImageBlocks.enumerated()), id: \.offset) { _, block in
+        ForEach(Array(partition.remainingBlocks.enumerated()), id: \.offset) { _, block in
             switch block {
             case .content(_, let part):
                 ContentPartView(
@@ -572,92 +288,9 @@ struct MessageRow: View {
         }
     }
 
-    private func actionIconButton(systemName: String, helpText: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 20, height: 20)
-        }
-        .buttonStyle(.plain)
-        .help(helpText)
-    }
-
-    private func deleteActionMenuLabel(_ title: String, systemImage: String) -> some View {
-        Label {
-            Text(title)
-        } icon: {
-            Image(systemName: systemImage)
-                .frame(width: 14, alignment: .center)
-        }
-    }
-
-    private var textToSpeechIsActive: Bool {
-        textToSpeechIsGenerating || textToSpeechIsPlaying || textToSpeechIsPaused
-    }
-
-    private var textToSpeechPrimarySystemName: String {
-        if textToSpeechIsPlaying {
-            return "pause.circle"
-        }
-        if textToSpeechIsPaused {
-            return "play.circle"
-        }
-        return "speaker.wave.2"
-    }
-
-    private var textToSpeechHelpText: String {
-        if !textToSpeechConfigured {
-            return "Configure Text to Speech in Settings → Plugins → Text to Speech"
-        }
-        if textToSpeechIsGenerating {
-            return "Generating speech..."
-        }
-        if textToSpeechIsPlaying {
-            return "Pause playback"
-        }
-        if textToSpeechIsPaused {
-            return "Resume playback"
-        }
-        return "Speak"
-    }
-
-    private var textToSpeechStopHelpText: String {
-        if textToSpeechIsGenerating {
-            return "Stop generating speech"
-        }
-        return "Stop playback"
-    }
-
-    private func formattedTimestamp(_ timestamp: Date) -> String {
-        let calendar = Calendar.current
-        let time = timestamp.formatted(date: .omitted, time: .shortened)
-
-        if calendar.isDateInToday(timestamp) {
-            return time
-        }
-        if calendar.isDateInYesterday(timestamp) {
-            return "Yesterday \(time)"
-        }
-
-        let day = timestamp.formatted(.dateTime.month(.abbreviated).day().year())
-        return "\(day) \(time)"
-    }
-
     private func bubbleBackground(isUser: Bool, isTool: Bool) -> JinSurfaceVariant {
         if isTool { return .tool }
         if isUser { return .accent }
         return .neutral
-    }
-}
-
-// MARK: - Provider Badge Icon
-
-struct ProviderBadgeIcon: View {
-    let iconID: String?
-
-    var body: some View {
-        ProviderIconView(iconID: iconID, fallbackSystemName: "network", size: 14)
-            .frame(width: 14, height: 14)
     }
 }

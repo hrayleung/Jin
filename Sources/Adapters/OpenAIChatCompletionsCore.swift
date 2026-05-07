@@ -1,4 +1,3 @@
-import Collections
 import Foundation
 
 enum OpenAIChatCompletionsReasoningField {
@@ -28,8 +27,13 @@ enum OpenAIChatCompletionsCore {
             continuation.yield(.messageStart(id: response.id))
 
             for choice in response.choices {
-                let explicitReasoning = messageReasoning(choice.message, field: reasoningField)
-                    ?? responseChoiceReasoning(choice, field: reasoningField)
+                let explicitReasoning = OpenAIChatCompletionsReasoningSupport.messageReasoning(
+                    choice.message,
+                    field: reasoningField
+                ) ?? OpenAIChatCompletionsReasoningSupport.responseChoiceReasoning(
+                    choice,
+                    field: reasoningField
+                )
                 if let reasoning = explicitReasoning {
                     continuation.yield(.thinkingDelta(.thinking(textDelta: reasoning, signature: nil)))
                 }
@@ -39,7 +43,7 @@ enum OpenAIChatCompletionsCore {
                 }
 
                 if let rawContent = normalized(choice.message.content?.text) {
-                    let split = ThinkTagStreamSplitter.splitNonStreaming(rawContent)
+                    let split = OpenAIChatCompletionsThinkTagSplitter.splitNonStreaming(rawContent)
                     if explicitReasoning == nil, let thinking = normalized(split.thinking) {
                         continuation.yield(.thinkingDelta(.thinking(textDelta: thinking, signature: nil)))
                     }
@@ -48,7 +52,7 @@ enum OpenAIChatCompletionsCore {
                     }
                 }
 
-                for image in imageOutputs(choice.message.images) {
+                for image in OpenAIChatCompletionsImageSupport.imageOutputs(choice.message.images) {
                     continuation.yield(.contentDelta(.image(image)))
                 }
 
@@ -63,7 +67,10 @@ enum OpenAIChatCompletionsCore {
                 }
             }
 
-            if let sources = sourcesMarkdown(citations: response.citations, searchResults: response.searchResults) {
+            if let sources = OpenAIChatCompletionsSourceSupport.sourcesMarkdown(
+                citations: response.citations,
+                searchResults: response.searchResults
+            ) {
                 continuation.yield(.contentDelta(.text(sources)))
             }
 
@@ -85,7 +92,7 @@ enum OpenAIChatCompletionsCore {
                     var pendingCitations: [String]?
                     var pendingSearchResults: [OpenAIChatCompletionsSearchResult]?
                     var toolCallsByIndex: [Int: OpenAIChatCompletionsToolCallState] = [:]
-                    var thinkSplitter = ThinkTagStreamSplitter()
+                    var thinkSplitter = OpenAIChatCompletionsThinkTagSplitter()
                     var streamedChoiceReasoningSnapshot = ""
 
                     for try await event in sseStream {
@@ -114,11 +121,17 @@ enum OpenAIChatCompletionsCore {
                             guard let choice = chunk.choices.first else { continue }
 
                             var didEmitExplicitReasoning = false
-                            if let delta = deltaReasoning(choice.delta, field: reasoningField) {
+                            if let delta = OpenAIChatCompletionsReasoningSupport.deltaReasoning(
+                                choice.delta,
+                                field: reasoningField
+                            ) {
                                 continuation.yield(.thinkingDelta(.thinking(textDelta: delta, signature: nil)))
                                 didEmitExplicitReasoning = true
-                            } else if let choiceReasoning = chunkChoiceReasoning(choice, field: reasoningField) {
-                                let incremental = incrementalReasoningDelta(
+                            } else if let choiceReasoning = OpenAIChatCompletionsReasoningSupport.chunkChoiceReasoning(
+                                choice,
+                                field: reasoningField
+                            ) {
+                                let incremental = OpenAIChatCompletionsReasoningSupport.incrementalDelta(
                                     candidate: choiceReasoning,
                                     previousSnapshot: streamedChoiceReasoningSnapshot
                                 )
@@ -144,7 +157,7 @@ enum OpenAIChatCompletionsCore {
                                 }
                             }
 
-                            for image in imageOutputs(choice.delta.images) {
+                            for image in OpenAIChatCompletionsImageSupport.imageOutputs(choice.delta.images) {
                                 continuation.yield(.contentDelta(.image(image)))
                             }
 
@@ -198,7 +211,10 @@ enum OpenAIChatCompletionsCore {
                                 continuation.yield(.contentDelta(.text(remainder.visible)))
                             }
 
-                            if let sources = sourcesMarkdown(citations: pendingCitations, searchResults: pendingSearchResults) {
+                            if let sources = OpenAIChatCompletionsSourceSupport.sourcesMarkdown(
+                                citations: pendingCitations,
+                                searchResults: pendingSearchResults
+                            ) {
                                 continuation.yield(.contentDelta(.text(sources)))
                             }
 
@@ -214,662 +230,9 @@ enum OpenAIChatCompletionsCore {
         }
     }
 
-    /// Extracts reasoning text from any type that carries the standard
-    /// `reasoning` / `reasoningContent` / `reasoningDetails` fields.
-    private static func extractReasoning(
-        reasoning: String?,
-        reasoningContent: String?,
-        reasoningDetails: [[String: AnyCodable]]?,
-        field: OpenAIChatCompletionsReasoningField
-    ) -> String? {
-        switch field {
-        case .reasoning:
-            return normalized(reasoning)
-                ?? reasoningDetailsText(reasoningDetails)
-        case .reasoningContent:
-            return normalized(reasoningContent)
-                ?? reasoningDetailsText(reasoningDetails)
-        case .reasoningOrReasoningContent:
-            return normalized(reasoning)
-                ?? normalized(reasoningContent)
-                ?? reasoningDetailsText(reasoningDetails)
-        }
-    }
-
-    private static func messageReasoning(
-        _ message: OpenAIChatCompletionsResponse.AssistantMessage,
-        field: OpenAIChatCompletionsReasoningField
-    ) -> String? {
-        extractReasoning(
-            reasoning: message.reasoning,
-            reasoningContent: message.reasoningContent,
-            reasoningDetails: message.reasoningDetails,
-            field: field
-        )
-    }
-
-    private static func responseChoiceReasoning(
-        _ choice: OpenAIChatCompletionsResponse.Choice,
-        field: OpenAIChatCompletionsReasoningField
-    ) -> String? {
-        extractReasoning(
-            reasoning: choice.reasoning,
-            reasoningContent: choice.reasoningContent,
-            reasoningDetails: choice.reasoningDetails,
-            field: field
-        )
-    }
-
-    private static func deltaReasoning(
-        _ delta: OpenAIChatCompletionsChunk.Delta,
-        field: OpenAIChatCompletionsReasoningField
-    ) -> String? {
-        extractReasoning(
-            reasoning: delta.reasoning,
-            reasoningContent: delta.reasoningContent,
-            reasoningDetails: delta.reasoningDetails,
-            field: field
-        )
-    }
-
-    private static func chunkChoiceReasoning(
-        _ choice: OpenAIChatCompletionsChunk.Choice,
-        field: OpenAIChatCompletionsReasoningField
-    ) -> String? {
-        extractReasoning(
-            reasoning: choice.reasoning,
-            reasoningContent: choice.reasoningContent,
-            reasoningDetails: choice.reasoningDetails,
-            field: field
-        )
-    }
-
-    private static func incrementalReasoningDelta(candidate: String, previousSnapshot: String) -> String {
-        guard !candidate.isEmpty else { return "" }
-        guard !previousSnapshot.isEmpty else { return candidate }
-
-        if candidate == previousSnapshot {
-            return ""
-        }
-
-        if candidate.hasPrefix(previousSnapshot) {
-            return String(candidate.dropFirst(previousSnapshot.count))
-        }
-
-        return candidate
-    }
-
-    private static func reasoningDetailsText(_ details: [[String: AnyCodable]]?) -> String? {
-        guard let details, !details.isEmpty else { return nil }
-
-        var parts: [String] = []
-        parts.reserveCapacity(details.count)
-
-        func appendCandidate(_ value: Any?) {
-            guard let value else { return }
-
-            if let str = value as? String {
-                if normalized(str) != nil {
-                    parts.append(str)
-                }
-                return
-            }
-
-            if let dict = value as? [String: Any] {
-                appendCandidate(dict["text"])
-                appendCandidate(dict["content"])
-                appendCandidate(dict["reasoning"])
-                appendCandidate(dict["summary"])
-                return
-            }
-
-            if let array = value as? [Any] {
-                for item in array {
-                    appendCandidate(item)
-                }
-            }
-        }
-
-        for detail in details {
-            appendCandidate(detail["text"]?.value)
-            appendCandidate(detail["content"]?.value)
-            appendCandidate(detail["reasoning"]?.value)
-            appendCandidate(detail["summary"]?.value)
-        }
-
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: "\n")
-    }
-
     private static func normalized(_ value: String?) -> String? {
         guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : value
+        return value.trimmedNonEmpty == nil ? nil : value
     }
 
-    private static func imageOutputs(
-        _ payloads: [OpenAIChatCompletionsResponse.GeneratedImage]?
-    ) -> [ImageContent] {
-        guard let payloads, !payloads.isEmpty else { return [] }
-        return payloads.compactMap(imageContent(from:))
-    }
-
-    private static func imageContent(
-        from payload: OpenAIChatCompletionsResponse.GeneratedImage
-    ) -> ImageContent? {
-        guard let rawURL = payload.resolvedImageURL?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !rawURL.isEmpty else { return nil }
-
-        if let parsed = parseDataURL(rawURL) {
-            let mimeType = payload.mimeType ?? parsed.mimeType ?? "image/png"
-            return ImageContent(mimeType: mimeType, data: parsed.data)
-        }
-
-        guard let url = URL(string: rawURL),
-              let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https" else { return nil }
-        let mimeType = payload.mimeType ?? inferImageMIMEType(from: url) ?? "image/png"
-        return ImageContent(mimeType: mimeType, data: nil, url: url, assetDisposition: .managed)
-    }
-
-    private static func parseDataURL(_ value: String) -> (mimeType: String?, data: Data)? {
-        guard value.range(of: "data:", options: [.anchored, .caseInsensitive]) != nil,
-              let commaIndex = value.firstIndex(of: ",") else {
-            return nil
-        }
-
-        let metadataStart = value.index(value.startIndex, offsetBy: 5)
-        let metadata = value[metadataStart..<commaIndex]
-        let payloadStart = value.index(after: commaIndex)
-        let payload = String(value[payloadStart...])
-
-        let metadataParts = metadata
-            .split(separator: ";", omittingEmptySubsequences: false)
-            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-        let mimeType: String?
-        if let firstPart = metadataParts.first,
-           !firstPart.isEmpty,
-           firstPart.contains("/") {
-            mimeType = firstPart
-        } else {
-            mimeType = nil
-        }
-
-        if metadataParts.contains(where: { $0.caseInsensitiveCompare("base64") == .orderedSame }),
-           let data = Data(base64Encoded: payload) {
-            return (mimeType, data)
-        }
-
-        guard let decoded = payload.removingPercentEncoding?.data(using: .utf8) else {
-            return nil
-        }
-        return (mimeType, decoded)
-    }
-
-    private static func inferImageMIMEType(from url: URL) -> String? {
-        switch url.pathExtension.lowercased() {
-        case "jpg", "jpeg":
-            return "image/jpeg"
-        case "png":
-            return "image/png"
-        case "webp":
-            return "image/webp"
-        case "gif":
-            return "image/gif"
-        default:
-            return nil
-        }
-    }
-
-    private static func sourcesMarkdown(
-        citations: [String]?,
-        searchResults: [OpenAIChatCompletionsSearchResult]?
-    ) -> String? {
-        func trimmedNonEmpty(_ value: String?) -> String? {
-            guard let value else { return nil }
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-
-        func escapeMarkdownLinkText(_ value: String) -> String {
-            value
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "[", with: "\\[")
-                .replacingOccurrences(of: "]", with: "\\]")
-        }
-
-        if let searchResults {
-            var seenURLs = OrderedSet<String>()
-            var lines: [String] = ["\n\n---\n\n### Sources"]
-
-            var index = 0
-            for raw in searchResults {
-                guard let url = trimmedNonEmpty(raw.url) else { continue }
-                guard !seenURLs.contains(url) else { continue }
-                seenURLs.append(url)
-
-                index += 1
-
-                let title = trimmedNonEmpty(raw.title) ?? url
-                let titleEscaped = escapeMarkdownLinkText(title)
-                var line = "\(index). [\(titleEscaped)](<\(url)>)"
-
-                if let snippet = trimmedNonEmpty(raw.snippet) {
-                    let oneLine = snippet.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                    line += " — \(oneLine)"
-                }
-
-                lines.append(line)
-            }
-
-            if lines.count > 1 {
-                return lines.joined(separator: "\n")
-            }
-        }
-
-        if let citations {
-            var unique = OrderedSet<String>()
-            unique.reserveCapacity(citations.count)
-            for raw in citations {
-                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { continue }
-                if !unique.contains(trimmed) {
-                    unique.append(trimmed)
-                }
-            }
-
-            guard !unique.isEmpty else { return nil }
-
-            var lines: [String] = ["\n\n---\n\n### Sources"]
-            for (idx, citation) in unique.elements.enumerated() {
-                if citation.lowercased().hasPrefix("http") {
-                    lines.append("\(idx + 1). <\(citation)>")
-                } else {
-                    lines.append("\(idx + 1). \(citation)")
-                }
-            }
-            return lines.joined(separator: "\n")
-        }
-
-        return nil
-    }
-
-    /// Splits leading `<think>...</think>` blocks out of streamed `content` so reasoning models that
-    /// embed thinking inline (instead of using `reasoning` fields) still render correctly.
-    private struct ThinkTagStreamSplitter {
-        private static let startTag = "<think>"
-        private static let endTag = "</think>"
-
-        private var isInThinking = false
-        private var hasEmittedVisibleNonWhitespace = false
-        private var tagBuffer = ""
-
-        mutating func process(_ input: String) -> (visible: String, thinking: String) {
-            if tagBuffer.isEmpty, !input.contains("<") {
-                if isInThinking {
-                    return (visible: "", thinking: input)
-                }
-
-                if !hasEmittedVisibleNonWhitespace,
-                   input.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil {
-                    hasEmittedVisibleNonWhitespace = true
-                }
-                return (visible: input, thinking: "")
-            }
-
-            var visibleOut = ""
-            var thinkingOut = ""
-            visibleOut.reserveCapacity(input.count)
-
-            func appendLiteral(_ ch: Character) {
-                if isInThinking {
-                    thinkingOut.append(ch)
-                } else {
-                    visibleOut.append(ch)
-                    if !hasEmittedVisibleNonWhitespace,
-                       String(ch).rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil {
-                        hasEmittedVisibleNonWhitespace = true
-                    }
-                }
-            }
-
-            func flushTagBufferAsLiteral() {
-                guard !tagBuffer.isEmpty else { return }
-                for ch in tagBuffer {
-                    appendLiteral(ch)
-                }
-                tagBuffer.removeAll(keepingCapacity: true)
-            }
-
-            func isPossibleTagPrefix(_ lower: String) -> Bool {
-                Self.startTag.hasPrefix(lower) || Self.endTag.hasPrefix(lower)
-            }
-
-            for ch in input {
-                if tagBuffer.isEmpty {
-                    if ch == "<" {
-                        tagBuffer.append(ch)
-                        continue
-                    }
-                    appendLiteral(ch)
-                    continue
-                }
-
-                tagBuffer.append(ch)
-                let lower = tagBuffer.lowercased()
-
-                if lower == Self.startTag {
-                    if !isInThinking, !hasEmittedVisibleNonWhitespace {
-                        isInThinking = true
-                        tagBuffer.removeAll(keepingCapacity: true)
-                        continue
-                    }
-                    flushTagBufferAsLiteral()
-                    continue
-                }
-
-                if lower == Self.endTag {
-                    if isInThinking {
-                        isInThinking = false
-                        tagBuffer.removeAll(keepingCapacity: true)
-                        continue
-                    }
-                    flushTagBufferAsLiteral()
-                    continue
-                }
-
-                if isPossibleTagPrefix(lower) {
-                    continue
-                }
-
-                while !tagBuffer.isEmpty {
-                    let currentLower = tagBuffer.lowercased()
-                    if isPossibleTagPrefix(currentLower) {
-                        break
-                    }
-                    let first = tagBuffer.removeFirst()
-                    appendLiteral(first)
-                }
-            }
-
-            return (visibleOut, thinkingOut)
-        }
-
-        mutating func flushRemainder() -> (visible: String, thinking: String) {
-            guard !tagBuffer.isEmpty else { return ("", "") }
-            let remainder = tagBuffer
-            tagBuffer.removeAll(keepingCapacity: true)
-            return isInThinking ? ("", remainder) : (remainder, "")
-        }
-
-        static func splitNonStreaming(_ input: String) -> (visible: String, thinking: String?) {
-            guard input.lowercased().contains("<think>") else {
-                return (input, nil)
-            }
-
-            var splitter = ThinkTagStreamSplitter()
-            let first = splitter.process(input)
-            let remainder = splitter.flushRemainder()
-            let visible = first.visible + remainder.visible
-            let thinkingRaw = first.thinking + remainder.thinking
-            return (visible, thinkingRaw.isEmpty ? nil : thinkingRaw)
-        }
-    }
-}
-
-struct OpenAIModelsResponse: Codable {
-    let data: [Model]
-
-    struct Model: Codable {
-        let id: String
-        let name: String?
-        let contextWindow: Int?
-        let maxTokens: Int?
-        let type: String?
-        let tags: [String]?
-
-        enum CodingKeys: String, CodingKey {
-            case id
-            case name
-            case contextWindow = "context_window"
-            case maxTokens = "max_tokens"
-            case type
-            case tags
-        }
-    }
-}
-
-struct OpenAIChatCompletionsResponse: Decodable {
-    let id: String
-    let choices: [Choice]
-    let usage: UsageInfo?
-    let citations: [String]?
-    let searchResults: [OpenAIChatCompletionsSearchResult]?
-
-    struct Choice: Decodable {
-        let message: AssistantMessage
-        let finishReason: String?
-        let reasoning: String?
-        let reasoningContent: String?
-        let reasoningDetails: [[String: AnyCodable]]?
-    }
-
-    struct AssistantMessage: Decodable {
-        let role: String?
-        let content: OpenAIChatCompletionsContent?
-        let reasoning: String?
-        let reasoningContent: String?
-        let reasoningDetails: [[String: AnyCodable]]?
-        let toolCalls: [ToolCall]?
-        let images: [GeneratedImage]?
-    }
-
-    struct ToolCall: Decodable {
-        let id: String?
-        let type: String?
-        let function: Function?
-
-        struct Function: Decodable {
-            let name: String?
-            let arguments: String?
-        }
-    }
-
-    struct GeneratedImage: Decodable {
-        let type: String?
-        let imageURL: ImageURL?
-        let mimeType: String?
-
-        var resolvedImageURL: String? {
-            imageURL?.url
-        }
-
-        enum CodingKeys: String, CodingKey {
-            case type
-            case imageURL = "imageUrl"
-            case mimeType
-        }
-    }
-
-    struct ImageURL: Decodable {
-        let url: String
-
-        private enum CodingKeys: String, CodingKey {
-            case url
-        }
-
-        init(from decoder: Decoder) throws {
-            let singleValue = try decoder.singleValueContainer()
-            if let raw = try? singleValue.decode(String.self) {
-                url = raw
-                return
-            }
-
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            url = try container.decode(String.self, forKey: .url)
-        }
-    }
-
-    struct UsageInfo: Decodable {
-        let promptTokens: Int?
-        let completionTokens: Int?
-        let totalTokens: Int?
-    }
-
-    func toUsage() -> Usage? {
-        guard let usage else { return nil }
-        guard let input = usage.promptTokens, let output = usage.completionTokens else { return nil }
-        return Usage(inputTokens: input, outputTokens: output)
-    }
-}
-
-struct OpenAIChatCompletionsChunk: Decodable {
-    let id: String?
-    let choices: [Choice]
-    let usage: OpenAIChatCompletionsResponse.UsageInfo?
-    let citations: [String]?
-    let searchResults: [OpenAIChatCompletionsSearchResult]?
-
-    struct Choice: Decodable {
-        let index: Int?
-        let delta: Delta
-        let finishReason: String?
-        let reasoning: String?
-        let reasoningContent: String?
-        let reasoningDetails: [[String: AnyCodable]]?
-    }
-
-    struct Delta: Decodable {
-        let role: String?
-        let content: OpenAIChatCompletionsContent?
-        let reasoning: String?
-        let reasoningContent: String?
-        let reasoningDetails: [[String: AnyCodable]]?
-        let toolCalls: [ToolCallDelta]?
-        let images: [OpenAIChatCompletionsResponse.GeneratedImage]?
-    }
-
-    struct ToolCallDelta: Decodable {
-        let index: Int?
-        let id: String?
-        let type: String?
-        let function: FunctionDelta?
-
-        struct FunctionDelta: Decodable {
-            let name: String?
-            let arguments: String?
-        }
-    }
-
-    func toUsage() -> Usage? {
-        guard let usage else { return nil }
-        guard let input = usage.promptTokens, let output = usage.completionTokens else { return nil }
-        return Usage(inputTokens: input, outputTokens: output)
-    }
-}
-
-struct OpenAIChatCompletionsSearchResult: Codable {
-    let title: String?
-    let url: String?
-    let snippet: String?
-}
-
-struct OpenAIChatCompletionsContent: Decodable {
-    let text: String?
-    let thinking: String?
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-
-        if container.decodeNil() {
-            text = nil
-            thinking = nil
-            return
-        }
-
-        if let raw = try? container.decode(String.self) {
-            text = raw
-            thinking = nil
-            return
-        }
-
-        let chunks = try container.decode([OpenAIChatCompletionsContentChunk].self)
-        var textParts: [String] = []
-        var thinkingParts: [String] = []
-
-        for chunk in chunks {
-            if chunk.isThinkingChunk {
-                if let fragment = chunk.thinkingFragment {
-                    thinkingParts.append(fragment)
-                }
-            } else if let fragment = chunk.visibleTextFragment {
-                textParts.append(fragment)
-            }
-        }
-
-        let joinedText = textParts.joined()
-        let joinedThinking = thinkingParts.joined()
-        text = joinedText.isEmpty ? nil : joinedText
-        thinking = joinedThinking.isEmpty ? nil : joinedThinking
-    }
-}
-
-private struct OpenAIChatCompletionsContentChunk: Decodable {
-    let type: String?
-    let text: String?
-    let content: String?
-    let thinkingText: String?
-    let thinkingChunks: [OpenAIChatCompletionsContentChunk]?
-
-    enum CodingKeys: String, CodingKey {
-        case type
-        case text
-        case content
-        case thinking
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        type = try container.decodeIfPresent(String.self, forKey: .type)
-        text = try container.decodeIfPresent(String.self, forKey: .text)
-        content = try container.decodeIfPresent(String.self, forKey: .content)
-        thinkingText = try? container.decode(String.self, forKey: .thinking)
-        thinkingChunks = try? container.decode([OpenAIChatCompletionsContentChunk].self, forKey: .thinking)
-    }
-
-    var isThinkingChunk: Bool {
-        type?.caseInsensitiveCompare("thinking") == .orderedSame
-    }
-
-    var visibleTextFragment: String? {
-        normalizedContentFragment(text) ?? normalizedContentFragment(content)
-    }
-
-    var thinkingFragment: String? {
-        var parts: [String] = []
-        if let thinkingText = normalizedContentFragment(thinkingText) {
-            parts.append(thinkingText)
-        }
-        if let thinkingChunks {
-            for chunk in thinkingChunks {
-                if let nested = chunk.visibleTextFragment ?? chunk.thinkingFragment {
-                    parts.append(nested)
-                }
-            }
-        }
-        return parts.isEmpty ? nil : parts.joined()
-    }
-}
-
-private func normalizedContentFragment(_ value: String?) -> String? {
-    guard let value else { return nil }
-    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty ? nil : value
-}
-
-struct OpenAIChatCompletionsToolCallState {
-    var callID: String
-    var name: String
-    var argumentsBuffer: String = ""
-    var didEmitStart: Bool = false
 }

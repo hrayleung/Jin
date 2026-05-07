@@ -72,4 +72,24 @@ final class ProviderConfigEntityModelsTests: XCTestCase {
             )
         )
     }
+
+    func testResolvedProviderIconIDTrimsExplicitIconAndFallsBackForBlankIcon() throws {
+        let customProvider = ProviderConfigEntity(
+            id: "custom-icon",
+            name: "Custom Icon",
+            typeRaw: ProviderType.openai.rawValue,
+            iconID: " Anthropic ",
+            modelsData: try JSONEncoder().encode([ModelInfo]())
+        )
+        let defaultProvider = ProviderConfigEntity(
+            id: "default-icon",
+            name: "Default Icon",
+            typeRaw: ProviderType.openai.rawValue,
+            iconID: " \n\t ",
+            modelsData: try JSONEncoder().encode([ModelInfo]())
+        )
+
+        XCTAssertEqual(customProvider.resolvedProviderIconID, "Anthropic")
+        XCTAssertEqual(defaultProvider.resolvedProviderIconID, "OpenAI")
+    }
 }

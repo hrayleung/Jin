@@ -34,7 +34,7 @@ final class NetworkManagerTests: XCTestCase {
                 url: URL(string: "https://example.com/chat")!,
                 statusCode: 200,
                 httpVersion: nil,
-                headerFields: ["Content-Type": "application/json; charset=utf-8"]
+                headerFields: ["Content-Type": "  application/json; charset=utf-8  "]
             )
         )
 

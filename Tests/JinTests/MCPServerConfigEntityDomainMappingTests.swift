@@ -60,4 +60,22 @@ final class MCPServerConfigEntityDomainMappingTests: XCTestCase {
         let decodedEnv = try JSONDecoder().decode([String: String].self, from: entity.envData ?? Data())
         XCTAssertEqual(decodedEnv["FIRECRAWL_API_KEY"], "secret")
     }
+
+    func testTransportSummaryTrimsStdioCommandAndFallsBackForBlankCommand() throws {
+        let transport: MCPTransportConfig = .stdio(
+            MCPStdioTransportConfig(command: " \n npx \t ")
+        )
+        let entity = MCPServerConfigEntity(
+            id: "stdio",
+            name: "Stdio",
+            transportKindRaw: transport.kind.rawValue,
+            transportData: try JSONEncoder().encode(transport),
+            lifecycleRaw: MCPLifecyclePolicy.ephemeral.rawValue
+        )
+
+        XCTAssertEqual(entity.transportSummary, "npx")
+
+        try entity.setTransport(.stdio(MCPStdioTransportConfig(command: " \n\t ")))
+        XCTAssertEqual(entity.transportSummary, "Command-line (stdio)")
+    }
 }

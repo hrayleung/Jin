@@ -9,6 +9,10 @@ enum ChatMessageEditingSupport {
         }.first
     }
 
+    static func normalizedEditedUserText(_ text: String) -> String? {
+        text.trimmedNonEmpty
+    }
+
     static func updateUserMessageContent(_ entity: MessageEntity, newText: String) throws {
         let decoder = JSONDecoder()
         let encoder = JSONEncoder()

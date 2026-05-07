@@ -53,7 +53,7 @@ struct OpenAIImageGenerationControls: Codable {
             && outputCompression == nil
             && moderation == nil
             && inputFidelity == nil
-            && (user?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            && user?.trimmedNonEmpty == nil
     }
 }
 
@@ -67,7 +67,7 @@ struct OpenAIImageSize: RawRepresentable, Codable, Hashable, Sendable {
     let rawValue: String
 
     init(rawValue: String) {
-        self.rawValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        self.rawValue = rawValue.trimmedLowercased
     }
 
     var displayName: String { rawValue }

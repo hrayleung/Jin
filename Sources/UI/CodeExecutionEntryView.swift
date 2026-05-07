@@ -12,21 +12,18 @@ struct CodeExecutionEntryView: View {
     @State private var isRunningPulse = false
 
     private var executionStatus: CodeExecVisualStatus {
-        switch activity.status {
-        case .inProgress, .writingCode, .interpreting:
-            return .running
-        case .completed:
-            return .success
-        case .failed, .incomplete:
-            return .error
-        case .unknown:
-            return .neutral
-        }
+        CodeExecutionEntrySupport.visualStatus(for: activity.status)
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: JinSpacing.small) {
-            timelineRail
+            ToolTimelinePresentationSupport.TerminalTimelineRail(
+                glyph: executionStatus.timelineNodeGlyph,
+                style: visualStyle,
+                showsConnectorAbove: showsConnectorAbove,
+                showsConnectorBelow: showsConnectorBelow,
+                isRunningPulse: isRunningPulse
+            )
 
             VStack(alignment: .leading, spacing: JinSpacing.small) {
                 entryHeader
@@ -42,67 +39,6 @@ struct CodeExecutionEntryView: View {
         }
         .onChange(of: executionStatus) { _, newValue in
             updatePulseAnimation(for: newValue)
-        }
-    }
-
-    // MARK: - Timeline Rail
-
-    @ViewBuilder
-    private var timelineRail: some View {
-        VStack(spacing: 2) {
-            Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.7))
-                .frame(width: JinStrokeWidth.regular, height: 12)
-                .opacity(showsConnectorAbove ? 1 : 0)
-
-            statusNode
-
-            Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.7))
-                .frame(width: JinStrokeWidth.regular, height: 12)
-                .opacity(showsConnectorBelow ? 1 : 0)
-        }
-        .frame(width: 16)
-        .padding(.top, JinSpacing.xSmall)
-    }
-
-    @ViewBuilder
-    private var statusNode: some View {
-        let style = visualStyle
-
-        ZStack {
-            Circle()
-                .fill(style.nodeBackground)
-                .frame(width: 16, height: 16)
-                .overlay(
-                    Circle()
-                        .stroke(style.nodeBorder, lineWidth: 0.75)
-                )
-
-            switch executionStatus {
-            case .running:
-                Circle()
-                    .fill(style.accent)
-                    .frame(width: 6, height: 6)
-                    .scaleEffect(isRunningPulse ? 1.4 : 0.85)
-                    .opacity(isRunningPulse ? 0.35 : 1)
-                    .animation(
-                        .easeInOut(duration: 0.85).repeatForever(autoreverses: true),
-                        value: isRunningPulse
-                    )
-            case .success:
-                Image(systemName: "checkmark")
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(style.accent)
-            case .error:
-                Image(systemName: "xmark")
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(style.accent)
-            case .neutral:
-                Image(systemName: "questionmark")
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(style.accent)
-            }
         }
     }
 
@@ -127,7 +63,7 @@ struct CodeExecutionEntryView: View {
                     .jinTagStyle(
                         foreground: returnCode == 0
                             ? .secondary
-                            : Color(nsColor: .systemOrange).opacity(0.95)
+                            : ToolTimelinePresentationSupport.StatusTone.failure.emphasizedColor
                     )
             }
 
@@ -139,48 +75,16 @@ struct CodeExecutionEntryView: View {
     private var statusPill: some View {
         let style = visualStyle
 
-        HStack(spacing: 6) {
-            if executionStatus == .running {
-                Circle()
-                    .fill(style.accent)
-                    .frame(width: 4.5, height: 4.5)
-            } else {
-                switch executionStatus {
-                case .success:
-                    Image(systemName: "checkmark.circle")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(style.accent)
-                case .error:
-                    Image(systemName: "xmark.circle")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(style.accent)
-                case .neutral:
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(style.accent)
-                case .running:
-                    EmptyView()
-                }
-            }
-
-            Text(statusLabel)
-        }
-        .font(.caption2.weight(.semibold))
-        .foregroundStyle(style.text)
-        .lineLimit(1)
+        ToolTimelinePresentationSupport.InlineStatusLabel(
+            glyph: executionStatus.timelineNodeGlyph,
+            label: statusLabel,
+            textColor: style.text,
+            accentColor: style.accent
+        )
     }
 
     private var statusLabel: String {
-        switch activity.status {
-        case .inProgress: return "Starting..."
-        case .writingCode: return "Writing..."
-        case .interpreting: return "Running..."
-        case .completed: return "Done"
-        case .failed: return "Failed"
-        case .incomplete: return "Incomplete"
-        case .unknown(let rawValue):
-            return rawValue.isEmpty ? "Unknown" : rawValue
-        }
+        CodeExecutionEntrySupport.statusLabel(for: activity.status)
     }
 
     // MARK: - Entry Body
@@ -223,7 +127,7 @@ struct CodeExecutionEntryView: View {
             }
 
             if let outputImages = activity.outputImages, !outputImages.isEmpty {
-                Text(outputImages.count == 1 ? "Generated 1 image output" : "Generated \(outputImages.count) image outputs")
+                Text(CodeExecutionEntrySupport.imageOutputSummary(count: outputImages.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, JinSpacing.medium)
@@ -251,7 +155,7 @@ struct CodeExecutionEntryView: View {
                     .scaleEffect(0.5)
                     .frame(width: 14, height: 14)
 
-                Text(activity.status == .writingCode ? "Writing code..." : activity.status == .interpreting ? "Running code..." : "Starting...")
+                Text(CodeExecutionEntrySupport.statusPlaceholderText(for: activity.status))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -263,61 +167,33 @@ struct CodeExecutionEntryView: View {
 
     // MARK: - Visual Style
 
-    private var visualStyle: CodeExecVisualStyle {
+    private var visualStyle: ToolTimelinePresentationSupport.StatusVisualStyle {
         switch executionStatus {
         case .running:
-            return CodeExecVisualStyle(
-                accent: .secondary,
-                text: .secondary,
-                nodeBackground: Color.primary.opacity(0.08),
-                nodeBorder: JinSemanticColor.separator.opacity(0.72)
-            )
+            return ToolTimelinePresentationSupport.terminalStatusStyle(for: .running)
         case .success:
-            return CodeExecVisualStyle(
-                accent: Color(nsColor: .systemGreen).opacity(0.88),
-                text: Color(nsColor: .systemGreen).opacity(0.88),
-                nodeBackground: Color(nsColor: .systemGreen).opacity(0.11),
-                nodeBorder: Color(nsColor: .systemGreen).opacity(0.26)
-            )
+            return ToolTimelinePresentationSupport.terminalStatusStyle(for: .success)
         case .error:
-            return CodeExecVisualStyle(
-                accent: Color(nsColor: .systemOrange).opacity(0.95),
-                text: Color(nsColor: .systemOrange).opacity(0.95),
-                nodeBackground: Color(nsColor: .systemOrange).opacity(0.14),
-                nodeBorder: Color(nsColor: .systemOrange).opacity(0.36)
-            )
+            return ToolTimelinePresentationSupport.terminalStatusStyle(for: .error)
         case .neutral:
-            return CodeExecVisualStyle(
-                accent: Color.secondary.opacity(0.85),
-                text: Color.secondary.opacity(0.85),
-                nodeBackground: Color.primary.opacity(0.05),
-                nodeBorder: JinSemanticColor.separator.opacity(0.6)
-            )
+            return ToolTimelinePresentationSupport.neutralStatusStyle()
         }
     }
 
     private var hasDisplayableContent: Bool {
-        let hasCode = !(activity.code?.isEmpty ?? true)
-        let hasStdout = !(activity.stdout?.isEmpty ?? true)
-        let hasStderr = !(activity.stderr?.isEmpty ?? true)
-        let hasImages = !(activity.outputImages?.isEmpty ?? true)
-        let hasFiles = !(activity.outputFiles?.isEmpty ?? true)
-        let hasContainer = !(activity.containerID?.isEmpty ?? true)
-        return hasCode || hasStdout || hasStderr || hasImages || hasFiles || hasContainer
+        CodeExecutionEntrySupport.hasDisplayableContent(activity)
     }
 
     private var shouldShowReturnCode: Bool {
-        activity.status == .completed || activity.status == .failed || activity.status == .incomplete
+        CodeExecutionEntrySupport.shouldShowReturnCode(for: activity.status)
     }
 
     private var codeLanguage: CodeExecCodeLanguage? {
-        guard let code = activity.code, !code.isEmpty else { return nil }
-        return CodeExecCodeLanguage.infer(from: code)
+        CodeExecutionEntrySupport.codeLanguage(for: activity)
     }
 
     private var codeBadgeText: String? {
-        guard let codeLanguage, codeLanguage != .generic else { return nil }
-        return codeLanguage.badgeLabel
+        CodeExecutionEntrySupport.codeBadgeText(for: codeLanguage)
     }
 
     private func updatePulseAnimation(for status: CodeExecVisualStatus) {
@@ -353,7 +229,7 @@ struct CodeExecutionEntryView: View {
     @ViewBuilder
     private func outputFilesBlock(_ outputFiles: [CodeExecutionOutputFile]) -> some View {
         VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(outputFiles.count == 1 ? "Generated 1 file output" : "Generated \(outputFiles.count) file outputs")
+            Text(CodeExecutionEntrySupport.fileOutputSummary(count: outputFiles.count))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
@@ -375,11 +251,17 @@ enum CodeExecVisualStatus: Equatable {
     case success
     case error
     case neutral
-}
 
-struct CodeExecVisualStyle {
-    let accent: Color
-    let text: Color
-    let nodeBackground: Color
-    let nodeBorder: Color
+    var timelineNodeGlyph: ToolTimelinePresentationSupport.TerminalStatusNodeGlyph {
+        switch self {
+        case .running:
+            return .running
+        case .success:
+            return .success
+        case .error:
+            return .error
+        case .neutral:
+            return .neutral
+        }
+    }
 }

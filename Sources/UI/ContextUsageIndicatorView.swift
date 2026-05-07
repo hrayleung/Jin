@@ -11,42 +11,43 @@ struct ContextUsageIndicatorView: View, Equatable {
     }
 
     static func summaryText(for estimate: ChatContextUsageEstimate) -> String {
-        "\(percentageText(for: estimate)) · \(compactTokenCount(estimate.inputTokens)) / \(compactTokenCount(max(estimate.contextWindow, 0))) context used"
+        ContextUsageIndicatorSupport.summaryText(for: estimate)
     }
 
     static func percentageText(for estimate: ChatContextUsageEstimate) -> String {
-        let value = estimate.clampedUsageFraction * 100
-        return "\(value.formatted(.number.precision(.fractionLength(1))))%"
+        ContextUsageIndicatorSupport.percentageText(for: estimate)
     }
 
     static func compactTokenCount(_ value: Int) -> String {
-        let absoluteValue = abs(value)
-
-        if absoluteValue >= 1_000_000 {
-            return "\((Double(value) / 1_000_000).formatted(.number.precision(.fractionLength(1))))M"
-        }
-
-        if absoluteValue >= 1_000 {
-            return "\((Double(value) / 1_000).formatted(.number.precision(.fractionLength(1))))K"
-        }
-
-        return "\(value)"
+        ContextUsageIndicatorSupport.compactTokenCount(value)
     }
 
     private enum Severity {
+        init(_ supportSeverity: ContextUsageIndicatorSupport.Severity) {
+            switch supportSeverity {
+            case .normal:
+                self = .normal
+            case .warning:
+                self = .warning
+            case .critical:
+                self = .critical
+            }
+        }
+
         case normal
         case warning
         case critical
     }
 
+    private var presentation: ContextUsageIndicatorSupport.Presentation {
+        ContextUsageIndicatorSupport.Presentation(
+            estimate: estimate,
+            modelName: modelName
+        )
+    }
+
     private var severity: Severity {
-        if estimate.didTruncateHistory || estimate.clampedUsageFraction >= 0.9 {
-            return .critical
-        }
-        if estimate.clampedUsageFraction >= 0.75 {
-            return .warning
-        }
-        return .normal
+        Severity(presentation.severity)
     }
 
     private var progressColor: Color {
@@ -72,61 +73,39 @@ struct ContextUsageIndicatorView: View, Equatable {
     }
 
     private var percentageText: String {
-        Self.percentageText(for: estimate)
+        presentation.percentageText
     }
 
     private var summaryText: String {
-        Self.summaryText(for: estimate)
+        presentation.summaryText
     }
 
     private var displayedFraction: CGFloat {
-        let fraction = CGFloat(estimate.clampedUsageFraction)
-        if estimate.inputTokens > 0 {
-            return max(fraction, 0.025)
-        }
-        return fraction
+        CGFloat(presentation.displayedFraction)
     }
 
     private var titleText: String {
-        if let modelName, !modelName.isEmpty {
-            return "\(modelName) context usage"
-        }
-        return "Current model context usage"
+        presentation.titleText
     }
 
     private var usageLine: String {
-        let inputTokens = estimate.inputTokens.formatted(.number.grouping(.automatic))
-        let availableTokens = estimate.availableInputTokens.formatted(.number.grouping(.automatic))
-        return "\(inputTokens) of \(availableTokens) input tokens used"
+        presentation.usageLine
     }
 
     private var reserveLine: String {
-        let reservedTokens = estimate.reservedOutputTokens.formatted(.number.grouping(.automatic))
-        let contextWindow = estimate.contextWindow.formatted(.number.grouping(.automatic))
-        return "\(reservedTokens) reserved for output from a \(contextWindow)-token context window"
+        presentation.reserveLine
     }
 
     private var truncationLine: String? {
-        guard estimate.didTruncateHistory else { return nil }
-        let tokenCount = estimate.truncatedInputTokens.formatted(.number.grouping(.automatic))
-        let messageCount = estimate.truncatedMessageCount.formatted(.number.grouping(.automatic))
-        return "Older history trimmed: \(messageCount) messages, about \(tokenCount) tokens"
+        presentation.truncationLine
     }
 
     private var helpText: String {
-        var lines = [summaryText, usageLine, reserveLine]
-        if let truncationLine {
-            lines.append(truncationLine)
-        }
-        return lines.joined(separator: "\n")
+        presentation.helpText
     }
 
     private var accessibilityValueText: String {
-        var parts = ["\(percentageText) used", usageLine]
-        if let truncationLine {
-            parts.append(truncationLine)
-        }
-        return parts.joined(separator: ", ")
+        presentation.accessibilityValueText
     }
 
     var body: some View {

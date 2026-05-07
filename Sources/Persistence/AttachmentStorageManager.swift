@@ -62,15 +62,14 @@ actor AttachmentStorageManager {
     // MARK: - Helpers
 
     private static func storedFileURL(baseURL: URL, id: UUID, ext: String) -> URL {
-        let trimmed = ext.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmed.isEmpty else {
+        guard let trimmed = ext.trimmedLowercased.trimmedNonEmpty else {
             return baseURL.appendingPathComponent(id.uuidString)
         }
         return baseURL.appendingPathComponent("\(id.uuidString).\(trimmed)")
     }
 
     static func fileExtension(for mimeType: String) -> String? {
-        switch mimeType {
+        switch mimeType.trimmedLowercased {
         case "image/jpeg", "image/jpg":
             return "jpg"
         case "image/png":

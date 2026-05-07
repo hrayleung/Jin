@@ -11,8 +11,7 @@ extension VertexAIAdapter {
     // MARK: - Stream Parsing
 
     func normalizeVertexStreamLine(_ line: String) -> String? {
-        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard let trimmed = line.trimmedNonEmpty else { return nil }
 
         if trimmed.hasPrefix("event:") {
             return nil
@@ -24,8 +23,7 @@ extension VertexAIAdapter {
 
         if trimmed.hasPrefix("data:") {
             let start = trimmed.index(trimmed.startIndex, offsetBy: 5)
-            let data = trimmed[start...].trimmingCharacters(in: .whitespacesAndNewlines)
-            return data.isEmpty ? nil : String(data)
+            return String(trimmed[start...]).trimmedNonEmpty
         }
 
         return trimmed
@@ -35,7 +33,7 @@ extension VertexAIAdapter {
         _ data: String,
         codeExecutionState: inout GeminiModelConstants.GoogleCodeExecutionEventState
     ) throws -> (events: [StreamEvent], usage: Usage?, contentFiltered: Bool) {
-        let trimmed = data.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = data.trimmed
         guard let jsonData = trimmed.data(using: .utf8) else {
             return ([], nil, false)
         }

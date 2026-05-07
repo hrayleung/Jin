@@ -101,9 +101,9 @@ Return only the Markdown with no surrounding commentary.
             let text = response.choices
                 .compactMap { $0.message?.content }
                 .first?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmedNonEmpty
 
-            guard let text, !text.isEmpty else {
+            guard let text else {
                 throw LLMError.decodingError(message: "Empty response content.")
             }
 

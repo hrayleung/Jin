@@ -59,6 +59,33 @@ final class MCPServerImportParserTests: XCTestCase {
         XCTAssertEqual(http.additionalHeaders.first?.value, "jin")
     }
 
+    func testParseTopLevelHTTPTrimsIDNameEndpointAndHeaderNames() throws {
+        let json = """
+        {
+          "id": " remote ",
+          "name": " Remote ",
+          "type": " HTTP ",
+          "url": " https://example.com/mcp ",
+          "headers": {
+            " X-API-Key ": "secret"
+          }
+        }
+        """
+
+        let imported = try MCPServerImportParser.parse(json: json)
+
+        XCTAssertEqual(imported.id, "remote")
+        XCTAssertEqual(imported.name, "Remote")
+
+        guard case .http(let http) = imported.transport else {
+            return XCTFail("Expected HTTP transport")
+        }
+
+        XCTAssertEqual(http.endpoint.absoluteString, "https://example.com/mcp")
+        XCTAssertEqual(http.authentication, .none)
+        XCTAssertEqual(http.additionalHeaders, [MCPHeader(name: "X-API-Key", value: "secret", isSensitive: true)])
+    }
+
     func testParseHTTPAuthorizationBearerHeaderExtractsToken() throws {
         let json = """
         {
@@ -127,6 +154,32 @@ final class MCPServerImportParserTests: XCTestCase {
             }
 
             XCTAssertEqual(importError.errorDescription, MCPServerImportError.missingHTTPURL.errorDescription)
+        }
+    }
+
+    func testImportErrorPresentationUsesImportErrorDescription() {
+        XCTAssertEqual(
+            MCPServerImportErrorPresentation.message(for: MCPServerImportError.invalidHTTPURL("not a url")),
+            "Invalid HTTP URL: not a url"
+        )
+    }
+
+    func testImportErrorPresentationIncludesDecodingPath() {
+        let json = """
+        {
+          "mcpServers": {
+            "exa": {
+              "args": 42
+            }
+          }
+        }
+        """
+
+        XCTAssertThrowsError(try MCPServerImportParser.parse(json: json)) { error in
+            let message = MCPServerImportErrorPresentation.message(for: error)
+
+            XCTAssertTrue(message.contains("Invalid args"))
+            XCTAssertTrue(message.contains("Path: mcpServers.exa.args"))
         }
     }
 }

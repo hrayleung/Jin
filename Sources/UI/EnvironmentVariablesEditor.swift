@@ -25,14 +25,10 @@ struct EnvironmentVariablesEditor: View {
             } else {
                 ForEach($pairs) { $pair in
                     HStack(spacing: 8) {
-                        TextField("Key", text: $pair.key)
-                            .font(.system(.body, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
+                        JinSettingsTextField("Key", text: $pair.key, usesMonospacedFont: true)
 
                         if showValues {
-                            TextField("Value", text: $pair.value)
-                                .font(.system(.body, design: .monospaced))
-                                .textFieldStyle(.roundedBorder)
+                            JinSettingsTextField("Value", text: $pair.value, usesMonospacedFont: true)
                         } else {
                             SecureField("Value", text: $pair.value)
                                 .font(.system(.body, design: .monospaced))

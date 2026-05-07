@@ -84,12 +84,9 @@ final class ResponseCompletionNotifier: ObservableObject {
             }
 
             let content = UNMutableNotificationContent()
-            let trimmedTitle = conversationTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-            content.title = trimmedTitle.isEmpty ? "Jin" : trimmedTitle
+            content.title = ResponseCompletionNotificationSupport.notificationTitle(from: conversationTitle)
             content.subtitle = "Reply completed"
-
-            let trimmedPreview = (replyPreview ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            content.body = trimmedPreview.isEmpty ? "Your assistant reply is ready." : trimmedPreview
+            content.body = ResponseCompletionNotificationSupport.notificationBody(from: replyPreview)
             content.sound = .default
             content.threadIdentifier = "jin.conversation.\(conversationID.uuidString)"
             content.userInfo = ["conversationID": conversationID.uuidString]

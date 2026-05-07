@@ -31,7 +31,7 @@ final class VertexAICachedContentClientTests: XCTestCase {
                     "cachedContents": [
                         ["name": "projects/project/locations/us-central1/cachedContents/page-1"]
                     ],
-                    "nextPageToken": "page-2-token"
+                    "nextPageToken": " page-2-token\n"
                 ]
             } else {
                 XCTAssertEqual(pageToken, "page-2-token")
@@ -156,7 +156,7 @@ final class VertexAICachedContentClientTests: XCTestCase {
             networkManager: NetworkManager()
         )
 
-        let endpoint = try client.cachedContentURL(named: "projects/custom/locations/global/cachedContents/existing").absoluteString
+        let endpoint = try client.cachedContentURL(named: " projects/custom/locations/global/cachedContents/existing\n").absoluteString
         XCTAssertEqual(
             endpoint,
             "https://aiplatform.googleapis.com/v1/projects/custom/locations/global/cachedContents/existing"

@@ -83,15 +83,12 @@ Rules:
                 switch part {
                 case .text(let text):
                     let visibleText = ArtifactMarkupParser.visibleText(from: text)
-                    let trimmed = visibleText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return trimmed.isEmpty ? nil : trimmed
+                    return visibleText.trimmedNonEmpty
                 case .quote(let quote):
-                    let trimmed = quote.quotedText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return trimmed.isEmpty ? nil : trimmed
+                    return quote.quotedText.trimmedNonEmpty
                 case .file(let file):
                     let fallback = AttachmentPromptRenderer.fallbackText(for: file)
-                    let trimmed = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return trimmed.isEmpty ? nil : trimmed
+                    return fallback.trimmedNonEmpty
                 case .image:
                     return "[image]"
                 case .thinking, .redactedThinking, .audio, .video:
@@ -108,7 +105,7 @@ Rules:
     }
 
     static func normalizeTitle(_ raw: String, maxCharacters: Int = 20) -> String {
-        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var text = raw.trimmed
 
         if text.hasPrefix("\"") && text.hasSuffix("\"") && text.count >= 2 {
             text = String(text.dropFirst().dropLast())
@@ -124,17 +121,17 @@ Rules:
 
         while text.hasPrefix("标题:") || text.hasPrefix("Title:") {
             if let colon = text.firstIndex(of: ":") {
-                text = String(text[text.index(after: colon)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                text = String(text[text.index(after: colon)...]).trimmed
             } else {
                 break
             }
         }
 
         text = text.replacingOccurrences(of: "  +", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmed
 
         if text.count > maxCharacters {
-            text = String(text.prefix(maxCharacters)).trimmingCharacters(in: .whitespacesAndNewlines)
+            text = String(text.prefix(maxCharacters)).trimmed
         }
 
         return text

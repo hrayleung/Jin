@@ -134,13 +134,11 @@ extension GenerationControls {
 
     private func normalizedClaudeManagedAgentString(for key: String) -> String? {
         guard let raw = providerSpecific[key]?.value as? String else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        return raw.trimmedNonEmpty
     }
 
     private mutating func setClaudeManagedAgentString(_ value: String?, for key: String) {
-        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let trimmed, !trimmed.isEmpty {
+        if let trimmed = value?.trimmedNonEmpty {
             providerSpecific[key] = AnyCodable(trimmed)
         } else {
             providerSpecific.removeValue(forKey: key)

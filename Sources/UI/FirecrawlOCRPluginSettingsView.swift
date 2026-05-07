@@ -22,12 +22,15 @@ struct FirecrawlOCRPluginSettingsView: View {
                 "Shared Firecrawl API Key",
                 detail: "This key is used by Firecrawl OCR and the Web Search plugin."
             ) {
-                JinSettingsControlRow(
+                JinSettingsSecureFieldRow(
                     "API Key",
-                    supportingText: "Changes save automatically."
-                ) {
-                    apiKeyField
-                }
+                    supportingText: "Changes save automatically.",
+                    text: $apiKey,
+                    isRevealed: $isKeyVisible,
+                    usesMonospacedFont: true,
+                    revealHelp: "Show API key",
+                    concealHelp: "Hide API key"
+                )
 
                 HStack(spacing: JinSpacing.medium) {
                     Button("Clear", role: .destructive) {
@@ -64,17 +67,6 @@ struct FirecrawlOCRPluginSettingsView: View {
         .onDisappear {
             autoSaveTask?.cancel()
         }
-    }
-
-    private var apiKeyField: some View {
-        JinRevealableSecureField(
-            title: "API Key",
-            text: $apiKey,
-            isRevealed: $isKeyVisible,
-            usesMonospacedFont: true,
-            revealHelp: "Show API key",
-            concealHelp: "Hide API key"
-        )
     }
 
     private var guidanceSection: some View {

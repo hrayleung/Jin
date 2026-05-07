@@ -3,74 +3,41 @@ import Foundation
 actor SearchRedirectURLResolver {
     static let shared = SearchRedirectURLResolver()
 
-    private struct CacheEntry: Sendable {
-        let resolvedURL: String?
-        let resolvedAt: Date
+    private enum CacheLookup {
+        case hit(String?)
+        case miss
     }
 
-    private struct DiskCacheEntry: Codable {
-        let resolvedURL: String?
-        let resolvedAt: Date
+    private struct RedirectProbe {
+        let method: String
+        let debugMode: String
+        let headers: [String: String]
 
-        enum CodingKeys: String, CodingKey {
-            case resolvedURL
-            case resolvedAt
-        }
+        static let orderedProbes = [
+            RedirectProbe(method: "HEAD", debugMode: "search_redirect_head", headers: [:]),
+            RedirectProbe(method: "GET", debugMode: "search_redirect_get", headers: ["Range": "bytes=0-0"])
+        ]
 
-        init(resolvedURL: String?, resolvedAt: Date) {
-            self.resolvedURL = resolvedURL
-            self.resolvedAt = resolvedAt
-        }
+        func request(for sourceURL: URL) -> URLRequest {
+            var request = URLRequest(url: sourceURL)
+            request.httpMethod = method
+            request.timeoutInterval = Configuration.requestTimeout
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
 
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            resolvedURL = try container.decodeIfPresent(String.self, forKey: .resolvedURL)
-
-            if let timestamp = try? container.decode(Double.self, forKey: .resolvedAt) {
-                resolvedAt = Date(timeIntervalSince1970: timestamp)
-            } else if let timestamp = try? container.decode(Int.self, forKey: .resolvedAt) {
-                resolvedAt = Date(timeIntervalSince1970: Double(timestamp))
-            } else if let timestamp = try? container.decode(String.self, forKey: .resolvedAt),
-                      let parsed = Double(timestamp) {
-                resolvedAt = Date(timeIntervalSince1970: parsed)
-            } else if let decodedDate = try? container.decode(Date.self, forKey: .resolvedAt) {
-                resolvedAt = decodedDate
-            } else {
-                throw DecodingError.typeMismatch(
-                    Date.self,
-                    DecodingError.Context(
-                        codingPath: [CodingKeys.resolvedAt],
-                        debugDescription: "Unsupported timestamp format"
-                    )
-                )
+            for (header, value) in headers {
+                request.setValue(value, forHTTPHeaderField: header)
             }
-        }
 
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(resolvedURL, forKey: .resolvedURL)
-            try container.encode(resolvedAt.timeIntervalSince1970, forKey: .resolvedAt)
-        }
-    }
-
-    private struct DiskCachePayload: Codable {
-        let version: Int
-        let entries: [String: DiskCacheEntry]
-
-        init(version: Int = 1, entries: [String: DiskCacheEntry]) {
-            self.version = version
-            self.entries = entries
+            return request
         }
     }
 
     private enum Configuration {
-        static let cacheTTLSeconds: TimeInterval = 7 * 24 * 60 * 60
-        static let cacheFileName = "SearchRedirectURLCache.json"
-        static let cacheFileVersion = 1
         static let requestTimeout: TimeInterval = 8
+        static let redirectTargetQueryKeys = SearchRedirectQueryParameterSupport.targetURLKeysIncludingLink
     }
 
-    private var cacheByRawURL: [String: CacheEntry] = [:]
+    private var cacheByRawURL: [String: SearchRedirectURLCacheStore.Entry] = [:]
     private var inFlightByRawURL: [String: Task<String?, Never>] = [:]
     private let cacheFileURL: URL?
     private let fileManager: FileManager
@@ -87,9 +54,9 @@ actor SearchRedirectURLResolver {
         self.cacheFileURL = cacheFileURL ?? Self.defaultCacheFileURL(fileManager: fileManager)
         self.overrideDataProvider = dataProvider
         self.now = now
-        cacheByRawURL = Self.loadCacheFromDisk(
-            cacheFileURL: self.cacheFileURL,
-            now: self.now
+        cacheByRawURL = SearchRedirectURLCacheStore.load(
+            from: self.cacheFileURL,
+            now: self.now()
         )
     }
 
@@ -97,12 +64,11 @@ actor SearchRedirectURLResolver {
         guard let normalizedRawURL = SearchURLNormalizer.normalize(rawURL) else { return nil }
         guard shouldResolveRedirect(for: normalizedRawURL) else { return nil }
 
-        if let cached = cacheByRawURL[normalizedRawURL] {
-            if Self.isExpired(cached.resolvedAt, now: now()) {
-                cacheByRawURL[normalizedRawURL] = nil
-            } else {
-                return cached.resolvedURL
-            }
+        switch cachedResolution(for: normalizedRawURL) {
+        case .hit(let resolvedURL):
+            return resolvedURL
+        case .miss:
+            break
         }
 
         if let task = inFlightByRawURL[normalizedRawURL] {
@@ -116,8 +82,7 @@ actor SearchRedirectURLResolver {
 
         let resolved = await task.value
         inFlightByRawURL[normalizedRawURL] = nil
-        cacheByRawURL[normalizedRawURL] = CacheEntry(resolvedURL: resolved, resolvedAt: now())
-        persistCacheToDisk()
+        storeResolution(resolved, for: normalizedRawURL)
 
         return resolved
     }
@@ -126,57 +91,29 @@ actor SearchRedirectURLResolver {
         return try? AppDataLocations.searchRedirectCacheFileURL(fileManager: fileManager)
     }
 
-    private static func isExpired(_ date: Date, now: Date) -> Bool {
-        now.timeIntervalSince(date) > Configuration.cacheTTLSeconds
-    }
+    private func cachedResolution(for rawURL: String) -> CacheLookup {
+        guard let cached = cacheByRawURL[rawURL] else { return .miss }
 
-    private static func loadCacheFromDisk(cacheFileURL: URL?, now: @escaping () -> Date) -> [String: CacheEntry] {
-        var loaded: [String: CacheEntry] = [:]
-        guard let cacheFileURL else { return loaded }
-        guard let data = try? Data(contentsOf: cacheFileURL) else { return loaded }
-
-        let decoder = JSONDecoder()
-        guard
-            let decoded = try? decoder.decode(DiskCachePayload.self, from: data),
-            decoded.version == Configuration.cacheFileVersion,
-            !decoded.entries.isEmpty
-        else {
-            return loaded
+        guard !SearchRedirectURLCacheStore.isExpired(cached.resolvedAt, now: now()) else {
+            cacheByRawURL[rawURL] = nil
+            return .miss
         }
 
+        return .hit(cached.resolvedURL)
+    }
+
+    private func storeResolution(_ resolvedURL: String?, for rawURL: String) {
         let now = now()
-        for (url, entry) in decoded.entries {
-            guard !Self.isExpired(entry.resolvedAt, now: now) else { continue }
-            loaded[url] = CacheEntry(resolvedURL: entry.resolvedURL, resolvedAt: entry.resolvedAt)
-        }
-
-        return loaded
-    }
-
-    private func persistCacheToDisk() {
-        guard let cacheFileURL else { return }
-        let validEntries = cacheByRawURL.compactMapValues { entry -> DiskCacheEntry? in
-            guard !Self.isExpired(entry.resolvedAt, now: now()) else { return nil }
-            return DiskCacheEntry(resolvedURL: entry.resolvedURL, resolvedAt: entry.resolvedAt)
-        }
-
-        guard !validEntries.isEmpty else {
-            try? fileManager.removeItem(at: cacheFileURL)
-            return
-        }
-
-        let parentDir = cacheFileURL.deletingLastPathComponent()
-        if !fileManager.fileExists(atPath: parentDir.path) {
-            try? fileManager.createDirectory(at: parentDir, withIntermediateDirectories: true)
-        }
-
-        let payload = DiskCachePayload(
-            version: Configuration.cacheFileVersion,
-            entries: validEntries
+        cacheByRawURL[rawURL] = SearchRedirectURLCacheStore.Entry(
+            resolvedURL: resolvedURL,
+            resolvedAt: now
         )
-        let encoder = JSONEncoder()
-        guard let data = try? encoder.encode(payload) else { return }
-        try? data.write(to: cacheFileURL, options: .atomic)
+        SearchRedirectURLCacheStore.persist(
+            cacheByRawURL,
+            to: cacheFileURL,
+            fileManager: fileManager,
+            now: now
+        )
     }
 
     private func resolveFinalURLString(from rawURL: String) async -> String? {
@@ -186,28 +123,18 @@ actor SearchRedirectURLResolver {
             return redirectedFromQuery.absoluteString
         }
 
-        var headRequest = URLRequest(url: sourceURL)
-        headRequest.httpMethod = "HEAD"
-        headRequest.timeoutInterval = Configuration.requestTimeout
-        headRequest.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-
-        if let finalURL = await followRedirects(using: headRequest),
-           finalURL.absoluteString.caseInsensitiveCompare(rawURL) != .orderedSame {
-            return finalURL.absoluteString
-        }
-
-        var probeRequest = URLRequest(url: sourceURL)
-        probeRequest.httpMethod = "GET"
-        probeRequest.timeoutInterval = Configuration.requestTimeout
-        probeRequest.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        probeRequest.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-
-        if let finalURL = await followRedirects(using: probeRequest),
-           finalURL.absoluteString.caseInsensitiveCompare(rawURL) != .orderedSame {
-            return finalURL.absoluteString
+        for probe in RedirectProbe.orderedProbes {
+            if let finalURL = await followRedirects(using: probe.request(for: sourceURL), mode: probe.debugMode),
+               Self.isRedirected(finalURL, from: rawURL) {
+                return finalURL.absoluteString
+            }
         }
 
         return nil
+    }
+
+    private static func isRedirected(_ finalURL: URL, from rawURL: String) -> Bool {
+        finalURL.absoluteString.caseInsensitiveCompare(rawURL) != .orderedSame
     }
 
     private static func resolveFromQueryParameters(_ url: URL) -> URL? {
@@ -217,24 +144,14 @@ actor SearchRedirectURLResolver {
             return nil
         }
 
-        let redirectKeys = ["url", "u", "target", "dest", "redirect", "adurl", "link"]
-        for key in redirectKeys {
-            guard let raw = queryItems.first(where: { $0.name.caseInsensitiveCompare(key) == .orderedSame })?.value,
-                  let decoded = raw.removingPercentEncoding,
-                  let redirected = URL(string: decoded) else {
-                continue
-            }
-            return redirected
-        }
-
-        return nil
+        return SearchRedirectQueryParameterSupport.firstDecodedURL(
+            from: queryItems,
+            matchingAnyOf: Configuration.redirectTargetQueryKeys
+        )
     }
 
-    private func followRedirects(using request: URLRequest) async -> URL? {
+    private func followRedirects(using request: URLRequest, mode: String) async -> URL? {
         do {
-            let mode = request.httpMethod?.uppercased() == "HEAD"
-                ? "search_redirect_head"
-                : "search_redirect_get"
             let (_, response) = try await NetworkDebugRequestExecutor.data(
                 for: request,
                 mode: mode,

@@ -31,8 +31,7 @@ enum AgentWorkingDirectorySupport {
     }
 
     static func normalizedPath(from raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
+        guard let trimmed = raw.trimmedNonEmpty else { return "" }
         return (trimmed as NSString).expandingTildeInPath
     }
 

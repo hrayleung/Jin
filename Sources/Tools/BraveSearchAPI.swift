@@ -22,11 +22,11 @@ enum BraveSearchAPI {
 
         var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "q", value: query),
-            URLQueryItem(name: "count", value: String(clamp(count, min: 1, max: maxCount)))
+            URLQueryItem(name: "count", value: String(count.clamped(to: 1...maxCount)))
         ]
 
         if let offset {
-            queryItems.append(URLQueryItem(name: "offset", value: String(clamp(offset, min: 0, max: maxOffset))))
+            queryItems.append(URLQueryItem(name: "offset", value: String(offset.clamped(to: 0...maxOffset))))
         }
 
         if let freshness = normalizedTrimmedString(freshness) {
@@ -68,9 +68,4 @@ enum BraveSearchAPI {
         components?.queryItems = queryItems
         return components?.url
     }
-
-    private static func clamp(_ value: Int, min minimum: Int, max maximum: Int) -> Int {
-        Swift.max(minimum, Swift.min(maximum, value))
-    }
 }
-

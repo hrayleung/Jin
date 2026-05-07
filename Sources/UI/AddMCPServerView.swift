@@ -8,15 +8,6 @@ struct AddMCPServerView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    private enum Preset: String, CaseIterable, Identifiable {
-        case custom = "Custom"
-        case exaHTTP = "Exa (Native HTTP)"
-        case exaLocal = "Exa (Local via npx)"
-        case firecrawlLocal = "Firecrawl (Local via npx)"
-
-        var id: String { rawValue }
-    }
-
     @State private var id = ""
     @State private var name = ""
     @State private var iconID: String?
@@ -39,7 +30,7 @@ struct AddMCPServerView: View {
     @State private var runToolsAutomatically = true
     @State private var isEnabled = true
 
-    @State private var preset: Preset = .custom
+    @State private var preset: AddMCPServerPreset = .custom
     @State private var isImportSectionExpanded = false
     @State private var importJSON = ""
     @State private var importError: String?
@@ -47,199 +38,57 @@ struct AddMCPServerView: View {
     var body: some View {
         NavigationStack {
             JinSettingsPage(maxWidth: 720, horizontalPadding: 20, verticalPadding: 20) {
-                JinSettingsSection("Quick Setup") {
-                    JinSettingsControlRow("Preset") {
-                        Picker("Preset", selection: $preset) {
-                            ForEach(Preset.allCases) { preset in
-                                Text(preset.rawValue).tag(preset)
-                            }
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .onChange(of: preset) { _, newValue in
-                        applyPreset(newValue)
-                    }
-
-                    DisclosureGroup(isExpanded: $isImportSectionExpanded) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Import from JSON")
-                                    .font(.headline)
-                                Spacer()
-                                Button("Import") { importFromJSON() }
-                                    .disabled(importJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            }
-
-                            TextEditor(text: $importJSON)
-                                .font(.system(.body, design: .monospaced))
-                                .frame(minHeight: 120)
-                                .jinTextEditorField(cornerRadius: JinRadius.small)
-                                .overlay(alignment: .topLeading) {
-                                    if importJSON.isEmpty {
-                                        Text("{ \"mcpServers\": { \"exa\": { \"type\": \"http\", \"url\": \"https://mcp.exa.ai/mcp\", \"headers\": { \"Authorization\": \"Bearer …\" } } } }")
-                                            .foregroundColor(.secondary)
-                                            .padding(.top, 8)
-                                            .padding(.leading, 5)
-                                            .allowsHitTesting(false)
-                                    }
-                                }
-
-                            if let importError {
-                                Text(importError)
-                                    .font(.caption)
-                                    .jinInlineErrorText()
-                            } else {
-                                JinDetailsDisclosure(title: "Import Details") {
-                                    Text("Supports Claude Desktop-style `mcpServers` configs plus single-server payloads.")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    Text("HTTP imports are mapped to native HTTP transport.")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        .padding(.top, 4)
-                        .animation(.easeInOut(duration: 0.18), value: importError)
-                    } label: {
-                        Text("Import from JSON")
-                    }
+                AddMCPServerQuickSetupSection(
+                    preset: $preset,
+                    isImportSectionExpanded: $isImportSectionExpanded,
+                    importJSON: $importJSON,
+                    importError: importError,
+                    onImport: importFromJSON
+                )
+                .onChange(of: preset) { _, newValue in
+                    applyPreset(newValue)
                 }
 
-                JinSettingsSection("MCP Server") {
-                    JinSettingsControlRow("ID", supportingText: "Short identifier (e.g. `git`).") {
-                        TextField("exa", text: $id)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                            .help("Short identifier (e.g. 'git').")
-                    }
-
-                    JinSettingsControlRow("Name") {
-                        TextField("Exa", text: $name)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    JinSettingsControlRow("Icon") {
-                        MCPIconPickerField(
-                            selectedIconID: $iconID,
-                            defaultIconID: MCPIconCatalog.defaultIconID
-                        )
-                    }
-
-                    JinSettingsControlRow("Transport") {
-                        Picker("Transport", selection: $transportKind) {
-                            Text("Command-line (stdio)").tag(MCPTransportKind.stdio)
-                            Text("Remote HTTP").tag(MCPTransportKind.http)
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    Toggle("Enabled", isOn: $isEnabled)
-                    Toggle("Run tools automatically", isOn: $runToolsAutomatically)
-                }
+                AddMCPServerIdentitySection(
+                    id: $id,
+                    name: $name,
+                    iconID: $iconID,
+                    transportKind: $transportKind,
+                    isEnabled: $isEnabled,
+                    runToolsAutomatically: $runToolsAutomatically
+                )
 
                 if transportKind == .stdio {
-                    JinSettingsSection("Stdio Transport") {
-                        JinSettingsControlRow("Command") {
-                            TextField("npx", text: $command)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(.body, design: .monospaced))
-                        }
-
-                        JinSettingsControlRow("Arguments") {
-                            TextField("-y exa-mcp-server", text: $args)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(.body, design: .monospaced))
-                        }
-
-                        if shouldShowNodeIsolationNote {
-                            JinDetailsDisclosure(title: "Launcher Details") {
-                                Text("For Node launchers (`npx`, `npm`, `pnpm`, `yarn`, `bunx`, `bun`), Jin isolates npm HOME/cache under Application Support.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text("This avoids `~/.npmrc` permission and prefix conflicts.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-
-                    JinSettingsSection("Environment Variables") {
-                        EnvironmentVariablesEditor(pairs: $envPairs)
-                    }
+                    MCPServerStdioTransportSections(
+                        command: $command,
+                        argsText: $args,
+                        envPairs: $envPairs,
+                        argsError: nil,
+                        showsNodeIsolationNote: shouldShowNodeIsolationNote,
+                        showsFirecrawlAPIKeyWarning: false
+                    )
                 } else {
-                    JinSettingsSection("HTTP Transport") {
-                        JinSettingsControlRow("Endpoint URL") {
-                            TextField("https://mcp.exa.ai/mcp", text: $endpoint)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(.body, design: .monospaced))
-                        }
-
-                        Toggle("Enable streaming (SSE)", isOn: $httpStreaming)
-                    }
-
-                    JinSettingsSection("Authentication") {
-                        JinSettingsControlRow("Type") {
-                            Picker("Type", selection: $httpAuthKind) {
-                                Text("None").tag(MCPHTTPAuthentication.FormKind.none)
-                                Text("Bearer token").tag(MCPHTTPAuthentication.FormKind.bearerToken)
-                                Text("Custom header").tag(MCPHTTPAuthentication.FormKind.customHeader)
-                            }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                        switch httpAuthKind {
-                        case .none:
-                            EmptyView()
-                        case .bearerToken:
-                            JinSettingsControlRow("Bearer token") {
-                                JinRevealableSecureField(
-                                    title: "Bearer token",
-                                    text: $bearerToken,
-                                    isRevealed: $isBearerTokenVisible,
-                                    usesMonospacedFont: true,
-                                    revealHelp: "Show token",
-                                    concealHelp: "Hide token"
-                                )
-                            }
-                        case .customHeader:
-                            JinSettingsControlRow("Header name") {
-                                TextField("Authorization", text: $authHeaderName)
-                                    .textFieldStyle(.roundedBorder)
-                                    .font(.system(.body, design: .monospaced))
-                            }
-                            JinSettingsControlRow("Header value") {
-                                JinRevealableSecureField(
-                                    title: "Header value",
-                                    text: $authHeaderValue,
-                                    isRevealed: $isHeaderValueVisible,
-                                    usesMonospacedFont: true,
-                                    revealHelp: "Show value",
-                                    concealHelp: "Hide value"
-                                )
-                            }
-                        }
-
-                        if let authError = httpAuthenticationValidationError {
-                            Text(authError)
-                                .foregroundStyle(.red)
-                                .font(.caption)
-                        }
-                    }
-
-                    JinSettingsSection("Additional Headers") {
-                        EnvironmentVariablesEditor(pairs: $headerPairs)
-                    }
+                    MCPServerHTTPTransportSections(
+                        endpoint: $endpoint,
+                        httpStreaming: $httpStreaming,
+                        endpointError: nil,
+                        httpAuthKind: $httpAuthKind,
+                        bearerToken: $bearerToken,
+                        authHeaderName: $authHeaderName,
+                        authHeaderValue: $authHeaderValue,
+                        headerPairs: $headerPairs,
+                        isBearerTokenVisible: $isBearerTokenVisible,
+                        isHeaderValueVisible: $isHeaderValueVisible,
+                        authenticationError: httpAuthenticationValidationError
+                    )
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) {
-                addMCPServerActionBar
+                AddMCPServerActionBar(
+                    isAddDisabled: isAddDisabled,
+                    onCancel: { dismiss() },
+                    onAdd: addServer
+                )
             }
             .navigationTitle("Add MCP Server")
             .onExitCommand { dismiss() }
@@ -257,85 +106,28 @@ struct AddMCPServerView: View {
         #endif
     }
 
-    private var addMCPServerActionBar: some View {
-        HStack {
-            Button("Cancel") { dismiss() }
-                .keyboardShortcut(.cancelAction)
-            Spacer()
-            Button("Add") { addServer() }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .disabled(isAddDisabled)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(JinSemanticColor.detailSurface)
-        .overlay(alignment: .bottom) {
-            Divider()
-        }
-    }
-
     private var isAddDisabled: Bool {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return true }
-
-        switch transportKind {
-        case .stdio:
-            return command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .http:
-            return parsedEndpoint == nil || parsedHTTPAuthentication == nil
-        }
+        MCPServerFormSupport.isAddServerDisabled(
+            name: name,
+            transportKind: transportKind,
+            command: command,
+            parsedEndpoint: parsedEndpoint,
+            parsedHTTPAuthentication: parsedHTTPAuthentication
+        )
     }
 
     private var parsedEndpoint: URL? {
-        let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let url = URL(string: trimmed), url.scheme != nil else {
-            return nil
-        }
-        return url
+        MCPServerFormSupport.parsedEndpoint(endpoint)
     }
 
     private var shouldShowNodeIsolationNote: Bool {
-        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parsedCommand = (try? CommandLineTokenizer.tokenize(trimmed))?.first ?? trimmed
-        let base = (parsedCommand as NSString).lastPathComponent.lowercased()
-        return ["npx", "npm", "pnpm", "yarn", "bunx", "bun"].contains(base)
+        MCPServerFormSupport.shouldShowNodeIsolationNote(command: command)
     }
 
-    private func applyPreset(_ preset: Preset) {
+    private func applyPreset(_ preset: AddMCPServerPreset) {
         importError = nil
-
-        switch preset {
-        case .custom:
-            break
-        case .exaHTTP:
-            if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { id = "exa" }
-            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { name = "Exa" }
-            transportKind = .http
-            endpoint = "https://mcp.exa.ai/mcp"
-            applyHTTPAuthentication(.none)
-            if !headerPairs.contains(where: { $0.key.caseInsensitiveCompare("X-Client") == .orderedSame }) {
-                headerPairs.append(EnvironmentVariablePair(key: "X-Client", value: "jin"))
-            }
-        case .exaLocal:
-            if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { id = "exa" }
-            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { name = "Exa" }
-            transportKind = .stdio
-            command = "npx"
-            args = "-y exa-mcp-server"
-            if envPairs.first(where: { $0.key == "EXA_API_KEY" }) == nil {
-                envPairs.append(EnvironmentVariablePair(key: "EXA_API_KEY", value: ""))
-            }
-        case .firecrawlLocal:
-            if id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { id = "firecrawl" }
-            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { name = "Firecrawl" }
-            transportKind = .stdio
-            command = "npx"
-            args = "-y firecrawl-mcp"
-            if envPairs.first(where: { $0.key == "FIRECRAWL_API_KEY" }) == nil {
-                envPairs.append(EnvironmentVariablePair(key: "FIRECRAWL_API_KEY", value: ""))
-            }
-        }
+        guard preset != .custom else { return }
+        applyPresetDraft(AddMCPServerPresetSupport.applyingPreset(preset, to: presetDraft))
     }
 
     private func importFromJSON() {
@@ -349,95 +141,38 @@ struct AddMCPServerView: View {
             applyImportedTransport(imported.transport)
             isImportSectionExpanded = false
         } catch {
-            importError = formatJSONImportError(error)
+            importError = MCPServerImportErrorPresentation.message(for: error)
             isImportSectionExpanded = true
         }
     }
 
     private func applyImportedTransport(_ transport: MCPTransportConfig) {
-        switch transport {
-        case .stdio(let stdio):
-            transportKind = .stdio
-            command = stdio.command
-            args = CommandLineTokenizer.render(stdio.args)
-            envPairs = stdio.env.keys.sorted().map { EnvironmentVariablePair(key: $0, value: stdio.env[$0] ?? "") }
-        case .http(let http):
-            transportKind = .http
-            endpoint = http.endpoint.absoluteString
-            applyHTTPAuthentication(http.authentication)
-            headerPairs = http.additionalHeaders.map { EnvironmentVariablePair(key: $0.name, value: $0.value) }
-            httpStreaming = http.streaming
-        }
+        let draft = MCPServerTransportDraftSupport.draft(from: transport)
+        transportKind = draft.transportKind
+        command = draft.command
+        args = draft.argsText
+        envPairs = draft.envPairs
+        endpoint = draft.endpoint
+        applyHTTPAuthentication(draft.httpAuthentication)
+        headerPairs = draft.headerPairs
+        httpStreaming = draft.httpStreaming
     }
 
     private func addServer() {
         let transport: MCPTransportConfig
-
-        switch transportKind {
-        case .stdio:
-            let argsArray: [String]
-            do {
-                argsArray = try CommandLineTokenizer.tokenize(args)
-            } catch {
-                importError = error.localizedDescription
-                return
-            }
-
-            let env: [String: String] = envPairs.reduce(into: [:]) { partial, pair in
-                let key = pair.key.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !key.isEmpty else { return }
-                partial[key] = pair.value
-            }
-
-            transport = .stdio(
-                MCPStdioTransportConfig(
-                    command: command.trimmingCharacters(in: .whitespacesAndNewlines),
-                    args: argsArray,
-                    env: env
-                )
-            )
-
-        case .http:
-            guard let endpointURL = parsedEndpoint else {
-                importError = "Invalid endpoint URL."
-                return
-            }
-            guard let authentication = parsedHTTPAuthentication else {
-                importError = httpAuthenticationValidationError ?? "Invalid authentication."
-                return
-            }
-
-            let headers: [MCPHeader] = headerPairs.compactMap { pair in
-                let key = pair.key.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !key.isEmpty else { return nil }
-                return MCPHeader(
-                    name: key,
-                    value: pair.value,
-                    isSensitive: MCPHTTPTransportConfig.isSensitiveHeaderName(key)
-                )
-            }
-
-            transport = .http(
-                MCPHTTPTransportConfig(
-                    endpoint: endpointURL,
-                    streaming: httpStreaming,
-                    authentication: authentication,
-                    additionalHeaders: headers
-                )
-            )
+        do {
+            transport = try MCPServerTransportDraftSupport.buildTransport(from: transportBuildRequest)
+        } catch let error as MCPServerTransportDraftSupport.BuildError {
+            importError = addServerMessage(for: error)
+            return
+        } catch {
+            importError = error.localizedDescription
+            return
         }
 
-        let trimmedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
-        let serverID = trimmedID.isEmpty ? UUID().uuidString : trimmedID
+        let serverID = MCPServerFormSupport.normalizedServerID(id)
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedIconID = iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedIconID: String? = {
-            guard let trimmedIconID, !trimmedIconID.isEmpty else { return nil }
-            if trimmedIconID.caseInsensitiveCompare(MCPIconCatalog.defaultIconID) == .orderedSame {
-                return nil
-            }
-            return trimmedIconID
-        }()
+        let normalizedIconID = MCPServerFormSupport.normalizedIconID(iconID)
         let transportData = (try? JSONEncoder().encode(transport)) ?? Data()
 
         let server = MCPServerConfigEntity(
@@ -460,6 +195,28 @@ struct AddMCPServerView: View {
 
         modelContext.insert(server)
         dismiss()
+    }
+
+    private var transportBuildRequest: MCPServerTransportDraftSupport.BuildRequest {
+        MCPServerTransportDraftSupport.BuildRequest(
+            transportKind: transportKind,
+            command: command,
+            argsText: args,
+            envPairs: envPairs,
+            endpoint: endpoint,
+            httpAuthentication: parsedHTTPAuthentication,
+            headerPairs: headerPairs,
+            httpStreaming: httpStreaming
+        )
+    }
+
+    private func addServerMessage(for error: MCPServerTransportDraftSupport.BuildError) -> String {
+        switch error {
+        case .invalidAuthentication:
+            return httpAuthenticationValidationError ?? error.localizedDescription
+        case .invalidArguments, .invalidEndpointURL:
+            return error.localizedDescription
+        }
     }
 
     private var httpAuthenticationValidationError: String? {
@@ -488,32 +245,30 @@ struct AddMCPServerView: View {
         authHeaderValue = fields.headerValue
     }
 
-    private func formatJSONImportError(_ error: Error) -> String {
-        if let decodingError = error as? DecodingError {
-            return decodingErrorDescription(decodingError)
-        }
-
-        if let importError = error as? MCPServerImportError {
-            return importError.localizedDescription
-        }
-
-        return error.localizedDescription
+    private var presetDraft: AddMCPServerPresetSupport.Draft {
+        AddMCPServerPresetSupport.Draft(
+            id: id,
+            name: name,
+            transportKind: transportKind,
+            command: command,
+            args: args,
+            envPairs: envPairs,
+            endpoint: endpoint,
+            headerPairs: headerPairs,
+            httpAuthentication: parsedHTTPAuthentication ?? .none
+        )
     }
 
-    private func decodingErrorDescription(_ error: DecodingError) -> String {
-        func codingPathString(_ path: [CodingKey]) -> String {
-            guard !path.isEmpty else { return "(root)" }
-            return path.map(\.stringValue).joined(separator: ".")
-        }
-
-        switch error {
-        case .typeMismatch(_, let context),
-             .valueNotFound(_, let context),
-             .keyNotFound(_, let context),
-             .dataCorrupted(let context):
-            return "\(context.debugDescription)\nPath: \(codingPathString(context.codingPath))"
-        @unknown default:
-            return error.localizedDescription
-        }
+    private func applyPresetDraft(_ draft: AddMCPServerPresetSupport.Draft) {
+        id = draft.id
+        name = draft.name
+        transportKind = draft.transportKind
+        command = draft.command
+        args = draft.args
+        envPairs = draft.envPairs
+        endpoint = draft.endpoint
+        headerPairs = draft.headerPairs
+        applyHTTPAuthentication(draft.httpAuthentication)
     }
+
 }

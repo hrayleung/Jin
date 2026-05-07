@@ -21,48 +21,36 @@ struct OpenAIImageCustomSizeSheetView: View {
         self.onCancel = onCancel
         self.onSave = onSave
 
-        let initialText: String
-        if let currentSize, currentSize.isAuto == false {
-            initialText = currentSize.displayName
-        } else {
-            initialText = ""
-        }
-        _draftText = State(initialValue: initialText)
-    }
-
-    private var trimmedDraft: String {
-        draftText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        _draftText = State(
+            initialValue: OpenAIImageCustomSizeSheetSupport.initialDraftText(currentSize: currentSize)
+        )
     }
 
     private var parsedSize: OpenAIImageSize? {
-        guard !trimmedDraft.isEmpty else { return nil }
-        return OpenAIImageSize(rawValue: trimmedDraft)
+        OpenAIImageCustomSizeSheetSupport.parsedSize(from: draftText)
     }
 
     private var currentValidationError: String? {
-        guard let parsedSize else { return "Enter a size like `2048x1152`." }
-        return OpenAIImageModelSupport.validate(size: parsedSize, for: modelID)
+        OpenAIImageCustomSizeSheetSupport.validationError(draftText: draftText, modelID: modelID)
     }
 
     private var displayedValidationError: String? {
-        if let validationError {
-            return validationError
-        }
-        guard !trimmedDraft.isEmpty else { return nil }
-        return currentValidationError
+        OpenAIImageCustomSizeSheetSupport.displayedValidationError(
+            explicitError: validationError,
+            draftText: draftText,
+            modelID: modelID
+        )
     }
 
     private var canSubmit: Bool {
-        !trimmedDraft.isEmpty
+        OpenAIImageCustomSizeSheetSupport.canSubmit(draftText: draftText)
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Custom Size") {
-                    TextField("2048x1152", text: $draftText)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
+                    JinSettingsTextField("2048x1152", text: $draftText, usesMonospacedFont: true)
                         .onChange(of: draftText) { _, _ in
                             validationError = nil
                         }
@@ -75,9 +63,7 @@ struct OpenAIImageCustomSizeSheetView: View {
 
                 if let validationError = displayedValidationError {
                     Section {
-                        Text(validationError)
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                        JinSettingsErrorText(text: validationError)
                     }
                 }
             }
@@ -92,7 +78,7 @@ struct OpenAIImageCustomSizeSheetView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         guard let parsedSize else {
-                            validationError = "Enter a size like `2048x1152`."
+                            validationError = OpenAIImageCustomSizeSheetSupport.invalidSizeMessage
                             return
                         }
                         if let error = currentValidationError {

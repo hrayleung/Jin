@@ -11,11 +11,7 @@ extension XAIAdapter {
             case .tool:
                 if let toolResults = message.toolResults {
                     for result in toolResults {
-                        items.append([
-                            "type": "function_call_output",
-                            "call_id": result.toolCallID,
-                            "output": sanitizedToolOutput(result.content, toolName: result.toolName)
-                        ])
+                        items.append(XAIResponsesInputSupport.functionCallOutputItem(result))
                     }
                 }
 
@@ -30,11 +26,7 @@ extension XAIAdapter {
 
                 if let toolResults = message.toolResults {
                     for result in toolResults {
-                        items.append([
-                            "type": "function_call_output",
-                            "call_id": result.toolCallID,
-                            "output": sanitizedToolOutput(result.content, toolName: result.toolName)
-                        ])
+                        items.append(XAIResponsesInputSupport.functionCallOutputItem(result))
                     }
                 }
             }
@@ -60,63 +52,35 @@ extension XAIAdapter {
     }
 
     private func translateFunctionCalls(_ calls: [ToolCall]) -> [[String: Any]] {
-        calls.map { call in
-            [
-                "type": "function_call",
-                "call_id": call.id,
-                "name": call.name,
-                "arguments": encodeJSONObject(call.arguments)
-            ]
-        }
-    }
-
-    private func sanitizedToolOutput(_ raw: String, toolName: String?) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { return trimmed }
-
-        if let toolName, !toolName.isEmpty {
-            return "Tool \(toolName) returned no output"
-        }
-        return "Tool returned no output"
+        calls.map(XAIResponsesInputSupport.functionCallItem)
     }
 
     private func translateContentPart(_ part: ContentPart, supportsNativePDF: Bool) throws -> [String: Any]? {
         switch part {
         case .text(let text):
-            return [
-                "type": "input_text",
-                "text": text
-            ]
+            return XAIResponsesInputSupport.textContentPart(text)
         case .quote(let quote):
-            return [
-                "type": "input_text",
-                "text": quote.quotedText
-            ]
+            return XAIResponsesInputSupport.textContentPart(quote.quotedText)
 
         case .image(let image):
             if let data = image.data {
-                return [
-                    "type": "input_image",
-                    "image_url": "data:\(image.mimeType);base64,\(data.base64EncodedString())"
-                ]
+                return XAIResponsesInputSupport.imageContentPart(
+                    imageURL: mediaDataURI(mimeType: image.mimeType, data: data)
+                )
             }
             if let url = image.url {
                 if url.isFileURL {
                     let data = try resolveFileData(from: url)
-                    return [
-                        "type": "input_image",
-                        "image_url": "data:\(image.mimeType);base64,\(data.base64EncodedString())"
-                    ]
+                    return XAIResponsesInputSupport.imageContentPart(
+                        imageURL: mediaDataURI(mimeType: image.mimeType, data: data)
+                    )
                 }
-                return [
-                    "type": "input_image",
-                    "image_url": url.absoluteString
-                ]
+                return XAIResponsesInputSupport.imageContentPart(imageURL: url.absoluteString)
             }
             return nil
 
         case .file(let file):
-            if supportsNativePDF && file.mimeType == "application/pdf" {
+            if XAIResponsesInputSupport.canInlinePDF(file, supportsNativePDF: supportsNativePDF) {
                 let pdfData: Data?
                 if let data = file.data {
                     pdfData = data
@@ -127,25 +91,14 @@ extension XAIAdapter {
                 }
 
                 if let pdfData {
-                    return [
-                        "type": "input_file",
-                        "filename": file.filename,
-                        "file_data": "data:application/pdf;base64,\(pdfData.base64EncodedString())"
-                    ]
+                    return XAIResponsesInputSupport.inlinePDFContentPart(file: file, data: pdfData)
                 }
             }
 
-            let text = AttachmentPromptRenderer.fallbackText(for: file)
-            return [
-                "type": "input_text",
-                "text": text
-            ]
+            return XAIResponsesInputSupport.fallbackFileContentPart(file: file)
 
         case .video(let video):
-            return [
-                "type": "input_text",
-                "text": unsupportedVideoInputNotice(video, providerName: "xAI")
-            ]
+            return XAIResponsesInputSupport.unsupportedVideoContentPart(video: video)
 
         case .thinking, .redactedThinking, .audio:
             return nil
@@ -153,15 +106,6 @@ extension XAIAdapter {
     }
 
     func translateSingleTool(_ tool: ToolDefinition) -> [String: Any] {
-        [
-            "type": "function",
-            "name": tool.name,
-            "description": tool.description,
-            "parameters": [
-                "type": tool.parameters.type,
-                "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
-                "required": tool.parameters.required
-            ]
-        ]
+        XAIResponsesInputSupport.responsesToolDefinition(tool)
     }
 }

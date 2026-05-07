@@ -21,7 +21,7 @@ struct WebSearchUserLocation: Codable, Equatable {
     var timezone: String?     // IANA timezone
 
     var isEmpty: Bool {
-        [city, region, country, timezone].allSatisfy { $0?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true }
+        [city, region, country, timezone].allSatisfy { $0?.trimmedNonEmpty == nil }
     }
 }
 
@@ -119,8 +119,7 @@ enum ExaSearchType: String, Codable, CaseIterable, Sendable {
     static let publicCases: [ExaSearchType] = [.auto, .fast, .neural, .deep, .instant]
 
     static func resolved(from rawValue: String?) -> ExaSearchType? {
-        guard let value = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-              !value.isEmpty else {
+        guard let value = rawValue?.trimmedNonEmpty?.lowercased() else {
             return nil
         }
 
@@ -200,8 +199,7 @@ enum AnthropicWebSearchDomainUtils {
 
     static func splitInput(_ raw: String) -> [String] {
         raw.components(separatedBy: separators)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+            .compactMap(\.trimmedNonEmpty)
     }
 
     static func normalizedDomains(_ domains: [String]?) -> [String] {
@@ -211,8 +209,7 @@ enum AnthropicWebSearchDomainUtils {
         normalizedByKey.reserveCapacity(domains.count)
 
         for domain in domains {
-            let trimmed = domain.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
+            guard let trimmed = domain.trimmedNonEmpty else { continue }
 
             let key = trimmed.lowercased()
             if normalizedByKey[key] == nil {
@@ -233,8 +230,7 @@ enum AnthropicWebSearchDomainUtils {
     }
 
     static func validationError(for domain: String) -> String? {
-        let trimmed = domain.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+        guard let trimmed = domain.trimmedNonEmpty else {
             return "Domain entries cannot be empty."
         }
 

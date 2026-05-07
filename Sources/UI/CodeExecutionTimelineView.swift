@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 
 /// Displays a timeline of code execution activities from provider-native code execution tools
 /// (OpenAI Code Interpreter, Anthropic Code Execution, xAI Code Interpreter).
@@ -13,11 +12,12 @@ struct CodeExecutionTimelineView: View {
         self.activities = activities
         self.isStreaming = isStreaming
         let mode = Self.resolveDisplayMode()
-        if isStreaming {
-            _isExpanded = State(initialValue: mode.startsExpandedDuringStreaming)
-        } else {
-            _isExpanded = State(initialValue: mode.startsExpandedOnComplete)
-        }
+        _isExpanded = State(
+            initialValue: CodeExecutionTimelineSupport.initialExpansion(
+                isStreaming: isStreaming,
+                displayMode: mode
+            )
+        )
     }
 
     var body: some View {
@@ -39,19 +39,13 @@ struct CodeExecutionTimelineView: View {
             .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
             .animation(.easeInOut(duration: 0.2), value: animationSignature)
             .onChange(of: isStreaming) { _, streaming in
-                if streaming {
-                    let mode = Self.resolveDisplayMode()
-                    if mode.startsExpandedDuringStreaming {
-                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
-                            isExpanded = true
-                        }
-                    }
-                } else {
-                    let mode = Self.resolveDisplayMode()
-                    if mode == .collapseOnComplete {
-                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
-                            isExpanded = false
-                        }
+                let mode = Self.resolveDisplayMode()
+                if let shouldExpand = CodeExecutionTimelineSupport.shouldExpandAfterStreamingChange(
+                    isStreaming: streaming,
+                    displayMode: mode
+                ) {
+                    withAnimation(.spring(duration: 0.25, bounce: 0)) {
+                        isExpanded = shouldExpand
                     }
                 }
             }
@@ -66,123 +60,38 @@ struct CodeExecutionTimelineView: View {
     // MARK: - Header Row
 
     private var headerRow: some View {
-        Button {
-            withAnimation(.spring(duration: 0.25, bounce: 0)) {
-                isExpanded.toggle()
-            }
-        } label: {
-            HStack(spacing: JinSpacing.small) {
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-
-                Text(headerTitle)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-
-                if isStreaming, hasActiveExecution {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                }
-
-                if let compactStatus = compactStatusStyle {
-                    HStack(spacing: 4) {
-                        Image(systemName: compactStatus.icon)
-                            .font(.system(size: 10, weight: .semibold))
-                        Text(compactStatus.text)
-                            .font(.caption2.weight(.semibold))
-                    }
-                    .foregroundStyle(compactStatus.color)
-                    .lineLimit(1)
-                }
-
-                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, JinSpacing.small)
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+        CodeExecutionTimelineHeaderRow(
+            title: headerTitle,
+            isStreaming: isStreaming,
+            hasActiveExecution: hasActiveExecution,
+            compactStatus: compactStatus,
+            isExpanded: $isExpanded
+        )
     }
 
     // MARK: - Expanded Content
 
     @ViewBuilder
     private var expandedContent: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            ForEach(Array(activities.enumerated()), id: \.element.id) { index, activity in
-                CodeExecutionEntryView(
-                    activity: activity,
-                    entryIndex: index,
-                    showsConnectorAbove: index > 0,
-                    showsConnectorBelow: index < activities.count - 1
-                )
-            }
-        }
-        .padding(.horizontal, JinSpacing.small)
-        .padding(.top, JinSpacing.xSmall)
-        .padding(.bottom, JinSpacing.xSmall)
+        CodeExecutionTimelineExpandedContentView(activities: activities)
     }
 
     // MARK: - Computed
 
     private var hasActiveExecution: Bool {
-        activities.contains { activity in
-            switch activity.status {
-            case .inProgress, .writingCode, .interpreting:
-                return true
-            default:
-                return false
-            }
-        }
+        CodeExecutionTimelineSupport.hasActiveExecution(activities)
     }
 
     private var headerTitle: String {
-        if activities.count == 1 {
-            return "Code Execution"
-        }
-        return "\(activities.count) Code Executions"
+        CodeExecutionTimelineSupport.headerTitle(activityCount: activities.count)
     }
 
-    private var compactStatusStyle: (text: String, icon: String, color: Color)? {
-        if hasActiveExecution {
-            return nil
-        }
-
-        let failedCount = activities.filter { $0.status == .failed || $0.status == .incomplete }.count
-        let completedCount = activities.filter { $0.status == .completed }.count
-
-        if failedCount > 0 {
-            let label: String
-            if completedCount > 0 {
-                label = "\(completedCount) ok / \(failedCount) failed"
-            } else {
-                label = failedCount == 1 ? "Failed" : "\(failedCount) failed"
-            }
-            return (
-                text: label,
-                icon: "xmark.circle",
-                color: Color(nsColor: .systemOrange).opacity(0.95)
-            )
-        }
-        if completedCount > 0 {
-            return (
-                text: "Done",
-                icon: "checkmark.circle",
-                color: Color(nsColor: .systemGreen).opacity(0.88)
-            )
-        }
-        return nil
+    private var compactStatus: ToolTimelinePresentationSupport.CompactStatusStyle? {
+        CodeExecutionTimelineSupport.compactStatus(for: activities)
+            .map(ToolTimelinePresentationSupport.CompactStatusStyle.init)
     }
 
     private var animationSignature: String {
-        activities
-            .map { "\($0.id):\($0.status)" }
-            .joined(separator: "|")
+        CodeExecutionTimelineSupport.animationSignature(for: activities)
     }
 }

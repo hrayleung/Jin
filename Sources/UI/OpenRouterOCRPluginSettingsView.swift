@@ -19,52 +19,30 @@ struct OpenRouterOCRPluginSettingsView: View {
     var body: some View {
         JinSettingsPage(maxWidth: 620) {
             JinSettingsSection("Connection") {
-                JinSettingsControlRow("API Key") {
-                    JinRevealableSecureField(
-                        title: "API Key",
-                        text: $apiKey,
-                        isRevealed: $isKeyVisible,
-                        revealHelp: "Show API key",
-                        concealHelp: "Hide API key"
-                    )
-                }
+                JinSettingsSecureFieldRow(
+                    "API Key",
+                    text: $apiKey,
+                    isRevealed: $isKeyVisible,
+                    revealHelp: "Show API key",
+                    concealHelp: "Hide API key"
+                )
 
-                HStack(spacing: JinSpacing.medium) {
-                    Button("Test Connection") { runTestConnection() }
-                        .disabled(trimmedAPIKey.isEmpty || isTesting)
-
-                    Button("Clear", role: .destructive) { clearKey() }
-                        .disabled(isTesting)
-
-                    Spacer()
-
-                    if isTesting {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                }
-
-                if let statusMessage {
-                    JinSettingsStatusText(
-                        text: statusMessage,
-                        isError: statusIsError,
-                        isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
-                            statusMessage,
-                            isError: statusIsError
-                        )
-                    )
-                }
+                PluginCredentialActionsView(
+                    canTestConnection: !trimmedAPIKey.isEmpty,
+                    canClear: true,
+                    isTesting: isTesting,
+                    statusMessage: statusMessage,
+                    statusIsError: statusIsError,
+                    onTestConnection: runTestConnection,
+                    onClear: clearKey
+                )
             }
 
             JinSettingsSection("OCR Model") {
-                JinSettingsControlRow("Model") {
-                    Picker("Model", selection: $selectedModelID) {
-                        ForEach(OpenRouterOCRModelCatalog.entries) { model in
-                            Text(model.name).tag(model.id)
-                        }
+                JinSettingsPickerRow("Model", selection: $selectedModelID) {
+                    ForEach(OpenRouterOCRModelCatalog.entries) { model in
+                        Text(model.name).tag(model.id)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
                 }
             }
         }

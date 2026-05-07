@@ -67,8 +67,7 @@ enum FaviconSourceResolver {
     }
 
     static func normalizedHost(from rawHost: String) -> String? {
-        let trimmed = rawHost.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard let trimmed = rawHost.trimmedNonEmpty else { return nil }
 
         if let parsedURL = URL(string: trimmed), let host = parsedURL.host?.lowercased() {
             return host

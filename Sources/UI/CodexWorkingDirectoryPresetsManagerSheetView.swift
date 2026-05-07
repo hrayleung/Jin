@@ -25,28 +25,9 @@ struct CodexWorkingDirectoryPresetsManagerSheetView: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: JinSpacing.small) {
                             ForEach(presets) { preset in
-                                HStack(alignment: .top, spacing: JinSpacing.small) {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(preset.name)
-                                            .font(.subheadline.weight(.semibold))
-                                        Text(preset.path)
-                                            .font(.system(.caption, design: .monospaced))
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
-
-                                    Spacer(minLength: 0)
-
-                                    Button(role: .destructive) {
-                                        presets.removeAll { $0.id == preset.id }
-                                    } label: {
-                                        Image(systemName: "trash")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .buttonStyle(.borderless)
+                                CodexWorkingDirectoryPresetRow(preset: preset) {
+                                    presets.removeAll { $0.id == preset.id }
                                 }
-                                .padding(JinSpacing.small)
-                                .jinSurface(.outlined, cornerRadius: JinRadius.small)
                             }
                         }
                     }
@@ -122,6 +103,34 @@ struct CodexWorkingDirectoryPresetsManagerSheetView: View {
     }
 }
 
+private struct CodexWorkingDirectoryPresetRow: View {
+    let preset: CodexWorkingDirectoryPreset
+    var onDelete: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: JinSpacing.small) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(preset.name)
+                    .font(.subheadline.weight(.semibold))
+                Text(preset.path)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "trash")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+        }
+        .padding(JinSpacing.small)
+        .jinSurface(.outlined, cornerRadius: JinRadius.small)
+    }
+}
+
 private struct CodexWorkingDirectoryPresetEditorSheetView: View {
     @State private var nameDraft = ""
     @State private var pathDraft = ""
@@ -133,18 +142,12 @@ private struct CodexWorkingDirectoryPresetEditorSheetView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: JinSpacing.large) {
-                VStack(alignment: .leading, spacing: JinSpacing.small) {
-                    Text("Preset Name")
-                        .font(.headline)
+                CodexWorkingDirectoryPresetFieldCard("Preset Name") {
                     TextField(text: $nameDraft, prompt: Text("e.g. Jin App Server")) { EmptyView() }
                         .textFieldStyle(.roundedBorder)
                 }
-                .padding(JinSpacing.large)
-                .jinSurface(.raised, cornerRadius: JinRadius.large)
 
-                VStack(alignment: .leading, spacing: JinSpacing.small) {
-                    Text("Working Directory Path")
-                        .font(.headline)
+                CodexWorkingDirectoryPresetFieldCard("Working Directory Path") {
                     HStack(spacing: JinSpacing.small) {
                         TextField(text: $pathDraft, prompt: Text("e.g. ~/projects/jin")) { EmptyView() }
                             .textFieldStyle(.roundedBorder)
@@ -153,8 +156,6 @@ private struct CodexWorkingDirectoryPresetEditorSheetView: View {
                             .buttonStyle(.bordered)
                     }
                 }
-                .padding(JinSpacing.large)
-                .jinSurface(.raised, cornerRadius: JinRadius.large)
 
                 if let errorText, !errorText.isEmpty {
                     Text(errorText)
@@ -224,5 +225,23 @@ private struct CodexWorkingDirectoryPresetEditorSheetView: View {
         pathDraft = selectedURL.path
         errorText = nil
 #endif
+    }
+}
+
+private struct CodexWorkingDirectoryPresetFieldCard<Content: View>: View {
+    private let title: String
+    private let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        JinSettingsCard(spacing: JinSpacing.small) {
+            Text(title)
+                .font(.headline)
+            content
+        }
     }
 }

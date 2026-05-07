@@ -36,9 +36,9 @@ struct UpdateSettingsView: View {
                         .jinInlineErrorText()
                 }
 
-                Toggle("Check automatically on launch", isOn: automaticallyChecksBinding)
+                JinSettingsToggleRow("Check automatically on launch", isOn: automaticallyChecksBinding)
 
-                Toggle("Include pre-release versions", isOn: preReleaseBinding)
+                JinSettingsToggleRow("Include pre-release versions", isOn: preReleaseBinding)
 
                 if updateManager.allowPreRelease {
                     Text("Pre-release updates are delivered through the beta channel and may be unstable.")

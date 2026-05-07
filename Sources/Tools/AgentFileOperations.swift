@@ -252,7 +252,7 @@ enum AgentFileOperations {
             output = String(data: data, encoding: .utf8) ?? ""
         }
 
-        if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if output.trimmedNonEmpty == nil {
             return "No matches found for \"\(pattern)\" in \(searchPath)"
         }
 
@@ -262,7 +262,7 @@ enum AgentFileOperations {
     // MARK: - Helpers
 
     static func resolvePath(_ path: String, workingDirectory: String?) -> String {
-        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = path.trimmed
 
         if trimmed.hasPrefix("/") || trimmed.hasPrefix("~") {
             return (trimmed as NSString).expandingTildeInPath

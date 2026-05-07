@@ -153,11 +153,10 @@ enum ArtifactMarkupParser {
 
     static func appendingInstructions(to systemPrompt: String?, enabled: Bool) -> String? {
         guard enabled else {
-            let trimmed = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed?.isEmpty == false ? trimmed : nil
+            return systemPrompt?.trimmedNonEmpty
         }
 
-        let base = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = systemPrompt?.trimmedNonEmpty
         let instructions = """
 When you need to return a renderable artifact for Jin, wrap it in a <jinArtifact> block.
 
@@ -171,7 +170,7 @@ Artifact protocol:
 - For SVG, Mermaid, or Markdown content, use regular code blocks instead of artifacts
 """
 
-        guard let base, !base.isEmpty else {
+        guard let base else {
             return instructions
         }
 
@@ -181,16 +180,14 @@ Artifact protocol:
     private static func parsedArtifact(fromOpeningTag openingTag: String, content: String) -> ParsedArtifact? {
         let attributes = parseAttributes(in: openingTag)
 
-        guard let artifactID = attributes["artifact_id"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !artifactID.isEmpty,
-              let rawContentType = attributes["contentType"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let artifactID = attributes["artifact_id"]?.trimmedNonEmpty,
+              let rawContentType = attributes["contentType"]?.trimmed,
               let contentType = ArtifactContentType(rawValue: rawContentType) else {
             return nil
         }
 
-        let title = attributes["title"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedTitle = (title?.isEmpty == false) ? title! : artifactID
-        let normalizedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle = attributes["title"]?.trimmedNonEmpty ?? artifactID
+        let normalizedContent = content.trimmed
 
         return ParsedArtifact(
             artifactID: artifactID,

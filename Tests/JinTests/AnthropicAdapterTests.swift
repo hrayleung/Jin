@@ -3,6 +3,150 @@ import XCTest
 @testable import Jin
 
 final class AnthropicAdapterTests: XCTestCase {
+    func testAnthropicRequestPreparationMergesBetaHeadersAndFilesAPIBeta() {
+        let controls = GenerationControls(
+            providerSpecific: [
+                "anthropic_beta": AnyCodable(" fine-grained-tool-streaming-2025-05-14,files-api-2025-04-14 ")
+            ]
+        )
+        let messages = [
+            Message(
+                role: .user,
+                content: [
+                    .file(FileContent(
+                        mimeType: " Application/PDF ",
+                        filename: "paper.pdf",
+                        data: Data([0x25, 0x50, 0x44, 0x46])
+                    ))
+                ]
+            )
+        ]
+
+        let header = AnthropicRequestPreparationSupport.betaHeader(
+            from: controls,
+            messages: messages,
+            codeExecutionEnabled: false
+        )
+
+        XCTAssertEqual(header, "fine-grained-tool-streaming-2025-05-14,files-api-2025-04-14")
+    }
+
+    func testAnthropicRequestPreparationDetectsCodeExecutionOnlyUploadTypes() {
+        let messages = [
+            Message(
+                role: .user,
+                content: [
+                    .file(FileContent(
+                        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        filename: "brief.docx",
+                        data: Data([0x50, 0x4b])
+                    ))
+                ]
+            )
+        ]
+
+        XCTAssertFalse(
+            AnthropicRequestPreparationSupport.requestUsesFilesAPI(
+                messages,
+                codeExecutionEnabled: false
+            )
+        )
+        XCTAssertTrue(
+            AnthropicRequestPreparationSupport.requestUsesFilesAPI(
+                messages,
+                codeExecutionEnabled: true
+            )
+        )
+    }
+
+    func testAnthropicToolSpecSupportBuildsCustomAndBuiltInSpecs() throws {
+        let customTool = ToolDefinition(
+            id: "weather",
+            name: "get_weather",
+            description: "Get current weather.",
+            parameters: ParameterSchema(
+                properties: [
+                    "city": PropertySchema(type: "string", description: "City name")
+                ],
+                required: ["city"]
+            ),
+            source: .builtin
+        )
+
+        let customSpecs = AnthropicToolSpecSupport.customToolSpecs(from: [customTool])
+        let customSpec = try XCTUnwrap(customSpecs.first)
+        let inputSchema = try XCTUnwrap(customSpec["input_schema"] as? [String: Any])
+        let properties = try XCTUnwrap(inputSchema["properties"] as? [String: Any])
+        let city = try XCTUnwrap(properties["city"] as? [String: Any])
+
+        XCTAssertEqual(customSpec["name"] as? String, "get_weather")
+        XCTAssertEqual(customSpec["description"] as? String, "Get current weather.")
+        XCTAssertEqual(inputSchema["type"] as? String, "object")
+        XCTAssertEqual(inputSchema["required"] as? [String], ["city"])
+        XCTAssertEqual(city["type"] as? String, "string")
+        XCTAssertEqual(city["description"] as? String, "City name")
+
+        let codeExecution = AnthropicToolSpecSupport.codeExecutionToolSpec()
+        XCTAssertEqual(codeExecution["type"] as? String, "code_execution_20250825")
+        XCTAssertEqual(codeExecution["name"] as? String, "code_execution")
+    }
+
+    func testAnthropicToolSpecSupportBuildsWebSearchSpec() throws {
+        let controls = WebSearchControls(
+            enabled: true,
+            maxUses: 3,
+            allowedDomains: [" example.com ", "Example.com"],
+            blockedDomains: ["blocked.example.com"],
+            userLocation: WebSearchUserLocation(
+                city: " San Francisco ",
+                region: " ",
+                country: " US ",
+                timezone: " America/Los_Angeles "
+            ),
+            dynamicFiltering: true
+        )
+
+        let spec = AnthropicToolSpecSupport.webSearchToolSpec(
+            from: controls,
+            supportsDynamicFiltering: true
+        )
+        let location = try XCTUnwrap(spec["user_location"] as? [String: Any])
+
+        XCTAssertEqual(spec["type"] as? String, "web_search_20260209")
+        XCTAssertEqual(spec["name"] as? String, "web_search")
+        XCTAssertEqual(spec["max_uses"] as? Int, 3)
+        XCTAssertEqual(spec["allowed_domains"] as? [String], ["example.com"])
+        XCTAssertNil(spec["blocked_domains"])
+        XCTAssertEqual(location["type"] as? String, "approximate")
+        XCTAssertEqual(location["city"] as? String, "San Francisco")
+        XCTAssertNil(location["region"])
+        XCTAssertEqual(location["country"] as? String, "US")
+        XCTAssertEqual(location["timezone"] as? String, "America/Los_Angeles")
+    }
+
+    func testAnthropicToolSpecSupportSanitizesProviderSpecificWebSearchTools() throws {
+        let normalized = AnthropicToolSpecSupport.normalizedProviderSpecificTools(
+            [
+                [
+                    "type": "web_search_20260209",
+                    "name": "web_search",
+                    "max_uses": 0,
+                    "allowed_domains": [" example.com ", "Example.com"],
+                    "blocked_domains": ["blocked.example.com"]
+                ]
+            ],
+            supportsDynamicFiltering: false
+        )
+
+        let tools = try XCTUnwrap(normalized as? [[String: Any]])
+        let webSearch = try XCTUnwrap(tools.first)
+
+        XCTAssertEqual(webSearch["type"] as? String, "web_search_20250305")
+        XCTAssertEqual(webSearch["allowed_domains"] as? [String], ["example.com"])
+        XCTAssertNil(webSearch["blocked_domains"])
+        XCTAssertNil(webSearch["max_uses"])
+    }
+
     func testAnthropicAdapterDefaultsMaxTokensToClaude45ModelLimitWhenMissing() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -1336,6 +1480,140 @@ final class AnthropicAdapterTests: XCTestCase {
         XCTAssertEqual(sourceEvent.id, "srv_1")
         XCTAssertTrue(sourceEvent.sourceURLs.contains("https://example.com/swift"))
         XCTAssertTrue(sourceEvent.sourceURLs.contains("https://swift.org/documentation/"))
+    }
+
+    func testAnthropicStreamingTrimsWebSearchResultSources() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/messages")
+
+            let sse = """
+            event: message_start
+            data: {"type":"message_start","message":{"id":"msg_server_tool","type":"message","role":"assistant","model":"claude-sonnet-4-6"}}
+
+            event: content_block_start
+            data: {"type":"content_block_start","index":1,"content_block":{"type":"web_search_tool_result","tool_use_id":"srv_1","content":[{"type":"web_search_result","title":"  Swift Concurrency Guide  ","url":"  https://example.com/swift  ","snippet":"  Swift\\n concurrency   guide.  "},{"type":"web_search_result","title":"  ","url":" \\n ","snippet":" ignored "}]}}
+
+            event: content_block_stop
+            data: {"type":"content_block_stop","index":1}
+
+            event: message_stop
+            data: {"type":"message_stop"}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "claude-sonnet-4-6",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var sourceEvent: SearchActivity?
+        for try await event in stream {
+            guard case .searchActivity(let activity) = event,
+                  activity.type == "web_search" else {
+                continue
+            }
+            sourceEvent = activity
+            break
+        }
+
+        let activity = try XCTUnwrap(sourceEvent)
+        guard let rawSources = activity.arguments["sources"]?.value as? [[String: Any]] else {
+            return XCTFail("Expected sources payload")
+        }
+
+        XCTAssertEqual(rawSources.count, 1)
+        XCTAssertEqual(rawSources.first?["url"] as? String, "https://example.com/swift")
+        XCTAssertEqual(rawSources.first?["title"] as? String, "Swift Concurrency Guide")
+        XCTAssertEqual(rawSources.first?["snippet"] as? String, "Swift concurrency guide.")
+        XCTAssertEqual(activity.arguments["url"]?.value as? String, "https://example.com/swift")
+        XCTAssertEqual(activity.arguments["title"]?.value as? String, "Swift Concurrency Guide")
+    }
+
+    func testAnthropicStreamingTrimsCodeExecutionOutputFileIDs() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/messages")
+
+            let sse = """
+            event: message_start
+            data: {"type":"message_start","message":{"id":"msg_code_exec","type":"message","role":"assistant","model":"claude-sonnet-4-6"}}
+
+            event: content_block_start
+            data: {"type":"content_block_start","index":1,"content_block":{"type":"code_execution_tool_result","tool_use_id":"code_1","content":{"type":"code_execution_tool_result","stdout":"done","return_code":0,"content":[{"type":"output_file","file_id":"  file_ant_123  "},{"type":"output_file","file_id":" \\n "} ]}}}
+
+            event: content_block_stop
+            data: {"type":"content_block_stop","index":1}
+
+            event: message_stop
+            data: {"type":"message_stop"}
+
+            data: [DONE]
+
+            """
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("run code")])],
+            modelID: "claude-sonnet-4-6",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var codeExecutionActivity: CodeExecutionActivity?
+        for try await event in stream {
+            guard case .codeExecutionActivity(let activity) = event else {
+                continue
+            }
+            codeExecutionActivity = activity
+            break
+        }
+
+        let activity = try XCTUnwrap(codeExecutionActivity)
+        XCTAssertEqual(activity.id, "code_1")
+        XCTAssertEqual(activity.status, .completed)
+        XCTAssertEqual(activity.outputFiles, [CodeExecutionOutputFile(id: "file_ant_123")])
     }
 
     func testAnthropicStreamingEmitsCitationSnippetFromCitedText() async throws {

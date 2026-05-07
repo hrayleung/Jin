@@ -47,44 +47,18 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
 
     private let panelCornerRadius: CGFloat = 26
 
-    private var wordCount: Int {
-        let trimmed = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return 0 }
-        return trimmed.components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .count
+    private var draftMetrics: ComposerDraftTextMetrics {
+        ComposerDraftTextMetrics(messageText: messageText)
     }
 
-    private var characterCount: Int {
-        messageText.count
-    }
-
-    private var trimmedRemoteVideoURLText: String {
-        remoteVideoURLText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var draftSummary: String {
-        guard characterCount > 0 else { return "0 words · 0 characters" }
-
-        let wordLabel = wordCount == 1 ? "1 word" : "\(wordCount) words"
-        let characterLabel = characterCount == 1 ? "1 character" : "\(characterCount) characters"
-        return "\(wordLabel) · \(characterLabel)"
-    }
-
-    private var submitShortcutLabel: String {
-        sendWithCommandEnter ? "⌘↩ Send" : "↩ Send"
-    }
-
-    private var primaryActionDisabled: Bool {
-        ((!canSendDraft && !isBusy) || isRecording || isTranscribing)
-    }
-
-    private var primaryActionTitle: String {
-        isBusy ? "Stop" : "Send"
-    }
-
-    private var primaryActionSymbol: String {
-        isBusy ? "stop.fill" : "arrow.up"
+    private var sendButtonPresentation: ComposerSendButtonPresentation {
+        ComposerSendButtonPresentation(
+            usesCommandReturn: sendWithCommandEnter,
+            isBusy: isBusy,
+            canSendDraft: canSendDraft,
+            isRecording: isRecording,
+            isTranscribing: isTranscribing
+        )
     }
 
     private var panelStrokeColor: Color {
@@ -94,7 +68,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     @ViewBuilder
     private var inlineAccessoryRows: some View {
         if !perMessageMCPChips.isEmpty {
-            accessorySection(title: "MCP Servers", systemName: "hammer") {
+            ExpandedComposerAccessorySection(title: "MCP Servers", systemName: "hammer") {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: JinSpacing.small) {
                         ForEach(perMessageMCPChips) { chip in
@@ -110,7 +84,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         }
 
         if !draftQuotes.isEmpty {
-            accessorySection(title: "Quotes", systemName: "quote.opening") {
+            ExpandedComposerAccessorySection(title: "Quotes", systemName: "quote.opening") {
                 ScrollView(.vertical, showsIndicators: true) {
                     VStack(alignment: .leading, spacing: JinSpacing.small) {
                         ForEach(draftQuotes) { quote in
@@ -125,7 +99,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         }
 
         if !draftAttachments.isEmpty {
-            accessorySection(title: "Attachments", systemName: "paperclip") {
+            ExpandedComposerAccessorySection(title: "Attachments", systemName: "paperclip") {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: JinSpacing.small) {
                         ForEach(draftAttachments) { attachment in
@@ -141,8 +115,11 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         }
 
         if showsRemoteVideoURLField {
-            accessorySection(title: "Source Video URL", systemName: "link") {
-                remoteVideoURLField
+            ExpandedComposerAccessorySection(title: "Source Video URL", systemName: "link") {
+                ExpandedComposerRemoteVideoURLField(
+                    remoteVideoURLText: $remoteVideoURLText,
+                    isBusy: isBusy
+                )
             }
         }
     }
@@ -179,12 +156,35 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
 
     private var panelShell: some View {
         VStack(alignment: .leading, spacing: JinSpacing.large) {
-            panelHeader
+            ExpandedComposerHeader(
+                onCollapse: {
+                    isPresented = false
+                    onCollapse()
+                },
+                onHide: {
+                    isPresented = false
+                    onHide()
+                }
+            )
             panelSlashCommandPopover
             inlineAccessoryRows
             editorSection
-            controlsSection
-            panelFooter
+            ExpandedComposerControlsSection(controlsRow: controlsRow)
+            ExpandedComposerFooter(
+                draftMetrics: draftMetrics,
+                contextUsageEstimate: contextUsageEstimate,
+                currentModelName: currentModelName,
+                sendWithCommandEnter: sendWithCommandEnter,
+                isBusy: isBusy,
+                isPreparingToSend: isPreparingToSend,
+                prepareToSendStatus: prepareToSendStatus,
+                isRecording: isRecording,
+                isTranscribing: isTranscribing,
+                recordingDurationText: recordingDurationText,
+                transcribingStatusText: transcribingStatusText,
+                sendButtonPresentation: sendButtonPresentation,
+                onSend: onSend
+            )
         }
         .padding(JinSpacing.xLarge)
         .background {
@@ -213,98 +213,6 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         }
     }
 
-    private func accessorySection<Content: View>(
-        title: String,
-        systemName: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Label(title, systemImage: systemName)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            content()
-        }
-        .padding(JinSpacing.medium)
-        .jinSurface(.subtle, cornerRadius: JinRadius.large)
-    }
-
-    private var panelHeader: some View {
-        HStack(alignment: .top, spacing: JinSpacing.large) {
-            Spacer(minLength: 0)
-
-            HStack(spacing: JinSpacing.small) {
-                headerActionButton(systemName: "arrow.down.right.and.arrow.up.left", help: "Compact composer") {
-                    isPresented = false
-                    onCollapse()
-                }
-                .keyboardShortcut(.escape, modifiers: [])
-
-                headerActionButton(systemName: "chevron.down", help: "Hide composer") {
-                    isPresented = false
-                    onHide()
-                }
-            }
-        }
-    }
-
-    private func headerActionButton(
-        systemName: String,
-        help: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 42, height: 32)
-                .background(
-                    RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                        .fill(JinSemanticColor.subtleSurface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                        .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
-                )
-        }
-        .buttonStyle(.plain)
-        .help(help)
-        .accessibilityLabel(help)
-    }
-
-    private var remoteVideoURLField: some View {
-        HStack(spacing: JinSpacing.small) {
-            Image(systemName: "link")
-                .foregroundStyle(.secondary)
-
-            TextField("Source Video URL", text: $remoteVideoURLText)
-                .textFieldStyle(.plain)
-                .font(.callout)
-                .disabled(isBusy)
-
-            if !trimmedRemoteVideoURLText.isEmpty {
-                Button {
-                    remoteVideoURLText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .disabled(isBusy)
-            }
-        }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small + 2)
-        .background(
-            RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                .fill(JinSemanticColor.textSurface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
-        )
-    }
-
     private var editorSection: some View {
         VStack(alignment: .leading, spacing: JinSpacing.medium) {
             ComposerEditorSurface(
@@ -321,7 +229,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
                     onDropFileURLs: onDropFileURLs,
                     onDropImages: onDropImages,
                     onSubmit: {
-                        guard !primaryActionDisabled else { return }
+                        guard !sendButtonPresentation.isDisabled else { return }
                         onSend()
                     },
                     onCancel: {
@@ -335,92 +243,5 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    private var controlsSection: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            controlsRow()
-                .padding(.vertical, 2)
-        }
-        .padding(JinSpacing.medium)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .jinSurface(.subtle, cornerRadius: JinRadius.large)
-    }
-
-    private var panelFooter: some View {
-        HStack(alignment: .bottom, spacing: JinSpacing.large) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(draftSummary)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
-
-                ComposerStatusSummaryView(
-                    isPreparingToSend: isPreparingToSend,
-                    prepareToSendStatus: prepareToSendStatus,
-                    isRecording: isRecording,
-                    isTranscribing: isTranscribing,
-                    recordingDurationText: recordingDurationText,
-                    transcribingStatusText: transcribingStatusText
-                )
-            }
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: JinSpacing.medium) {
-                if let contextUsageEstimate {
-                    ContextUsageIndicatorView(
-                        estimate: contextUsageEstimate,
-                        modelName: currentModelName
-                    )
-                    .equatable()
-                }
-
-                Text(sendWithCommandEnter ? "⌘↩" : "↩")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .monospaced()
-
-                Button {
-                    onSend()
-                } label: {
-                    Label(primaryActionTitle, systemImage: primaryActionSymbol)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .tint(isBusy ? .red : .accentColor)
-                .keyboardShortcut(.return, modifiers: sendWithCommandEnter ? [.command] : [])
-                .disabled(primaryActionDisabled)
-            }
-        }
-    }
-}
-
-// MARK: - Composer Meta Badge
-
-private struct ComposerMetaBadge: View {
-    let systemName: String
-    let text: String
-
-    private static let maxLabelWidth: CGFloat = 240
-
-    var body: some View {
-        Label(text, systemImage: systemName)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .frame(maxWidth: Self.maxLabelWidth)
-            .padding(.horizontal, JinSpacing.medium)
-            .padding(.vertical, JinSpacing.small)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(JinSemanticColor.subtleSurface)
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(JinSemanticColor.separator.opacity(0.5), lineWidth: JinStrokeWidth.hairline)
-            )
-            .help(text)
     }
 }

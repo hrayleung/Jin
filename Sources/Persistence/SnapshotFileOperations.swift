@@ -124,8 +124,8 @@ enum SnapshotFileOperations {
 
         guard process.terminationStatus == 0 else {
             let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let message = String(data: errorData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            throw SnapshotError.exportFailed(message?.isEmpty == false ? message! : "ditto failed.")
+            let message = String(data: errorData, encoding: .utf8)?.trimmedNonEmpty ?? "ditto failed."
+            throw SnapshotError.exportFailed(message)
         }
     }
 }

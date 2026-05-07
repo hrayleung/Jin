@@ -38,8 +38,7 @@ enum LLMError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .authenticationFailed(let message):
-            let trimmed = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if trimmed.isEmpty {
+            guard let trimmed = message?.trimmedNonEmpty else {
                 return "Authentication failed. Please check your API key."
             }
             return "Authentication failed. Please check your API key.\n\n\(trimmed)"

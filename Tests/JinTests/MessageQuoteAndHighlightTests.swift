@@ -81,6 +81,14 @@ final class MessageQuoteAndHighlightTests: XCTestCase {
         XCTAssertEqual(updatedText, "Updated body")
     }
 
+    func testNormalizedEditedUserTextTrimsAndRejectsBlankText() {
+        XCTAssertEqual(
+            ChatMessageEditingSupport.normalizedEditedUserText(" \n Updated body\t "),
+            "Updated body"
+        )
+        XCTAssertNil(ChatMessageEditingSupport.normalizedEditedUserText(" \n\t "))
+    }
+
     func testMessageHighlightEntityPersistsAndBuildsSnapshots() throws {
         let storeURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("jin-highlight-tests-\(UUID().uuidString)", isDirectory: false)

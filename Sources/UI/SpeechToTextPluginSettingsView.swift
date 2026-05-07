@@ -65,18 +65,8 @@ struct SpeechToTextPluginSettingsView: View {
 
     var currentAPIKeyPreferenceKey: String? {
         guard let provider else { return nil }
-        switch provider {
-        case .openai:
-            return AppPreferenceKeys.sttOpenAIAPIKey
-        case .groq:
-            return AppPreferenceKeys.sttGroqAPIKey
-        case .mistral:
-            return AppPreferenceKeys.sttMistralAPIKey
-        case .elevenlabs:
-            return AppPreferenceKeys.sttElevenLabsAPIKey
-        case .whisperKit:
-            return nil
-        }
+        let preferenceKey = SpeechPluginPreferenceSupport.speechToTextAPIKeyPreferenceKey(for: provider)
+        return preferenceKey.isEmpty ? nil : preferenceKey
     }
 
     var trimmedAPIKey: String {
@@ -86,15 +76,10 @@ struct SpeechToTextPluginSettingsView: View {
     var body: some View {
         JinSettingsPage {
             JinSettingsSection("Provider") {
-                JinSettingsControlRow("Provider") {
-                    Picker("Provider", selection: $providerRaw) {
-                        ForEach(SpeechToTextProvider.allCases) { provider in
-                            Text(provider.displayName).tag(provider.rawValue)
-                        }
+                JinSettingsPickerRow("Provider", selection: $providerRaw) {
+                    ForEach(SpeechToTextProvider.allCases) { provider in
+                        Text(provider.displayName).tag(provider.rawValue)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .onChange(of: providerRaw) { oldProviderRaw, _ in
                     autoSaveTask?.cancel()
@@ -105,7 +90,7 @@ struct SpeechToTextPluginSettingsView: View {
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
 
-                Toggle("Add recording as file", isOn: $addRecordingAsFile)
+                JinSettingsToggleRow("Add recording as file", isOn: $addRecordingAsFile)
                     .help("Attach microphone recordings as audio files for models that support audio input instead of transcribing.")
             }
 
@@ -114,41 +99,25 @@ struct SpeechToTextPluginSettingsView: View {
                     "API Key",
                     detail: "Stored locally on this Mac. Changes save automatically."
                 ) {
-                    JinSettingsControlRow("API Key") {
-                        JinRevealableSecureField(
-                            title: "API Key",
-                            text: $apiKey,
-                            isRevealed: $isKeyVisible,
-                            revealHelp: "Show API key",
-                            concealHelp: "Hide API key"
-                        )
-                    }
+                    JinSettingsSecureFieldRow(
+                        "API Key",
+                        text: $apiKey,
+                        isRevealed: $isKeyVisible,
+                        revealHelp: "Show API key",
+                        concealHelp: "Hide API key"
+                    )
 
-                    HStack(spacing: 12) {
-                        Button("Test Connection") { testConnection() }
-                            .disabled(trimmedAPIKey.isEmpty || isTesting)
-
-                        Button("Clear", role: .destructive) { clearKey() }
-                            .disabled(isTesting)
-
-                        Spacer()
-
-                        if isTesting || isLoadingModels {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                    }
-
-                    if let statusMessage {
-                        JinSettingsStatusText(
-                            text: statusMessage,
-                            isError: statusIsError,
-                            isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
-                                statusMessage,
-                                isError: statusIsError
-                            )
-                        )
-                    }
+                    PluginCredentialActionsView(
+                        canTestConnection: !trimmedAPIKey.isEmpty,
+                        canClear: true,
+                        isTesting: isTesting,
+                        showsProgress: isTesting || isLoadingModels,
+                        statusMessage: statusMessage,
+                        statusIsError: statusIsError,
+                        spacing: 12,
+                        onTestConnection: testConnection,
+                        onClear: clearKey
+                    )
                 }
             }
 

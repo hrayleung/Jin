@@ -94,8 +94,7 @@ enum ChatHistoryTruncator {
     }
 
     private static func approximateTokenCount(for text: String) -> Int {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return 0 }
+        guard let trimmed = text.trimmedNonEmpty else { return 0 }
         return max(1, trimmed.count / 4)
     }
 }

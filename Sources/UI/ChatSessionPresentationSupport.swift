@@ -1,0 +1,116 @@
+import Foundation
+
+extension ChatAuxiliaryControlSupport {
+    static func openAIServiceTierHelpText(
+        supportsOpenAIServiceTierControl: Bool,
+        label: String
+    ) -> String {
+        guard supportsOpenAIServiceTierControl else { return "Service Tier: Not supported" }
+        return "Service Tier: \(label)"
+    }
+
+    static func openAIServiceTierLabel(controls: GenerationControls) -> String {
+        controls.openAIServiceTier?.displayName ?? "Auto"
+    }
+
+    static func openAIServiceTierBadgeText(
+        supportsOpenAIServiceTierControl: Bool,
+        controls: GenerationControls
+    ) -> String? {
+        guard supportsOpenAIServiceTierControl else { return nil }
+        return controls.openAIServiceTier?.badgeText
+    }
+
+    static func codexSessionBadgeText(controls: GenerationControls) -> String? {
+        guard controls.codexActiveOverrideCount > 0 else { return nil }
+        return controls.codexSandboxMode.badgeText
+    }
+
+    static func codexSessionHelpText(
+        supportsCodexSessionControl: Bool,
+        controls: GenerationControls
+    ) -> String {
+        guard supportsCodexSessionControl else { return "Codex Session: Not supported" }
+        return helpText(
+            title: "Codex Session",
+            segments: codexSessionHelpSegments(controls: controls)
+        )
+    }
+
+    static func claudeManagedAgentSessionBadgeText(controls: GenerationControls) -> String? {
+        guard controls.claudeManagedSessionOverrideCount > 0 else { return nil }
+        if controls.claudeManagedAgentID != nil, controls.claudeManagedEnvironmentID != nil {
+            return "2"
+        }
+        return "1"
+    }
+
+    static func claudeManagedAgentSessionHelpText(
+        supportsClaudeManagedAgentSessionControl: Bool,
+        resolvedControls: GenerationControls,
+        agentDisplayName: String?,
+        environmentDisplayName: String?
+    ) -> String {
+        guard supportsClaudeManagedAgentSessionControl else {
+            return "Claude Managed Agent: Not supported"
+        }
+
+        return helpText(
+            title: "Claude Managed Agent",
+            segments: claudeManagedAgentSessionHelpSegments(
+                resolvedControls: resolvedControls,
+                agentDisplayName: agentDisplayName,
+                environmentDisplayName: environmentDisplayName
+            )
+        )
+    }
+
+    private static func codexSessionHelpSegments(controls: GenerationControls) -> [String] {
+        var segments = [
+            "Sandbox: \(controls.codexSandboxMode.displayName)",
+            codexWorkingDirectorySegment(controls.codexWorkingDirectory)
+        ]
+
+        if let personality = controls.codexPersonality {
+            segments.append("Personality: \(personality.displayName)")
+        }
+
+        return segments
+    }
+
+    private static func codexWorkingDirectorySegment(_ workingDirectory: String?) -> String {
+        if let workingDirectory {
+            return "Working Directory: \(workingDirectory)"
+        }
+        return "Working Directory: app-server default"
+    }
+
+    private static func claudeManagedAgentSessionHelpSegments(
+        resolvedControls: GenerationControls,
+        agentDisplayName: String?,
+        environmentDisplayName: String?
+    ) -> [String] {
+        var segments: [String] = []
+        if resolvedControls.claudeManagedAgentID != nil {
+            segments.append("Agent: \(agentDisplayName ?? "not configured")")
+        } else {
+            segments.append("Agent: not configured")
+        }
+
+        if resolvedControls.claudeManagedEnvironmentID != nil, let environmentDisplayName {
+            segments.append("Environment: \(environmentDisplayName)")
+        } else {
+            segments.append("Environment: not configured")
+        }
+
+        if let sessionID = resolvedControls.claudeManagedSessionID {
+            segments.append("Session: \(sessionID)")
+        }
+
+        return segments
+    }
+
+    private static func helpText(title: String, segments: [String]) -> String {
+        "\(title): \(segments.joined(separator: " \u{00B7} "))"
+    }
+}

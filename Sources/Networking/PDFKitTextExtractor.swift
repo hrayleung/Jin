@@ -15,8 +15,7 @@ enum PDFKitTextExtractor {
         }
 
         let combined = pieces.joined(separator: "\n\n")
-        let trimmed = combined.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard let trimmed = combined.trimmedNonEmpty else { return nil }
 
         if trimmed.count > maxCharacters {
             let prefix = trimmed.prefix(maxCharacters)
@@ -26,4 +25,3 @@ enum PDFKitTextExtractor {
         return trimmed
     }
 }
-

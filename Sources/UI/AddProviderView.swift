@@ -50,41 +50,32 @@ struct AddProviderView: View {
                         )
                     }
 
-                    JinSettingsControlRow("Type") {
-                        Picker("Type", selection: $providerType) {
-                            ForEach(ProviderType.allCases, id: \.self) { type in
-                                Text(type.displayName).tag(type)
-                            }
+                    JinSettingsPickerRow("Type", selection: $providerType) {
+                        ForEach(ProviderType.allCases, id: \.self) { type in
+                            Text(type.displayName).tag(type)
                         }
-                        .labelsHidden()
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .onChange(of: providerType) { oldValue, newValue in
-                        let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if trimmed.isEmpty || trimmed == oldValue.defaultBaseURL {
-                            baseURL = newValue.defaultBaseURL ?? ""
-                        }
-
-                        let oldDefaultIconID = LobeProviderIconCatalog.defaultIconID(for: oldValue)
-                        let currentIconID = iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if currentIconID == nil || currentIconID?.isEmpty == true || currentIconID == oldDefaultIconID {
-                            iconID = LobeProviderIconCatalog.defaultIconID(for: newValue)
-                        }
-
-                        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if trimmedName.isEmpty || trimmedName == oldValue.displayName {
-                            name = newValue.displayName
-                        }
+                        let values = ProviderFormSupport.updatedDraftValues(
+                            oldType: oldValue,
+                            newType: newValue,
+                            name: name,
+                            baseURL: baseURL,
+                            iconID: iconID
+                        )
+                        name = values.name
+                        baseURL = values.baseURL
+                        iconID = values.iconID
                     }
 
                     if providerType != .vertexai {
-                        JinSettingsControlRow("API Base URL", supportingText: "Default endpoint is pre-filled.") {
-                            TextField("API Base URL", text: $baseURL)
-                                .textFieldStyle(.roundedBorder)
-                                .font(.system(.body, design: .monospaced))
-                                .help("Default endpoint is pre-filled.")
-                        }
+                        JinSettingsTextFieldRow(
+                            "API Base URL",
+                            supportingText: "Default endpoint is pre-filled.",
+                            text: $baseURL,
+                            usesMonospacedFont: true
+                        )
+                        .help("Default endpoint is pre-filled.")
                     }
 
                     if let providerSetupCallout {
@@ -102,51 +93,36 @@ struct AddProviderView: View {
                 }
 
                 JinSettingsSection("Credentials") {
-                    switch providerType {
-                    case .codexAppServer:
-                        JinSettingsControlRow(
+                    switch ProviderFormSupport.credentialKind(for: providerType) {
+                    case .optionalAPIKey:
+                        JinSettingsSecureFieldRow(
                             "API Key",
-                            supportingText: "Optional. Leave blank to use ChatGPT account login in provider settings."
-                        ) {
-                            JinRevealableSecureField(
-                                title: "API Key (Optional)",
-                                text: $apiKey,
-                                isRevealed: $isKeyVisible,
-                                revealHelp: "Show API key",
-                                concealHelp: "Hide API key"
-                            )
-                        }
-                    case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-                         .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
-                         .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-                         .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
-                        JinSettingsControlRow(providerType == .githubCopilot ? "GitHub Token" : "API Key") {
-                            JinRevealableSecureField(
-                                title: providerType == .githubCopilot ? "GitHub Token" : "API Key",
-                                text: $apiKey,
-                                isRevealed: $isKeyVisible,
-                                revealHelp: providerType == .githubCopilot ? "Show GitHub token" : "Show API key",
-                                concealHelp: providerType == .githubCopilot ? "Hide GitHub token" : "Hide API key"
-                            )
-                        }
-                    case .vertexai:
+                            fieldTitle: "API Key (Optional)",
+                            supportingText: "Optional. Leave blank to use ChatGPT account login in provider settings.",
+                            text: $apiKey,
+                            isRevealed: $isKeyVisible,
+                            revealHelp: "Show API key",
+                            concealHelp: "Hide API key"
+                        )
+                    case .apiKey:
+                        JinSettingsSecureFieldRow(
+                            ProviderFormSupport.apiKeyFieldTitle(for: providerType),
+                            text: $apiKey,
+                            isRevealed: $isKeyVisible,
+                            revealHelp: ProviderFormSupport.apiKeyRevealHelp(for: providerType),
+                            concealHelp: ProviderFormSupport.apiKeyConcealHelp(for: providerType)
+                        )
+                    case .serviceAccountJSON:
                         JinSettingsBlockRow(
                             "Service Account JSON",
                             supportingText: "Paste the full service account JSON document."
                         ) {
-                            TextEditor(text: $serviceAccountJSON)
-                                .frame(minHeight: 320)
-                                .font(.system(.body, design: .monospaced))
-                                .jinTextEditorField(cornerRadius: JinRadius.small)
-                                .overlay(alignment: .topLeading) {
-                                    if serviceAccountJSON.isEmpty {
-                                        Text("Paste service account JSON here…")
-                                            .foregroundColor(.secondary)
-                                            .padding(.top, 8)
-                                            .padding(.leading, 4)
-                                            .allowsHitTesting(false)
-                                    }
-                                }
+                            JinSettingsTextEditor(
+                                text: $serviceAccountJSON,
+                                placeholder: "Paste service account JSON here…",
+                                minHeight: 320,
+                                placeholderLeadingPadding: 4
+                            )
                         }
                     }
 
@@ -187,21 +163,20 @@ struct AddProviderView: View {
                 let trimmedBaseURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
                 let trimmedAPIKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
                 let trimmedServiceAccountJSON = serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines)
-                let trimmedIconID = iconID?.trimmingCharacters(in: .whitespacesAndNewlines)
 
                 if providerType == .vertexai {
                     _ = try JSONDecoder().decode(ServiceAccountCredentials.self, from: Data(trimmedServiceAccountJSON.utf8))
                 }
 
                 let isVertexAI = providerType == .vertexai
-                let resolvedAPIKey: String? = isVertexAI ? nil : (trimmedAPIKey.isEmpty ? nil : trimmedAPIKey)
-                let resolvedBaseURL: String? = isVertexAI ? nil : (trimmedBaseURL.isEmpty ? nil : trimmedBaseURL)
+                let resolvedAPIKey: String? = isVertexAI ? nil : ProviderFormSupport.normalizedOptionalString(trimmedAPIKey)
+                let resolvedBaseURL = ProviderFormSupport.normalizedBaseURL(trimmedBaseURL, providerType: providerType)
 
                 let config = ProviderConfig(
                     id: providerID,
                     name: trimmedName,
                     type: providerType,
-                    iconID: trimmedIconID?.isEmpty == false ? trimmedIconID : nil,
+                    iconID: ProviderFormSupport.normalizedIconID(iconID),
                     apiKey: resolvedAPIKey,
                     serviceAccountJSON: isVertexAI ? trimmedServiceAccountJSON : nil,
                     baseURL: resolvedBaseURL
@@ -223,53 +198,20 @@ struct AddProviderView: View {
     }
 
     private var providerSetupCallout: String? {
-        switch providerType {
-        case .codexAppServer:
-            return "Requires a running `codex app-server` process."
-        default:
-            return nil
-        }
+        ProviderFormSupport.providerSetupCallout(for: providerType)
     }
 
     private var providerDetailsText: String? {
-        switch providerType {
-        case .openaiWebSocket:
-            return "Keeps a persistent connection to `/v1/responses`. Only one response can be in flight per connection."
-        case .cloudflareAIGateway:
-            return "Recommended: use a Cloudflare API Token (BYOK mode). Keep the `/compat` base URL, configure upstream provider keys in AI Gateway, then use model IDs like `openai/gpt-5` or `anthropic/claude-sonnet-4.5`."
-        case .zhipuCodingPlan:
-            return "Use `https://open.bigmodel.cn/api/coding/paas/v4` instead of the generic `/api/paas/v4`. Recommended models: `glm-5`, `glm-4.7`."
-        case .minimax:
-            return "International endpoint: `https://api.minimax.io/v1`. Recommended models: `MiniMax-M2.7`, `MiniMax-M2.5`."
-        case .minimaxCodingPlan:
-            return "Uses MiniMax's Anthropic-compatible endpoint: `https://api.minimaxi.com/anthropic/v1`. Supports both pay-as-you-go and Coding Plan API keys."
-        case .mimoTokenPlanOpenAI:
-            return "Use the OpenAI-compatible Token Plan Base URL from the MiMo subscription page. The Singapore default is `https://token-plan-sgp.xiaomimimo.com/v1`; Token Plan keys start with `tp-`."
-        case .mimoTokenPlanAnthropic:
-            return "Use the Anthropic-compatible Token Plan Base URL from the MiMo subscription page. Jin accepts Xiaomi's displayed `/anthropic` URL and sends requests to `/anthropic/v1/messages`; Token Plan keys start with `tp-`."
-        case .githubCopilot:
-            return "Uses GitHub Models at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access."
-        case .codexAppServer:
-            return "Expected listen address: `ws://127.0.0.1:4500`. Recommended stable runtime: `codex` 0.107.0+."
-        default:
-            return nil
-        }
+        ProviderFormSupport.providerDetailsText(for: providerType)
     }
 
     private var isAddDisabled: Bool {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty, !isSaving else { return true }
-
-        switch providerType {
-        case .codexAppServer:
-            return false
-        case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-             .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
-            return apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .vertexai:
-            return serviceAccountJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
+        ProviderFormSupport.isAddDisabled(
+            providerType: providerType,
+            name: name,
+            apiKey: apiKey,
+            serviceAccountJSON: serviceAccountJSON,
+            isSaving: isSaving
+        )
     }
 }

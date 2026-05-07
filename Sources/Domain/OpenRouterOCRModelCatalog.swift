@@ -44,10 +44,7 @@ enum OpenRouterOCRModelCatalog {
     }
 
     static func entry(for id: String?) -> Entry? {
-        guard let normalized = id?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !normalized.isEmpty else {
-            return nil
-        }
+        guard let normalized = id?.trimmedNonEmpty else { return nil }
         return entries.first { $0.id == normalized }
     }
 

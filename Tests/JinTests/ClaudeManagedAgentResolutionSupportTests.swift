@@ -31,6 +31,24 @@ final class ClaudeManagedAgentResolutionSupportTests: XCTestCase {
         XCTAssertEqual(resolved, requestedModelID)
     }
 
+    func testCanonicalManagedThreadModelIDTrimsRequestedSyntheticDescriptor() {
+        let requestedModelID = ClaudeManagedAgentRuntime.syntheticThreadModelID(
+            providerID: "managed-provider",
+            agentID: "agent_selected",
+            environmentID: "env_selected"
+        )
+
+        let resolved = ClaudeManagedAgentResolutionSupport.canonicalManagedThreadModelID(
+            providerID: "managed-provider",
+            requestedModelID: " \n\(requestedModelID)\t ",
+            fallbackControls: GenerationControls(),
+            storedThreadControls: nil,
+            applyProviderDefaults: { _ in }
+        )
+
+        XCTAssertEqual(resolved, requestedModelID)
+    }
+
     func testCanonicalManagedThreadModelIDUsesStoredControlsForLegacyThreadModelID() {
         var storedThreadControls = GenerationControls()
         storedThreadControls.claudeManagedAgentID = "agent_thread"

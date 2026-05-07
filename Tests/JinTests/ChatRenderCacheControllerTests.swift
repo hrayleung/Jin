@@ -111,6 +111,26 @@ final class ChatRenderCacheControllerTests: XCTestCase {
         XCTAssertTrue(controller.isHistoryReady)
     }
 
+    func testThreadRenderContextReplacingHistoryPreservesRenderedState() {
+        let oldHistory = Message(id: UUID(), role: .user, content: [.text("Old")], timestamp: Date())
+        let newHistory = Message(id: UUID(), role: .assistant, content: [.text("New")], timestamp: Date())
+        let context = ChatThreadRenderContext(
+            visibleMessages: [],
+            historyMessages: [oldHistory],
+            messageEntitiesByID: [:],
+            toolResultsByCallID: [:],
+            artifactCatalog: .empty
+        )
+
+        let updated = context.replacingHistoryMessages([newHistory])
+
+        XCTAssertTrue(updated.visibleMessages.isEmpty)
+        XCTAssertEqual(updated.historyMessages.map(\.id), [newHistory.id])
+        XCTAssertTrue(updated.messageEntitiesByID.isEmpty)
+        XCTAssertTrue(updated.toolResultsByCallID.isEmpty)
+        XCTAssertTrue(updated.artifactCatalog.isEmpty)
+    }
+
     private func makeThread(providerID: String, modelID: String, displayOrder: Int) throws -> ConversationModelThreadEntity {
         ConversationModelThreadEntity(
             providerID: providerID,

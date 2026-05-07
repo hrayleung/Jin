@@ -53,9 +53,9 @@ actor FirecrawlPDFOCRClient {
 
         let document = json["data"] as? [String: Any]
         let markdown = (document?["markdown"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmedNonEmpty
 
-        guard let markdown, !markdown.isEmpty else {
+        guard let markdown else {
             throw LLMError.decodingError(message: "Firecrawl scrape response did not contain markdown.")
         }
 
@@ -70,8 +70,7 @@ actor FirecrawlPDFOCRClient {
     }
 
     private func errorMessage(from json: [String: Any]) -> String {
-        if let direct = firstString(in: json, keys: ["error", "message", "status"]),
-           !direct.isEmpty {
+        if let direct = firstString(in: json, keys: ["error", "message", "status"]) {
             return direct
         }
 
@@ -88,11 +87,9 @@ actor FirecrawlPDFOCRClient {
 
     private func firstString(in dictionary: [String: Any], keys: [String]) -> String? {
         for key in keys {
-            if let value = dictionary[key] as? String {
-                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    return trimmed
-                }
+            if let value = dictionary[key] as? String,
+               let trimmed = value.trimmedNonEmpty {
+                return trimmed
             }
         }
         return nil

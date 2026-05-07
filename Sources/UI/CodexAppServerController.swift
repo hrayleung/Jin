@@ -12,12 +12,6 @@ final class CodexAppServerController: ObservableObject {
         case failed(String)
     }
 
-    private struct ShutdownOutcome {
-        let remainingPIDs: [Int32]
-        let managedProcessCount: Int
-        let force: Bool
-    }
-
     @Published private(set) var status: Status = .stopped
     @Published private(set) var lastOutputLine: String?
     @Published private(set) var managedProcessCount = 0
@@ -34,15 +28,6 @@ final class CodexAppServerController: ObservableObject {
     private var shutdownGeneration = 0
 
     private let stderrTailLimitBytes = 32 * 1024
-
-    private static let defaultPathEntries: [String] = [
-        "/opt/homebrew/bin",
-        "/usr/local/bin",
-        "/usr/bin",
-        "/bin",
-        "/usr/sbin",
-        "/sbin",
-    ]
 
     private init() {
         refreshManagedProcesses()
@@ -79,12 +64,12 @@ final class CodexAppServerController: ObservableObject {
         stderrTail.removeAll(keepingCapacity: true)
         status = .starting
 
-        var environment = mergedEnvironment()
+        var environment = CodexAppServerLaunchSupport.mergedEnvironment()
         environment[CodexManagedProcessSupport.managedEnvironmentKey] = CodexManagedProcessSupport.managedEnvironmentValue
         environment["JIN_MANAGED_CODEX_PARENT_PID"] = String(getpid())
         environment["JIN_MANAGED_CODEX_LISTEN_URL"] = listenURL
 
-        guard let codexExecutable = resolveCodexExecutable(environment: environment) else {
+        guard let codexExecutable = CodexAppServerLaunchSupport.resolveCodexExecutable(environment: environment) else {
             let hintPath = environment["PATH"] ?? "(empty)"
             let message = "Unable to find `codex` executable. PATH used by app: \(hintPath)"
             status = .failed(message)
@@ -148,7 +133,7 @@ final class CodexAppServerController: ObservableObject {
 
     func shutdownForApplicationTermination() {
         let trackedPID = detachTrackedProcessIfNeeded()
-        let outcome = Self.performShutdown(
+        let outcome = CodexAppServerShutdownSupport.performShutdown(
             trackedPID: trackedPID,
             includeDetectedRemainders: true,
             force: true
@@ -185,7 +170,7 @@ final class CodexAppServerController: ObservableObject {
         let expectedGeneration = shutdownGeneration
 
         shutdownTask = Task.detached(priority: .utility) {
-            let outcome = Self.performShutdown(
+            let outcome = CodexAppServerShutdownSupport.performShutdown(
                 trackedPID: trackedPID,
                 includeDetectedRemainders: includeDetectedRemainders,
                 force: force
@@ -215,62 +200,16 @@ final class CodexAppServerController: ObservableObject {
         return pid
     }
 
-    nonisolated private static func performShutdown(
-        trackedPID: Int32?,
-        includeDetectedRemainders: Bool,
-        force: Bool
-    ) -> ShutdownOutcome {
-        let snapshots = CodexManagedProcessSupport.currentProcessSnapshots()
-        let rootPIDs = shutdownRootPIDs(
-            trackedPID: trackedPID,
-            includeDetectedRemainders: includeDetectedRemainders,
-            snapshots: snapshots
-        )
-
-        let aliveRoots = rootPIDs.filter(CodexManagedProcessSupport.isProcessAlive)
-        guard !aliveRoots.isEmpty else {
-            let remainingManaged = CodexManagedProcessSupport.managedRootPIDs(in: snapshots).count
-            return ShutdownOutcome(remainingPIDs: [], managedProcessCount: remainingManaged, force: force)
-        }
-
-        let orderedPIDs = CodexManagedProcessSupport.shutdownOrder(for: aliveRoots, snapshots: snapshots)
-
-        if force {
-            CodexManagedProcessSupport.signal(orderedPIDs, signal: SIGKILL)
-            _ = CodexManagedProcessSupport.waitForExit(of: Array(aliveRoots), timeout: 0.2)
-        } else {
-            CodexManagedProcessSupport.signal(orderedPIDs, signal: SIGINT)
-
-            if !CodexManagedProcessSupport.waitForExit(of: Array(aliveRoots), timeout: 0.8) {
-                CodexManagedProcessSupport.signal(orderedPIDs, signal: SIGTERM)
-            }
-
-            if !CodexManagedProcessSupport.waitForExit(of: Array(aliveRoots), timeout: 0.35) {
-                CodexManagedProcessSupport.signal(orderedPIDs, signal: SIGKILL)
-            }
-        }
-
-        let refreshedSnapshots = CodexManagedProcessSupport.currentProcessSnapshots()
-        let remaining = CodexManagedProcessSupport.alivePIDs(in: Array(aliveRoots))
-        let remainingManaged = CodexManagedProcessSupport.managedRootPIDs(in: refreshedSnapshots).count
-        return ShutdownOutcome(remainingPIDs: remaining, managedProcessCount: remainingManaged, force: force)
-    }
-
     nonisolated static func shutdownRootPIDs(
         trackedPID: Int32?,
         includeDetectedRemainders: Bool,
         snapshots: [CodexManagedProcessSnapshot]
     ) -> Set<Int32> {
-        var rootPIDs = Set<Int32>()
-
-        if let trackedPID, trackedPID > 0 {
-            rootPIDs.insert(trackedPID)
-        }
-        if includeDetectedRemainders {
-            rootPIDs.formUnion(CodexManagedProcessSupport.managedRootPIDs(in: snapshots))
-        }
-
-        return rootPIDs
+        CodexAppServerShutdownSupport.shutdownRootPIDs(
+            trackedPID: trackedPID,
+            includeDetectedRemainders: includeDetectedRemainders,
+            snapshots: snapshots
+        )
     }
 
     private func handleProcessTermination(exitStatus: Int32) {
@@ -334,55 +273,6 @@ final class CodexAppServerController: ObservableObject {
         return "codex app-server exited with status \(status)."
     }
 
-    private func mergedEnvironment() -> [String: String] {
-        var env = ProcessInfo.processInfo.environment
-        let existingPath = env["PATH"] ?? ""
-        let pathEntries = existingPath
-            .split(separator: ":")
-            .map { String($0) }
-
-        var merged = pathEntries
-        for entry in Self.defaultPathEntries where !merged.contains(entry) {
-            merged.append(entry)
-        }
-        for entry in commonUserPathEntries() where !merged.contains(entry) {
-            merged.append(entry)
-        }
-        env["PATH"] = merged.joined(separator: ":")
-        return env
-    }
-
-    private func commonUserPathEntries() -> [String] {
-        let home = NSHomeDirectory()
-        return [
-            "\(home)/.superset/bin",
-            "\(home)/.npm-global/bin",
-            "\(home)/.local/bin",
-            "\(home)/.cargo/bin",
-            "\(home)/.claude/bin",
-            "\(home)/.opencode/bin",
-            "\(home)/.bun/bin",
-        ]
-    }
-
-    private func resolveCodexExecutable(environment: [String: String]) -> URL? {
-        let fileManager = FileManager.default
-        let pathEntries = (environment["PATH"] ?? "")
-            .split(separator: ":")
-            .map { String($0) }
-
-        for entry in pathEntries where !entry.isEmpty {
-            let path = URL(fileURLWithPath: entry, isDirectory: true)
-                .appendingPathComponent("codex", isDirectory: false)
-                .path
-            if fileManager.isExecutableFile(atPath: path) {
-                return URL(fileURLWithPath: path)
-            }
-        }
-
-        return nil
-    }
-
     private func teardownReadHandlers(stdoutPipe: Pipe?, stderrPipe: Pipe?) {
         stdoutPipe?.fileHandleForReading.readabilityHandler = nil
         stderrPipe?.fileHandleForReading.readabilityHandler = nil
@@ -394,25 +284,5 @@ final class CodexAppServerController: ObservableObject {
         stdoutPipe = nil
         stderrPipe = nil
         process = nil
-    }
-}
-
-private enum CodexAppServerControlError: LocalizedError {
-    case invalidListenURL(String)
-    case alreadyRunning
-    case executableNotFound(String)
-    case launchFailed(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidListenURL(let message):
-            return message
-        case .alreadyRunning:
-            return "codex app-server is already running."
-        case .executableNotFound(let message):
-            return message
-        case .launchFailed(let message):
-            return message
-        }
     }
 }

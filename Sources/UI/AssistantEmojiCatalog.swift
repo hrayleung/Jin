@@ -145,6 +145,6 @@ enum AssistantEmojiCatalog {
             .replacingOccurrences(of: "_", with: " ")
             .replacingOccurrences(of: "/", with: " ")
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmed
     }
 }

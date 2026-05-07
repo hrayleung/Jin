@@ -2,8 +2,7 @@ import Foundation
 
 enum SearchActivityURLDeduplication {
     static func key(for rawURL: String) -> String {
-        let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return trimmed }
+        guard let trimmed = rawURL.trimmedNonEmpty else { return "" }
         guard var components = URLComponents(string: trimmed) else { return trimmed }
 
         components.scheme = components.scheme?.lowercased()

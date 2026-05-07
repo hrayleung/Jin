@@ -50,14 +50,13 @@ extension ChatView {
         guard messageEntity.role == "user" else { return }
         guard editingUserMessageID == messageEntity.id else { return }
 
-        let trimmed = editingUserMessageText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil else {
+        guard let editedText = ChatMessageEditingSupport.normalizedEditedUserText(editingUserMessageText) else {
             cancelEditingUserMessage()
             return
         }
 
         do {
-            try updateUserMessageContent(messageEntity, newText: trimmed)
+            try updateUserMessageContent(messageEntity, newText: editedText)
         } catch {
             errorMessage = error.localizedDescription
             showingError = true

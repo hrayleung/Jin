@@ -4,50 +4,6 @@ import TTSKit
 actor TTSKitService {
     static let shared = TTSKitService()
 
-    struct GeneratedSpeechChunk: Sendable {
-        let samples: [Float]
-        let sampleRate: Int
-    }
-
-    struct LocalModel: Identifiable, Sendable, Equatable {
-        let id: String
-        let repositoryRootURL: URL
-        let versionDirectory: String
-        let componentDirectories: [URL]
-
-        var storagePathPattern: String {
-            repositoryRootURL
-                .appendingPathComponent("qwen3_tts", isDirectory: true)
-                .appendingPathComponent("<component>", isDirectory: true)
-                .appendingPathComponent(versionDirectory, isDirectory: true)
-                .path
-        }
-    }
-
-    struct LibrarySnapshot: Sendable, Equatable {
-        let repositoryRootURL: URL
-        let localModels: [LocalModel]
-        let loadedModelID: String?
-        let recommendedModelID: String
-
-        func localModel(id: String) -> LocalModel? {
-            localModels.first { $0.id == id }
-        }
-
-        func loadedModelMatches(selection: String) -> Bool {
-            loadedModelID == TTSKitModelCatalog.normalizedModelID(selection)
-        }
-    }
-
-    enum Status: Sendable, Equatable {
-        case idle
-        case downloading(progress: Double)
-        case loading
-        case ready(modelID: String)
-        case unloaded(modelID: String)
-        case error(String)
-    }
-
     private static let idleUnloadDelay: Duration = .seconds(120)
 
     private let modelsRepositoryURL: URL
@@ -69,15 +25,6 @@ actor TTSKitService {
         self.localModels = Self.discoverLocalModels(in: modelsRepositoryURL)
     }
 
-    nonisolated static var placeholderLibrarySnapshot: LibrarySnapshot {
-        LibrarySnapshot(
-            repositoryRootURL: defaultRepositoryURL(),
-            localModels: [],
-            loadedModelID: nil,
-            recommendedModelID: recommendedModelVariantStatic()
-        )
-    }
-
     // MARK: - Status Stream
 
     func statusStream() -> AsyncStream<Status> {
@@ -92,59 +39,6 @@ actor TTSKitService {
 
     private func clearContinuation() {
         statusContinuation = nil
-    }
-
-    // MARK: - Repository
-
-    nonisolated static func defaultRepositoryURL(documentsDirectory: URL? = nil) -> URL {
-        let documents = documentsDirectory
-            ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return documents
-            .appendingPathComponent("huggingface", isDirectory: true)
-            .appendingPathComponent("models", isDirectory: true)
-            .appendingPathComponent("argmaxinc", isDirectory: true)
-            .appendingPathComponent("ttskit-coreml", isDirectory: true)
-    }
-
-    nonisolated func recommendedModelVariant() -> String {
-        Self.recommendedModelVariantStatic()
-    }
-
-    nonisolated private static func recommendedModelVariantStatic() -> String {
-        TTSKit.recommendedModels().rawValue
-    }
-
-    nonisolated static func discoverLocalModels(in rootURL: URL) -> [LocalModel] {
-        sortLocalModels(
-            TTSKitModelCatalog.presets.compactMap { preset in
-                let config = TTSKitConfig(
-                    model: preset.variant,
-                    modelFolder: rootURL,
-                    download: false,
-                    load: false
-                )
-                let requiredComponents: [(String, String)] = [
-                    ("text_projector", config.textProjectorVariant),
-                    ("code_embedder", config.codeEmbedderVariant),
-                    ("multi_code_embedder", config.multiCodeEmbedderVariant),
-                    ("code_decoder", config.codeDecoderVariant),
-                    ("multi_code_decoder", config.multiCodeDecoderVariant),
-                    ("speech_decoder", config.speechDecoderVariant)
-                ]
-
-                let isInstalled = requiredComponents.allSatisfy { component, variant in
-                    config.modelURL(component: component, variant: variant) != nil
-                }
-                guard isInstalled else { return nil }
-
-                return LocalModel(
-                    id: preset.id,
-                    repositoryRootURL: rootURL,
-                    versionDirectory: preset.versionDirectory,
-                    componentDirectories: config.componentDirectories(in: rootURL)
-                )
-            }
-        )
     }
 
     // MARK: - Library Snapshot
@@ -391,70 +285,9 @@ actor TTSKitService {
         return pipe.audioOutput.currentPlaybackTime
     }
 
-    // MARK: - Private
+    // MARK: - Progress
 
     private func updateDownloadProgress(_ fraction: Double) {
         status = .downloading(progress: fraction)
-    }
-
-    private nonisolated static func normalizedOptionalString(_ value: String?) -> String? {
-        value?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .nilIfEmpty
-    }
-
-    private nonisolated static func sortLocalModels(_ models: [LocalModel]) -> [LocalModel] {
-        let order = Dictionary(uniqueKeysWithValues: TTSKitModelCatalog.presets.enumerated().map { ($1.id, $0) })
-        return models.sorted { lhs, rhs in
-            let lhsIndex = order[lhs.id] ?? Int.max
-            let rhsIndex = order[rhs.id] ?? Int.max
-            if lhsIndex != rhsIndex {
-                return lhsIndex < rhsIndex
-            }
-            return lhs.id.localizedCaseInsensitiveCompare(rhs.id) == .orderedAscending
-        }
-    }
-}
-
-private final class FirstAudioFrameGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var didEmitFirstAudioFrame = false
-
-    func emitIfNeeded(_ action: () -> Void) {
-        let shouldEmit = lock.withLock {
-            guard !didEmitFirstAudioFrame else { return false }
-            didEmitFirstAudioFrame = true
-            return true
-        }
-        if shouldEmit {
-            action()
-        }
-    }
-}
-
-private final class AsyncProgressCallbackQueue: @unchecked Sendable {
-    private let lock = NSLock()
-    private var tailTask: Task<Void, Never>?
-
-    func enqueue(_ operation: @escaping @Sendable () async -> Void) {
-        lock.withLock {
-            let previousTask = tailTask
-            let nextTask = Task {
-                _ = await previousTask?.result
-                await operation()
-            }
-            tailTask = nextTask
-        }
-    }
-
-    func waitForCompletion() async {
-        let task = lock.withLock { tailTask }
-        _ = await task?.result
-    }
-}
-
-private extension String {
-    var nilIfEmpty: String? {
-        isEmpty ? nil : self
     }
 }

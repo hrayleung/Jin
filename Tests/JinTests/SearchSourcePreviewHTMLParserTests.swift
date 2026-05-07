@@ -109,6 +109,35 @@ final class SearchSourcePreviewHTMLParserTests: XCTestCase {
         )
     }
 
+    func testExtractPreviewFindsJSONLDDescriptionInsideGraph() {
+        let html = """
+        <html>
+          <head>
+            <script type="application/ld+json">
+              {
+                "@context": "https://schema.org",
+                "@graph": [
+                  {
+                    "@type": "BreadcrumbList",
+                    "name": "Site navigation"
+                  },
+                  {
+                    "@type": "NewsArticle",
+                    "description": "Nested graph description should be used."
+                  }
+                ]
+              }
+            </script>
+          </head>
+        </html>
+        """
+
+        XCTAssertEqual(
+            SearchSourcePreviewHTMLParser.extractPreview(from: html),
+            "Nested graph description should be used."
+        )
+    }
+
     func testExtractPreviewDecodesNumericEntities() {
         let html = """
         <html>

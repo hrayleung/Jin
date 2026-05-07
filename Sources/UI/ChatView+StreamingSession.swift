@@ -1,0 +1,282 @@
+import Foundation
+
+// MARK: - Streaming Session
+
+extension ChatView {
+
+    @MainActor
+    func startStreamingResponse(
+        for threadID: UUID,
+        triggeredByUserSend: Bool = false,
+        turnID: UUID? = nil,
+        diagnosticRunID: String = UUID().uuidString,
+        perMessageMCPServerIDs: Set<String> = []
+    ) {
+        let conversationID = conversationEntity.id
+        guard !streamingStore.isStreaming(conversationID: conversationID, threadID: threadID) else { return }
+
+        guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
+        let threadControls: GenerationControls
+        do {
+            threadControls = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
+        } catch {
+            errorMessage = "Failed to load conversation settings: \(error.localizedDescription)"
+            showingError = true
+            streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+            return
+        }
+
+        let providerSnapshot: ChatStreamingProviderSnapshot
+        do {
+            providerSnapshot = try ChatStreamingSessionResolver.providerSnapshot(
+                for: thread,
+                providers: providers
+            )
+        } catch {
+            errorMessage = "Failed to load provider configuration: \(error.localizedDescription)"
+            showingError = true
+            streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+            return
+        }
+
+        let modelSnapshot = ChatStreamingSessionResolver.modelSnapshot(
+            for: thread,
+            threadControls: threadControls,
+            providerSnapshot: providerSnapshot,
+            managedAgentSyntheticModelID: { providerID, controls in
+                managedAgentSyntheticModelID(providerID: providerID, controls: controls)
+            },
+            effectiveModelID: { modelID, providerEntity, providerType in
+                effectiveModelID(for: modelID, providerEntity: providerEntity, providerType: providerType)
+            },
+            migrateThreadModelIDIfNeeded: { thread, resolvedModelID in
+                migrateThreadModelIDIfNeeded(thread, resolvedModelID: resolvedModelID)
+            },
+            resolvedModelInfo: { modelID, providerEntity, providerType in
+                resolvedModelInfo(for: modelID, providerEntity: providerEntity, providerType: providerType)
+            },
+            normalizedModelInfo: { modelInfo, providerType in
+                normalizedModelInfo(modelInfo, for: providerType)
+            }
+        )
+
+        let streamingState = streamingStore.beginSession(
+            conversationID: conversationID,
+            threadID: threadID,
+            modelLabel: modelSnapshot.modelName,
+            modelID: modelSnapshot.modelID
+        )
+        streamingState.debugContext = StreamingDebugContext(
+            conversationID: conversationID,
+            threadID: threadID,
+            diagnosticRunID: diagnosticRunID
+        )
+        streamingState.reset()
+        let snapshotBuildStartedAt = ProcessInfo.processInfo.systemUptime
+        let messageSnapshots = orderedConversationMessages(threadID: threadID).map(PersistedMessageSnapshot.init)
+        let snapshotBuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - snapshotBuildStartedAt) * 1000)
+
+        // #region agent log
+        ChatDiagnosticLogger.log(
+            runId: diagnosticRunID,
+            hypothesisId: "H2",
+            message: "chat_stream_context_ready",
+            data: [
+                "conversationID": conversationID.uuidString,
+                "threadID": threadID.uuidString,
+                "triggeredByUserSend": String(triggeredByUserSend),
+                "snapshotCount": String(messageSnapshots.count),
+                "conversationMessageCount": String(conversationEntity.messages.count),
+                "durationMs": String(snapshotBuildDurationMs)
+            ]
+        )
+        // #endregion
+        let assistant = conversationEntity.assistant
+        let systemPrompt = resolvedSystemPrompt(
+            conversationSystemPrompt: conversationEntity.systemPrompt,
+            assistant: assistant
+        )
+        let controlsToUse = ChatStreamingSessionResolver.requestControls(
+            threadControls: threadControls,
+            assistant: assistant,
+            modelSnapshot: modelSnapshot,
+            providerType: providerSnapshot.type,
+            isAgentModeActive: isAgentModeActive,
+            automaticContextCacheControls: { providerType, modelID, modelCapabilities in
+                automaticContextCacheControls(
+                    providerType: providerType,
+                    modelID: modelID,
+                    modelCapabilities: modelCapabilities
+                )
+            },
+            sanitizeProviderSpecific: Self.sanitizeProviderSpecificForProvider,
+            injectCodexThreadPersistence: { controls in
+                injectCodexThreadPersistence(into: &controls, from: thread)
+            },
+            injectClaudeManagedAgentSessionPersistence: { controls in
+                injectClaudeManagedAgentSessionPersistence(into: &controls, from: thread)
+            }
+        )
+        let historySettings = ChatStreamingSessionResolver.historySettings(
+            assistant: assistant,
+            modelSnapshot: modelSnapshot,
+            controls: controlsToUse
+        )
+        let threadSupportsPerMessageMCP = threadSupportsMCPTools(
+            providerType: providerSnapshot.type,
+            resolvedModelSettings: modelSnapshot.resolvedSettings
+        )
+        let mcpServerConfigs: [MCPServerConfig]
+        do {
+            mcpServerConfigs = try ChatAuxiliaryControlSupport.resolvedMCPServerConfigs(
+                controls: controlsToUse,
+                supportsMCPToolsControl: threadSupportsPerMessageMCP,
+                servers: mcpServers,
+                perMessageOverrideServerIDs: perMessageMCPServerIDs
+            )
+        } catch {
+            errorMessage = "Failed to load MCP server configs: \(error.localizedDescription)"
+            showingError = true
+            streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+            return
+        }
+        let chatNamingTarget = resolvedChatNamingTarget()
+        let shouldOfferBuiltinSearch = ChatStreamingSessionResolver.shouldOfferBuiltinSearch(
+            providerType: providerSnapshot.type,
+            modelID: modelSnapshot.modelID,
+            resolvedModelSettings: modelSnapshot.resolvedSettings,
+            controls: controlsToUse,
+            webSearchPluginEnabled: webSearchPluginEnabled,
+            webSearchPluginConfigured: webSearchPluginConfigured
+        )
+        let networkLogContext = NetworkDebugLogContext(
+            conversationID: conversationID.uuidString,
+            threadID: threadID.uuidString,
+            turnID: turnID?.uuidString
+        )
+
+        responseCompletionNotifier.prepareAuthorizationIfNeededWhileActive()
+
+        let sessionContext = ChatStreamingOrchestrator.SessionContext(
+            conversationID: conversationID,
+            threadID: threadID,
+            turnID: turnID,
+            diagnosticRunID: diagnosticRunID,
+            providerID: providerSnapshot.providerID,
+            providerConfig: providerSnapshot.config,
+            providerType: providerSnapshot.type,
+            modelID: modelSnapshot.modelID,
+            modelNameSnapshot: modelSnapshot.modelName,
+            resolvedModelSettings: modelSnapshot.resolvedSettings,
+            messageSnapshots: messageSnapshots,
+            systemPrompt: systemPrompt,
+            controlsToUse: controlsToUse,
+            shouldTruncateMessages: historySettings.shouldTruncateMessages,
+            maxHistoryMessages: historySettings.maxHistoryMessages,
+            modelContextWindow: historySettings.modelContextWindow,
+            reservedOutputTokens: historySettings.reservedOutputTokens,
+            mcpServerConfigs: mcpServerConfigs,
+            chatNamingTarget: chatNamingTarget,
+            shouldOfferBuiltinSearch: shouldOfferBuiltinSearch,
+            triggeredByUserSend: triggeredByUserSend,
+            networkLogContext: networkLogContext
+        )
+
+        let sessionCallbacks = ChatStreamingOrchestrator.SessionCallbacks(
+            persistAssistantMessage: { [self] message, providerID, modelID, modelName, threadID, turnID, metrics in
+                do {
+                    let entity = try MessageEntity.fromDomain(message)
+                    entity.generatedProviderID = providerID
+                    entity.generatedModelID = modelID
+                    entity.generatedModelName = modelName
+                    entity.contextThreadID = threadID
+                    entity.turnID = turnID
+                    entity.responseMetrics = metrics
+                    entity.conversation = conversationEntity
+                    conversationEntity.messages.append(entity)
+                    conversationEntity.updatedAt = Date()
+                    rebuildMessageCaches()
+                    autoOpenLatestArtifactIfNeeded(from: message, threadID: threadID)
+                    try? modelContext.save()
+                    return entity.id
+                } catch {
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                    return nil
+                }
+            },
+            persistToolMessage: { [self] message, threadID, turnID in
+                do {
+                    let entity = try MessageEntity.fromDomain(message)
+                    entity.contextThreadID = threadID
+                    entity.turnID = turnID
+                    entity.conversation = conversationEntity
+                    conversationEntity.messages.append(entity)
+                    conversationEntity.updatedAt = Date()
+                    rebuildMessageCaches()
+                    try? modelContext.save()
+                } catch {
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
+            },
+            persistCodexThreadState: { [self] state, localThreadID in
+                persistCodexThreadState(state, forLocalThreadID: localThreadID)
+            },
+            persistClaudeManagedSessionState: { [self] state, localThreadID in
+                persistClaudeManagedAgentSessionState(state, forLocalThreadID: localThreadID)
+            },
+            persistClaudeManagedPendingToolResults: { [self] results, localThreadID in
+                persistClaudeManagedPendingCustomToolResults(results, forLocalThreadID: localThreadID)
+            },
+            appendCodexInteraction: { [self] request, localThreadID in
+                pendingCodexInteractions.append(PendingCodexInteraction(localThreadID: localThreadID, request: request))
+            },
+            mergeSearchActivities: { [self] messageID, activities in
+                mergeSearchActivitiesIntoAssistantMessage(messageID: messageID, newActivities: activities)
+            },
+            mergeAgentToolActivities: { [self] messageID, activities in
+                mergeAgentToolActivitiesIntoAssistantMessage(messageID: messageID, newActivities: activities)
+            },
+            maybeAutoRename: { [self] provider, targetModelID, history, assistantMessage in
+                await maybeAutoRenameConversation(
+                    targetProvider: provider,
+                    targetModelID: targetModelID,
+                    history: history,
+                    finalAssistantMessage: assistantMessage
+                )
+            },
+            appendAgentApproval: { [self] request, localThreadID in
+                pendingAgentApprovals.append(PendingAgentApproval(localThreadID: localThreadID, request: request))
+            },
+            showError: { [self] message in
+                errorMessage = message
+                showingError = true
+            },
+            endStreamingSession: { [self] in
+                streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+            },
+            onSessionEnd: { [self] shouldNotify, preview, sessionThreadID in
+                if shouldNotify {
+                    responseCompletionNotifier.notifyCompletionIfNeeded(
+                        conversationID: conversationID,
+                        conversationTitle: conversationEntity.title,
+                        replyPreview: preview
+                    )
+                }
+                streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+                pendingCodexInteractions.removeAll { $0.localThreadID == sessionThreadID }
+                pendingAgentApprovals.removeAll { $0.localThreadID == sessionThreadID }
+            }
+        )
+
+        let task = Task.detached(priority: .userInitiated) {
+            await ChatStreamingOrchestrator.run(
+                context: sessionContext,
+                streamingState: streamingState,
+                callbacks: sessionCallbacks
+            )
+        }
+        streamingStore.attachTask(task, conversationID: conversationID, threadID: threadID)
+    }
+}

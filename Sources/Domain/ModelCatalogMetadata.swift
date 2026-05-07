@@ -19,8 +19,8 @@ struct ModelCatalogMetadata: Codable, Equatable {
     }
 
     var isEmpty: Bool {
-        availabilityMessage?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
-            && upgradeTargetModelID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
-            && upgradeMessage?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+        availabilityMessage?.trimmedNonEmpty == nil
+            && upgradeTargetModelID?.trimmedNonEmpty == nil
+            && upgradeMessage?.trimmedNonEmpty == nil
     }
 }

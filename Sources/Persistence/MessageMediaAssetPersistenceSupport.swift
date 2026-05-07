@@ -1,5 +1,4 @@
 import AppKit
-import CryptoKit
 import Foundation
 
 enum MessageMediaAssetPersistenceSupport {
@@ -39,8 +38,7 @@ enum MessageMediaAssetPersistenceSupport {
             let contentType = (response as? HTTPURLResponse)?
                 .value(forHTTPHeaderField: "Content-Type")?
                 .components(separatedBy: ";").first?
-                .trimmingCharacters(in: .whitespaces)
-                .lowercased()
+                .trimmedLowercased
 
             let ext = videoFileExtension(contentType: contentType, url: url)
             try AppDataLocations.ensureDirectoriesExist()
@@ -70,8 +68,7 @@ enum MessageMediaAssetPersistenceSupport {
         try? AppDataLocations.ensureDirectoriesExist()
         guard let dir = try? AppDataLocations.attachmentsDirectoryURL() else { return nil }
 
-        let hash = SHA256.hash(data: imageData)
-        let hashString = hash.compactMap { String(format: "%02x", $0) }.joined()
+        let hashString = SHA256HexDigest.data(imageData)
         let url = dir.appendingPathComponent("\(hashString).\(ext)")
 
         if FileManager.default.fileExists(atPath: url.path) {
@@ -93,8 +90,7 @@ enum MessageMediaAssetPersistenceSupport {
     }
 
     private static func fallbackExtension(from url: URL, defaultValue: String) -> String {
-        let ext = url.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return ext.isEmpty ? defaultValue : ext
+        url.pathExtension.trimmedLowercased.trimmedNonEmpty ?? defaultValue
     }
 
     private static func videoFileExtension(contentType: String?, url: URL) -> String {

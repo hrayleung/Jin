@@ -9,22 +9,11 @@ enum SpreadsheetTextExtractor {
         let sharedStrings = unzipEntry("xl/sharedStrings.xml", from: fileURL)
             .flatMap(SharedStringsParser.parse(from:)) ?? []
 
-        let sheetEntries: [(name: String, path: String)]
-        if let workbookData, let relationshipsData {
-            let sheets = WorkbookParser.parse(from: workbookData)
-            let relationships = RelationshipsParser.parse(from: relationshipsData)
-
-            sheetEntries = sheets.compactMap { sheet in
-                guard let target = relationships[sheet.relationshipID] else { return nil }
-                return (name: sheet.name, path: normalizeWorksheetPath(target))
-            }
-        } else {
-            sheetEntries = listWorksheetEntries(in: fileURL).enumerated().map { index, entry in
-                let fallbackName = "Sheet \(index + 1)"
-                return (name: fallbackName, path: entry)
-            }
-        }
-
+        let sheetEntries = worksheetEntries(
+            in: fileURL,
+            workbookData: workbookData,
+            relationshipsData: relationshipsData
+        )
         guard !sheetEntries.isEmpty else { return nil }
 
         var sections: [String] = []
@@ -56,6 +45,30 @@ enum SpreadsheetTextExtractor {
             output.append("\n\n[Truncated]")
         }
         return output
+    }
+
+    private static func worksheetEntries(
+        in fileURL: URL,
+        workbookData: Data?,
+        relationshipsData: Data?
+    ) -> [WorksheetEntry] {
+        guard let workbookData, let relationshipsData else {
+            return fallbackWorksheetEntries(in: fileURL)
+        }
+
+        let sheets = WorkbookParser.parse(from: workbookData)
+        let relationships = RelationshipsParser.parse(from: relationshipsData)
+
+        return sheets.compactMap { sheet in
+            guard let target = relationships[sheet.relationshipID] else { return nil }
+            return WorksheetEntry(name: sheet.name, path: normalizeWorksheetPath(target))
+        }
+    }
+
+    private static func fallbackWorksheetEntries(in fileURL: URL) -> [WorksheetEntry] {
+        listWorksheetEntries(in: fileURL).enumerated().map { index, entry in
+            WorksheetEntry(name: "Sheet \(index + 1)", path: entry)
+        }
     }
 
     private static func listWorksheetEntries(in fileURL: URL) -> [String] {
@@ -135,6 +148,11 @@ enum SpreadsheetTextExtractor {
         }
         return "xl/\(target)"
     }
+}
+
+private struct WorksheetEntry {
+    let name: String
+    let path: String
 }
 
 private struct XLSXWorkbookSheet {

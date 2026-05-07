@@ -99,19 +99,22 @@ struct AddModelSheet: View {
     }
 
     private var trimmedNickname: String {
-        nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        AddModelSheetSupport.normalizedNickname(nickname)
     }
 
     private var trimmedModelID: String {
-        modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        AddModelSheetSupport.normalizedModelID(modelID)
     }
 
     private var resolvedModelName: String {
-        trimmedNickname.isEmpty ? trimmedModelID : trimmedNickname
+        AddModelSheetSupport.resolvedModelName(
+            nickname: nickname,
+            modelID: modelID
+        )
     }
 
     private var canAddModel: Bool {
-        !trimmedModelID.isEmpty
+        AddModelSheetSupport.canAddModel(modelID: modelID)
     }
 
     private var headerSection: some View {
@@ -123,7 +126,7 @@ struct AddModelSheet: View {
     }
 
     private var identitySection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.large) {
+        JinSettingsCard(spacing: JinSpacing.large) {
             Text("Identity")
                 .font(.headline)
                 .foregroundStyle(.primary)
@@ -146,12 +149,10 @@ struct AddModelSheet: View {
                 )
             }
         }
-        .padding(JinSpacing.large)
-        .jinSurface(.raised, cornerRadius: JinRadius.large)
     }
 
     private var settingsSection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+        JinSettingsCard(surface: .subtleStrong) {
             HStack(spacing: JinSpacing.small) {
                 Label("Advanced Overrides", systemImage: "slider.horizontal.3")
                     .font(.headline)
@@ -199,8 +200,6 @@ struct AddModelSheet: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(JinSpacing.large)
-        .jinSurface(.subtleStrong, cornerRadius: JinRadius.large)
     }
 
     private func fieldBlock(

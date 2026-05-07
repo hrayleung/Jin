@@ -44,83 +44,50 @@ struct CloudflareR2UploadPluginSettingsView: View {
                 "Credentials",
                 detail: "These keys are used for temporary public uploads before OCR or remote processing."
             ) {
-                JinSettingsControlRow("Account ID") {
-                    TextField("Account ID", text: $accountID)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                }
+                JinSettingsTextFieldRow("Account ID", text: $accountID, usesMonospacedFont: true)
 
-                JinSettingsControlRow("Access Key ID") {
-                    TextField("Access Key ID", text: $accessKeyID)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                }
+                JinSettingsTextFieldRow("Access Key ID", text: $accessKeyID, usesMonospacedFont: true)
 
-                JinSettingsControlRow("Secret Access Key") {
-                    JinRevealableSecureField(
-                        title: "Secret Access Key",
-                        text: $secretAccessKey,
-                        isRevealed: $isSecretVisible,
-                        usesMonospacedFont: true,
-                        revealHelp: "Show secret key",
-                        concealHelp: "Hide secret key"
-                    )
-                }
+                JinSettingsSecureFieldRow(
+                    "Secret Access Key",
+                    text: $secretAccessKey,
+                    isRevealed: $isSecretVisible,
+                    usesMonospacedFont: true,
+                    revealHelp: "Show secret key",
+                    concealHelp: "Hide secret key"
+                )
             }
 
             JinSettingsSection("Storage") {
-                JinSettingsControlRow("Bucket") {
-                    TextField("Bucket", text: $bucket)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                }
+                JinSettingsTextFieldRow("Bucket", text: $bucket, usesMonospacedFont: true)
 
-                JinSettingsControlRow(
+                JinSettingsTextFieldRow(
                     "Public Base URL",
-                    supportingText: "Optional public URL, for example https://pub-xxx.r2.dev."
-                ) {
-                    TextField("Public Base URL", text: $publicBaseURL)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                }
+                    supportingText: "Optional public URL, for example https://pub-xxx.r2.dev.",
+                    text: $publicBaseURL,
+                    usesMonospacedFont: true
+                )
 
-                JinSettingsControlRow("Key Prefix", supportingText: "Optional.") {
-                    TextField("Key Prefix (optional)", text: $keyPrefix)
-                        .font(.system(.body, design: .monospaced))
-                        .textFieldStyle(.roundedBorder)
-                }
+                JinSettingsTextFieldRow(
+                    "Key Prefix",
+                    fieldTitle: "Key Prefix (optional)",
+                    supportingText: "Optional.",
+                    text: $keyPrefix,
+                    usesMonospacedFont: true
+                )
             }
 
             JinSettingsSection("Actions") {
-                HStack(spacing: 12) {
-                    Button("Test Connection") {
-                        testConnection()
-                    }
-                    .disabled(!canTest)
-
-                    Button("Clear", role: .destructive) {
-                        clearSettings()
-                    }
-                    .disabled(isTesting)
-
-                    Spacer()
-
-                    if isTesting {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                }
-
-                if let statusMessage {
-                    JinSettingsStatusText(
-                        text: statusMessage,
-                        isError: statusIsError,
-                        isSuccess: JinSettingsStatusText.isConnectionVerifiedStatus(
-                            statusMessage,
-                            isError: statusIsError
-                        )
-                    )
-                }
+                PluginCredentialActionsView(
+                    canTestConnection: canTest,
+                    canClear: true,
+                    isTesting: isTesting,
+                    statusMessage: statusMessage,
+                    statusIsError: statusIsError,
+                    spacing: 12,
+                    onTestConnection: testConnection,
+                    onClear: clearSettings
+                )
             }
         }
         .navigationTitle("Cloudflare R2 Upload")

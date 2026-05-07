@@ -111,8 +111,7 @@ extension GenerationControls {
                 ?? normalizedCodexStringValue(for: CodexProviderSpecificKey.legacyWorkingDirectory)
         }
         set {
-            let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let trimmed, !trimmed.isEmpty {
+            if let trimmed = newValue?.trimmedNonEmpty {
                 providerSpecific[CodexProviderSpecificKey.workingDirectory] = AnyCodable(trimmed)
             } else {
                 providerSpecific.removeValue(forKey: CodexProviderSpecificKey.workingDirectory)
@@ -159,13 +158,8 @@ extension GenerationControls {
             normalizedCodexStringValue(for: CodexProviderSpecificKey.internalResumeThreadID)
         }
         set {
-            if let newValue {
-                let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty {
-                    providerSpecific.removeValue(forKey: CodexProviderSpecificKey.internalResumeThreadID)
-                } else {
-                    providerSpecific[CodexProviderSpecificKey.internalResumeThreadID] = AnyCodable(trimmed)
-                }
+            if let trimmed = newValue?.trimmedNonEmpty {
+                providerSpecific[CodexProviderSpecificKey.internalResumeThreadID] = AnyCodable(trimmed)
             } else {
                 providerSpecific.removeValue(forKey: CodexProviderSpecificKey.internalResumeThreadID)
             }
@@ -228,8 +222,6 @@ extension GenerationControls {
     }
 
     private func normalizedCodexStringValue(for key: String) -> String? {
-        guard let raw = providerSpecific[key]?.value as? String else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        (providerSpecific[key]?.value as? String)?.trimmedNonEmpty
     }
 }

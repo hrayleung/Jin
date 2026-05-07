@@ -12,11 +12,10 @@ enum ChatMessageRenderMetadataBuilder {
             switch part {
             case .text(let text):
                 let sourceText = role == .assistant ? ArtifactMarkupParser.visibleText(from: text) : text
-                let trimmed = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : trimmed
+                return sourceText.trimmedNonEmpty
             case .quote(let quote):
-                let trimmed = quote.quotedText.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : "“\(trimmed)”"
+                guard let trimmed = quote.quotedText.trimmedNonEmpty else { return nil }
+                return "“\(trimmed)”"
             default:
                 return nil
             }
@@ -28,8 +27,7 @@ enum ChatMessageRenderMetadataBuilder {
 
         let fileParts = content.compactMap { part -> String? in
             guard case .file(let file) = part else { return nil }
-            let trimmed = file.filename.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+            return file.filename.trimmedNonEmpty
         }
 
         return fileParts.joined(separator: "\n")
@@ -111,8 +109,7 @@ enum ChatMessageRenderMetadataBuilder {
         var body = ""
 
         for rawLine in text.components(separatedBy: .newlines) {
-            let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { continue }
+            guard let trimmed = rawLine.trimmedNonEmpty else { continue }
 
             if headline == nil {
                 headline = String(trimmed.prefix(headlineLimit))
@@ -134,8 +131,7 @@ enum ChatMessageRenderMetadataBuilder {
         copyText: String,
         renderedBlocks: [RenderedMessageBlock]
     ) -> String {
-        let trimmedCopyText = copyText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedCopyText.isEmpty else { return copyText }
+        guard copyText.trimmedNonEmpty == nil else { return copyText }
 
         return renderedBlocks.compactMap { block -> String? in
             guard case .artifact(let artifact) = block else { return nil }

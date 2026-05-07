@@ -201,6 +201,11 @@ final class AgentFileOperationsTests: XCTestCase {
         XCTAssertNotNil(result)
     }
 
+    func testResolvePathTrimsInputBeforeResolvingRelativePaths() {
+        let resolved = AgentFileOperations.resolvePath(" \n relative.txt \t ", workingDirectory: tempDir)
+        XCTAssertEqual(resolved, (tempDir as NSString).appendingPathComponent("relative.txt"))
+    }
+
     // MARK: - grepSearch
 
     func testGrepSearch() throws {
@@ -229,6 +234,18 @@ final class AgentFileOperationsTests: XCTestCase {
 
         XCTAssertTrue(result.contains("match.swift"))
         XCTAssertFalse(result.contains("skip.txt"))
+    }
+
+    func testGrepSearchNoMatchesUsesTrimmedOutputFallback() throws {
+        let result = try AgentFileOperations.grepSearch(
+            pattern: "missing",
+            path: tempDir,
+            include: nil,
+            workingDirectory: nil
+        )
+
+        XCTAssertTrue(result.contains("No matches found"))
+        XCTAssertTrue(result.contains(tempDir))
     }
 
     // MARK: - Relative path resolution

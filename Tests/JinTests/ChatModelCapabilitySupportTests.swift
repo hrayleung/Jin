@@ -147,6 +147,162 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
         XCTAssertEqual(googleBadge, "On")
     }
 
+    func testPDFProcessingBadgeTextMatchesComposerBadges() {
+        XCTAssertNil(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .native))
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .mistralOCR), "OCR")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .mineruOCR), "MU")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .deepSeekOCR), "DS")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .openRouterOCR), "OR")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .firecrawlOCR), "FC")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .macOSExtract), "mac")
+    }
+
+    func testPDFProcessingHelpTextIncludesCredentialRequirements() {
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.pdfProcessingHelpText(
+                mode: .native,
+                firecrawlParserMode: .ocr,
+                mistralOCRConfigured: false,
+                mineruOCRConfigured: false,
+                deepSeekOCRConfigured: false,
+                openRouterOCRConfigured: false,
+                firecrawlOCRConfigured: false
+            ),
+            "PDF handling: Native"
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.pdfProcessingHelpText(
+                mode: .mistralOCR,
+                firecrawlParserMode: .ocr,
+                mistralOCRConfigured: false,
+                mineruOCRConfigured: false,
+                deepSeekOCRConfigured: false,
+                openRouterOCRConfigured: false,
+                firecrawlOCRConfigured: false
+            ),
+            "PDF handling: Mistral OCR (API key required)"
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.pdfProcessingHelpText(
+                mode: .mineruOCR,
+                firecrawlParserMode: .ocr,
+                mistralOCRConfigured: false,
+                mineruOCRConfigured: true,
+                deepSeekOCRConfigured: false,
+                openRouterOCRConfigured: false,
+                firecrawlOCRConfigured: false
+            ),
+            "PDF handling: MinerU OCR"
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.pdfProcessingHelpText(
+                mode: .deepSeekOCR,
+                firecrawlParserMode: .ocr,
+                mistralOCRConfigured: false,
+                mineruOCRConfigured: false,
+                deepSeekOCRConfigured: false,
+                openRouterOCRConfigured: false,
+                firecrawlOCRConfigured: false
+            ),
+            "PDF handling: DeepSeek OCR (API key required)"
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.pdfProcessingHelpText(
+                mode: .openRouterOCR,
+                firecrawlParserMode: .ocr,
+                mistralOCRConfigured: false,
+                mineruOCRConfigured: false,
+                deepSeekOCRConfigured: false,
+                openRouterOCRConfigured: true,
+                firecrawlOCRConfigured: false
+            ),
+            "PDF handling: OpenRouter OCR"
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.pdfProcessingHelpText(
+                mode: .firecrawlOCR,
+                firecrawlParserMode: .fast,
+                mistralOCRConfigured: false,
+                mineruOCRConfigured: false,
+                deepSeekOCRConfigured: false,
+                openRouterOCRConfigured: false,
+                firecrawlOCRConfigured: false
+            ),
+            "PDF handling: Firecrawl OCR (Fast, Firecrawl API key + Cloudflare R2 required)"
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.pdfProcessingHelpText(
+                mode: .firecrawlOCR,
+                firecrawlParserMode: .auto,
+                mistralOCRConfigured: false,
+                mineruOCRConfigured: false,
+                deepSeekOCRConfigured: false,
+                openRouterOCRConfigured: false,
+                firecrawlOCRConfigured: true
+            ),
+            "PDF handling: Firecrawl OCR (Auto)"
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.pdfProcessingHelpText(
+                mode: .macOSExtract,
+                firecrawlParserMode: .ocr,
+                mistralOCRConfigured: false,
+                mineruOCRConfigured: false,
+                deepSeekOCRConfigured: false,
+                openRouterOCRConfigured: false,
+                firecrawlOCRConfigured: false
+            ),
+            "PDF handling: macOS Extract"
+        )
+    }
+
+    func testSetPDFProcessingModeStoresOnlyNonNativeOverrides() {
+        let nativeControls = ChatModelCapabilitySupport.setPDFProcessingMode(
+            .native,
+            controls: GenerationControls(pdfProcessingMode: .macOSExtract)
+        )
+        XCTAssertNil(nativeControls.pdfProcessingMode)
+
+        let ocrControls = ChatModelCapabilitySupport.setPDFProcessingMode(
+            .firecrawlOCR,
+            controls: GenerationControls()
+        )
+        XCTAssertEqual(ocrControls.pdfProcessingMode, .firecrawlOCR)
+    }
+
+    func testSetFirecrawlPDFParserModeStoresOnlyNonOCROverrides() {
+        let ocrControls = ChatModelCapabilitySupport.setFirecrawlPDFParserMode(
+            .ocr,
+            controls: GenerationControls(firecrawlPDFParserMode: .fast)
+        )
+        XCTAssertNil(ocrControls.firecrawlPDFParserMode)
+
+        let autoControls = ChatModelCapabilitySupport.setFirecrawlPDFParserMode(
+            .auto,
+            controls: GenerationControls()
+        )
+        XCTAssertEqual(autoControls.firecrawlPDFParserMode, .auto)
+    }
+
+    func testGoogleMapsPresentationTextMatchesControlState() {
+        XCTAssertNil(ChatModelCapabilitySupport.googleMapsBadgeText(isEnabled: false, hasLocation: true))
+        XCTAssertNil(ChatModelCapabilitySupport.googleMapsBadgeText(isEnabled: true, hasLocation: false))
+        XCTAssertEqual(ChatModelCapabilitySupport.googleMapsBadgeText(isEnabled: true, hasLocation: true), "Loc")
+
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.googleMapsHelpText(isEnabled: false, hasLocation: true),
+            "Google Maps: Off"
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.googleMapsHelpText(isEnabled: true, hasLocation: false),
+            "Google Maps: On"
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.googleMapsHelpText(isEnabled: true, hasLocation: true),
+            "Google Maps: On (with location)"
+        )
+    }
+
     func testNormalizedFireworksModelInfoAddsExactKimiK26Metadata() {
         let model = ModelInfo(
             id: "accounts/fireworks/models/kimi-k2p6",

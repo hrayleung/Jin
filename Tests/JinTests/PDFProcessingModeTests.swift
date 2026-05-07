@@ -812,7 +812,7 @@ final class PDFProcessingModeTests: XCTestCase {
     func testMinerUOCRClientBootstrapsUploadAndExtractsFullMarkdown() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
-        let archiveData = try makeZipArchive(entries: ["full.md": "# Hello MinerU"])
+        let archiveData = try makeZipArchive(entries: ["full.md": " \n# Hello MinerU\n "])
 
         protocolType.requestHandler = { request in
             switch (request.url?.host, request.url?.path) {
@@ -867,7 +867,7 @@ final class PDFProcessingModeTests: XCTestCase {
                         "extract_result": [
                             [
                                 "state": "done",
-                                "full_zip_url": "https://cdn.example.com/result.zip"
+                                "full_zip_url": "  https://cdn.example.com/result.zip  "
                             ]
                         ]
                     ]
@@ -894,7 +894,7 @@ final class PDFProcessingModeTests: XCTestCase {
 
         let client = MinerUOCRClient(
             apiToken: "test-token",
-            userToken: "user-123",
+            userToken: "  user-123  ",
             baseURL: URL(string: "https://example.com")!,
             networkManager: networkManager
         )
@@ -902,7 +902,7 @@ final class PDFProcessingModeTests: XCTestCase {
         let markdown = try await client.ocrPDF(
             Data("PDF".utf8),
             filename: "scan.pdf",
-            language: "en",
+            language: "  en  ",
             timeoutSeconds: 5,
             pollIntervalNanoseconds: 1_000_000
         )
@@ -1022,7 +1022,7 @@ final class PDFProcessingModeTests: XCTestCase {
                 "choices": [
                     [
                         "message": [
-                            "content": "OK"
+                            "content": " \nOK\n "
                         ]
                     ]
                 ]
@@ -1223,10 +1223,10 @@ final class PDFProcessingModeTests: XCTestCase {
             let response: [String: Any] = [
                 "choices": [
                     [
-                        "finish_reason": "error",
+                        "finish_reason": "  error  ",
                         "error": [
                             "code": 429,
-                            "message": "Provider quota exceeded"
+                            "message": "  Provider quota exceeded  "
                         ]
                     ]
                 ]

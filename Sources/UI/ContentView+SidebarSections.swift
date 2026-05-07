@@ -183,7 +183,7 @@ extension ContentView {
                             subtitle: "\(providerName(for: conversation.providerID)) \u{2022} \(modelName(for: conversation))",
                             providerIconID: providerIconID(for: conversation.providerID),
                             searchSnippet: searchSnippet(for: conversation),
-                            searchQuery: searchText.trimmingCharacters(in: .whitespacesAndNewlines),
+                            searchQuery: normalizedConversationSearchQuery,
                             isRegeneratingTitle: regeneratingConversationID == conversation.id,
                             onToggleStar: { toggleConversationStar(conversation) },
                             onRename: { requestRenameConversation(conversation) },

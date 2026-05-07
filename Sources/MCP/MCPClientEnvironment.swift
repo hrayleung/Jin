@@ -5,8 +5,7 @@ import Foundation
 
 extension MCPClient {
     func parseCommandAndArgs(stdio: MCPStdioTransportConfig) throws -> (command: String, args: [String]) {
-        let trimmedCommandLine = stdio.command.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedCommandLine.isEmpty else {
+        guard let trimmedCommandLine = stdio.command.trimmedNonEmpty else {
             throw MCPClientError.invalidCommand
         }
 
@@ -49,8 +48,7 @@ extension MCPClient {
         var merged = OrderedSet<String>()
 
         func append(_ entry: String) {
-            let trimmed = entry.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
+            guard let trimmed = entry.trimmedNonEmpty else { return }
             merged.append(trimmed)
         }
 
@@ -119,8 +117,7 @@ extension MCPClient {
 
     private func userNpmrcURL(from environment: [String: String]) -> URL? {
         if let path = environment["NPM_CONFIG_USERCONFIG"] ?? environment["npm_config_userconfig"] {
-            let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
+            if let trimmed = path.trimmedNonEmpty {
                 let expanded = (trimmed as NSString).expandingTildeInPath
                 return URL(fileURLWithPath: expanded)
             }
@@ -198,8 +195,7 @@ extension MCPClient {
     }
 
     func sanitizePathComponent(_ string: String) -> String {
-        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return UUID().uuidString }
+        guard let trimmed = string.trimmedNonEmpty else { return UUID().uuidString }
 
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
         var result = ""

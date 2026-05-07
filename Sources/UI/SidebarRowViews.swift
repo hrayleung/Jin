@@ -149,7 +149,7 @@ struct AssistantRowView: View {
                     .fontWeight(.medium)
                     .lineLimit(1)
 
-                if let description = assistant.assistantDescription?.trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty {
+                if let description = assistant.assistantDescription?.trimmedNonEmpty {
                     Text(description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -170,7 +170,7 @@ struct AssistantRowView: View {
     }
 
     private var assistantIconView: some View {
-        let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = AssistantGlyphRendering.normalizedGlyph(assistant.icon)
         return AssistantGlyphRendering.coreGlyph(trimmed: trimmed, pointSize: 16, weight: .semibold)
     }
 }
@@ -222,7 +222,7 @@ struct AssistantTileView: View {
     }
 
     private var assistantIcon: some View {
-        let trimmed = (assistant.icon ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = AssistantGlyphRendering.normalizedGlyph(assistant.icon)
         return AssistantGlyphRendering.coreGlyph(
             trimmed: trimmed,
             pointSize: JinControlMetrics.assistantGlyphSize,

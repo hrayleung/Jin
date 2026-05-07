@@ -44,9 +44,7 @@ enum OpenAIServiceTier: String, Codable, CaseIterable {
 
     static func normalized(rawValue: String?) -> OpenAIServiceTier? {
         guard let rawValue else { return nil }
-        let normalized = rawValue
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
+        let normalized = rawValue.trimmedLowercased
         guard !normalized.isEmpty else { return nil }
         guard normalized != "auto" else { return nil }
         return OpenAIServiceTier(rawValue: normalized)

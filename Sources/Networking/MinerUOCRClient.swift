@@ -21,7 +21,7 @@ actor MinerUOCRClient {
         networkManager: NetworkManager = NetworkManager()
     ) {
         self.apiToken = apiToken
-        self.userToken = userToken?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.userToken = userToken?.trimmedNonEmpty
         self.baseURL = baseURL
         self.networkManager = networkManager
     }
@@ -104,7 +104,7 @@ actor MinerUOCRClient {
         guard let payload = response.data else {
             throw LLMError.decodingError(message: "MinerU file-urls response was missing data.")
         }
-        guard !payload.batchID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard payload.batchID.trimmedNonEmpty != nil else {
             throw LLMError.decodingError(message: "MinerU file-urls response was missing batch_id.")
         }
 
@@ -157,8 +157,7 @@ actor MinerUOCRClient {
                 lastErrorMessage = result.errorMessage
 
                 if state == "done" || state == "success" || state == "completed" {
-                    guard let raw = result.fullZipURL?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          !raw.isEmpty,
+                    guard let raw = result.fullZipURL?.trimmedNonEmpty,
                           let url = URL(string: raw) else {
                         throw LLMError.decodingError(message: "MinerU completed without returning a valid full_zip_url.")
                     }
@@ -166,8 +165,7 @@ actor MinerUOCRClient {
                 }
 
                 if state == "failed" || state == "error" {
-                    let reason = (result.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
-                        ?? "Unknown extraction failure."
+                    let reason = result.errorMessage?.trimmedNonEmpty ?? "Unknown extraction failure."
                     throw LLMError.invalidRequest(message: "MinerU extraction failed: \(reason)")
                 }
             }
@@ -214,8 +212,7 @@ actor MinerUOCRClient {
             throw LLMError.invalidRequest(message: "MinerU result archive did not contain a readable full.md file.")
         }
 
-        let trimmed = markdown.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+        guard let trimmed = markdown.trimmedNonEmpty else {
             throw LLMError.invalidRequest(message: "MinerU returned an empty full.md file.")
         }
         return trimmed
@@ -224,7 +221,7 @@ actor MinerUOCRClient {
     private func requestHeaders() -> HTTPHeaders {
         var headers = HTTPHeaders()
         headers.update(name: "Authorization", value: "Bearer \(apiToken)")
-        if let userToken, !userToken.isEmpty {
+        if let userToken {
             headers.update(name: "token", value: userToken)
         }
         return headers
@@ -235,8 +232,7 @@ actor MinerUOCRClient {
     }
 
     private func normalizedLanguage(_ language: String) -> String {
-        let trimmed = language.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? Constants.defaultLanguage : trimmed
+        language.trimmedNonEmpty ?? Constants.defaultLanguage
     }
 
     private func remainingTimeout(until deadline: Date) throws -> TimeInterval {
@@ -252,10 +248,9 @@ actor MinerUOCRClient {
             let decoder = JSONDecoder()
             let envelope = try decoder.decode(APIEnvelope<T>.self, from: data)
             if envelope.code != 0 {
-                let message = envelope.message?.trimmingCharacters(in: .whitespacesAndNewlines)
                 throw LLMError.providerError(
                     code: "mineru_\(envelope.code)",
-                    message: message?.isEmpty == false ? message! : "MinerU returned code \(envelope.code)."
+                    message: envelope.message?.trimmedNonEmpty ?? "MinerU returned code \(envelope.code)."
                 )
             }
             return envelope

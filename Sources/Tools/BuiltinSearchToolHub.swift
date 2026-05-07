@@ -42,16 +42,14 @@ actor BuiltinSearchToolHub {
         var resolvedProvider: SearchPluginProvider?
         var resolvedAPIKey: String = ""
         if let explicitProvider = controls.searchPlugin?.provider {
-            let key = settings.apiKey(for: explicitProvider).trimmingCharacters(in: .whitespacesAndNewlines)
-            if !key.isEmpty {
+            if let key = settings.apiKey(for: explicitProvider).trimmedNonEmpty {
                 resolvedProvider = explicitProvider
                 resolvedAPIKey = key
             }
         } else {
             let providerCandidates = [settings.defaultProvider] + SearchPluginProvider.allCases
             for candidate in providerCandidates {
-                let key = settings.apiKey(for: candidate).trimmingCharacters(in: .whitespacesAndNewlines)
-                if !key.isEmpty {
+                if let key = settings.apiKey(for: candidate).trimmedNonEmpty {
                     resolvedProvider = candidate
                     resolvedAPIKey = key
                     break
@@ -141,11 +139,10 @@ actor BuiltinSearchToolHub {
     private func resolveArguments(_ arguments: [String: AnyCodable], route: ToolRoute) throws -> ResolvedArguments {
         let raw = arguments.mapValues { $0.value }
 
-        let query = firstString(
+        guard let query = firstString(
             in: raw,
             keys: ["query", "q", "input", "text"]
-        )?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !query.isEmpty else {
+        ) else {
             throw LLMError.invalidRequest(message: "Builtin web search tool requires a non-empty `query`.")
         }
 
@@ -157,7 +154,7 @@ actor BuiltinSearchToolHub {
         let rawRecencyDays = firstInt(in: raw, keys: ["recency_days", "recencyDays"])
             ?? defaultRecency
         let recencyDays = rawRecencyDays.flatMap { value in
-            value == 0 ? nil : clamp(value, min: 1, max: 365)
+            value == 0 ? nil : value.clamped(to: 1...365)
         }
 
         let includeRaw = firstBool(in: raw, keys: ["include_raw_content", "includeRawContent"])
@@ -173,7 +170,7 @@ actor BuiltinSearchToolHub {
         return ResolvedArguments(
             query: query,
             maxResults: maxResults,
-            recencyDays: recencyDays.map { clamp($0, min: 1, max: 365) },
+            recencyDays: recencyDays.map { $0.clamped(to: 1...365) },
             includeRawContent: includeRaw,
             fetchPageContent: fetchPages,
             includeDomains: includeDomains,

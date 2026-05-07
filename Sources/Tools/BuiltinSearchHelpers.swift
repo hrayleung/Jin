@@ -46,11 +46,9 @@ extension BuiltinSearchToolHub {
 
     func firstString(in dictionary: [String: Any], keys: [String]) -> String? {
         for key in keys {
-            if let value = dictionary[key] as? String {
-                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    return trimmed
-                }
+            if let value = dictionary[key] as? String,
+               let trimmed = value.trimmedNonEmpty {
+                return trimmed
             }
         }
         return nil
@@ -65,7 +63,7 @@ extension BuiltinSearchToolHub {
                 return Int(value.rounded())
             }
             if let value = dictionary[key] as? String,
-               let intValue = Int(value.trimmingCharacters(in: .whitespacesAndNewlines)) {
+               let intValue = Int(value.trimmed) {
                 return intValue
             }
         }
@@ -78,7 +76,7 @@ extension BuiltinSearchToolHub {
                 return value
             }
             if let value = dictionary[key] as? String {
-                switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+                switch value.trimmedLowercased {
                 case "true", "1", "yes", "on":
                     return true
                 case "false", "0", "no", "off":
@@ -92,9 +90,7 @@ extension BuiltinSearchToolHub {
     }
 
     func firecrawlErrorMessage(from json: [String: Any]) -> String {
-        if let errors = firstString(in: json, keys: ["error", "message", "status"])?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !errors.isEmpty {
+        if let errors = firstString(in: json, keys: ["error", "message", "status"]) {
             return errors
         }
 
@@ -247,10 +243,6 @@ extension BuiltinSearchToolHub {
         URL(string: urlString)?.host
     }
 
-    func clamp(_ value: Int, min minimum: Int, max maximum: Int) -> Int {
-        Swift.max(minimum, Swift.min(maximum, value))
-    }
-
     func braveSnippet(from item: [String: Any], includeExtraSnippets: Bool) -> String? {
         var parts = OrderedSet<String>()
 
@@ -268,10 +260,7 @@ extension BuiltinSearchToolHub {
             }
         }
 
-        let joined = parts.elements
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !joined.isEmpty else { return nil }
+        guard let joined = parts.elements.joined(separator: "\n").trimmedNonEmpty else { return nil }
         return String(joined.prefix(500))
     }
 }

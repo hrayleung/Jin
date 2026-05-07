@@ -8,7 +8,7 @@ enum GoogleGroundingSearchSuggestionParser {
     }
 
     static func parse(sdkBlob: String?) -> [Suggestion] {
-        guard let blob = sdkBlob?.trimmingCharacters(in: .whitespacesAndNewlines), !blob.isEmpty else {
+        guard let blob = sdkBlob?.trimmedNonEmpty else {
             return []
         }
         guard let data = decodeBase64Payload(blob) else {
@@ -22,8 +22,7 @@ enum GoogleGroundingSearchSuggestionParser {
 
         func normalizedURL(from raw: Any?) -> String? {
             guard let raw = raw as? String else { return nil }
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return nil }
+            guard let trimmed = raw.trimmedNonEmpty else { return nil }
             guard let url = URL(string: trimmed),
                   let scheme = url.scheme?.lowercased(),
                   scheme == "http" || scheme == "https" else {
@@ -34,8 +33,7 @@ enum GoogleGroundingSearchSuggestionParser {
 
         func normalizedQuery(from raw: Any?) -> String? {
             guard let raw = raw as? String else { return nil }
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+            return raw.trimmedNonEmpty
         }
 
         func appendSuggestion(urlRaw: Any?, queryRaw: Any?) {

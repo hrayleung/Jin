@@ -161,7 +161,7 @@ enum OpenAIImageModelSupport {
     }()
 
     static func profile(for modelID: String) -> OpenAIImageModelProfile? {
-        profileLookup[modelID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()]
+        profileLookup[modelID.trimmedLowercased]
     }
 
     static func isImageGenerationModel(_ modelID: String) -> Bool {

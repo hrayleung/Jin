@@ -36,7 +36,7 @@ struct XAIImageGenerationControls: Codable {
             && size == nil
             && quality == nil
             && style == nil
-            && (user?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            && user?.trimmedNonEmpty == nil
     }
 }
 
