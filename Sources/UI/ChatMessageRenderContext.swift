@@ -66,7 +66,7 @@ struct ChatMessageInteractionContext {
     let onCancelUserEdit: () -> Void
     let onDeleteMessage: (MessageEntity) -> Void
     let onDeleteResponse: (MessageEntity) -> Void
-    let onQuoteSelection: (MessageSelectionSnapshot, String?) -> Void
+    let onQuoteSelection: (MessageSelectionSnapshot, String?, String?) -> Void
     let onCreateHighlight: (MessageSelectionSnapshot) -> Void
     let onRemoveHighlights: ([UUID]) -> Void
     let editSlashCommand: EditSlashCommandContext

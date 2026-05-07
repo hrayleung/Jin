@@ -109,24 +109,10 @@ private struct QuoteCardContainer<Accessory: View>: View {
 
     @ViewBuilder
     private var quoteTextContent: some View {
-        switch density {
-        case .message:
-            Text(quote.quotedText)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-
-        case .composer:
-            ScrollView(.vertical, showsIndicators: true) {
-                Text(quote.quotedText)
-                    .font(.callout)
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.trailing, 4)
-            }
-            .frame(minHeight: 52, maxHeight: 112, alignment: .top)
-        }
+        Text(quote.quotedText)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var messageQuoteBody: some View {
@@ -152,69 +138,85 @@ private struct QuoteCardContainer<Accessory: View>: View {
         }
         .padding(.leading, 2)
         .padding(.vertical, 2)
-        .modifier(QuoteCardSizingModifier(density: .message))
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: 520, alignment: .leading)
+    }
+
+    private var composerHeader: QuoteCardPresentationSupport.ComposerHeader {
+        QuoteCardPresentationSupport.composerHeader(
+            role: quote.sourceRole,
+            modelName: quote.sourceModelName
+        )
     }
 
     private var composerQuoteBody: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
-                Label("Quote", systemImage: "quote.opening")
-                    .font(.caption.weight(.semibold))
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .center, spacing: JinSpacing.xSmall + 2) {
+                Image(systemName: "arrowshape.turn.up.left.fill")
+                    .font(.system(size: 8.5, weight: .semibold))
                     .foregroundStyle(QuoteCardPalette.accent)
 
-                Text(sourceLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if let iconID = quote.sourceProviderIconID {
+                    ProviderIconView(iconID: iconID, fallbackSystemName: "sparkles", size: 11)
+                        .frame(width: 11, height: 11)
+                }
 
-                Spacer(minLength: 0)
+                headerLabel
+
+                Spacer(minLength: JinSpacing.xSmall)
 
                 accessory
+                    .layoutPriority(1)
             }
 
-            quoteTextContent
+            Text(quote.quotedText)
+                .font(.callout)
+                .foregroundStyle(.primary.opacity(0.86))
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small + 2)
-        .modifier(QuoteCardSizingModifier(density: .composer))
+        .padding(.leading, JinSpacing.medium + 4)
+        .padding(.trailing, JinSpacing.small + 2)
+        .padding(.vertical, JinSpacing.small)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
         .background(
-            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-                .fill(QuoteCardPalette.fill)
+            RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
+                .fill(JinSemanticColor.subtleSurface)
         )
         .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [QuoteCardPalette.accent.opacity(0.95), QuoteCardPalette.accent.opacity(0.55)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: 3)
-                .padding(.vertical, 8)
-                .padding(.leading, 8)
+            RoundedRectangle(cornerRadius: 1.25, style: .continuous)
+                .fill(QuoteCardPalette.accent)
+                .frame(width: 2.5)
+                .padding(.vertical, JinSpacing.small)
+                .padding(.leading, JinSpacing.small)
         }
         .overlay(
-            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
-                .stroke(QuoteCardPalette.fillStrong, lineWidth: JinStrokeWidth.hairline)
+            RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
+                .stroke(JinSemanticColor.separator.opacity(0.5), lineWidth: JinStrokeWidth.hairline)
         )
     }
-}
 
-private struct QuoteCardSizingModifier: ViewModifier {
-    let density: QuoteCardDensity
-
-    func body(content: Content) -> some View {
-        switch density {
-        case .message:
-            content
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 520, alignment: .leading)
-
-        case .composer:
-            content
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
+    @ViewBuilder
+    private var headerLabel: some View {
+        let header = composerHeader
+        if let modelName = header.modelName {
+            HStack(spacing: 4) {
+                Text(header.prefix)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Text(modelName)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        } else {
+            Text(header.prefix)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 }
@@ -229,20 +231,45 @@ struct MessageQuoteCardView: View {
     }
 }
 
-struct ComposerQuoteCardView: View {
+struct ComposerQuoteCardView: View, Equatable {
     let quote: DraftQuote
     let onRemove: () -> Void
 
     var body: some View {
         QuoteCardContainer(quote: quote.content, density: .composer) {
-            Button(action: onRemove) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 18, height: 18)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Remove quote")
+            QuoteDismissButton(action: onRemove)
         }
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.quote == rhs.quote
+    }
+}
+
+private struct QuoteDismissButton: View {
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(
+                    isHovering
+                        ? AnyShapeStyle(Color.primary.opacity(0.78))
+                        : AnyShapeStyle(HierarchicalShapeStyle.tertiary)
+                )
+                .frame(width: 18, height: 18)
+                .background(
+                    Circle()
+                        .fill(Color.primary.opacity(isHovering ? 0.08 : 0))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .accessibilityLabel("Remove quote")
+        .help("Remove quote")
     }
 }

@@ -5,7 +5,9 @@ import SwiftUI
 extension ChatView {
 
     func removeDraftQuote(_ quote: DraftQuote) {
-        draftQuotes.removeAll { $0.id == quote.id }
+        withAnimation(quoteListAnimation) {
+            draftQuotes.removeAll { $0.id == quote.id }
+        }
     }
 
     var fullPageDropOverlay: some View {

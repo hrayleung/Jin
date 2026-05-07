@@ -5,6 +5,7 @@ struct QuoteContent: Codable, Sendable, Hashable {
     let sourceThreadID: UUID?
     let sourceRole: MessageRole?
     let sourceModelName: String?
+    let sourceProviderIconID: String?
     let quotedText: String
     let prefixContext: String?
     let suffixContext: String?
@@ -15,6 +16,7 @@ struct QuoteContent: Codable, Sendable, Hashable {
         sourceThreadID: UUID? = nil,
         sourceRole: MessageRole? = nil,
         sourceModelName: String? = nil,
+        sourceProviderIconID: String? = nil,
         quotedText: String,
         prefixContext: String? = nil,
         suffixContext: String? = nil,
@@ -24,6 +26,7 @@ struct QuoteContent: Codable, Sendable, Hashable {
         self.sourceThreadID = sourceThreadID
         self.sourceRole = sourceRole
         self.sourceModelName = sourceModelName
+        self.sourceProviderIconID = sourceProviderIconID
         self.quotedText = quotedText
         self.prefixContext = prefixContext
         self.suffixContext = suffixContext
