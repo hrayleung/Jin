@@ -66,7 +66,10 @@ private struct ZyphraModelInfo: Decodable {
     }
 
     private func derivedCapabilities() -> ModelCapability {
-        var capabilities: ModelCapability = [.streaming]
+        // Zyphra's gateway accepts and relays OpenAI-style tool calls for every
+        // model in the current catalog despite reporting `functionCalling: false`,
+        // so always enable `.toolCalling` rather than trusting that field.
+        var capabilities: ModelCapability = [.streaming, .toolCalling]
 
         let lowercaseTags = Set((type ?? []).map { $0.lowercased() })
             .union((mainUseCase ?? []).map { $0.lowercased() })
@@ -84,10 +87,6 @@ private struct ZyphraModelInfo: Decodable {
         }
         if inputs.contains("video") {
             capabilities.insert(.videoInput)
-        }
-
-        if functionCalling == true {
-            capabilities.insert(.toolCalling)
         }
 
         return capabilities
