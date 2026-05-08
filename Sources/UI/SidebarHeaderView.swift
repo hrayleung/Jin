@@ -59,15 +59,7 @@ struct SidebarHeaderView: View {
     }
 
     private var leadingPadding: CGFloat {
-        guard extendsContentIntoTitlebar, hasMeasuredTitlebarControls else {
-            return JinSpacing.medium
-        }
-
-        return max(JinSpacing.medium, titlebarLeadingInset)
-    }
-
-    private var hasMeasuredTitlebarControls: Bool {
-        titlebarLeadingInset.isFinite && titlebarLeadingInset > JinSpacing.medium
+        JinSpacing.medium
     }
 
     private var topPadding: CGFloat {
