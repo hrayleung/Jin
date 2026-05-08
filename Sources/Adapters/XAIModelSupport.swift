@@ -3,8 +3,14 @@ import Foundation
 enum XAIModelSupport {
     static let imageGenerationModelIDs: Set<String> = [
         "grok-imagine-image",
+        "grok-imagine-image-quality",
         "grok-imagine-image-pro",
         "grok-2-image-1212",
+    ]
+
+    static let resolutionCapableImageModelIDs: Set<String> = [
+        "grok-imagine-image-quality",
+        "grok-imagine-image-pro",
     ]
     static let videoGenerationModelIDs: Set<String> = [
         "grok-imagine-video",
@@ -77,6 +83,10 @@ enum XAIModelSupport {
 
     static func isVideoGenerationModelID(_ modelID: String) -> Bool {
         videoGenerationModelIDs.contains(modelID.lowercased())
+    }
+
+    static func supportsImageResolutionControl(_ modelID: String) -> Bool {
+        resolutionCapableImageModelIDs.contains(modelID.lowercased())
     }
 
     static func supportsNativePDF(_ modelID: String) -> Bool {

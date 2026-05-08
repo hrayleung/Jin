@@ -10,6 +10,7 @@ extension ChatView {
 
     static let xAIImageGenerationModelIDs: Set<String> = [
         "grok-imagine-image",
+        "grok-imagine-image-quality",
         "grok-imagine-image-pro",
         "grok-2-image-1212",
     ]

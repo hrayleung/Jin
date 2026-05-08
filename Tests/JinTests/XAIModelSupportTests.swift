@@ -4,11 +4,21 @@ import XCTest
 final class XAIModelSupportTests: XCTestCase {
     func testKnownImageAndVideoIDsUseExactSets() {
         XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("grok-imagine-image"))
+        XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("grok-imagine-image-quality"))
         XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("GROK-IMAGINE-IMAGE-PRO"))
         XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video"))
 
         XCTAssertFalse(XAIModelSupport.isImageGenerationModelID("grok-imagine-image-custom"))
         XCTAssertFalse(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video-custom"))
+    }
+
+    func testSupportsImageResolutionControlOnlyForQualityAndProTiers() {
+        XCTAssertTrue(XAIModelSupport.supportsImageResolutionControl("grok-imagine-image-quality"))
+        XCTAssertTrue(XAIModelSupport.supportsImageResolutionControl("GROK-IMAGINE-IMAGE-PRO"))
+
+        XCTAssertFalse(XAIModelSupport.supportsImageResolutionControl("grok-imagine-image"))
+        XCTAssertFalse(XAIModelSupport.supportsImageResolutionControl("grok-2-image-1212"))
+        XCTAssertFalse(XAIModelSupport.supportsImageResolutionControl("grok-4"))
     }
 
     func testInferredCapabilitiesPreferVideoAndImageOutputModels() {

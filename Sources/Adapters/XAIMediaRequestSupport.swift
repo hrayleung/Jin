@@ -30,6 +30,12 @@ enum XAIMediaRequestSupport {
             body["aspect_ratio"] = aspectRatio.rawValue
         }
 
+        if !isImageEdit,
+           XAIModelSupport.supportsImageResolutionControl(modelID),
+           let resolution = controls?.resolution {
+            body["resolution"] = resolution.rawValue
+        }
+
         body["response_format"] = "b64_json"
         if let user = normalizedTrimmedString(controls?.user) {
             body["user"] = user

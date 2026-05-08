@@ -27,6 +27,9 @@ extension ChatControlNormalizationSupport {
                     if xaiImage.aspectRatio != nil {
                         xaiImage.size = nil
                     }
+                    if !XAIModelSupport.supportsImageResolutionControl(lowerModelID) {
+                        xaiImage.resolution = nil
+                    }
                     controls.xaiImageGeneration = xaiImage.isEmpty ? nil : xaiImage
                 }
             } else {
