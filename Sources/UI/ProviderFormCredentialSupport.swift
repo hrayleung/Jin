@@ -20,7 +20,7 @@ extension ProviderFormSupport {
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini:
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini, .zyphra:
             return .apiKey
         case .vertexai:
             return .serviceAccountJSON

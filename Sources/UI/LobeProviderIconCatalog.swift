@@ -250,6 +250,7 @@ enum LobeProviderIconCatalog {
         LobeProviderIcon(id: "ZenMux", docsSlug: "zen-mux", filename: "zenmux.svg"),
         LobeProviderIcon(id: "ZeroOne", docsSlug: "zero-one", filename: "zeroone.svg"),
         LobeProviderIcon(id: "Zhipu", docsSlug: "zhipu", filename: "zhipu.svg"),
+        LobeProviderIcon(id: "Zyphra", docsSlug: "zyphra", filename: "zyphra.svg"),
     ]
 
     private static let iconByLowercasedID: [String: LobeProviderIcon] = Dictionary(uniqueKeysWithValues: all.map { icon in
@@ -319,6 +320,8 @@ enum LobeProviderIconCatalog {
             return "AiStudio"
         case .vertexai:
             return "VertexAI"
+        case .zyphra:
+            return "Zyphra"
         }
     }
 }

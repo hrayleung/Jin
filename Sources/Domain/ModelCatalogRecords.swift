@@ -49,5 +49,6 @@ extension ModelCatalog {
         .gemini: geminiRecords,
         .vertexai: vertexAIRecords,
         .openrouter: openRouterRecords,
+        .zyphra: zyphraRecords,
     ]
 }
