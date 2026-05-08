@@ -8,8 +8,10 @@ extension ZyphraAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
+        let resolvedModelID = ZyphraAdapter.canonicalModelID(for: modelID)
+
         var body: [String: Any] = [
-            "model": modelID,
+            "model": resolvedModelID,
             "messages": try translateMessages(messages),
             "stream": streaming
         ]
@@ -122,6 +124,27 @@ extension ZyphraAdapter {
         }
 
         return dict
+    }
+}
+
+extension ZyphraAdapter {
+    /// Maps known legacy/aliased model IDs to the exact strings Zyphra's API expects.
+    /// Existing conversation threads (and any user-provided typos) get corrected at
+    /// request time so they don't 404. New threads created from the live `/models`
+    /// catalog already use the canonical IDs and pass through unchanged.
+    static func canonicalModelID(for modelID: String) -> String {
+        switch modelID.lowercased() {
+        case "zyphra/zaya1-8b":
+            return "zyphra/ZAYA1-8B"
+        case "zai-org/glm-5.1", "zai-org/glm-5.1-fp8":
+            return "zai-org/GLM-5.1-FP8"
+        case "moonshotai/kimi-k2.6":
+            return "moonshotai/Kimi-K2.6"
+        case "deepseek-ai/deepseek-v3.2":
+            return "deepseek-ai/DeepSeek-V3.2"
+        default:
+            return modelID
+        }
     }
 }
 
