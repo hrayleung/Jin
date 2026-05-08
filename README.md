@@ -33,11 +33,12 @@ Conversation-first, tool-aware, and built for macOS instead of Electron.
 - **Agent and coding workflows** — Codex App Server support with per-chat working directory, sandbox mode, and personality controls, plus optional local Agent Mode for shell/file/search tools through the bundled RTK helper
 - **Provider-native code execution** — Run supported model-side code execution flows with visible activity timeline, logs, generated images, and downloadable files
 - **Artifacts workspace** — Inline HTML, React, and ECharts artifacts with split-pane preview, version history, source export, and reusable artifact IDs
-- **Image and video generation** — Image generation/editing and video generation flows across supported providers, including source-image or source-URL based edit workflows where available
-- **PDF and OCR handling** — Native PDF upload where supported, Mistral / DeepSeek OCR modes, plus local macOS extraction fallback
-- **Voice workflows** — Speech-to-text and text-to-speech via cloud providers or on-device WhisperKit / TTSKit models
+- **Image and video generation** — Image generation/editing across OpenAI (GPT Image / DALL·E) and xAI; video generation across xAI, Google Veo (Gemini & Vertex), and OpenRouter SeedDance, including source-image and source-URL edit workflows where available
+- **PDF and OCR handling** — Native PDF upload where supported, with Mistral OCR / MinerU / DeepSeek / OpenRouter / Firecrawl as cloud OCR fallbacks plus local macOS extraction
+- **Voice workflows** — Speech-to-text and text-to-speech via cloud providers or on-device WhisperKit / TTSKit models, with a floating mini-player for chat playback
 - **Assistants and defaults** — Named assistants with custom prompts, language preference, model defaults, temperature/output settings, and optional history truncation
-- **macOS polish** — Configurable shortcuts, drag-and-drop attachments, storage breakdown, recovery pack export/import, and in-app Sparkle update controls
+- **Quoted reply blocks** — Pin a snippet from any message into the composer as a structured quote so the next turn keeps the reference highlighted in the thread
+- **macOS polish** — Configurable shortcuts, drag-and-drop attachments, storage breakdown with chat diagnostics, recovery pack export/import, and in-app Sparkle update controls
 
 ## Screenshots
 
@@ -81,11 +82,13 @@ Conversation-first, tool-aware, and built for macOS instead of Electron.
 
 Configure providers in **Settings > Providers**. Jin supports direct providers, gateways, and coding-focused runtimes:
 
-OpenAI · OpenAI (WebSocket) · Anthropic · Gemini (AI Studio) · Vertex AI · xAI · Perplexity · Groq · Cohere · Mistral · DeepInfra · Together AI · Fireworks · SambaNova · DeepSeek · Zhipu Coding Plan · MiniMax · MiniMax Coding Plan · MorphLLM · OpenCode Go · GitHub Copilot · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Vercel AI Gateway · Codex App Server (Beta) · Cerebras
+OpenAI · OpenAI (WebSocket) · Anthropic · Claude Managed Agents · Gemini (AI Studio) · Vertex AI · xAI · Perplexity · Groq · Cohere · Mistral · DeepInfra · Together AI · Fireworks · SambaNova · Cerebras · DeepSeek · Zhipu Coding Plan · MiniMax · MiniMax Coding Plan · Xiaomi MiMo Token Plan · Zyphra · MorphLLM · OpenCode Go · GitHub Copilot · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Vercel AI Gateway · Codex App Server (Beta)
 
 - **Most providers** use an API key.
 - **Vertex AI** uses a service account JSON.
+- **Claude Managed Agents** uses an Anthropic API key and routes through Anthropic's managed-agent runtime (custom tools, persistent sessions, prompt caching).
 - **Codex App Server** can use an API key, ChatGPT account login, or local Codex auth from `$CODEX_HOME` / `~/.codex`. Jin can also launch a localhost `codex app-server` for you from provider settings. Recommended runtime: `codex 0.107.0+`.
+- **Xiaomi MiMo Token Plan** ships in two flavors — Anthropic-compatible and OpenAI-compatible — so you can use whichever upstream API surface a given MiMo model expects.
 - **Gateway providers** such as OpenRouter, Cloudflare AI Gateway, Vercel AI Gateway, and OpenAI Compatible can route upstream models while still benefiting from Jin's model metadata when the exact upstream model ID is known.
 
 ### Model Catalog
@@ -103,10 +106,9 @@ All plugins are optional and configured in **Settings > Plugins**.
 | Plugin | Services |
 |--------|----------|
 | Web Search | Exa, Brave Search, Jina Search, Firecrawl, Tavily, Perplexity Search |
-| Text-to-Speech | OpenAI, Groq, ElevenLabs, TTSKit (on-device) |
-| Speech-to-Text | OpenAI, Groq, Mistral, WhisperKit (on-device) |
-| Mistral OCR | Mistral OCR for PDF extraction |
-| DeepSeek OCR | DeepSeek OCR via DeepInfra for PDF extraction |
+| Text-to-Speech | OpenAI, OpenRouter, Groq, ElevenLabs, Xiaomi MiMo, TTSKit (on-device) |
+| Speech-to-Text | OpenAI, OpenRouter, Groq, Mistral, ElevenLabs, WhisperKit (on-device) |
+| PDF OCR | Mistral OCR, MinerU, DeepSeek (via DeepInfra), OpenRouter OCR, Firecrawl OCR — used as fallback when the active model can't natively ingest PDFs |
 | Chat Naming | Automatic conversation naming with a selected model |
 | Cloudflare R2 Upload | Upload local videos to R2 and use public URLs in video workflows |
 | Agent Mode | Local shell/file/search tools via the bundled RTK helper and local file operations |
@@ -198,4 +200,8 @@ Contributions are welcome. Unless explicitly stated otherwise, contributions are
 
 - [MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) — Model Context Protocol client library
 - [Sparkle](https://github.com/sparkle-project/Sparkle) — In-app update framework for macOS
+- [Alamofire](https://github.com/Alamofire/Alamofire) — Networking primitives
+- [WhisperKit](https://github.com/argmaxinc/WhisperKit) — On-device speech-to-text
+- [Kingfisher](https://github.com/onevcat/Kingfisher) — Image loading and caching
+- [swift-collections](https://github.com/apple/swift-collections) — Ordered/persistent collection types
 - [Lobe Icons](https://github.com/lobehub/lobe-icons) — Provider icon assets
