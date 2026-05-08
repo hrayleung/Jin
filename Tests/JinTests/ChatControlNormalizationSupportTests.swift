@@ -58,4 +58,26 @@ final class ChatControlNormalizationSupportTests: XCTestCase {
         XCTAssertEqual(controls.webSearch?.contextSize, .high)
         XCTAssertEqual(controls.webSearch?.sources, [.x])
     }
+
+    func testNormalizeImageGenerationControlsClearsUnsupportedXAIResolution() {
+        var controls = GenerationControls(
+            xaiImageGeneration: XAIImageGenerationControls(
+                aspectRatio: .ratio16x9,
+                resolution: .res2k
+            )
+        )
+
+        ChatControlNormalizationSupport.normalizeImageGenerationControls(
+            controls: &controls,
+            supportsImageGenerationControl: true,
+            providerType: .xai,
+            supportsCurrentModelImageSizeControl: false,
+            supportedCurrentModelImageSizes: [],
+            supportedCurrentModelImageAspectRatios: [],
+            lowerModelID: "grok-imagine-image"
+        )
+
+        XCTAssertEqual(controls.xaiImageGeneration?.aspectRatio, .ratio16x9)
+        XCTAssertNil(controls.xaiImageGeneration?.resolution)
+    }
 }

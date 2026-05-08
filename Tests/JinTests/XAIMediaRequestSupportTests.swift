@@ -38,6 +38,17 @@ final class XAIMediaRequestSupportTests: XCTestCase {
         XCTAssertEqual(image["url"] as? String, "https://example.com/input.png")
     }
 
+    func testImageGenerationComponentsOmitResolutionForUnsupportedImageModel() {
+        let components = XAIMediaRequestSupport.imageRequestComponents(
+            modelID: "grok-imagine-image",
+            prompt: "A city skyline",
+            imageURL: nil,
+            controls: XAIImageGenerationControls(resolution: .res2k)
+        )
+
+        XCTAssertNil(components.body["resolution"])
+    }
+
     func testVideoGenerationComponentsClampDurationAndIncludeSupportedControls() {
         let components = XAIMediaRequestSupport.videoRequestComponents(
             modelID: "grok-imagine-video",
