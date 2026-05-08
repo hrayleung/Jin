@@ -235,6 +235,10 @@ enum ChatModelSelectionSupport {
                 ?? models.first(where: { $0.id == "morph-v3-large" })?.id
         case .opencodeGo:
             return models.first?.id
+        case .zyphra:
+            return models.first(where: { $0.id == "Zyphra/ZAYA1-8B" })?.id
+                ?? models.first(where: { $0.id == "moonshotai/Kimi-K2.6" })?.id
+                ?? models.first(where: { $0.id == "deepseek-ai/DeepSeek-V3.2" })?.id
         case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq, .cohere, .mistral, .xai, .vertexai:
             return nil
         }

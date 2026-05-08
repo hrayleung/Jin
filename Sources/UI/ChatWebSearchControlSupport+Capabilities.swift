@@ -14,7 +14,7 @@ extension ChatAuxiliaryControlSupport {
         case .openai, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .claudeManagedAgents, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .gemini, .vertexai, .morphllm, .opencodeGo, .none:
+             .fireworks, .cerebras, .sambanova, .gemini, .vertexai, .morphllm, .opencodeGo, .zyphra, .none:
             return controls.webSearch?.enabled == true
         }
     }

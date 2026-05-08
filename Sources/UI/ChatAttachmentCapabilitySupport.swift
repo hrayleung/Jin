@@ -18,7 +18,7 @@ extension ChatModelCapabilitySupport {
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .anthropic, .claudeManagedAgents, .perplexity,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:
             return false
         }
     }
@@ -53,7 +53,8 @@ extension ChatModelCapabilitySupport {
             break
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo:
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo,
+             .zyphra:
             return false
         }
 
@@ -121,7 +122,7 @@ extension ChatModelCapabilitySupport {
         case .fireworks:
             return fireworksAudioInputModelIDs.contains(lowerModelID)
         case .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .xai, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .cerebras, .sambanova, .codexAppServer, .morphllm, .opencodeGo, .none:
+             .mimoTokenPlanAnthropic, .cerebras, .sambanova, .codexAppServer, .morphllm, .opencodeGo, .zyphra, .none:
             return false
         }
     }

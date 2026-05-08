@@ -21,7 +21,7 @@ extension ChatAuxiliaryControlSupport {
         case .openai, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .xai, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:
             return false
         }
     }
@@ -37,7 +37,7 @@ extension ChatAuxiliaryControlSupport {
         case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .none:
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:
             return false
         }
     }
