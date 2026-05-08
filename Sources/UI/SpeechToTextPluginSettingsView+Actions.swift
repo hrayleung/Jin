@@ -25,7 +25,7 @@ extension SpeechToTextPluginSettingsView {
         }
 
         switch load.provider {
-        case .openai, .groq, .mistral, .elevenlabs:
+        case .openai, .openRouter, .groq, .mistral, .elevenlabs:
             await loadRemoteSpeechToTextModels()
         case .whisperKit:
             await MainActor.run {
@@ -186,7 +186,7 @@ extension SpeechToTextPluginSettingsView {
                 }
 
                 switch provider {
-                case .openai, .groq, .mistral, .elevenlabs:
+                case .openai, .openRouter, .groq, .mistral, .elevenlabs:
                     await loadRemoteSpeechToTextModels(updateStatus: false)
                 case .whisperKit:
                     break
@@ -277,6 +277,10 @@ extension SpeechToTextPluginSettingsView {
             let base = URL(string: openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                 ?? OpenAIAudioClient.Constants.defaultBaseURL
             return .openAI(OpenAIAudioClient(apiKey: apiKey, baseURL: base))
+        case .openRouter:
+            let base = URL(string: openRouterBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
+                ?? OpenRouterAudioClient.Constants.defaultBaseURL
+            return .openRouter(OpenRouterAudioClient(apiKey: apiKey, baseURL: base))
         case .groq:
             let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                 ?? GroqAudioClient.Constants.defaultBaseURL
@@ -324,6 +328,8 @@ extension SpeechToTextPluginSettingsView {
         switch provider {
         case .openai:
             openAIModels = []
+        case .openRouter:
+            openRouterModels = []
         case .groq:
             groqModels = []
         case .mistral:
@@ -332,6 +338,7 @@ extension SpeechToTextPluginSettingsView {
             elevenLabsModels = []
         case .whisperKit, .none:
             openAIModels = []
+            openRouterModels = []
             groqModels = []
             mistralModels = []
             elevenLabsModels = []
@@ -343,6 +350,8 @@ extension SpeechToTextPluginSettingsView {
         switch provider {
         case .openai:
             openAIModels = models
+        case .openRouter:
+            openRouterModels = models
         case .groq:
             groqModels = models
         case .mistral:
@@ -366,6 +375,11 @@ extension SpeechToTextPluginSettingsView {
             let currentModel = openAIModel.trimmingCharacters(in: .whitespacesAndNewlines)
             if currentModel.isEmpty {
                 openAIModel = models.first?.id ?? openAIModel
+            }
+        case .openRouter:
+            let currentModel = openRouterModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            if currentModel.isEmpty {
+                openRouterModel = models.first?.id ?? openRouterModel
             }
         case .groq:
             let currentModel = groqModel.trimmingCharacters(in: .whitespacesAndNewlines)

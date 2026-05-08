@@ -14,6 +14,10 @@ extension TextToSpeechPluginSettingsView {
             let base = URL(string: openAIBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                 ?? OpenAIAudioClient.Constants.defaultBaseURL
             return .openAI(OpenAIAudioClient(apiKey: apiKey, baseURL: base))
+        case .openRouter:
+            let base = URL(string: openRouterBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
+                ?? OpenRouterAudioClient.Constants.defaultBaseURL
+            return .openRouter(OpenRouterAudioClient(apiKey: apiKey, baseURL: base))
         case .groq:
             let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                 ?? GroqAudioClient.Constants.defaultBaseURL
@@ -48,6 +52,16 @@ extension TextToSpeechPluginSettingsView {
 
     var displayedOpenAIModels: [SpeechProviderModelChoice] {
         SpeechProviderModelCatalog.presentingChoices(availableOpenAIModels, selectedModelID: openAIModel)
+    }
+
+    var availableOpenRouterModels: [SpeechProviderModelChoice] {
+        openRouterModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .openRouter)
+            : openRouterModels
+    }
+
+    var displayedOpenRouterModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableOpenRouterModels, selectedModelID: openRouterModel)
     }
 
     var availableGroqModels: [SpeechProviderModelChoice] {
@@ -158,6 +172,11 @@ extension TextToSpeechPluginSettingsView {
         "wav",
         "aac",
         "flac",
+        "pcm"
+    ]
+
+    static let openRouterResponseFormats: [String] = [
+        "mp3",
         "pcm"
     ]
 

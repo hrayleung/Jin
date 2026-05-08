@@ -19,7 +19,7 @@ extension TextToSpeechPluginSettingsView {
         Task {
             do {
                 switch provider {
-                case .openai, .groq, .xiaomiMiMo:
+                case .openai, .openRouter, .groq, .xiaomiMiMo:
                     try await validateStandardTextToSpeechConnection(
                         for: provider,
                         apiKey: trimmedAPIKey
@@ -37,7 +37,7 @@ extension TextToSpeechPluginSettingsView {
                 }
 
                 switch provider {
-                case .openai, .groq, .xiaomiMiMo:
+                case .openai, .openRouter, .groq, .xiaomiMiMo:
                     await loadRemoteTextToSpeechModels(updateStatus: false)
                 case .elevenlabs:
                     await loadElevenLabsVoicesAndModels(updateStatus: false)

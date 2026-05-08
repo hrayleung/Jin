@@ -27,6 +27,16 @@ extension TextToSpeechPlaybackManager {
         let instructions: String?
     }
 
+    struct OpenRouterConfig: Sendable {
+        let apiKey: String
+        let baseURL: URL
+        let model: String
+        let voice: String
+        let responseFormat: String
+        let speed: Double?
+        let instructions: String?
+    }
+
     struct GroqConfig: Sendable {
         let apiKey: String
         let baseURL: URL
@@ -66,6 +76,7 @@ extension TextToSpeechPlaybackManager {
 
     enum SynthesisConfig: Sendable {
         case openai(OpenAIConfig)
+        case openRouter(OpenRouterConfig)
         case groq(GroqConfig)
         case elevenlabs(ElevenLabsConfig)
         case mimo(MiMoConfig)

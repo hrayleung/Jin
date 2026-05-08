@@ -43,6 +43,7 @@ enum SpeechPluginPreferenceSupport {
     static func speechToTextAPIKeyPreferenceKey(for provider: SpeechToTextProvider) -> String {
         switch provider {
         case .openai: return AppPreferenceKeys.sttOpenAIAPIKey
+        case .openRouter: return AppPreferenceKeys.sttOpenRouterAPIKey
         case .groq: return AppPreferenceKeys.sttGroqAPIKey
         case .mistral: return AppPreferenceKeys.sttMistralAPIKey
         case .elevenlabs: return AppPreferenceKeys.sttElevenLabsAPIKey
@@ -54,6 +55,7 @@ enum SpeechPluginPreferenceSupport {
         switch provider {
         case .elevenlabs: return AppPreferenceKeys.ttsElevenLabsAPIKey
         case .openai: return AppPreferenceKeys.ttsOpenAIAPIKey
+        case .openRouter: return AppPreferenceKeys.ttsOpenRouterAPIKey
         case .groq: return AppPreferenceKeys.ttsGroqAPIKey
         case .xiaomiMiMo: return AppPreferenceKeys.ttsMiMoAPIKey
         case .whisperKit: return ""

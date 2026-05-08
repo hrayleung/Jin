@@ -7,7 +7,7 @@ extension TextToSpeechPluginSettingsView {
     func loadRemoteTextToSpeechModels(updateStatus: Bool = true) async {
         guard let load = await MainActor.run(body: { textToSpeechLoadSnapshot() }) else { return }
         guard !load.apiKey.isEmpty else { return }
-        guard load.provider == .openai || load.provider == .groq || load.provider == .xiaomiMiMo else { return }
+        guard load.provider == .openai || load.provider == .openRouter || load.provider == .groq || load.provider == .xiaomiMiMo else { return }
 
         await MainActor.run {
             guard isCurrentTextToSpeechLoad(
@@ -170,6 +170,8 @@ extension TextToSpeechPluginSettingsView {
         switch provider {
         case .openai:
             openAIModels = []
+        case .openRouter:
+            openRouterModels = []
         case .groq:
             groqModels = []
         case .xiaomiMiMo:
@@ -182,6 +184,7 @@ extension TextToSpeechPluginSettingsView {
             voicePreviewPlayer = nil
         case .whisperKit, .none:
             openAIModels = []
+            openRouterModels = []
             groqModels = []
             miMoModels = []
             elevenLabsVoices = []
@@ -197,6 +200,8 @@ extension TextToSpeechPluginSettingsView {
         switch provider {
         case .openai:
             openAIModels = models
+        case .openRouter:
+            openRouterModels = models
         case .groq:
             groqModels = models
         case .xiaomiMiMo:
@@ -218,6 +223,16 @@ extension TextToSpeechPluginSettingsView {
             let currentModel = openAIModel.trimmingCharacters(in: .whitespacesAndNewlines)
             if currentModel.isEmpty {
                 openAIModel = models.first?.id ?? openAIModel
+            }
+        case .openRouter:
+            let currentModel = openRouterModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            if currentModel.isEmpty {
+                openRouterModel = models.first?.id ?? openRouterModel
+            } else {
+                let normalizedModel = SpeechProviderModelCatalog.normalizedOpenRouterTextToSpeechModelID(currentModel)
+                if normalizedModel != currentModel {
+                    openRouterModel = normalizedModel
+                }
             }
         case .groq:
             let currentModel = groqModel.trimmingCharacters(in: .whitespacesAndNewlines)

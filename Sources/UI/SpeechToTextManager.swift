@@ -21,6 +21,14 @@ final class SpeechToTextManager: NSObject, ObservableObject {
         let timestampGranularities: [String]?
     }
 
+    struct OpenRouterConfig: Sendable {
+        let apiKey: String
+        let baseURL: URL
+        let model: String
+        let language: String?
+        let temperature: Double?
+    }
+
     struct GroqConfig: Sendable {
         let apiKey: String
         let baseURL: URL
@@ -66,6 +74,7 @@ final class SpeechToTextManager: NSObject, ObservableObject {
 
     enum TranscriptionConfig: Sendable {
         case openai(OpenAIConfig)
+        case openRouter(OpenRouterConfig)
         case groq(GroqConfig)
         case mistral(MistralConfig)
         case elevenlabs(ElevenLabsConfig)
@@ -243,6 +252,16 @@ final class SpeechToTextManager: NSObject, ObservableObject {
                 responseFormat: openAI.responseFormat,
                 temperature: openAI.temperature,
                 timestampGranularities: openAI.timestampGranularities
+            )
+
+        case .openRouter(let openRouter):
+            let client = OpenRouterAudioClient(apiKey: openRouter.apiKey, baseURL: openRouter.baseURL)
+            return try await client.createTranscription(
+                audioData: data,
+                audioFormat: "wav",
+                model: openRouter.model,
+                language: openRouter.language,
+                temperature: openRouter.temperature
             )
 
         case .groq(let groq):

@@ -22,6 +22,9 @@ extension SpeechToTextPluginSettingsView {
                     timestampProvider: .openai
                 )
 
+            case .openRouter:
+                openRouterSettingsSection
+
             case .groq:
                 standardTranscriptionSettingsSection(
                     title: "Groq",
@@ -62,6 +65,43 @@ extension SpeechToTextPluginSettingsView {
         } else {
             providerErrorSection
         }
+    }
+
+    var openRouterSettingsSection: some View {
+        JinSettingsSection("OpenRouter") {
+            JinSettingsTextFieldRow("API Base URL", text: $openRouterBaseURL, usesMonospacedFont: true)
+
+            JinSettingsPickerRow("Model", selection: $openRouterModel) {
+                ForEach(displayedOpenRouterModels) { model in
+                    Text(model.name).tag(model.id)
+                }
+            }
+
+            JinSettingsTextFieldRow(
+                "Language",
+                fieldTitle: "Language (optional)",
+                supportingText: "Optional ISO-639-1 code (e.g. en, ja). Leave empty for auto-detection.",
+                text: $openRouterLanguage,
+                usesMonospacedFont: true
+            )
+
+            JinSettingsSliderValueRow(
+                title: "Temperature",
+                value: $openRouterTemperature,
+                range: 0.0...1.0,
+                step: 0.05
+            )
+        }
+    }
+
+    var availableOpenRouterModels: [SpeechProviderModelChoice] {
+        openRouterModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .openRouter)
+            : openRouterModels
+    }
+
+    var displayedOpenRouterModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableOpenRouterModels, selectedModelID: openRouterModel)
     }
 
     var elevenLabsSettingsSection: some View {
@@ -220,7 +260,7 @@ extension SpeechToTextPluginSettingsView {
             return groqTimestampGranularitiesJSON
         case .mistral:
             return mistralTimestampGranularitiesJSON
-        case .elevenlabs, .whisperKit:
+        case .openRouter, .elevenlabs, .whisperKit:
             return "[]"
         }
     }
@@ -233,7 +273,7 @@ extension SpeechToTextPluginSettingsView {
             groqTimestampGranularitiesJSON = value
         case .mistral:
             mistralTimestampGranularitiesJSON = value
-        case .elevenlabs, .whisperKit:
+        case .openRouter, .elevenlabs, .whisperKit:
             break
         }
     }
