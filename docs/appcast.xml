@@ -1,16 +1,16 @@
-<?xml version="1.0" standalone="yes"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>Jin</title>
         <item>
             <title>0.93.6</title>
-            <pubDate>Fri, 08 May 2026 13:12:47 +0800</pubDate>
+            <pubDate>Fri, 08 May 2026 13:36:30 +0800</pubDate>
             <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>499</sparkle:version>
+            <sparkle:version>501</sparkle:version>
             <sparkle:shortVersionString>0.93.6</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.6/Jin-0.93.6.zip" length="27823759" type="application/octet-stream" sparkle:edSignature="8eRnLj4YKku46NMaPGSVsp7x9b98NSpgjE7XQH13XPsCcx1wHKjARgw9dhPPuV0ISucREsKmqMwQqXAQvG4iDw=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.6/Jin-0.93.6.zip" length="27823161" type="application/octet-stream" sparkle:edSignature="Nj/BMDKsjuQLRbvsWJFvxlSB+oLtqpBgt3VfzKMFxXotminF2yxLtkD4LQ/D7x6oG7MGdm9CZjoHWOHZMQEnDg==" />
         </item>
         <item>
             <title>0.93.5</title>
@@ -20,7 +20,7 @@
             <sparkle:shortVersionString>0.93.5</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.5/Jin-0.93.5.zip" length="27723122" type="application/octet-stream" sparkle:edSignature="d8e8xHcxGgoo4gJ4R2cd2jKZQpdwFUySXsfvXQ8SB7xDwsurrNZlYOylMyFi4DxvUoeO6WJfXdoMzbW02VjnDw=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.5/Jin-0.93.5.zip" length="27723122" type="application/octet-stream" sparkle:edSignature="d8e8xHcxGgoo4gJ4R2cd2jKZQpdwFUySXsfvXQ8SB7xDwsurrNZlYOylMyFi4DxvUoeO6WJfXdoMzbW02VjnDw==" />
         </item>
         <item>
             <title>0.93.4</title>
@@ -30,7 +30,7 @@
             <sparkle:shortVersionString>0.93.4</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.4/Jin-0.93.4.zip" length="27866118" type="application/octet-stream" sparkle:edSignature="1KMt7AhZv691JdCauHWveObCgctNDLocwO2mCnBC4HNtXgw3oDCk2FgWv7OTDQy3CsWgln2+JseEHJG81MSxAA=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.4/Jin-0.93.4.zip" length="27866118" type="application/octet-stream" sparkle:edSignature="1KMt7AhZv691JdCauHWveObCgctNDLocwO2mCnBC4HNtXgw3oDCk2FgWv7OTDQy3CsWgln2+JseEHJG81MSxAA==" />
         </item>
         <item>
             <title>0.93.3</title>
@@ -40,7 +40,7 @@
             <sparkle:shortVersionString>0.93.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.3/Jin-0.93.3.zip" length="27860449" type="application/octet-stream" sparkle:edSignature="Mlbg8f38Ct0kOGkPJT14MHwFVley1JioxUMaZgly1TY1Z/f6/qdTDW5Ix8KLiJdIIUMqp0m0U9AWUpfMyv/RAg=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.3/Jin-0.93.3.zip" length="27860449" type="application/octet-stream" sparkle:edSignature="Mlbg8f38Ct0kOGkPJT14MHwFVley1JioxUMaZgly1TY1Z/f6/qdTDW5Ix8KLiJdIIUMqp0m0U9AWUpfMyv/RAg==" />
         </item>
         <item>
             <title>0.93.2</title>
@@ -50,7 +50,7 @@
             <sparkle:shortVersionString>0.93.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.2/Jin-0.93.2.zip" length="27857954" type="application/octet-stream" sparkle:edSignature="crcoXd9toaQZlE/Q64c5wQBQtvy6exOC8m0LBy6866sLJbSDhGVGMDshvL4ZUUlKdem2n/NOjArOfmobrLSoCw=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.2/Jin-0.93.2.zip" length="27857954" type="application/octet-stream" sparkle:edSignature="crcoXd9toaQZlE/Q64c5wQBQtvy6exOC8m0LBy6866sLJbSDhGVGMDshvL4ZUUlKdem2n/NOjArOfmobrLSoCw==" />
         </item>
         <item>
             <title>0.93.1</title>
@@ -60,7 +60,7 @@
             <sparkle:shortVersionString>0.93.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.1/Jin-0.93.1.zip" length="27807847" type="application/octet-stream" sparkle:edSignature="xFSJTTPGsgC9B4fp1o2hci4EozxZwDkWtMfU9xzlBY3t5QlOVu/6lQMiUjixc+slgLJzLDMqhVkfuvIvbq3eCQ=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.1/Jin-0.93.1.zip" length="27807847" type="application/octet-stream" sparkle:edSignature="xFSJTTPGsgC9B4fp1o2hci4EozxZwDkWtMfU9xzlBY3t5QlOVu/6lQMiUjixc+slgLJzLDMqhVkfuvIvbq3eCQ==" />
         </item>
         <item>
             <title>0.93.0</title>
@@ -70,7 +70,7 @@
             <sparkle:shortVersionString>0.93.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.0/Jin-0.93.0.zip" length="27794283" type="application/octet-stream" sparkle:edSignature="r4YjBYFY6+iJwEyQBolO/uLVFLeydpMZ79zCBnB89UutXbpQLgHaPq1th7nu7Q0vVdxuwVw8AkU7zfoGrUiVAw=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.0/Jin-0.93.0.zip" length="27794283" type="application/octet-stream" sparkle:edSignature="r4YjBYFY6+iJwEyQBolO/uLVFLeydpMZ79zCBnB89UutXbpQLgHaPq1th7nu7Q0vVdxuwVw8AkU7zfoGrUiVAw==" />
         </item>
         <item>
             <title>0.92.9</title>
@@ -80,7 +80,7 @@
             <sparkle:shortVersionString>0.92.9</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.92.9/Jin-0.92.9.zip" length="27783113" type="application/octet-stream" sparkle:edSignature="3+kCIYd+BB6fNX3jHss056F+ajH5ZuD2vvMEpN+EKaE14J88JzZY5hWL1umSk/bX17AOjm9kkH+7Cv5AHFLxAQ=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.92.9/Jin-0.92.9.zip" length="27783113" type="application/octet-stream" sparkle:edSignature="3+kCIYd+BB6fNX3jHss056F+ajH5ZuD2vvMEpN+EKaE14J88JzZY5hWL1umSk/bX17AOjm9kkH+7Cv5AHFLxAQ==" />
         </item>
         <item>
             <title>0.92.8</title>
@@ -90,17 +90,7 @@
             <sparkle:shortVersionString>0.92.8</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.92.8/Jin-0.92.8.zip" length="27763294" type="application/octet-stream" sparkle:edSignature="3poW1y7uZWSogSvkA0pIqVcGgLkLxXJiWXXUOMwhtS8f0dus57OSq+bgPy/ApFrwWrIGHOp5ZZvX1ZeZfbYECA=="/>
-        </item>
-        <item>
-            <title>0.92.7</title>
-            <pubDate>Sat, 25 Apr 2026 11:03:58 +0800</pubDate>
-            <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>464</sparkle:version>
-            <sparkle:shortVersionString>0.92.7</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.92.7/Jin-0.92.7.zip" length="27764331" type="application/octet-stream" sparkle:edSignature="uutHCI2+0mNpMpenZsEM6zxuamCmo6OLqStW4CHcjTmnDXyHD2RaNNbnklTOLx+GEbY7aAcsu15rmk5jzGR2BA=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.92.8/Jin-0.92.8.zip" length="27763294" type="application/octet-stream" sparkle:edSignature="3poW1y7uZWSogSvkA0pIqVcGgLkLxXJiWXXUOMwhtS8f0dus57OSq+bgPy/ApFrwWrIGHOp5ZZvX1ZeZfbYECA==" />
         </item>
         <item>
             <title>0.70</title>
@@ -109,7 +99,7 @@
             <sparkle:version>284</sparkle:version>
             <sparkle:shortVersionString>0.70</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.70/Jin-0.70.zip" length="24339507" type="application/octet-stream" sparkle:edSignature="3nVm4sc7oNxonk4NRhDXaO9ebl4VyYoI4LBQmErFs2Zy1EHd0rL+igGkEeNjDyd5RMtgUddSW+hyeJn4CNorDg=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.70/Jin-0.70.zip" length="24339507" type="application/octet-stream" sparkle:edSignature="3nVm4sc7oNxonk4NRhDXaO9ebl4VyYoI4LBQmErFs2Zy1EHd0rL+igGkEeNjDyd5RMtgUddSW+hyeJn4CNorDg==" />
         </item>
         <item>
             <title>0.69</title>
@@ -118,7 +108,7 @@
             <sparkle:version>277</sparkle:version>
             <sparkle:shortVersionString>0.69</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.69/Jin-0.69.zip" length="24193234" type="application/octet-stream" sparkle:edSignature="3nX5xwYPMLfVfYtLKauNOzIct/GHtfI7L7n4Y7HPfkdkLAEfJLfNshnYyLY5gdm61v/TJlN9bj7D9xRfX4RECQ=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.69/Jin-0.69.zip" length="24193234" type="application/octet-stream" sparkle:edSignature="3nX5xwYPMLfVfYtLKauNOzIct/GHtfI7L7n4Y7HPfkdkLAEfJLfNshnYyLY5gdm61v/TJlN9bj7D9xRfX4RECQ==" />
         </item>
         <item>
             <title>0.68</title>
@@ -127,7 +117,7 @@
             <sparkle:version>275</sparkle:version>
             <sparkle:shortVersionString>0.68</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.68/Jin-0.68.zip" length="24193547" type="application/octet-stream" sparkle:edSignature="RT8scLJlKIVaR7KTmlYDSFwS4ItCwTxkCaRDR8jF9jkJDkEnjcufaxecRjTIWCBj54XfqprUn43ZJUFY6iVqAA=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.68/Jin-0.68.zip" length="24193547" type="application/octet-stream" sparkle:edSignature="RT8scLJlKIVaR7KTmlYDSFwS4ItCwTxkCaRDR8jF9jkJDkEnjcufaxecRjTIWCBj54XfqprUn43ZJUFY6iVqAA==" />
         </item>
         <item>
             <title>0.67</title>
@@ -136,7 +126,7 @@
             <sparkle:version>267</sparkle:version>
             <sparkle:shortVersionString>0.67</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.67/Jin-0.67.zip" length="24188573" type="application/octet-stream" sparkle:edSignature="0nH8O3HViPOhEJuhn9Qe78BtfOJ65fpLR8Xd2x+J8Hc4OSPWTSvJrWOP8fNm3XheoqAN3RnNRbP5ubDxk3f6DA=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.67/Jin-0.67.zip" length="24188573" type="application/octet-stream" sparkle:edSignature="0nH8O3HViPOhEJuhn9Qe78BtfOJ65fpLR8Xd2x+J8Hc4OSPWTSvJrWOP8fNm3XheoqAN3RnNRbP5ubDxk3f6DA==" />
         </item>
         <item>
             <title>0.66</title>
@@ -145,7 +135,7 @@
             <sparkle:version>264</sparkle:version>
             <sparkle:shortVersionString>0.66</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.66/Jin-0.66.zip" length="23668036" type="application/octet-stream" sparkle:edSignature="a/oMjJLdWi4q5q5Fij0J8VY7QBVl1/KSt0d5qqnvC456ZplBORHmWBs7sXgVRoworfTl651xZ0lHWRy+PYwaDg=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.66/Jin-0.66.zip" length="23668036" type="application/octet-stream" sparkle:edSignature="a/oMjJLdWi4q5q5Fij0J8VY7QBVl1/KSt0d5qqnvC456ZplBORHmWBs7sXgVRoworfTl651xZ0lHWRy+PYwaDg==" />
         </item>
         <item>
             <title>0.65</title>
@@ -154,7 +144,7 @@
             <sparkle:version>257</sparkle:version>
             <sparkle:shortVersionString>0.65</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.65/Jin-0.65.zip" length="23577274" type="application/octet-stream" sparkle:edSignature="0x+c/JznXaKRg8vhDQ5CJp2GG9ctiPjCvotndfuMmIuVVJIQyuxDjbrTqEKe+jBqJ+MqVfQVgqzmeVId/7KsAw=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.65/Jin-0.65.zip" length="23577274" type="application/octet-stream" sparkle:edSignature="0x+c/JznXaKRg8vhDQ5CJp2GG9ctiPjCvotndfuMmIuVVJIQyuxDjbrTqEKe+jBqJ+MqVfQVgqzmeVId/7KsAw==" />
         </item>
         <item>
             <title>0.64</title>
@@ -163,7 +153,7 @@
             <sparkle:version>252</sparkle:version>
             <sparkle:shortVersionString>0.64</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.64/Jin-0.64.zip" length="23562118" type="application/octet-stream" sparkle:edSignature="N+uJIn+9o7KmSZ2BJ57ACHSejMRHTksjNVFMZz0ES8uBBPiMVcObWe30a5QNGurg3131foJkPVrd9VT7IcogDg=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.64/Jin-0.64.zip" length="23562118" type="application/octet-stream" sparkle:edSignature="N+uJIn+9o7KmSZ2BJ57ACHSejMRHTksjNVFMZz0ES8uBBPiMVcObWe30a5QNGurg3131foJkPVrd9VT7IcogDg==" />
         </item>
         <item>
             <title>0.63</title>
@@ -172,7 +162,7 @@
             <sparkle:version>247</sparkle:version>
             <sparkle:shortVersionString>0.63</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.63/Jin-0.63.zip" length="23091113" type="application/octet-stream" sparkle:edSignature="jtm80/4/hvT95xZVextGozaE4FBXcqtzl7tDULNOdY0GDmNGmn5tgnTQTTz2azwHRw3+dnbwF43op8mpd0kzCQ=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.63/Jin-0.63.zip" length="23091113" type="application/octet-stream" sparkle:edSignature="jtm80/4/hvT95xZVextGozaE4FBXcqtzl7tDULNOdY0GDmNGmn5tgnTQTTz2azwHRw3+dnbwF43op8mpd0kzCQ==" />
         </item>
         <item>
             <title>0.62</title>
@@ -181,7 +171,7 @@
             <sparkle:version>237</sparkle:version>
             <sparkle:shortVersionString>0.62</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.62/Jin-0.62.zip" length="23003093" type="application/octet-stream" sparkle:edSignature="mAjHU4EdettMEp/CFb0LBVsiqmGXbR8F17z45+r7GMjWPI+/7KodAA5zcvKTC/UqOtF6lE0BZWFkldlmjuk/BQ=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.62/Jin-0.62.zip" length="23003093" type="application/octet-stream" sparkle:edSignature="mAjHU4EdettMEp/CFb0LBVsiqmGXbR8F17z45+r7GMjWPI+/7KodAA5zcvKTC/UqOtF6lE0BZWFkldlmjuk/BQ==" />
         </item>
         <item>
             <title>0.61</title>
@@ -190,7 +180,7 @@
             <sparkle:version>235</sparkle:version>
             <sparkle:shortVersionString>0.61</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.61/Jin-0.61.zip" length="22966772" type="application/octet-stream" sparkle:edSignature="9JUoqeIY851QuaXayUw7LL1N4roc13v+tfcIuD1QnQ5MxowDxVu4WqeYyMHEFozGUz7A9wY0xbZL6VDsnx0IDA=="/>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.61/Jin-0.61.zip" length="22966772" type="application/octet-stream" sparkle:edSignature="9JUoqeIY851QuaXayUw7LL1N4roc13v+tfcIuD1QnQ5MxowDxVu4WqeYyMHEFozGUz7A9wY0xbZL6VDsnx0IDA==" />
         </item>
     </channel>
 </rss>
