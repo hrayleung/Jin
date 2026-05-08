@@ -3539,6 +3539,81 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(kimi.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testZyphraAdapterValidateAPIKeyUsesAuthenticatedChatCompletionsEndpoint() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "zyphra",
+            name: "Zyphra",
+            type: .zyphra,
+            apiKey: "ignored",
+            baseURL: "https://api.zyphracloud.com/api/v1",
+            models: [
+                ModelInfo(
+                    id: "zyphra/zaya1-8b",
+                    name: "ZAYA1-8B",
+                    capabilities: [.streaming, .toolCalling, .reasoning],
+                    contextWindow: 128_000
+                )
+            ]
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.zyphracloud.com/api/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "zyphra/ZAYA1-8B")
+            XCTAssertEqual(root["max_tokens"] as? Int, 1)
+            XCTAssertEqual(root["stream"] as? Bool, false)
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 1)
+            XCTAssertEqual(messages.first?["role"] as? String, "user")
+            XCTAssertEqual(messages.first?["content"] as? String, "ping")
+
+            let response: [String: Any] = ["id": "chatcmpl_validation"]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = ZyphraAdapter(providerConfig: providerConfig, apiKey: "ignored", networkManager: networkManager)
+        let isValid = try await adapter.validateAPIKey("test-key")
+        XCTAssertTrue(isValid)
+    }
+
+    func testZyphraAdapterValidateAPIKeyRejectsInvalidKeyFromChatCompletionsEndpoint() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "zyphra",
+            name: "Zyphra",
+            type: .zyphra,
+            apiKey: "ignored",
+            baseURL: "https://api.zyphracloud.com/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.zyphracloud.com/api/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer invalid-key")
+
+            let data = Data(#"{"error":"Unauthorized"}"#.utf8)
+            return (HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = ZyphraAdapter(providerConfig: providerConfig, apiKey: "ignored", networkManager: networkManager)
+        let isValid = try await adapter.validateAPIKey("invalid-key")
+        XCTAssertFalse(isValid)
+    }
+
     func testOpenAICompatibleAdapterFetchModelsForDeepInfraUsesCatalogMetadataWhenKnown() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
