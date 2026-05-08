@@ -15,7 +15,6 @@ struct VertexAIModelSupport {
         ("gemini-3-pro-image-preview", "Gemini 3 Pro Image Preview", 65_536),
         ("gemini-3.1-flash-image-preview", "Gemini 3.1 Flash Image Preview", 131_072),
         ("gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash-Lite Preview", 1_048_576),
-        ("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite", 1_048_576),
         ("gemini-2.5-pro", "Gemini 2.5 Pro", 1_048_576),
         ("gemini-2.5-flash", "Gemini 2.5 Flash", 1_048_576),
         ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite", 1_048_576),
@@ -34,12 +33,16 @@ struct VertexAIModelSupport {
     ]
 
     private var knownGeminiModelIDs: Set<String> {
-        GeminiModelConstants.knownModelIDs
+        GeminiModelConstants.knownModelIDs.subtracting(nonRoutableVertexGeminiModelIDs)
     }
 
     private var exactImageGenerationModelIDs: Set<String> {
         GeminiModelConstants.imageGenerationModelIDs
     }
+
+    private let nonRoutableVertexGeminiModelIDs: Set<String> = [
+        "gemini-3.1-flash-lite"
+    ]
 
     func supportsImageGeneration(_ modelID: String) -> Bool {
         switch classify(modelID) {
@@ -126,7 +129,8 @@ struct VertexAIModelSupport {
     }
 
     func supportsNativePDF(_ modelID: String) -> Bool {
-        GeminiModelConstants.supportsVertexNativePDF(modelID)
+        guard case .knownGemini = classify(modelID) else { return false }
+        return GeminiModelConstants.supportsVertexNativePDF(modelID)
     }
 
     func mapEffortToVertexLevel(_ effort: ReasoningEffort, modelID: String) -> String {
