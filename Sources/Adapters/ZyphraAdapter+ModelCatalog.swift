@@ -2,9 +2,10 @@ import Foundation
 
 extension ZyphraAdapter {
     func validateAPIKey(_ key: String) async throws -> Bool {
-        let request = makeGETRequest(
-            url: try validatedURL("\(baseURL)/models"),
+        let request = try makeAuthorizedJSONRequest(
+            url: validatedURL("\(baseURL)/chat/completions"),
             apiKey: key,
+            body: validationBody(),
             includeUserAgent: false
         )
 
@@ -18,6 +19,19 @@ extension ZyphraAdapter {
         } catch {
             return false
         }
+    }
+
+    private func validationBody() -> [String: Any] {
+        let modelID = providerConfig.models.first?.id
+            ?? ModelCatalog.seededModels(for: .zyphra).first?.id
+            ?? "zyphra/ZAYA1-8B"
+
+        return [
+            "model": ZyphraAdapter.canonicalModelID(for: modelID),
+            "messages": [["role": "user", "content": "ping"]],
+            "max_tokens": 1,
+            "stream": false
+        ]
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
