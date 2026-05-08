@@ -759,6 +759,47 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(vertex.reasoningConfig?.defaultEffort, .minimal)
     }
 
+    func testGemini31FlashLiteGACatalogMetadata() {
+        let gemini = ModelCatalog.modelInfo(
+            for: "gemini-3.1-flash-lite",
+            provider: .gemini
+        )
+        XCTAssertEqual(gemini.contextWindow, 1_048_576)
+        XCTAssertTrue(gemini.capabilities.contains(.streaming))
+        XCTAssertTrue(gemini.capabilities.contains(.toolCalling))
+        XCTAssertTrue(gemini.capabilities.contains(.vision))
+        XCTAssertTrue(gemini.capabilities.contains(.audio))
+        XCTAssertTrue(gemini.capabilities.contains(.reasoning))
+        XCTAssertTrue(gemini.capabilities.contains(.promptCaching))
+        XCTAssertTrue(gemini.capabilities.contains(.nativePDF))
+        XCTAssertTrue(gemini.capabilities.contains(.codeExecution))
+        XCTAssertFalse(gemini.capabilities.contains(.imageGeneration))
+        XCTAssertEqual(gemini.reasoningConfig?.type, .effort)
+        XCTAssertEqual(gemini.reasoningConfig?.defaultEffort, .minimal)
+
+        let vertex = ModelCatalog.modelInfo(
+            for: "gemini-3.1-flash-lite",
+            provider: .vertexai
+        )
+        XCTAssertEqual(vertex.contextWindow, 1_048_576)
+        XCTAssertTrue(vertex.capabilities.contains(.streaming))
+        XCTAssertTrue(vertex.capabilities.contains(.toolCalling))
+        XCTAssertTrue(vertex.capabilities.contains(.vision))
+        XCTAssertTrue(vertex.capabilities.contains(.audio))
+        XCTAssertTrue(vertex.capabilities.contains(.reasoning))
+        XCTAssertTrue(vertex.capabilities.contains(.promptCaching))
+        XCTAssertTrue(vertex.capabilities.contains(.nativePDF))
+        XCTAssertTrue(vertex.capabilities.contains(.codeExecution))
+        XCTAssertFalse(vertex.capabilities.contains(.imageGeneration))
+        XCTAssertEqual(vertex.reasoningConfig?.type, .effort)
+        XCTAssertEqual(vertex.reasoningConfig?.defaultEffort, .minimal)
+
+        let geminiSeeded = Set(ModelCatalog.seededModels(for: .gemini).map(\.id))
+        XCTAssertTrue(geminiSeeded.contains("gemini-3.1-flash-lite"))
+        let vertexSeeded = Set(ModelCatalog.seededModels(for: .vertexai).map(\.id))
+        XCTAssertTrue(vertexSeeded.contains("gemini-3.1-flash-lite"))
+    }
+
     func testTogetherCatalogMetadataUsesExactIDs() {
         let kimi = ModelCatalog.modelInfo(
             for: "moonshotai/Kimi-K2.5",
