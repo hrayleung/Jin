@@ -21,6 +21,8 @@ struct TextToSpeechConfigBuilder {
         switch provider {
         case .openai:
             return try openAIConfig(apiKey: apiKey)
+        case .openRouter:
+            return try openRouterConfig(apiKey: apiKey)
         case .groq:
             return try groqConfig(apiKey: apiKey)
         case .xiaomiMiMo:
@@ -78,6 +80,25 @@ struct TextToSpeechConfigBuilder {
                 responseFormat: defaults.string(forKey: AppPreferenceKeys.ttsOpenAIResponseFormat) ?? "mp3",
                 speed: defaults.object(forKey: AppPreferenceKeys.ttsOpenAISpeed) as? Double,
                 instructions: defaults.string(forKey: AppPreferenceKeys.ttsOpenAIInstructions)
+            )
+        )
+    }
+
+    private func openRouterConfig(apiKey: String) throws -> TextToSpeechPlaybackManager.SynthesisConfig {
+        let baseURL = try Preferences.resolvedBaseURL(
+            defaults.string(forKey: AppPreferenceKeys.ttsOpenRouterBaseURL),
+            fallback: OpenRouterAudioClient.Constants.defaultBaseURL.absoluteString
+        )
+
+        return .openRouter(
+            TextToSpeechPlaybackManager.OpenRouterConfig(
+                apiKey: apiKey,
+                baseURL: baseURL,
+                model: defaults.string(forKey: AppPreferenceKeys.ttsOpenRouterModel) ?? "openai/gpt-4o-mini-tts",
+                voice: defaults.string(forKey: AppPreferenceKeys.ttsOpenRouterVoice) ?? "alloy",
+                responseFormat: defaults.string(forKey: AppPreferenceKeys.ttsOpenRouterResponseFormat) ?? "mp3",
+                speed: defaults.object(forKey: AppPreferenceKeys.ttsOpenRouterSpeed) as? Double,
+                instructions: Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.ttsOpenRouterInstructions))
             )
         )
     }

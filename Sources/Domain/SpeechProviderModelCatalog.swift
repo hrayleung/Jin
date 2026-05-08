@@ -29,6 +29,8 @@ enum SpeechProviderModelCatalog {
         switch provider {
         case .openai:
             return filteredChoices(availableModels, matches: matchesOpenAITextToSpeechModelID)
+        case .openRouter:
+            return filteredChoices(availableModels) { _ in true }
         case .groq:
             return filteredChoices(availableModels, matches: matchesGroqTextToSpeechModelID)
         case .xiaomiMiMo:
@@ -45,6 +47,8 @@ enum SpeechProviderModelCatalog {
         switch provider {
         case .openai:
             return filteredChoices(availableModels, matches: matchesOpenAISpeechToTextModelID)
+        case .openRouter:
+            return filteredChoices(availableModels) { _ in true }
         case .groq:
             return filteredChoices(availableModels, matches: matchesGroqSpeechToTextModelID)
         case .mistral:
@@ -74,6 +78,12 @@ enum SpeechProviderModelCatalog {
                 SpeechProviderModelChoice(id: "gpt-4o-mini-tts", name: "GPT-4o mini TTS"),
                 SpeechProviderModelChoice(id: "tts-1", name: "TTS-1"),
                 SpeechProviderModelChoice(id: "tts-1-hd", name: "TTS-1 HD")
+            ]
+        case .openRouter:
+            return [
+                SpeechProviderModelChoice(id: "openai/gpt-4o-mini-tts", name: "OpenAI GPT-4o mini TTS"),
+                SpeechProviderModelChoice(id: "google/gemini-flash-tts", name: "Google Gemini Flash TTS"),
+                SpeechProviderModelChoice(id: "mistralai/voxtral-mini-tts", name: "Mistral Voxtral Mini TTS")
             ]
         case .groq:
             return [
@@ -111,6 +121,14 @@ enum SpeechProviderModelCatalog {
                 SpeechProviderModelChoice(id: "gpt-4o-transcribe", name: "GPT-4o Transcribe"),
                 SpeechProviderModelChoice(id: "gpt-4o-transcribe-diarize", name: "GPT-4o Transcribe Diarize"),
                 SpeechProviderModelChoice(id: "whisper-1", name: "Whisper-1")
+            ]
+        case .openRouter:
+            return [
+                SpeechProviderModelChoice(id: "openai/whisper-1", name: "OpenAI Whisper-1"),
+                SpeechProviderModelChoice(id: "openai/whisper-large-v3-turbo", name: "OpenAI Whisper Large v3 Turbo"),
+                SpeechProviderModelChoice(id: "openai/gpt-4o-transcribe", name: "OpenAI GPT-4o Transcribe"),
+                SpeechProviderModelChoice(id: "openai/gpt-4o-mini-transcribe", name: "OpenAI GPT-4o mini Transcribe"),
+                SpeechProviderModelChoice(id: "google/chirp-3", name: "Google Chirp 3")
             ]
         case .groq:
             return [

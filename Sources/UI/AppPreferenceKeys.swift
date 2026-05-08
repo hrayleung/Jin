@@ -144,6 +144,14 @@ enum AppPreferenceKeys {
     static let ttsElevenLabsStyle = "ttsElevenLabsStyle"
     static let ttsElevenLabsUseSpeakerBoost = "ttsElevenLabsUseSpeakerBoost"
 
+    static let ttsOpenRouterAPIKey = "ttsOpenRouterAPIKey"
+    static let ttsOpenRouterBaseURL = "ttsOpenRouterBaseURL"
+    static let ttsOpenRouterModel = "ttsOpenRouterModel"
+    static let ttsOpenRouterVoice = "ttsOpenRouterVoice"
+    static let ttsOpenRouterResponseFormat = "ttsOpenRouterResponseFormat"
+    static let ttsOpenRouterSpeed = "ttsOpenRouterSpeed"
+    static let ttsOpenRouterInstructions = "ttsOpenRouterInstructions"
+
     // Networking / Debug
     static let networkDebugLoggingEnabled = "networkDebugLoggingEnabled"
     static let chatDiagnosticLoggingEnabled = "chatDiagnosticLoggingEnabled"
@@ -192,6 +200,12 @@ enum AppPreferenceKeys {
     static let sttElevenLabsTimestampsGranularity = "sttElevenLabsTimestampsGranularity"
     static let sttElevenLabsFileFormat = "sttElevenLabsFileFormat"
     static let sttElevenLabsTemperature = "sttElevenLabsTemperature"
+
+    static let sttOpenRouterAPIKey = "sttOpenRouterAPIKey"
+    static let sttOpenRouterBaseURL = "sttOpenRouterBaseURL"
+    static let sttOpenRouterModel = "sttOpenRouterModel"
+    static let sttOpenRouterLanguage = "sttOpenRouterLanguage"
+    static let sttOpenRouterTemperature = "sttOpenRouterTemperature"
 
     // WhisperKit STT (On-Device)
     static let sttWhisperKitModel = "sttWhisperKitModel"

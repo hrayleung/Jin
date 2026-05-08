@@ -23,7 +23,7 @@ extension TextToSpeechPluginSettingsView {
         }
 
         switch load.provider {
-        case .openai, .groq, .xiaomiMiMo:
+        case .openai, .openRouter, .groq, .xiaomiMiMo:
             await loadRemoteTextToSpeechModels()
             await MainActor.run {
                 guard isCurrentTextToSpeechLoad(

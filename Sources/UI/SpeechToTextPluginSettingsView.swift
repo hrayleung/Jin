@@ -34,6 +34,11 @@ struct SpeechToTextPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.sttWhisperKitLanguage) var whisperKitLanguage = ""
     @AppStorage(AppPreferenceKeys.sttWhisperKitTranslateToEnglish) var whisperKitTranslateToEnglish = false
 
+    @AppStorage(AppPreferenceKeys.sttOpenRouterBaseURL) var openRouterBaseURL = OpenRouterAudioClient.Constants.defaultBaseURL.absoluteString
+    @AppStorage(AppPreferenceKeys.sttOpenRouterModel) var openRouterModel = "openai/whisper-1"
+    @AppStorage(AppPreferenceKeys.sttOpenRouterLanguage) var openRouterLanguage = ""
+    @AppStorage(AppPreferenceKeys.sttOpenRouterTemperature) var openRouterTemperature = 0.0
+
     @AppStorage(AppPreferenceKeys.sttElevenLabsBaseURL) var elevenLabsBaseURL = ElevenLabsSTTClient.Constants.defaultBaseURL.absoluteString
     @AppStorage(AppPreferenceKeys.sttElevenLabsModel) var elevenLabsModel = "scribe_v2"
     @AppStorage(AppPreferenceKeys.sttElevenLabsLanguageCode) var elevenLabsLanguageCode = ""
@@ -54,6 +59,7 @@ struct SpeechToTextPluginSettingsView: View {
     @State var lastPersistedAPIKey = ""
     @State var autoSaveTask: Task<Void, Never>?
     @State var openAIModels: [SpeechProviderModelChoice] = []
+    @State var openRouterModels: [SpeechProviderModelChoice] = []
     @State var groqModels: [SpeechProviderModelChoice] = []
     @State var mistralModels: [SpeechProviderModelChoice] = []
     @State var elevenLabsModels: [SpeechProviderModelChoice] = []

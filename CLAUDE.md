@@ -207,8 +207,8 @@ Optional features configured via Settings, with dedicated app preference keys:
 | Web Search | `BuiltinSearchToolHub` (Exa / Brave / Jina / Firecrawl) | `pluginWebSearchExaAPIKey`, `pluginWebSearchBraveAPIKey`, `pluginWebSearchJinaAPIKey`, `pluginWebSearchFirecrawlAPIKey` |
 | Mistral OCR | `MistralOCRClient` | `pluginMistralOCRAPIKey` |
 | DeepSeek OCR | `DeepInfraDeepSeekOCRClient` | `pluginDeepSeekOCRAPIKey` |
-| TTS | `ElevenLabsTTSClient`, `OpenAIAudioClient`, `GroqAudioClient` | `ttsElevenLabsAPIKey`, `ttsOpenAIAPIKey`, `ttsGroqAPIKey` |
-| STT | `OpenAIAudioClient`, `GroqAudioClient` (Mistral STT uses OpenAI-compatible client) | `sttOpenAIAPIKey`, `sttGroqAPIKey`, `sttMistralAPIKey` |
+| TTS | `ElevenLabsTTSClient`, `OpenAIAudioClient`, `OpenRouterAudioClient`, `GroqAudioClient`, `MiMoAudioClient`, on-device `TTSKitService` | `ttsElevenLabsAPIKey`, `ttsOpenAIAPIKey`, `ttsOpenRouterAPIKey`, `ttsGroqAPIKey`, `ttsMiMoAPIKey` |
+| STT | `OpenAIAudioClient`, `OpenRouterAudioClient`, `GroqAudioClient`, `ElevenLabsSTTClient` (Mistral STT reuses OpenAI-compatible client), on-device `WhisperKitService` | `sttOpenAIAPIKey`, `sttOpenRouterAPIKey`, `sttGroqAPIKey`, `sttMistralAPIKey`, `sttElevenLabsAPIKey` |
 | Chat Naming | Model-based naming flow (no standalone API key) | `chatNamingProviderID`, `chatNamingModelID` |
 | Cloudflare R2 Upload | R2 upload settings + signed request flow | `cloudflareR2AccessKeyID`, `cloudflareR2SecretAccessKey`, `cloudflareR2AccountID`, `cloudflareR2Bucket` |
 

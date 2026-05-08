@@ -378,6 +378,215 @@ final class AudioNetworkingClientTests: XCTestCase {
         XCTAssertEqual(data, Data("AUDIO".utf8))
     }
 
+    func testOpenRouterAudioClientCreateSpeechBuildsJSONRequest() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.example/api/v1/audio/speech")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-Title"), "Jin")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "HTTP-Referer"), "https://jin.app")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(json["model"] as? String, "openai/gpt-4o-mini-tts")
+            XCTAssertEqual(json["input"] as? String, "Hello")
+            XCTAssertEqual(json["voice"] as? String, "alloy")
+            XCTAssertEqual(json["response_format"] as? String, "mp3")
+            XCTAssertEqual((json["speed"] as? NSNumber)?.doubleValue, 1.1)
+            XCTAssertEqual(json["instructions"] as? String, "Speak warmly")
+            XCTAssertNil(json["stream_format"])
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("AUDIO".utf8)
+            )
+        }
+
+        let client = OpenRouterAudioClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://openrouter.example/api/v1")!,
+            networkManager: networkManager
+        )
+
+        let data = try await client.createSpeech(
+            input: "Hello",
+            model: "openai/gpt-4o-mini-tts",
+            voice: "alloy",
+            responseFormat: "mp3",
+            speed: 1.1,
+            instructions: "Speak warmly"
+        )
+
+        XCTAssertEqual(data, Data("AUDIO".utf8))
+    }
+
+    func testOpenRouterAudioClientCreateTranscriptionBuildsBase64JSONRequest() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let audioBytes = Data("AUDIO".utf8)
+        let expectedBase64 = audioBytes.base64EncodedString()
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.example/api/v1/audio/transcriptions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-Title"), "Jin")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(json["model"] as? String, "openai/whisper-1")
+            XCTAssertEqual(json["language"] as? String, "en")
+            XCTAssertEqual((json["temperature"] as? NSNumber)?.doubleValue, 0.3)
+
+            let inputAudio = try XCTUnwrap(json["input_audio"] as? [String: Any])
+            XCTAssertEqual(inputAudio["data"] as? String, expectedBase64)
+            XCTAssertEqual(inputAudio["format"] as? String, "wav")
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("""
+                {
+                  "text": "Hello world",
+                  "usage": { "seconds": 1.5, "total_tokens": 12 }
+                }
+                """.utf8)
+            )
+        }
+
+        let client = OpenRouterAudioClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://openrouter.example/api/v1")!,
+            networkManager: networkManager
+        )
+
+        let text = try await client.createTranscription(
+            audioData: audioBytes,
+            audioFormat: "wav",
+            model: "openai/whisper-1",
+            language: "en",
+            temperature: 0.3
+        )
+
+        XCTAssertEqual(text, "Hello world")
+    }
+
+    func testOpenRouterAudioClientTranscriptionOmitsBlankOptionalFields() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(json["model"] as? String, "openai/whisper-1")
+            XCTAssertNotNil(json["input_audio"])
+            XCTAssertNil(json["language"])
+            XCTAssertNil(json["temperature"])
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("{\"text\":\"\"}".utf8)
+            )
+        }
+
+        let client = OpenRouterAudioClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://openrouter.example/api/v1")!,
+            networkManager: networkManager
+        )
+
+        _ = try await client.createTranscription(
+            audioData: Data("AUDIO".utf8),
+            audioFormat: "wav",
+            model: "openai/whisper-1",
+            language: "  ",
+            temperature: nil
+        )
+    }
+
+    func testOpenRouterAudioClientListSpeechModelsAppendsTTSFilter() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.path, "/api/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+            let queryItems = components.queryItems ?? []
+            XCTAssertTrue(queryItems.contains(URLQueryItem(name: "output_modalities", value: "tts")))
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("""
+                {
+                  "data": [
+                    { "id": "openai/gpt-4o-mini-tts", "name": "OpenAI mini TTS" },
+                    { "id": "google/gemini-flash-tts" }
+                  ]
+                }
+                """.utf8)
+            )
+        }
+
+        let client = OpenRouterAudioClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://openrouter.example/api/v1")!,
+            networkManager: networkManager
+        )
+
+        let models = try await client.listSpeechModels()
+
+        XCTAssertEqual(
+            models,
+            [
+                SpeechProviderModelChoice(id: "openai/gpt-4o-mini-tts", name: "OpenAI mini TTS"),
+                SpeechProviderModelChoice(id: "google/gemini-flash-tts")
+            ]
+        )
+    }
+
+    func testOpenRouterAudioClientListTranscriptionModelsAppendsTranscriptionFilter() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+            let queryItems = components.queryItems ?? []
+            XCTAssertTrue(queryItems.contains(URLQueryItem(name: "output_modalities", value: "transcription")))
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("""
+                {
+                  "data": [
+                    { "id": "openai/whisper-1", "name": "Whisper-1" }
+                  ]
+                }
+                """.utf8)
+            )
+        }
+
+        let client = OpenRouterAudioClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://openrouter.example/api/v1")!,
+            networkManager: networkManager
+        )
+
+        let models = try await client.listTranscriptionModels()
+
+        XCTAssertEqual(models, [SpeechProviderModelChoice(id: "openai/whisper-1", name: "Whisper-1")])
+    }
+
     func testElevenLabsSTTClientListModelsDecodesAvailableModels() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

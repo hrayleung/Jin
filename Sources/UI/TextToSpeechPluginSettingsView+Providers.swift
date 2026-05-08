@@ -11,6 +11,9 @@ extension TextToSpeechPluginSettingsView {
             case .openai:
                 openAISettingsSection
 
+            case .openRouter:
+                openRouterSettingsSection
+
             case .groq:
                 groqSettingsSection
 
@@ -31,6 +34,47 @@ extension TextToSpeechPluginSettingsView {
             }
         } else {
             providerErrorSection
+        }
+    }
+
+    var openRouterSettingsSection: some View {
+        JinSettingsSection("OpenRouter") {
+            JinSettingsTextFieldRow("API Base URL", text: $openRouterBaseURL, usesMonospacedFont: true)
+
+            JinSettingsPickerRow("Model", selection: $openRouterModel) {
+                ForEach(displayedOpenRouterModels) { model in
+                    Text(model.name).tag(model.id)
+                }
+            }
+
+            JinSettingsTextFieldRow(
+                "Voice",
+                fieldTitle: "Voice ID",
+                supportingText: "Voices vary by model. Common OpenAI voices: alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer.",
+                text: $openRouterVoice,
+                usesMonospacedFont: true
+            )
+
+            JinSettingsPickerRow("Format", selection: $openRouterResponseFormat) {
+                ForEach(Self.openRouterResponseFormats, id: \.self) { format in
+                    Text(format).tag(format)
+                }
+            }
+
+            JinSettingsSliderValueRow(
+                title: "Speed",
+                value: $openRouterSpeed,
+                range: 0.25...4.0,
+                step: 0.05,
+                valueWidth: 64
+            )
+
+            JinSettingsTextFieldRow(
+                "Instructions",
+                fieldTitle: "Instructions (optional)",
+                supportingText: "OpenAI TTS family only — silently ignored by other providers.",
+                text: $openRouterInstructions
+            )
         }
     }
 

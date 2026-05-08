@@ -2,12 +2,15 @@ import Foundation
 
 enum TextToSpeechSettingsRemoteClient {
     case openAI(OpenAIAudioClient)
+    case openRouter(OpenRouterAudioClient)
     case groq(GroqAudioClient)
     case miMo(MiMoAudioClient)
 
     func validateAPIKey(timeoutSeconds: TimeInterval = 30) async throws {
         switch self {
         case .openAI(let client):
+            try await client.validateAPIKey(timeoutSeconds: timeoutSeconds)
+        case .openRouter(let client):
             try await client.validateAPIKey(timeoutSeconds: timeoutSeconds)
         case .groq(let client):
             try await client.validateAPIKey(timeoutSeconds: timeoutSeconds)
@@ -20,6 +23,8 @@ enum TextToSpeechSettingsRemoteClient {
         switch self {
         case .openAI(let client):
             return try await client.listModels(timeoutSeconds: timeoutSeconds)
+        case .openRouter(let client):
+            return try await client.listSpeechModels(timeoutSeconds: timeoutSeconds)
         case .groq(let client):
             return try await client.listModels(timeoutSeconds: timeoutSeconds)
         case .miMo(let client):
