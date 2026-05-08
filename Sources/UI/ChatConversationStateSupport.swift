@@ -152,6 +152,8 @@ enum ChatConversationStateSupport {
                 key = AppPreferenceKeys.ttsElevenLabsAPIKey
             case .openai:
                 key = AppPreferenceKeys.ttsOpenAIAPIKey
+            case .openRouter:
+                key = AppPreferenceKeys.ttsOpenRouterAPIKey
             case .groq:
                 key = AppPreferenceKeys.ttsGroqAPIKey
             case .xiaomiMiMo:
@@ -169,6 +171,8 @@ enum ChatConversationStateSupport {
             switch sttProvider {
             case .openai:
                 key = AppPreferenceKeys.sttOpenAIAPIKey
+            case .openRouter:
+                key = AppPreferenceKeys.sttOpenRouterAPIKey
             case .groq:
                 key = AppPreferenceKeys.sttGroqAPIKey
             case .mistral:

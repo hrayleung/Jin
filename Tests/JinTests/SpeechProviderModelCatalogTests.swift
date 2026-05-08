@@ -137,6 +137,29 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
         )
     }
 
+    func testOpenRouterTextToSpeechModelNormalizationMapsLegacyAliasesToExactIDs() {
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.normalizedOpenRouterTextToSpeechModelID(" openai/gpt-4o-mini-tts\n"),
+            "openai/gpt-4o-mini-tts-2025-12-15"
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.normalizedOpenRouterTextToSpeechModelID("GOOGLE/GEMINI-FLASH-TTS"),
+            "google/gemini-3.1-flash-tts-preview"
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.normalizedOpenRouterTextToSpeechModelID("mistralai/voxtral-mini-tts"),
+            "mistralai/voxtral-mini-tts-2603"
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.normalizedOpenRouterTextToSpeechModelID("custom/provider-tts"),
+            "custom/provider-tts"
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.normalizedOpenRouterTextToSpeechModelID(" \n "),
+            SpeechProviderModelCatalog.defaultOpenRouterTextToSpeechModelID
+        )
+    }
+
     func testDefaultSpeechChoicesProvidePickerFallbacks() {
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .openai).map(\.id),
@@ -160,6 +183,14 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .openai).map(\.id),
             ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"]
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .openRouter).map(\.id),
+            [
+                "openai/gpt-4o-mini-tts-2025-12-15",
+                "google/gemini-3.1-flash-tts-preview",
+                "mistralai/voxtral-mini-tts-2603"
+            ]
         )
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .groq).map(\.id),

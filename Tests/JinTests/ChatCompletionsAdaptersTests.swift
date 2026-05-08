@@ -2033,7 +2033,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
     }
 
-    func testOpenCodeGoAdapterRoutesDeepSeekV4ToAnthropicMessagesEndpoint() async throws {
+    func testOpenCodeGoAdapterRoutesDeepSeekV4ToOpenAIChatCompletionsEndpoint() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -2045,10 +2045,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/messages")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
             XCTAssertEqual(request.httpMethod, "POST")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "test-key")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            XCTAssertNil(request.value(forHTTPHeaderField: "x-api-key"))
 
             let body = try XCTUnwrap(requestBodyData(request))
             let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
@@ -2058,41 +2058,35 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertEqual(root["stream"] as? Bool, false)
             XCTAssertEqual(root["max_tokens"] as? Int, 2048)
 
-            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
-            XCTAssertEqual(thinking["type"] as? String, "enabled")
-            XCTAssertNil(thinking["budget_tokens"])
-
-            let outputConfig = try XCTUnwrap(root["output_config"] as? [String: Any])
-            XCTAssertEqual(outputConfig["effort"] as? String, "max")
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "high")
 
             let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
             XCTAssertEqual(messages.count, 1)
             XCTAssertEqual(messages[0]["role"] as? String, "user")
-            let content = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
-            XCTAssertEqual(content.first?["type"] as? String, "text")
-            XCTAssertEqual(content.first?["text"] as? String, "hi")
+            XCTAssertEqual(messages[0]["content"] as? String, "hi")
 
-            let sse = """
-            event: message_start
-            data: {"type":"message_start","message":{"id":"msg_opencode_deepseek","type":"message","role":"assistant","content":[],"model":"deepseek-v4-pro","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":3,"output_tokens":0}}}
+            let toolObjects = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            XCTAssertEqual(toolObjects.count, 1)
+            let functionTool = try XCTUnwrap(toolObjects.first)
+            XCTAssertEqual(functionTool["type"] as? String, "function")
+            let function = try XCTUnwrap(functionTool["function"] as? [String: Any])
+            XCTAssertEqual(function["name"] as? String, "lookup_status")
 
-            event: content_block_delta
-            data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"OK"}}
-
-            event: message_stop
-            data: {"type":"message_stop"}
-
-            """
-            let data = try XCTUnwrap(sse.data(using: .utf8))
-            return (
-                HTTPURLResponse(
-                    url: request.url!,
-                    statusCode: 200,
-                    httpVersion: nil,
-                    headerFields: ["Content-Type": "text/event-stream"]
-                )!,
-                data
-            )
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_deepseek",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
         }
 
         let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
@@ -2103,7 +2097,20 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 maxTokens: 2048,
                 reasoning: ReasoningControls(enabled: true, effort: .max)
             ),
-            tools: [],
+            tools: [
+                ToolDefinition(
+                    id: "tool_1",
+                    name: "lookup_status",
+                    description: "Lookup a project status by ID.",
+                    parameters: ParameterSchema(
+                        properties: [
+                            "id": PropertySchema(type: "string", description: "Project ID")
+                        ],
+                        required: ["id"]
+                    ),
+                    source: .builtin
+                )
+            ],
             streaming: false
         )
 
@@ -2114,7 +2121,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         XCTAssertEqual(events.count, 3)
         guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
-        XCTAssertEqual(id, "msg_opencode_deepseek")
+        XCTAssertEqual(id, "cmpl_opencode_deepseek")
         guard case .contentDelta(.text(let content)) = events[1] else { return XCTFail("Expected contentDelta") }
         XCTAssertEqual(content, "OK")
         guard case .messageEnd = events[2] else { return XCTFail("Expected messageEnd") }
@@ -2131,8 +2138,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             apiKey: "ignored",
             models: [
                 ModelInfo(
-                    id: "deepseek-v4-flash",
-                    name: "DeepSeek V4 Flash",
+                    id: "minimax-m2.5",
+                    name: "MiniMax M2.5",
                     capabilities: [.streaming, .toolCalling, .reasoning],
                     contextWindow: 1_000_000
                 )
@@ -2149,7 +2156,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             let body = try XCTUnwrap(requestBodyData(request))
             let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
             let root = try XCTUnwrap(json)
-            XCTAssertEqual(root["model"] as? String, "deepseek-v4-flash")
+            XCTAssertEqual(root["model"] as? String, "minimax-m2.5")
             XCTAssertEqual(root["max_tokens"] as? Int, 1)
             XCTAssertEqual(root["stream"] as? Bool, false)
 
@@ -3530,6 +3537,81 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(kimi.capabilities.contains(.reasoning))
         XCTAssertTrue(kimi.capabilities.contains(.promptCaching))
         XCTAssertEqual(kimi.reasoningConfig?.defaultEffort, .medium)
+    }
+
+    func testZyphraAdapterValidateAPIKeyUsesAuthenticatedChatCompletionsEndpoint() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "zyphra",
+            name: "Zyphra",
+            type: .zyphra,
+            apiKey: "ignored",
+            baseURL: "https://api.zyphracloud.com/api/v1",
+            models: [
+                ModelInfo(
+                    id: "zyphra/zaya1-8b",
+                    name: "ZAYA1-8B",
+                    capabilities: [.streaming, .toolCalling, .reasoning],
+                    contextWindow: 128_000
+                )
+            ]
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.zyphracloud.com/api/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "zyphra/ZAYA1-8B")
+            XCTAssertEqual(root["max_tokens"] as? Int, 1)
+            XCTAssertEqual(root["stream"] as? Bool, false)
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 1)
+            XCTAssertEqual(messages.first?["role"] as? String, "user")
+            XCTAssertEqual(messages.first?["content"] as? String, "ping")
+
+            let response: [String: Any] = ["id": "chatcmpl_validation"]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = ZyphraAdapter(providerConfig: providerConfig, apiKey: "ignored", networkManager: networkManager)
+        let isValid = try await adapter.validateAPIKey("test-key")
+        XCTAssertTrue(isValid)
+    }
+
+    func testZyphraAdapterValidateAPIKeyRejectsInvalidKeyFromChatCompletionsEndpoint() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "zyphra",
+            name: "Zyphra",
+            type: .zyphra,
+            apiKey: "ignored",
+            baseURL: "https://api.zyphracloud.com/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.zyphracloud.com/api/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer invalid-key")
+
+            let data = Data(#"{"error":"Unauthorized"}"#.utf8)
+            return (HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = ZyphraAdapter(providerConfig: providerConfig, apiKey: "ignored", networkManager: networkManager)
+        let isValid = try await adapter.validateAPIKey("invalid-key")
+        XCTAssertFalse(isValid)
     }
 
     func testOpenAICompatibleAdapterFetchModelsForDeepInfraUsesCatalogMetadataWhenKnown() async throws {

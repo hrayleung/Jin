@@ -24,6 +24,13 @@ struct TextToSpeechPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.ttsMiMoStyleInstruction) var miMoStyleInstruction = ""
     @AppStorage(AppPreferenceKeys.ttsMiMoVoiceCloneSamplePath) var miMoVoiceCloneSamplePath = ""
 
+    @AppStorage(AppPreferenceKeys.ttsOpenRouterBaseURL) var openRouterBaseURL = OpenRouterAudioClient.Constants.defaultBaseURL.absoluteString
+    @AppStorage(AppPreferenceKeys.ttsOpenRouterModel) var openRouterModel = SpeechProviderModelCatalog.defaultOpenRouterTextToSpeechModelID
+    @AppStorage(AppPreferenceKeys.ttsOpenRouterVoice) var openRouterVoice = "alloy"
+    @AppStorage(AppPreferenceKeys.ttsOpenRouterResponseFormat) var openRouterResponseFormat = "mp3"
+    @AppStorage(AppPreferenceKeys.ttsOpenRouterSpeed) var openRouterSpeed = 1.0
+    @AppStorage(AppPreferenceKeys.ttsOpenRouterInstructions) var openRouterInstructions = ""
+
     @AppStorage(AppPreferenceKeys.ttsElevenLabsBaseURL) var elevenLabsBaseURL = ElevenLabsTTSClient.Constants.defaultBaseURL.absoluteString
     @AppStorage(AppPreferenceKeys.ttsElevenLabsModelID) var elevenLabsModelID = "eleven_multilingual_v2"
     @AppStorage(AppPreferenceKeys.ttsElevenLabsVoiceID) var elevenLabsVoiceID = ""
@@ -51,6 +58,7 @@ struct TextToSpeechPluginSettingsView: View {
     @State var autoSaveTask: Task<Void, Never>?
 
     @State var openAIModels: [SpeechProviderModelChoice] = []
+    @State var openRouterModels: [SpeechProviderModelChoice] = []
     @State var groqModels: [SpeechProviderModelChoice] = []
     @State var miMoModels: [SpeechProviderModelChoice] = []
     @State var elevenLabsVoices: [ElevenLabsTTSClient.Voice] = []

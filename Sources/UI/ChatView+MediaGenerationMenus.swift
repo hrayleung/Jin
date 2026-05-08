@@ -10,8 +10,10 @@ extension ChatView {
         if providerType == .xai {
             XAIImageGenerationMenuView(
                 isConfigured: isImageGenerationConfigured,
+                supportsResolution: XAIModelSupport.supportsImageResolutionControl(lowerModelID),
                 currentCount: controls.xaiImageGeneration?.count,
                 selectedAspectRatio: controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio,
+                currentResolution: controls.xaiImageGeneration?.resolution,
                 menuItemLabel: { title, isSelected in
                     menuItemLabel(title, isSelected: isSelected)
                 },
@@ -30,6 +32,9 @@ extension ChatView {
                             $0.size = nil
                         }
                     }
+                },
+                onSetResolution: { value in
+                    updateXAIImageGeneration { $0.resolution = value }
                 },
                 onReset: {
                     controls.xaiImageGeneration = nil

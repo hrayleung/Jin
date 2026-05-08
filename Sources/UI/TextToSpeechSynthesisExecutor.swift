@@ -25,6 +25,8 @@ enum TextToSpeechSynthesisExecutor {
         switch config {
         case .openai(let openAI):
             try await synthesizeOpenAI(text: text, config: openAI, onQueuedClip: onQueuedClip)
+        case .openRouter(let openRouter):
+            try await synthesizeOpenRouter(text: text, config: openRouter, onQueuedClip: onQueuedClip)
         case .groq(let groq):
             try await synthesizeGroq(text: text, config: groq, onQueuedClip: onQueuedClip)
         case .elevenlabs(let eleven):
@@ -66,6 +68,34 @@ enum TextToSpeechSynthesisExecutor {
                 speed: config.speed,
                 instructions: plan.instructions,
                 streamFormat: nil
+            )
+            return TextToSpeechAudioDataNormalizer.openAIData(
+                clipData,
+                responseFormat: plan.responseFormat
+            )
+        }
+    }
+
+    private static func synthesizeOpenRouter(
+        text: String,
+        config: TextToSpeechPlaybackManager.OpenRouterConfig,
+        onQueuedClip: @escaping @MainActor (TextToSpeechQueuedClip) -> Void
+    ) async throws {
+        let plan = try TextToSpeechSynthesisPlanSupport.openAIPlan(
+            text: text,
+            responseFormat: config.responseFormat,
+            instructions: config.instructions
+        )
+        let client = OpenRouterAudioClient(apiKey: config.apiKey, baseURL: config.baseURL)
+
+        try await synthesizeQueuedClips(chunks: plan.chunks, onQueuedClip: onQueuedClip) { chunk in
+            let clipData = try await client.createSpeech(
+                input: chunk,
+                model: config.model,
+                voice: config.voice,
+                responseFormat: plan.responseFormat,
+                speed: config.speed,
+                instructions: plan.instructions
             )
             return TextToSpeechAudioDataNormalizer.openAIData(
                 clipData,

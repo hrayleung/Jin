@@ -12,6 +12,14 @@ struct SpeechProviderModelChoice: Identifiable, Hashable, Sendable {
 }
 
 enum SpeechProviderModelCatalog {
+    static let defaultOpenRouterTextToSpeechModelID = "openai/gpt-4o-mini-tts-2025-12-15"
+
+    private static let legacyOpenRouterTextToSpeechModelIDMap: [String: String] = [
+        "openai/gpt-4o-mini-tts": defaultOpenRouterTextToSpeechModelID,
+        "google/gemini-flash-tts": "google/gemini-3.1-flash-tts-preview",
+        "mistralai/voxtral-mini-tts": "mistralai/voxtral-mini-tts-2603"
+    ]
+
     private static let groqTextToSpeechModelIDs: Set<String> = [
         "canopylabs/orpheus-v1-english",
         "canopylabs/orpheus-arabic-saudi"
@@ -29,6 +37,8 @@ enum SpeechProviderModelCatalog {
         switch provider {
         case .openai:
             return filteredChoices(availableModels, matches: matchesOpenAITextToSpeechModelID)
+        case .openRouter:
+            return filteredChoices(availableModels) { _ in true }
         case .groq:
             return filteredChoices(availableModels, matches: matchesGroqTextToSpeechModelID)
         case .xiaomiMiMo:
@@ -45,6 +55,8 @@ enum SpeechProviderModelCatalog {
         switch provider {
         case .openai:
             return filteredChoices(availableModels, matches: matchesOpenAISpeechToTextModelID)
+        case .openRouter:
+            return filteredChoices(availableModels) { _ in true }
         case .groq:
             return filteredChoices(availableModels, matches: matchesGroqSpeechToTextModelID)
         case .mistral:
@@ -65,6 +77,11 @@ enum SpeechProviderModelCatalog {
         return [SpeechProviderModelChoice(id: trimmedSelection)] + choices
     }
 
+    static func normalizedOpenRouterTextToSpeechModelID(_ modelID: String?) -> String {
+        let trimmedModelID = modelID?.trimmedNonEmpty ?? defaultOpenRouterTextToSpeechModelID
+        return legacyOpenRouterTextToSpeechModelIDMap[trimmedModelID.lowercased()] ?? trimmedModelID
+    }
+
     static func defaultTextToSpeechChoices(
         for provider: TextToSpeechProvider
     ) -> [SpeechProviderModelChoice] {
@@ -74,6 +91,12 @@ enum SpeechProviderModelCatalog {
                 SpeechProviderModelChoice(id: "gpt-4o-mini-tts", name: "GPT-4o mini TTS"),
                 SpeechProviderModelChoice(id: "tts-1", name: "TTS-1"),
                 SpeechProviderModelChoice(id: "tts-1-hd", name: "TTS-1 HD")
+            ]
+        case .openRouter:
+            return [
+                SpeechProviderModelChoice(id: defaultOpenRouterTextToSpeechModelID, name: "OpenAI GPT-4o mini TTS"),
+                SpeechProviderModelChoice(id: "google/gemini-3.1-flash-tts-preview", name: "Google Gemini 3.1 Flash TTS Preview"),
+                SpeechProviderModelChoice(id: "mistralai/voxtral-mini-tts-2603", name: "Mistral Voxtral Mini TTS")
             ]
         case .groq:
             return [
@@ -111,6 +134,14 @@ enum SpeechProviderModelCatalog {
                 SpeechProviderModelChoice(id: "gpt-4o-transcribe", name: "GPT-4o Transcribe"),
                 SpeechProviderModelChoice(id: "gpt-4o-transcribe-diarize", name: "GPT-4o Transcribe Diarize"),
                 SpeechProviderModelChoice(id: "whisper-1", name: "Whisper-1")
+            ]
+        case .openRouter:
+            return [
+                SpeechProviderModelChoice(id: "openai/whisper-1", name: "OpenAI Whisper-1"),
+                SpeechProviderModelChoice(id: "openai/whisper-large-v3-turbo", name: "OpenAI Whisper Large v3 Turbo"),
+                SpeechProviderModelChoice(id: "openai/gpt-4o-transcribe", name: "OpenAI GPT-4o Transcribe"),
+                SpeechProviderModelChoice(id: "openai/gpt-4o-mini-transcribe", name: "OpenAI GPT-4o mini Transcribe"),
+                SpeechProviderModelChoice(id: "google/chirp-3", name: "Google Chirp 3")
             ]
         case .groq:
             return [

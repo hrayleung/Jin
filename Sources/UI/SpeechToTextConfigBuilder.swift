@@ -21,6 +21,8 @@ struct SpeechToTextConfigBuilder {
         switch provider {
         case .openai:
             return try openAIConfig(apiKey: apiKey)
+        case .openRouter:
+            return try openRouterConfig(apiKey: apiKey)
         case .groq:
             return try groqConfig(apiKey: apiKey)
         case .mistral:
@@ -79,6 +81,26 @@ struct SpeechToTextConfigBuilder {
                 responseFormat: responseFormat,
                 temperature: temperature,
                 timestampGranularities: timestampGranularities
+            )
+        )
+    }
+
+    private func openRouterConfig(apiKey: String) throws -> SpeechToTextManager.TranscriptionConfig {
+        let baseURL = try Preferences.resolvedBaseURL(
+            defaults.string(forKey: AppPreferenceKeys.sttOpenRouterBaseURL),
+            fallback: OpenRouterAudioClient.Constants.defaultBaseURL.absoluteString
+        )
+        let model = defaults.string(forKey: AppPreferenceKeys.sttOpenRouterModel) ?? "openai/whisper-1"
+        let language = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttOpenRouterLanguage))
+        let temperature = defaults.object(forKey: AppPreferenceKeys.sttOpenRouterTemperature) as? Double
+
+        return .openRouter(
+            SpeechToTextManager.OpenRouterConfig(
+                apiKey: apiKey,
+                baseURL: baseURL,
+                model: model,
+                language: language,
+                temperature: temperature
             )
         )
     }

@@ -6,6 +6,7 @@ import Foundation
 struct XAIImageGenerationControls: Codable {
     var count: Int?
     var aspectRatio: XAIAspectRatio?
+    var resolution: XAIImageResolution?
     /// Deprecated: kept for backwards compatibility with older persisted controls.
     var size: XAIImageSize?
     /// Deprecated: currently unsupported by xAI image APIs.
@@ -17,6 +18,7 @@ struct XAIImageGenerationControls: Codable {
     init(
         count: Int? = nil,
         aspectRatio: XAIAspectRatio? = nil,
+        resolution: XAIImageResolution? = nil,
         size: XAIImageSize? = nil,
         quality: XAIImageQuality? = nil,
         style: XAIImageStyle? = nil,
@@ -24,6 +26,7 @@ struct XAIImageGenerationControls: Codable {
     ) {
         self.count = count
         self.aspectRatio = aspectRatio
+        self.resolution = resolution
         self.size = size
         self.quality = quality
         self.style = style
@@ -33,6 +36,7 @@ struct XAIImageGenerationControls: Codable {
     var isEmpty: Bool {
         count == nil
             && aspectRatio == nil
+            && resolution == nil
             && size == nil
             && quality == nil
             && style == nil
@@ -50,6 +54,13 @@ enum XAIAspectRatio: String, Codable, CaseIterable {
     case ratio3x2 = "3:2"
     case ratio4x5 = "4:5"
     case ratio5x4 = "5:4"
+    case ratio2x1 = "2:1"
+    case ratio1x2 = "1:2"
+    case ratio19_5x9 = "19.5:9"
+    case ratio9x19_5 = "9:19.5"
+    case ratio20x9 = "20:9"
+    case ratio9x20 = "9:20"
+    case auto = "auto"
 
     var displayName: String { rawValue }
 }
@@ -83,6 +94,13 @@ enum XAIImageStyle: String, Codable, CaseIterable {
     case natural, vivid
 
     var displayName: String { rawValue.capitalized }
+}
+
+enum XAIImageResolution: String, Codable, CaseIterable {
+    case res1k = "1k"
+    case res2k = "2k"
+
+    var displayName: String { rawValue }
 }
 
 // MARK: - xAI Video Generation

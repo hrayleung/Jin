@@ -84,6 +84,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case vertexai
     case xai
     case zhipuCodingPlan
+    case zyphra
 
     var displayName: String {
         switch self {
@@ -117,6 +118,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .morphllm: return "MorphLLM"
         case .gemini: return "Gemini (AI Studio)"
         case .vertexai: return "Vertex AI"
+        case .zyphra: return "Zyphra"
         }
     }
 
@@ -180,6 +182,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .morphllm: return "https://api.morphllm.com/v1"
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta"
         case .vertexai: return nil
+        case .zyphra: return "https://api.zyphracloud.com/api/v1"
         }
     }
 }

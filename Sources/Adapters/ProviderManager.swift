@@ -65,6 +65,9 @@ actor ProviderManager {
         case .together:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return TogetherAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .zyphra:
+            let apiKey = requiredAPIKey(from: credentials, for: config.type)
+            return ZyphraAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .xai:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return XAIAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)

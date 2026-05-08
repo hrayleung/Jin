@@ -37,6 +37,7 @@ enum DefaultProviderSeeds {
             opencodeGo,
             gemini,
             vertexAI,
+            zyphra,
         ]
     }
 
@@ -348,6 +349,17 @@ enum DefaultProviderSeeds {
             type: .vertexai,
             iconID: LobeProviderIconCatalog.defaultIconID(for: .vertexai),
             models: ModelCatalog.seededModels(for: .vertexai)
+        )
+    }
+
+    static var zyphra: ProviderConfig {
+        ProviderConfig(
+            id: "zyphra",
+            name: "Zyphra",
+            type: .zyphra,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .zyphra),
+            baseURL: ProviderType.zyphra.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .zyphra)
         )
     }
 }

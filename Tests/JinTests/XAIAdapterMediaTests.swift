@@ -208,6 +208,119 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(imageURLs, ["https://cdn.example.com/generated-pro.png"])
     }
 
+    func testXAIImageGenerationQualityModeSendsResolution() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/images/generations")
+            XCTAssertEqual(request.httpMethod, "POST")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "grok-imagine-image-quality")
+            XCTAssertEqual(root["prompt"] as? String, "London street art collage")
+            XCTAssertEqual(root["aspect_ratio"] as? String, "16:9")
+            XCTAssertEqual(root["resolution"] as? String, "2k")
+            XCTAssertEqual(root["response_format"] as? String, "b64_json")
+
+            let response: [String: Any] = [
+                "id": "img_quality_1",
+                "data": [["url": "https://cdn.example.com/quality.png", "mime_type": "image/png"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("London street art collage")])],
+            modelID: "grok-imagine-image-quality",
+            controls: GenerationControls(
+                xaiImageGeneration: XAIImageGenerationControls(
+                    aspectRatio: .ratio16x9,
+                    resolution: .res2k
+                )
+            ),
+            tools: [],
+            streaming: true
+        )
+
+        var imageURLs: [String] = []
+        for try await event in stream {
+            if case .contentDelta(.image(let image)) = event {
+                imageURLs.append(image.url?.absoluteString ?? "")
+            }
+        }
+
+        XCTAssertEqual(imageURLs, ["https://cdn.example.com/quality.png"])
+    }
+
+    func testXAIImageEditOmitsResolutionForQualityModel() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/images/edits")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "grok-imagine-image-quality")
+            XCTAssertNil(root["resolution"], "resolution should not be sent on edit endpoint")
+            XCTAssertNil(root["aspect_ratio"], "aspect_ratio should not be sent on edit endpoint")
+            XCTAssertNotNil(root["image"])
+
+            let response: [String: Any] = [
+                "id": "img_quality_edit",
+                "data": [["url": "https://cdn.example.com/edited.png", "mime_type": "image/png"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [
+                    .image(ImageContent(mimeType: "image/png", data: nil, url: URL(string: "https://example.com/source.png"))),
+                    .text("Make it stenciled")
+                ])
+            ],
+            modelID: "grok-imagine-image-quality",
+            controls: GenerationControls(
+                xaiImageGeneration: XAIImageGenerationControls(
+                    aspectRatio: .ratio16x9,
+                    resolution: .res2k
+                )
+            ),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
     func testXAIImageURLStringThrowsForUnreadableLocalFileURL() async {
         let providerConfig = ProviderConfig(
             id: "x",
@@ -292,6 +405,7 @@ final class XAIAdapterMediaTests: XCTestCase {
     func testXAIImageGenerationModelIDsRouteToImageGenerationEndpoint() async throws {
         let imageModelIDs = [
             "grok-imagine-image",
+            "grok-imagine-image-quality",
             "grok-imagine-image-pro",
             "grok-2-image-1212",
         ]

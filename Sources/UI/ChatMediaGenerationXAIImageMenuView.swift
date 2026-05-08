@@ -2,11 +2,14 @@ import SwiftUI
 
 struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
     let isConfigured: Bool
+    let supportsResolution: Bool
     let currentCount: Int?
     let selectedAspectRatio: XAIAspectRatio?
+    let currentResolution: XAIImageResolution?
     let menuItemLabel: (String, Bool) -> MenuItemLabel
     let onSetCount: (Int?) -> Void
     let onSetAspectRatio: (XAIAspectRatio?) -> Void
+    let onSetResolution: (XAIImageResolution?) -> Void
     let onReset: () -> Void
 
     var body: some View {
@@ -42,6 +45,23 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     onSetAspectRatio(ratio)
                 } label: {
                     menuItemLabel(ratio.displayName, selectedAspectRatio == ratio)
+                }
+            }
+        }
+
+        if supportsResolution {
+            Menu("Resolution") {
+                Button {
+                    onSetResolution(nil)
+                } label: {
+                    menuItemLabel("Default", currentResolution == nil)
+                }
+                ForEach(XAIImageResolution.allCases, id: \.self) { resolution in
+                    Button {
+                        onSetResolution(resolution)
+                    } label: {
+                        menuItemLabel(resolution.displayName, currentResolution == resolution)
+                    }
                 }
             }
         }
