@@ -111,7 +111,6 @@ enum ModelCapabilityRegistry {
         "gemini-3-pro-image-preview",
         "gemini-3.1-flash-image-preview",
         "gemini-3.1-flash-lite-preview",
-        "gemini-3.1-flash-lite",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -144,9 +143,8 @@ enum ModelCapabilityRegistry {
         geminiGoogleSearchSupportedModelIDs.union(vertexGoogleSearchSupportedModelIDs)
 
     /// Models documented by Google as supporting grounding with Google Maps in Gemini API.
-    /// Supported: Gemini 2.5 Pro, 2.5 Flash, 2.5 Flash-Lite, 2.0 Flash.
-    /// Not supported: Gemini 3 family, Gemini 2.0 Flash Lite.
     private static let geminiGoogleMapsSupportedModelIDs: Set<String> = [
+        "gemini-3.1-flash-lite",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -207,7 +205,6 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-pro-preview",
         "gemini-3-flash",
         "gemini-3-flash-preview",
-        "gemini-3.1-flash-lite",
         "gemini-3.1-flash-lite-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",

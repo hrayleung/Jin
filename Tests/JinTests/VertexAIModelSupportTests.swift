@@ -110,4 +110,23 @@ final class VertexAIModelSupportTests: XCTestCase {
         XCTAssertFalse(support.supportsThinkingConfig("imagen-custom-experiment"))
         XCTAssertFalse(support.supportsThinkingLevel("imagen-custom-experiment"))
     }
+
+    func testStableGemini31FlashLiteIsNotExposedForVertexAI() {
+        let support = VertexAIModelSupport()
+
+        XCTAssertTrue(support.knownModels.contains { $0.id == "gemini-3.1-flash-lite-preview" })
+        XCTAssertFalse(support.knownModels.contains { $0.id == "gemini-3.1-flash-lite" })
+
+        let info = support.makeModelInfo(
+            id: "gemini-3.1-flash-lite",
+            displayName: "Gemini 3.1 Flash-Lite",
+            contextWindow: 1_048_576
+        )
+
+        XCTAssertTrue(info.capabilities.isEmpty)
+        XCTAssertNil(info.reasoningConfig)
+        XCTAssertFalse(support.supportsFunctionCalling("gemini-3.1-flash-lite"))
+        XCTAssertFalse(support.supportsThinking("gemini-3.1-flash-lite"))
+        XCTAssertFalse(support.supportsNativePDF("gemini-3.1-flash-lite"))
+    }
 }

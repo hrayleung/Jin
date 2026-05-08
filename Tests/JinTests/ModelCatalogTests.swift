@@ -777,27 +777,13 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(gemini.reasoningConfig?.type, .effort)
         XCTAssertEqual(gemini.reasoningConfig?.defaultEffort, .minimal)
 
-        let vertex = ModelCatalog.modelInfo(
-            for: "gemini-3.1-flash-lite",
-            provider: .vertexai
-        )
-        XCTAssertEqual(vertex.contextWindow, 1_048_576)
-        XCTAssertTrue(vertex.capabilities.contains(.streaming))
-        XCTAssertTrue(vertex.capabilities.contains(.toolCalling))
-        XCTAssertTrue(vertex.capabilities.contains(.vision))
-        XCTAssertTrue(vertex.capabilities.contains(.audio))
-        XCTAssertTrue(vertex.capabilities.contains(.reasoning))
-        XCTAssertTrue(vertex.capabilities.contains(.promptCaching))
-        XCTAssertTrue(vertex.capabilities.contains(.nativePDF))
-        XCTAssertTrue(vertex.capabilities.contains(.codeExecution))
-        XCTAssertFalse(vertex.capabilities.contains(.imageGeneration))
-        XCTAssertEqual(vertex.reasoningConfig?.type, .effort)
-        XCTAssertEqual(vertex.reasoningConfig?.defaultEffort, .minimal)
+        XCTAssertNil(ModelCatalog.entry(for: "gemini-3.1-flash-lite", provider: .vertexai))
 
         let geminiSeeded = Set(ModelCatalog.seededModels(for: .gemini).map(\.id))
         XCTAssertTrue(geminiSeeded.contains("gemini-3.1-flash-lite"))
         let vertexSeeded = Set(ModelCatalog.seededModels(for: .vertexai).map(\.id))
-        XCTAssertTrue(vertexSeeded.contains("gemini-3.1-flash-lite"))
+        XCTAssertFalse(vertexSeeded.contains("gemini-3.1-flash-lite"))
+        XCTAssertTrue(vertexSeeded.contains("gemini-3.1-flash-lite-preview"))
     }
 
     func testGemini31FlashLiteGAGatewayCatalogMetadata() {
@@ -811,12 +797,18 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(openRouter.reasoningConfig?.defaultEffort, .minimal)
 
         let cloudflareVertex = ModelCatalog.modelInfo(
-            for: "google-vertex-ai/google/gemini-3.1-flash-lite",
+            for: "google-vertex-ai/google/gemini-3.1-flash-lite-preview",
             provider: .cloudflareAIGateway
         )
         XCTAssertEqual(cloudflareVertex.contextWindow, 1_048_576)
         XCTAssertTrue(cloudflareVertex.capabilities.contains(.toolCalling))
         XCTAssertEqual(cloudflareVertex.reasoningConfig?.defaultEffort, .minimal)
+        XCTAssertNil(
+            ModelCatalog.entry(
+                for: "google-vertex-ai/google/gemini-3.1-flash-lite",
+                provider: .cloudflareAIGateway
+            )
+        )
 
         let cloudflareAIStudio = ModelCatalog.modelInfo(
             for: "google-ai-studio/gemini-3.1-flash-lite",
