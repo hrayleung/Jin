@@ -28,9 +28,68 @@ extension ZyphraAdapter {
         )
 
         let (data, _) = try await networkManager.sendRequest(request)
-        let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return response.data.map {
-            ModelCatalog.modelInfo(for: $0.id, provider: .zyphra, name: $0.id)
+        let entries = try JSONDecoder().decode([ZyphraModelInfo].self, from: data)
+        return entries.map { $0.modelInfo() }
+    }
+}
+
+private struct ZyphraModelInfo: Decodable {
+    let modelId: String
+    let name: String?
+    let contextLength: Int?
+    let type: [String]?
+    let mainUseCase: [String]?
+    let inputModality: [String]?
+    let outputModality: [String]?
+    let functionCalling: Bool?
+
+    func modelInfo() -> ModelInfo {
+        if let catalogEntry = ModelCatalog.entry(for: modelId, provider: .zyphra) {
+            return ModelInfo(
+                id: modelId,
+                name: name ?? catalogEntry.displayName,
+                capabilities: catalogEntry.capabilities,
+                contextWindow: contextLength ?? catalogEntry.contextWindow,
+                maxOutputTokens: catalogEntry.maxOutputTokens,
+                reasoningConfig: catalogEntry.reasoningConfig
+            )
         }
+
+        return ModelInfo(
+            id: modelId,
+            name: name ?? modelId,
+            capabilities: derivedCapabilities(),
+            contextWindow: contextLength ?? 128_000,
+            maxOutputTokens: nil,
+            reasoningConfig: nil
+        )
+    }
+
+    private func derivedCapabilities() -> ModelCapability {
+        var capabilities: ModelCapability = [.streaming]
+
+        let lowercaseTags = Set((type ?? []).map { $0.lowercased() })
+            .union((mainUseCase ?? []).map { $0.lowercased() })
+
+        if lowercaseTags.contains("reasoning") {
+            capabilities.insert(.reasoning)
+        }
+
+        let inputs = Set((inputModality ?? []).map { $0.lowercased() })
+        if inputs.contains("image") || lowercaseTags.contains("vision") {
+            capabilities.insert(.vision)
+        }
+        if inputs.contains("audio") {
+            capabilities.insert(.audio)
+        }
+        if inputs.contains("video") {
+            capabilities.insert(.videoInput)
+        }
+
+        if functionCalling == true {
+            capabilities.insert(.toolCalling)
+        }
+
+        return capabilities
     }
 }
