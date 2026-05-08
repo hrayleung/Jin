@@ -145,6 +145,19 @@ final class SpeechPluginConfigFactoryTests: XCTestCase {
         XCTAssertEqual(elevenLabs.voiceId, " voice-id ")
     }
 
+    func testTextToSpeechConfigNormalizesLegacyOpenRouterTTSModelAlias() throws {
+        defaults.set(TextToSpeechProvider.openRouter.rawValue, forKey: AppPreferenceKeys.ttsProvider)
+        defaults.set("test-key", forKey: AppPreferenceKeys.ttsOpenRouterAPIKey)
+        defaults.set("openai/gpt-4o-mini-tts", forKey: AppPreferenceKeys.ttsOpenRouterModel)
+
+        let config = try SpeechPluginConfigFactory.textToSpeechConfig(defaults: defaults)
+        guard case .openRouter(let openRouter) = config else {
+            return XCTFail("Expected OpenRouter config, got \(config)")
+        }
+
+        XCTAssertEqual(openRouter.model, "openai/gpt-4o-mini-tts-2025-12-15")
+    }
+
     func testSpeechToTextConfigDisablesElevenLabsNoVerbatimForScribeV1() throws {
         defaults.set(SpeechToTextProvider.elevenlabs.rawValue, forKey: AppPreferenceKeys.sttProvider)
         defaults.set("test-key", forKey: AppPreferenceKeys.sttElevenLabsAPIKey)

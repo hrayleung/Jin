@@ -94,7 +94,9 @@ struct TextToSpeechConfigBuilder {
             TextToSpeechPlaybackManager.OpenRouterConfig(
                 apiKey: apiKey,
                 baseURL: baseURL,
-                model: defaults.string(forKey: AppPreferenceKeys.ttsOpenRouterModel) ?? "openai/gpt-4o-mini-tts",
+                model: SpeechProviderModelCatalog.normalizedOpenRouterTextToSpeechModelID(
+                    defaults.string(forKey: AppPreferenceKeys.ttsOpenRouterModel)
+                ),
                 voice: defaults.string(forKey: AppPreferenceKeys.ttsOpenRouterVoice) ?? "alloy",
                 responseFormat: defaults.string(forKey: AppPreferenceKeys.ttsOpenRouterResponseFormat) ?? "mp3",
                 speed: defaults.object(forKey: AppPreferenceKeys.ttsOpenRouterSpeed) as? Double,

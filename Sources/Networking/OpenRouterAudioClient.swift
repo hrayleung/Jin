@@ -7,7 +7,7 @@ actor OpenRouterAudioClient {
     }
 
     enum ModalityFilter: String {
-        case textToSpeech = "tts"
+        case textToSpeech = "speech"
         case transcription = "transcription"
     }
 
@@ -17,7 +17,7 @@ actor OpenRouterAudioClient {
         let voice: String
         let responseFormat: String?
         let speed: Double?
-        let instructions: String?
+        let provider: SpeechRequestProvider?
 
         enum CodingKeys: String, CodingKey {
             case model
@@ -25,8 +25,37 @@ actor OpenRouterAudioClient {
             case voice
             case responseFormat = "response_format"
             case speed
-            case instructions
+            case provider
         }
+    }
+
+    private struct SpeechRequestProvider: Encodable {
+        let options: SpeechRequestProviderOptions
+    }
+
+    private struct SpeechRequestProviderOptions: Encodable {
+        let openAI: SpeechRequestOpenAIOptions
+
+        enum CodingKeys: String, CodingKey {
+            case openAI = "openai"
+        }
+    }
+
+    private struct SpeechRequestOpenAIOptions: Encodable {
+        let instructions: String
+    }
+
+    private static func speechRequestProvider(forInstructions instructions: String?) -> SpeechRequestProvider? {
+        guard let instructions = instructions?.trimmedNonEmpty else { return nil }
+        return SpeechRequestProvider(
+            options: SpeechRequestProviderOptions(
+                openAI: SpeechRequestOpenAIOptions(instructions: instructions)
+            )
+        )
+    }
+
+    private static func shouldForwardInstructions(for model: String) -> Bool {
+        model.trimmedLowercased.hasPrefix("openai/")
     }
 
     private struct TranscriptionInputAudio: Encodable {
@@ -100,7 +129,9 @@ actor OpenRouterAudioClient {
             voice: voice,
             responseFormat: responseFormat,
             speed: speed,
-            instructions: instructions
+            provider: Self.shouldForwardInstructions(for: model)
+                ? Self.speechRequestProvider(forInstructions: instructions)
+                : nil
         )
 
         let request = try NetworkRequestFactory.makeJSONRequest(

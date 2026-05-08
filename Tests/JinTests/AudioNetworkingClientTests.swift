@@ -393,13 +393,18 @@ final class AudioNetworkingClientTests: XCTestCase {
             let body = try XCTUnwrap(requestBodyData(request))
             let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
 
-            XCTAssertEqual(json["model"] as? String, "openai/gpt-4o-mini-tts")
+            XCTAssertEqual(json["model"] as? String, "openai/gpt-4o-mini-tts-2025-12-15")
             XCTAssertEqual(json["input"] as? String, "Hello")
             XCTAssertEqual(json["voice"] as? String, "alloy")
             XCTAssertEqual(json["response_format"] as? String, "mp3")
             XCTAssertEqual((json["speed"] as? NSNumber)?.doubleValue, 1.1)
-            XCTAssertEqual(json["instructions"] as? String, "Speak warmly")
+            XCTAssertNil(json["instructions"])
             XCTAssertNil(json["stream_format"])
+
+            let provider = try XCTUnwrap(json["provider"] as? [String: Any])
+            let options = try XCTUnwrap(provider["options"] as? [String: Any])
+            let openAIOptions = try XCTUnwrap(options["openai"] as? [String: Any])
+            XCTAssertEqual(openAIOptions["instructions"] as? String, "Speak warmly")
 
             return (
                 HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
@@ -415,7 +420,7 @@ final class AudioNetworkingClientTests: XCTestCase {
 
         let data = try await client.createSpeech(
             input: "Hello",
-            model: "openai/gpt-4o-mini-tts",
+            model: "openai/gpt-4o-mini-tts-2025-12-15",
             voice: "alloy",
             responseFormat: "mp3",
             speed: 1.1,
@@ -423,6 +428,38 @@ final class AudioNetworkingClientTests: XCTestCase {
         )
 
         XCTAssertEqual(data, Data("AUDIO".utf8))
+    }
+
+    func testOpenRouterAudioClientCreateSpeechOmitsInstructionsForNonOpenAIModel() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(json["model"] as? String, "mistralai/voxtral-mini-tts-2603")
+            XCTAssertNil(json["instructions"])
+            XCTAssertNil(json["provider"])
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("AUDIO".utf8)
+            )
+        }
+
+        let client = OpenRouterAudioClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://openrouter.example/api/v1")!,
+            networkManager: networkManager
+        )
+
+        _ = try await client.createSpeech(
+            input: "Hello",
+            model: "mistralai/voxtral-mini-tts-2603",
+            voice: "en_paul_neutral",
+            instructions: "Speak warmly"
+        )
     }
 
     func testOpenRouterAudioClientCreateTranscriptionBuildsBase64JSONRequest() async throws {
@@ -512,7 +549,7 @@ final class AudioNetworkingClientTests: XCTestCase {
         )
     }
 
-    func testOpenRouterAudioClientListSpeechModelsAppendsTTSFilter() async throws {
+    func testOpenRouterAudioClientListSpeechModelsAppendsSpeechFilter() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -523,15 +560,15 @@ final class AudioNetworkingClientTests: XCTestCase {
 
             let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
             let queryItems = components.queryItems ?? []
-            XCTAssertTrue(queryItems.contains(URLQueryItem(name: "output_modalities", value: "tts")))
+            XCTAssertTrue(queryItems.contains(URLQueryItem(name: "output_modalities", value: "speech")))
 
             return (
                 HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
                 Data("""
                 {
                   "data": [
-                    { "id": "openai/gpt-4o-mini-tts", "name": "OpenAI mini TTS" },
-                    { "id": "google/gemini-flash-tts" }
+                    { "id": "openai/gpt-4o-mini-tts-2025-12-15", "name": "OpenAI mini TTS" },
+                    { "id": "google/gemini-3.1-flash-tts-preview" }
                   ]
                 }
                 """.utf8)
@@ -549,8 +586,8 @@ final class AudioNetworkingClientTests: XCTestCase {
         XCTAssertEqual(
             models,
             [
-                SpeechProviderModelChoice(id: "openai/gpt-4o-mini-tts", name: "OpenAI mini TTS"),
-                SpeechProviderModelChoice(id: "google/gemini-flash-tts")
+                SpeechProviderModelChoice(id: "openai/gpt-4o-mini-tts-2025-12-15", name: "OpenAI mini TTS"),
+                SpeechProviderModelChoice(id: "google/gemini-3.1-flash-tts-preview")
             ]
         )
     }

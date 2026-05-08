@@ -12,6 +12,14 @@ struct SpeechProviderModelChoice: Identifiable, Hashable, Sendable {
 }
 
 enum SpeechProviderModelCatalog {
+    static let defaultOpenRouterTextToSpeechModelID = "openai/gpt-4o-mini-tts-2025-12-15"
+
+    private static let legacyOpenRouterTextToSpeechModelIDMap: [String: String] = [
+        "openai/gpt-4o-mini-tts": defaultOpenRouterTextToSpeechModelID,
+        "google/gemini-flash-tts": "google/gemini-3.1-flash-tts-preview",
+        "mistralai/voxtral-mini-tts": "mistralai/voxtral-mini-tts-2603"
+    ]
+
     private static let groqTextToSpeechModelIDs: Set<String> = [
         "canopylabs/orpheus-v1-english",
         "canopylabs/orpheus-arabic-saudi"
@@ -69,6 +77,11 @@ enum SpeechProviderModelCatalog {
         return [SpeechProviderModelChoice(id: trimmedSelection)] + choices
     }
 
+    static func normalizedOpenRouterTextToSpeechModelID(_ modelID: String?) -> String {
+        let trimmedModelID = modelID?.trimmedNonEmpty ?? defaultOpenRouterTextToSpeechModelID
+        return legacyOpenRouterTextToSpeechModelIDMap[trimmedModelID.lowercased()] ?? trimmedModelID
+    }
+
     static func defaultTextToSpeechChoices(
         for provider: TextToSpeechProvider
     ) -> [SpeechProviderModelChoice] {
@@ -81,9 +94,9 @@ enum SpeechProviderModelCatalog {
             ]
         case .openRouter:
             return [
-                SpeechProviderModelChoice(id: "openai/gpt-4o-mini-tts", name: "OpenAI GPT-4o mini TTS"),
-                SpeechProviderModelChoice(id: "google/gemini-flash-tts", name: "Google Gemini Flash TTS"),
-                SpeechProviderModelChoice(id: "mistralai/voxtral-mini-tts", name: "Mistral Voxtral Mini TTS")
+                SpeechProviderModelChoice(id: defaultOpenRouterTextToSpeechModelID, name: "OpenAI GPT-4o mini TTS"),
+                SpeechProviderModelChoice(id: "google/gemini-3.1-flash-tts-preview", name: "Google Gemini 3.1 Flash TTS Preview"),
+                SpeechProviderModelChoice(id: "mistralai/voxtral-mini-tts-2603", name: "Mistral Voxtral Mini TTS")
             ]
         case .groq:
             return [

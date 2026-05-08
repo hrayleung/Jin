@@ -25,7 +25,7 @@ struct TextToSpeechPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.ttsMiMoVoiceCloneSamplePath) var miMoVoiceCloneSamplePath = ""
 
     @AppStorage(AppPreferenceKeys.ttsOpenRouterBaseURL) var openRouterBaseURL = OpenRouterAudioClient.Constants.defaultBaseURL.absoluteString
-    @AppStorage(AppPreferenceKeys.ttsOpenRouterModel) var openRouterModel = "openai/gpt-4o-mini-tts"
+    @AppStorage(AppPreferenceKeys.ttsOpenRouterModel) var openRouterModel = SpeechProviderModelCatalog.defaultOpenRouterTextToSpeechModelID
     @AppStorage(AppPreferenceKeys.ttsOpenRouterVoice) var openRouterVoice = "alloy"
     @AppStorage(AppPreferenceKeys.ttsOpenRouterResponseFormat) var openRouterResponseFormat = "mp3"
     @AppStorage(AppPreferenceKeys.ttsOpenRouterSpeed) var openRouterSpeed = 1.0

@@ -228,6 +228,11 @@ extension TextToSpeechPluginSettingsView {
             let currentModel = openRouterModel.trimmingCharacters(in: .whitespacesAndNewlines)
             if currentModel.isEmpty {
                 openRouterModel = models.first?.id ?? openRouterModel
+            } else {
+                let normalizedModel = SpeechProviderModelCatalog.normalizedOpenRouterTextToSpeechModelID(currentModel)
+                if normalizedModel != currentModel {
+                    openRouterModel = normalizedModel
+                }
             }
         case .groq:
             let currentModel = groqModel.trimmingCharacters(in: .whitespacesAndNewlines)
