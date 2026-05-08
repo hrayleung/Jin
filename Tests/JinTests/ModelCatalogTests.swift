@@ -800,6 +800,41 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(vertexSeeded.contains("gemini-3.1-flash-lite"))
     }
 
+    func testGemini31FlashLiteGAGatewayCatalogMetadata() {
+        let openRouter = ModelCatalog.modelInfo(
+            for: "google/gemini-3.1-flash-lite",
+            provider: .openrouter
+        )
+        XCTAssertEqual(openRouter.contextWindow, 1_048_576)
+        XCTAssertTrue(openRouter.capabilities.contains(.toolCalling))
+        XCTAssertTrue(openRouter.capabilities.contains(.audio))
+        XCTAssertEqual(openRouter.reasoningConfig?.defaultEffort, .minimal)
+
+        let cloudflareVertex = ModelCatalog.modelInfo(
+            for: "google-vertex-ai/google/gemini-3.1-flash-lite",
+            provider: .cloudflareAIGateway
+        )
+        XCTAssertEqual(cloudflareVertex.contextWindow, 1_048_576)
+        XCTAssertTrue(cloudflareVertex.capabilities.contains(.toolCalling))
+        XCTAssertEqual(cloudflareVertex.reasoningConfig?.defaultEffort, .minimal)
+
+        let cloudflareAIStudio = ModelCatalog.modelInfo(
+            for: "google-ai-studio/gemini-3.1-flash-lite",
+            provider: .cloudflareAIGateway
+        )
+        XCTAssertEqual(cloudflareAIStudio.contextWindow, 1_048_576)
+        XCTAssertTrue(cloudflareAIStudio.capabilities.contains(.nativePDF))
+        XCTAssertEqual(cloudflareAIStudio.reasoningConfig?.defaultEffort, .minimal)
+
+        let vercel = ModelCatalog.modelInfo(
+            for: "google/gemini-3.1-flash-lite",
+            provider: .vercelAIGateway
+        )
+        XCTAssertEqual(vercel.contextWindow, 1_048_576)
+        XCTAssertTrue(vercel.capabilities.contains(.toolCalling))
+        XCTAssertEqual(vercel.reasoningConfig?.defaultEffort, .minimal)
+    }
+
     func testTogetherCatalogMetadataUsesExactIDs() {
         let kimi = ModelCatalog.modelInfo(
             for: "moonshotai/Kimi-K2.5",
