@@ -2,60 +2,39 @@ import Foundation
 
 extension BuiltinSearchToolHub {
     func searchJina(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
-        let encoded = args.query.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? args.query
-        var components = URLComponents(string: "https://s.jina.ai/\(encoded)")
-        let queryItems: [URLQueryItem] = args.includeDomains.map { domain in
-            URLQueryItem(name: "site", value: domain)
-        }
-        let resolvedMaxResults = min(max(args.maxResults, 1), 5)
-        components?.queryItems = queryItems
-
-        guard let url = components?.url else {
-            throw LLMError.invalidRequest(message: "Failed to construct Jina search URL.")
+        let resolvedMaxResults = args.maxResults.clamped(to: 0...5)
+        if resolvedMaxResults == 0 {
+            return BuiltinSearchToolOutput(
+                provider: .jina,
+                query: args.query,
+                resultCount: 0,
+                results: []
+            )
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.addValue("Bearer \(route.apiKey)", forHTTPHeaderField: "Authorization")
-        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        let request = try Self.makeJinaRequest(
+            args: args,
+            settings: route.settings,
+            apiKey: route.apiKey
+        )
 
         let (data, _) = try await networkManager.sendRequest(request)
         let response = try parseJSON(data)
 
-        var rawResults: [[String: Any]]
-        switch response {
-        case let results as [[String: Any]]:
-            rawResults = results
-        case let results as [Any]:
-            rawResults = parseArray(results)
-        case let dict as [String: Any]:
-            rawResults = parseArray(dict["data"])
-            if rawResults.isEmpty {
-                rawResults = parseArray(dict["web"])
-            }
-            if rawResults.isEmpty {
-                rawResults = parseArray(dict["results"])
-            }
-        default:
-            throw LLMError.decodingError(message: "Unexpected Jina response format.")
-        }
+        let rawResults = Self.extractJinaResults(from: response)
 
-        var rows = rawResults.prefix(resolvedMaxResults).compactMap { item -> SearchCitationRow? in
+        let rows = rawResults.prefix(resolvedMaxResults).compactMap { item -> SearchCitationRow? in
             guard let url = firstString(in: item, keys: ["url", "link"]) else { return nil }
             let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
-            let snippet = firstString(in: item, keys: ["snippet", "summary", "description", "text", "content"])
+            let snippet = firstString(in: item, keys: ["content", "snippet", "summary", "description", "text"])
             let publishedAt = firstString(in: item, keys: ["publishedDate", "date", "published"])
             return SearchCitationRow(
                 title: title,
                 url: url,
-                snippet: snippet,
+                snippet: snippet.map { String($0.prefix(500)) },
                 publishedAt: publishedAt,
                 source: urlHost(url)
             )
-        }
-
-        if args.fetchPageContent {
-            rows = try await enrichJinaRowsWithReader(rows)
         }
 
         return BuiltinSearchToolOutput(
@@ -66,47 +45,80 @@ extension BuiltinSearchToolHub {
         )
     }
 
-    private func enrichJinaRowsWithReader(_ rows: [SearchCitationRow]) async throws -> [SearchCitationRow] {
-        var out: [SearchCitationRow] = []
-        out.reserveCapacity(rows.count)
-
-        for (index, row) in rows.enumerated() {
-            guard index < 3 else {
-                out.append(row)
-                continue
-            }
-            if let snippet = try await fetchJinaReaderSnippet(for: row.url) {
-                out.append(
-                    SearchCitationRow(
-                        title: row.title,
-                        url: row.url,
-                        snippet: snippet,
-                        publishedAt: row.publishedAt,
-                        source: row.source
-                    )
-                )
-            } else {
-                out.append(row)
-            }
+    /// Pure builder for the s.jina.ai POST request, exposed for tests.
+    nonisolated static func makeJinaRequest(
+        args: ResolvedArguments,
+        settings: WebSearchPluginSettings,
+        apiKey: String
+    ) throws -> URLRequest {
+        guard let url = URL(string: "https://s.jina.ai/") else {
+            throw LLMError.invalidRequest(message: "Failed to construct Jina search URL.")
         }
 
-        return out
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("browser", forHTTPHeaderField: "X-Engine")
+
+        if !args.fetchPageContent {
+            request.addValue("no-content", forHTTPHeaderField: "X-Respond-With")
+        }
+
+        if args.includeRawContent {
+            request.addValue("true", forHTTPHeaderField: "X-With-Generated-Alt")
+            request.addValue("true", forHTTPHeaderField: "X-With-Links-Summary")
+        }
+
+        let trimmedIncludes = args.includeDomains.compactMap { $0.trimmedNonEmpty }
+        if let firstSite = trimmedIncludes.first {
+            request.addValue(firstSite, forHTTPHeaderField: "X-Site")
+        }
+
+        if let locale = settings.jinaLocale?.trimmedNonEmpty {
+            request.addValue(locale, forHTTPHeaderField: "X-Locale")
+        }
+
+        let augmentedQuery = jinaAugmentedQuery(args.query, includeDomains: Array(trimmedIncludes.dropFirst()))
+        var body: [String: Any] = ["q": augmentedQuery]
+        if let country = settings.jinaCountry?.trimmedNonEmpty {
+            body["gl"] = country
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return request
     }
 
-    private func fetchJinaReaderSnippet(for urlString: String) async throws -> String? {
-        guard let encoded = urlString.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-            return nil
-        }
+    /// Appends `site:` operators for any include domains beyond the first (which the X-Site header
+    /// covers). Jina supports a single X-Site header; spillover goes into the body's query string.
+    nonisolated static func jinaAugmentedQuery(_ query: String, includeDomains: [String]) -> String {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let domains = includeDomains.compactMap { $0.trimmedNonEmpty }.prefix(10)
+        guard !domains.isEmpty else { return trimmed }
 
-        let readerURL = try validatedURL("https://r.jina.ai/\(encoded)")
-        var request = URLRequest(url: readerURL)
-        request.httpMethod = "GET"
-        let (data, _) = try await networkManager.sendRequest(request)
-        guard let raw = String(data: data, encoding: .utf8) else { return nil }
-        let condensed = raw
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !condensed.isEmpty else { return nil }
-        return String(condensed.prefix(500))
+        let operators = domains.map { "site:\($0)" }.joined(separator: " OR ")
+        let groupedOperators = domains.count == 1 ? operators : "(\(operators))"
+        return trimmed.isEmpty ? groupedOperators : "\(trimmed) \(groupedOperators)"
+    }
+
+    nonisolated static func extractJinaResults(from response: Any) -> [[String: Any]] {
+        switch response {
+        case let results as [[String: Any]]:
+            return results
+        case let results as [Any]:
+            return results.compactMap { $0 as? [String: Any] }
+        case let dict as [String: Any]:
+            for key in ["data", "web", "results"] {
+                if let values = dict[key] as? [[String: Any]] {
+                    return values
+                }
+                if let values = dict[key] as? [Any] {
+                    return values.compactMap { $0 as? [String: Any] }
+                }
+            }
+            return []
+        default:
+            return []
+        }
     }
 }

@@ -13,18 +13,32 @@ struct WebSearchPluginSettings: Sendable {
     var firecrawlAPIKey: String
 
     var exaSearchType: ExaSearchType?
+    var exaCategory: String?
+    var exaUserLocation: String?
+    var exaModeration: Bool
 
     var braveCountry: String?
     var braveLanguage: String?
     var braveSafesearch: String?
 
     var jinaReadPages: Bool
+    var jinaCountry: String?
+    var jinaLocale: String?
+
     var firecrawlExtractContent: Bool
+    var firecrawlCountry: String?
+    var firecrawlLanguage: String?
+    var firecrawlSources: [FirecrawlSourceKind]
 
     var tavilyAPIKey: String
     var perplexityAPIKey: String
     var tavilySearchDepth: String?  // "basic" | "fast" | "advanced" | "ultra-fast"
     var tavilyTopic: String?        // "general" | "news" | "finance"
+    var tavilyCountry: String?
+    var tavilyAutoParameters: Bool
+
+    var perplexityCountry: String?
+    var perplexityLanguage: String?
 
     func apiKey(for provider: SearchPluginProvider) -> String {
         switch provider {
@@ -87,15 +101,27 @@ enum WebSearchPluginSettingsStore {
             jinaAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchJinaAPIKey) ?? "",
             firecrawlAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey) ?? "",
             exaSearchType: exaType,
+            exaCategory: trimmedPreference(AppPreferenceKeys.pluginWebSearchExaCategory),
+            exaUserLocation: trimmedPreference(AppPreferenceKeys.pluginWebSearchExaUserLocation),
+            exaModeration: defaults.bool(forKey: AppPreferenceKeys.pluginWebSearchExaModeration),
             braveCountry: braveCountry,
             braveLanguage: braveLanguage,
             braveSafesearch: braveSafesearch,
             jinaReadPages: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchJinaReadPages) as? Bool ?? true,
+            jinaCountry: trimmedPreference(AppPreferenceKeys.pluginWebSearchJinaCountry),
+            jinaLocale: trimmedPreference(AppPreferenceKeys.pluginWebSearchJinaLocale),
             firecrawlExtractContent: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlExtractContent) as? Bool ?? true,
+            firecrawlCountry: trimmedPreference(AppPreferenceKeys.pluginWebSearchFirecrawlCountry),
+            firecrawlLanguage: trimmedPreference(AppPreferenceKeys.pluginWebSearchFirecrawlLanguage),
+            firecrawlSources: decodeFirecrawlSources(defaults.string(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlSources)),
             tavilyAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchTavilyAPIKey) ?? "",
             perplexityAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchPerplexityAPIKey) ?? "",
             tavilySearchDepth: tavilySearchDepth,
-            tavilyTopic: tavilyTopic
+            tavilyTopic: tavilyTopic,
+            tavilyCountry: trimmedPreference(AppPreferenceKeys.pluginWebSearchTavilyCountry),
+            tavilyAutoParameters: defaults.bool(forKey: AppPreferenceKeys.pluginWebSearchTavilyAutoParameters),
+            perplexityCountry: trimmedPreference(AppPreferenceKeys.pluginWebSearchPerplexityCountry),
+            perplexityLanguage: trimmedPreference(AppPreferenceKeys.pluginWebSearchPerplexityLanguage)
         )
     }
 
@@ -106,5 +132,29 @@ enum WebSearchPluginSettingsStore {
 
     static func hasConfiguredProvider(_ provider: SearchPluginProvider, defaults: UserDefaults = .standard) -> Bool {
         load(defaults: defaults).hasConfiguredCredential(for: provider)
+    }
+
+    static func encodeFirecrawlSources(_ kinds: [FirecrawlSourceKind]) -> String {
+        guard !kinds.isEmpty else { return "" }
+        let raw = kinds.map(\.rawValue)
+        guard let data = try? JSONEncoder().encode(raw),
+              let string = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        return string
+    }
+
+    static func firecrawlSourceSelection(from stored: String?) -> [FirecrawlSourceKind] {
+        let decoded = decodeFirecrawlSources(stored)
+        return decoded.isEmpty ? [.web] : decoded
+    }
+
+    private static func decodeFirecrawlSources(_ stored: String?) -> [FirecrawlSourceKind] {
+        guard let stored = stored?.trimmedNonEmpty,
+              let data = stored.data(using: .utf8),
+              let raw = try? JSONDecoder().decode([String].self, from: data) else {
+            return []
+        }
+        return raw.compactMap(FirecrawlSourceKind.init(rawValue:))
     }
 }

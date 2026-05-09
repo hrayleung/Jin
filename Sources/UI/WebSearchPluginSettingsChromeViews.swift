@@ -73,14 +73,32 @@ struct WebSearchConfiguredProvidersRow: View {
 
 struct WebSearchAdvancedProviderSettingsView: View {
     let provider: SearchPluginProvider
+
     @Binding var exaSearchTypeRaw: String
+    @Binding var exaCategory: String
+    @Binding var exaUserLocation: String
+    @Binding var exaModeration: Bool
+
     @Binding var braveCountry: String
     @Binding var braveLanguage: String
     @Binding var braveSafesearch: String
+
     @Binding var jinaReadPages: Bool
+    @Binding var jinaCountry: String
+    @Binding var jinaLocale: String
+
     @Binding var firecrawlExtractContent: Bool
+    @Binding var firecrawlCountry: String
+    @Binding var firecrawlLanguage: String
+    @Binding var firecrawlSourcesRaw: String
+
     @Binding var tavilySearchDepth: String
     @Binding var tavilyTopic: String
+    @Binding var tavilyCountry: String
+    @Binding var tavilyAutoParameters: Bool
+
+    @Binding var perplexityCountry: String
+    @Binding var perplexityLanguage: String
 
     var body: some View {
         providerSettings
@@ -104,6 +122,7 @@ struct WebSearchAdvancedProviderSettingsView: View {
         }
     }
 
+    @ViewBuilder
     private var exaSettings: some View {
         JinSettingsPickerRow(
             "Search type",
@@ -112,9 +131,34 @@ struct WebSearchAdvancedProviderSettingsView: View {
         ) {
             Text("Auto").tag("")
             ForEach(ExaSearchType.publicCases, id: \.self) { value in
-                Text(value.rawValue.capitalized).tag(value.rawValue)
+                Text(exaSearchTypeLabel(for: value)).tag(value.rawValue)
             }
         }
+
+        JinSettingsPickerRow(
+            "Category",
+            supportingText: "Restrict results to a content kind. Useful for research, company, or people queries.",
+            selection: $exaCategory
+        ) {
+            Text("Any").tag("")
+            ForEach(ExaCategory.allCases, id: \.self) { value in
+                Text(exaCategoryLabel(for: value)).tag(value.rawValue)
+            }
+        }
+
+        JinSettingsTextFieldRow(
+            "User location",
+            fieldTitle: "User location",
+            supportingText: "Optional 2-letter country code (ISO-3166) to localize results.",
+            text: $exaUserLocation,
+            usesMonospacedFont: true
+        )
+
+        JinSettingsToggleRow(
+            "Filter unsafe content",
+            supportingText: "Asks Exa to drop adult, violent, or otherwise unsafe results.",
+            isOn: $exaModeration
+        )
     }
 
     @ViewBuilder
@@ -157,19 +201,71 @@ struct WebSearchAdvancedProviderSettingsView: View {
         }
     }
 
+    @ViewBuilder
     private var jinaSettings: some View {
         JinSettingsToggleRow(
             "Fetch pages with Jina Reader",
-            supportingText: "Requests Jina Reader content for pages before sending results back to chat.",
+            supportingText: "When off, Jina returns search hits with no per-page content (fast path).",
             isOn: $jinaReadPages
+        )
+
+        JinSettingsTextFieldRow(
+            "Country",
+            fieldTitle: "Country",
+            supportingText: "Optional 2-letter country code that Jina passes through to the search engine.",
+            text: $jinaCountry,
+            usesMonospacedFont: true
+        )
+
+        JinSettingsTextFieldRow(
+            "Locale",
+            fieldTitle: "Locale",
+            supportingText: "Optional locale (BCP-47), e.g. en-US or de-DE.",
+            text: $jinaLocale,
+            usesMonospacedFont: true
         )
     }
 
+    @ViewBuilder
     private var firecrawlSettings: some View {
         JinSettingsToggleRow(
             "Extract markdown content",
             supportingText: "When enabled, Firecrawl returns extracted page content instead of just the search hit.",
             isOn: $firecrawlExtractContent
+        )
+
+        JinSettingsTextFieldRow(
+            "Country",
+            fieldTitle: "Country",
+            supportingText: "Optional 2-letter country code for Firecrawl results.",
+            text: $firecrawlCountry,
+            usesMonospacedFont: true
+        )
+
+        JinSettingsTextFieldRow(
+            "Language",
+            fieldTitle: "Language",
+            supportingText: "Optional language hint passed as `lang` to Firecrawl.",
+            text: $firecrawlLanguage,
+            usesMonospacedFont: true
+        )
+
+        JinSettingsToggleRow(
+            "Web results",
+            supportingText: "Standard search hits.",
+            isOn: firecrawlSourceBinding(for: .web)
+        )
+
+        JinSettingsToggleRow(
+            "News results",
+            supportingText: "Includes news articles when Firecrawl has them.",
+            isOn: firecrawlSourceBinding(for: .news)
+        )
+
+        JinSettingsToggleRow(
+            "Image results",
+            supportingText: "Includes image hits when Firecrawl has them.",
+            isOn: firecrawlSourceBinding(for: .images)
         )
     }
 
@@ -177,6 +273,20 @@ struct WebSearchAdvancedProviderSettingsView: View {
     private var tavilySettings: some View {
         tavilySearchDepthRow
         tavilyTopicRow
+
+        JinSettingsTextFieldRow(
+            "Country",
+            fieldTitle: "Country",
+            supportingText: "Optional 2-letter country code. Tavily applies country only on the General topic.",
+            text: $tavilyCountry,
+            usesMonospacedFont: true
+        )
+
+        JinSettingsToggleRow(
+            "Auto-tune parameters",
+            supportingText: "Lets Tavily override search depth and topic when it has higher confidence.",
+            isOn: $tavilyAutoParameters
+        )
     }
 
     private var tavilySearchDepthRow: some View {
@@ -204,8 +314,163 @@ struct WebSearchAdvancedProviderSettingsView: View {
         }
     }
 
+    @ViewBuilder
     private var perplexitySettings: some View {
-        Text("Perplexity Search currently has no plugin-specific options.")
-            .jinInfoCallout()
+        JinSettingsTextFieldRow(
+            "Country",
+            fieldTitle: "Country",
+            supportingText: "Optional 2-letter country code (ISO 3166-1 alpha-2).",
+            text: $perplexityCountry,
+            usesMonospacedFont: true
+        )
+
+        JinSettingsTextFieldRow(
+            "Language",
+            fieldTitle: "Language",
+            supportingText: "Optional ISO 639-1 language code, e.g. en or de.",
+            text: $perplexityLanguage,
+            usesMonospacedFont: true
+        )
+    }
+
+    // MARK: - Firecrawl sources binding
+
+    private func firecrawlSourceBinding(for kind: FirecrawlSourceKind) -> Binding<Bool> {
+        Binding(
+            get: {
+                firecrawlSelectedSources().contains(kind)
+            },
+            set: { isOn in
+                var current = firecrawlSelectedSources()
+                if isOn {
+                    if !current.contains(kind) {
+                        current.append(kind)
+                    }
+                } else {
+                    current.removeAll { $0 == kind }
+                }
+                firecrawlSourcesRaw = WebSearchPluginSettingsStore.encodeFirecrawlSources(current)
+            }
+        )
+    }
+
+    private func firecrawlSelectedSources() -> [FirecrawlSourceKind] {
+        WebSearchPluginSettingsStore.firecrawlSourceSelection(from: firecrawlSourcesRaw)
+    }
+}
+
+// MARK: - Observers
+
+/// Per-provider observer modifiers split out so the main view can chain them without the SwiftUI
+/// type checker timing out (it could not handle 20+ `.onChange` modifiers in one expression).
+
+struct ExaProviderObservers: ViewModifier {
+    let exaSearchTypeRaw: String
+    let exaCategory: String
+    let exaUserLocation: String
+    let exaModeration: Bool
+    let onChange: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: exaSearchTypeRaw) { _, _ in onChange() }
+            .onChange(of: exaCategory) { _, _ in onChange() }
+            .onChange(of: exaUserLocation) { _, _ in onChange() }
+            .onChange(of: exaModeration) { _, _ in onChange() }
+    }
+}
+
+struct BraveProviderObservers: ViewModifier {
+    let braveCountry: String
+    let braveLanguage: String
+    let braveSafesearch: String
+    let onChange: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: braveCountry) { _, _ in onChange() }
+            .onChange(of: braveLanguage) { _, _ in onChange() }
+            .onChange(of: braveSafesearch) { _, _ in onChange() }
+    }
+}
+
+struct JinaProviderObservers: ViewModifier {
+    let jinaReadPages: Bool
+    let jinaCountry: String
+    let jinaLocale: String
+    let onChange: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: jinaReadPages) { _, _ in onChange() }
+            .onChange(of: jinaCountry) { _, _ in onChange() }
+            .onChange(of: jinaLocale) { _, _ in onChange() }
+    }
+}
+
+struct FirecrawlProviderObservers: ViewModifier {
+    let firecrawlExtractContent: Bool
+    let firecrawlCountry: String
+    let firecrawlLanguage: String
+    let firecrawlSourcesRaw: String
+    let onChange: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: firecrawlExtractContent) { _, _ in onChange() }
+            .onChange(of: firecrawlCountry) { _, _ in onChange() }
+            .onChange(of: firecrawlLanguage) { _, _ in onChange() }
+            .onChange(of: firecrawlSourcesRaw) { _, _ in onChange() }
+    }
+}
+
+struct TavilyProviderObservers: ViewModifier {
+    let tavilySearchDepth: String
+    let tavilyTopic: String
+    let tavilyCountry: String
+    let tavilyAutoParameters: Bool
+    let onChange: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: tavilySearchDepth) { _, _ in onChange() }
+            .onChange(of: tavilyTopic) { _, _ in onChange() }
+            .onChange(of: tavilyCountry) { _, _ in onChange() }
+            .onChange(of: tavilyAutoParameters) { _, _ in onChange() }
+    }
+}
+
+struct PerplexityProviderObservers: ViewModifier {
+    let perplexityCountry: String
+    let perplexityLanguage: String
+    let onChange: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: perplexityCountry) { _, _ in onChange() }
+            .onChange(of: perplexityLanguage) { _, _ in onChange() }
+    }
+}
+
+private func exaSearchTypeLabel(for value: ExaSearchType) -> String {
+    switch value {
+    case .auto: return "Auto"
+    case .fast: return "Fast"
+    case .neural: return "Neural"
+    case .deepLite: return "Deep Lite"
+    case .deep: return "Deep"
+    case .deepReasoning: return "Deep Reasoning"
+    case .instant: return "Instant"
+    }
+}
+
+private func exaCategoryLabel(for value: ExaCategory) -> String {
+    switch value {
+    case .company: return "Company"
+    case .researchPaper: return "Research paper"
+    case .news: return "News"
+    case .personalSite: return "Personal site"
+    case .financialReport: return "Financial report"
+    case .people: return "People"
     }
 }
