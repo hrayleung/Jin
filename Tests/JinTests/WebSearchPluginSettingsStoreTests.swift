@@ -79,6 +79,18 @@ final class WebSearchPluginSettingsStoreTests: XCTestCase {
         XCTAssertEqual(settings.firecrawlSources, [])
     }
 
+    func testFirecrawlSourceSelectionDefaultsToWebForEmptyOrInvalidStorage() {
+        XCTAssertEqual(WebSearchPluginSettingsStore.firecrawlSourceSelection(from: ""), [.web])
+        XCTAssertEqual(WebSearchPluginSettingsStore.firecrawlSourceSelection(from: "not-json"), [.web])
+        XCTAssertEqual(WebSearchPluginSettingsStore.firecrawlSourceSelection(from: "[]"), [.web])
+    }
+
+    func testFirecrawlSourceSelectionUsesDecodedSourcesWhenPresent() {
+        let raw = WebSearchPluginSettingsStore.encodeFirecrawlSources([.news, .images])
+
+        XCTAssertEqual(WebSearchPluginSettingsStore.firecrawlSourceSelection(from: raw), [.news, .images])
+    }
+
     func testLoadCarriesNewTavilyPreferences() {
         defaults.set("DE", forKey: AppPreferenceKeys.pluginWebSearchTavilyCountry)
         defaults.set(true, forKey: AppPreferenceKeys.pluginWebSearchTavilyAutoParameters)

@@ -2,6 +2,16 @@ import Foundation
 
 extension BuiltinSearchToolHub {
     func searchJina(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
+        let resolvedMaxResults = args.maxResults.clamped(to: 0...5)
+        if resolvedMaxResults == 0 {
+            return BuiltinSearchToolOutput(
+                provider: .jina,
+                query: args.query,
+                resultCount: 0,
+                results: []
+            )
+        }
+
         let request = try Self.makeJinaRequest(
             args: args,
             settings: route.settings,
@@ -12,7 +22,6 @@ extension BuiltinSearchToolHub {
         let response = try parseJSON(data)
 
         let rawResults = Self.extractJinaResults(from: response)
-        let resolvedMaxResults = min(max(args.maxResults, 1), 5)
 
         let rows = rawResults.prefix(resolvedMaxResults).compactMap { item -> SearchCitationRow? in
             guard let url = firstString(in: item, keys: ["url", "link"]) else { return nil }
@@ -88,7 +97,8 @@ extension BuiltinSearchToolHub {
         guard !domains.isEmpty else { return trimmed }
 
         let operators = domains.map { "site:\($0)" }.joined(separator: " OR ")
-        return trimmed.isEmpty ? operators : "\(trimmed) \(operators)"
+        let groupedOperators = domains.count == 1 ? operators : "(\(operators))"
+        return trimmed.isEmpty ? groupedOperators : "\(trimmed) \(groupedOperators)"
     }
 
     nonisolated static func extractJinaResults(from response: Any) -> [[String: Any]] {

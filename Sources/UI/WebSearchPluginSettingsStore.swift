@@ -144,6 +144,11 @@ enum WebSearchPluginSettingsStore {
         return string
     }
 
+    static func firecrawlSourceSelection(from stored: String?) -> [FirecrawlSourceKind] {
+        let decoded = decodeFirecrawlSources(stored)
+        return decoded.isEmpty ? [.web] : decoded
+    }
+
     private static func decodeFirecrawlSources(_ stored: String?) -> [FirecrawlSourceKind] {
         guard let stored = stored?.trimmedNonEmpty,
               let data = stored.data(using: .utf8),

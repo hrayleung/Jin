@@ -139,6 +139,33 @@ final class BuiltinSearchFirecrawlPayloadTests: XCTestCase {
         XCTAssertEqual(body["tbs"] as? String, "qdr:w")
     }
 
+    // MARK: - Result mapping
+
+    func testFirecrawlRowsDeduplicateByURLBeforeApplyingCap() {
+        let rows = BuiltinSearchToolHub.makeFirecrawlRows(
+            from: [
+                ["url": "https://example.com/a", "title": "A"],
+                ["url": "https://example.com/a", "title": "A duplicate"],
+                ["url": "https://example.com/b", "title": "B"]
+            ],
+            maxResults: 2
+        )
+
+        XCTAssertEqual(rows.map(\.url), ["https://example.com/a", "https://example.com/b"])
+    }
+
+    func testFirecrawlRowsUseImageURLWhenURLIsMissing() {
+        let rows = BuiltinSearchToolHub.makeFirecrawlRows(
+            from: [
+                ["imageUrl": "https://example.com/image.png", "title": "Image"]
+            ],
+            maxResults: 1
+        )
+
+        XCTAssertEqual(rows.first?.url, "https://example.com/image.png")
+        XCTAssertEqual(rows.first?.source, "example.com")
+    }
+
     // MARK: - Fixtures
 
     private func makeArgs(

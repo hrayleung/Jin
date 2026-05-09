@@ -355,12 +355,7 @@ struct WebSearchAdvancedProviderSettingsView: View {
     }
 
     private func firecrawlSelectedSources() -> [FirecrawlSourceKind] {
-        guard let trimmed = firecrawlSourcesRaw.trimmedNonEmpty,
-              let data = trimmed.data(using: .utf8),
-              let raw = try? JSONDecoder().decode([String].self, from: data) else {
-            return []
-        }
-        return raw.compactMap(FirecrawlSourceKind.init(rawValue:))
+        WebSearchPluginSettingsStore.firecrawlSourceSelection(from: firecrawlSourcesRaw)
     }
 }
 

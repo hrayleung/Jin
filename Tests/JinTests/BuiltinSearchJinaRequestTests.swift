@@ -78,7 +78,20 @@ final class BuiltinSearchJinaRequestTests: XCTestCase {
         let body = try XCTUnwrap(request.httpBody)
         let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
         let q = try XCTUnwrap(json?["q"] as? String)
-        XCTAssertEqual(q, "swift site:swift.org OR site:kavsoft.dev")
+        XCTAssertEqual(q, "swift (site:swift.org OR site:kavsoft.dev)")
+    }
+
+    func testJinaRequestLeavesSingleSpilloverDomainUngrouped() throws {
+        let request = try BuiltinSearchToolHub.makeJinaRequest(
+            args: makeArgs(query: "swift", includeDomains: ["apple.com", "swift.org"]),
+            settings: makeSettings(),
+            apiKey: "key"
+        )
+
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        let q = try XCTUnwrap(json?["q"] as? String)
+        XCTAssertEqual(q, "swift site:swift.org")
     }
 
     func testJinaRequestUsesCleanQueryWhenNoIncludeDomains() throws {

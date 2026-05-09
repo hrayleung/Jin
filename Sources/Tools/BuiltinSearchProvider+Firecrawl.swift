@@ -38,19 +38,7 @@ extension BuiltinSearchToolHub {
             raw = parseArray(json["results"])
         }
 
-        let rows = raw.prefix(maxResults).compactMap { item -> SearchCitationRow? in
-            guard let url = firstString(in: item, keys: ["url", "link", "imageUrl"]) else { return nil }
-            let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
-            let snippet = firstString(in: item, keys: ["description", "snippet", "markdown", "summary", "content"])
-            let publishedAt = firstString(in: item, keys: ["publishedDate", "published", "date"])
-            return SearchCitationRow(
-                title: title,
-                url: url,
-                snippet: snippet.map { String($0.prefix(500)) },
-                publishedAt: publishedAt,
-                source: urlHost(url)
-            )
-        }
+        let rows = Self.makeFirecrawlRows(from: raw, maxResults: maxResults)
 
         return BuiltinSearchToolOutput(
             provider: .firecrawl,
@@ -112,5 +100,45 @@ extension BuiltinSearchToolHub {
         case ...31: return "qdr:m"
         default: return "qdr:y"
         }
+    }
+
+    /// Pure mapper for Firecrawl result rows. Dedupes by URL before applying the cap because
+    /// multi-source responses can repeat the same hit across web, news, and image buckets.
+    nonisolated static func makeFirecrawlRows(from raw: [[String: Any]], maxResults: Int) -> [SearchCitationRow] {
+        let cap = maxResults.clamped(to: 0...50)
+        guard cap > 0 else { return [] }
+
+        var seenURLs = Set<String>()
+        var rows: [SearchCitationRow] = []
+        rows.reserveCapacity(min(cap, raw.count))
+
+        for item in raw {
+            guard rows.count < cap else { break }
+            guard let url = firstFirecrawlString(in: item, keys: ["url", "link", "imageUrl"]) else { continue }
+            guard seenURLs.insert(url).inserted else { continue }
+
+            let title = firstFirecrawlString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
+            let snippet = firstFirecrawlString(in: item, keys: ["description", "snippet", "markdown", "summary", "content"])
+            let publishedAt = firstFirecrawlString(in: item, keys: ["publishedDate", "published", "date"])
+            rows.append(SearchCitationRow(
+                title: title,
+                url: url,
+                snippet: snippet.map { String($0.prefix(500)) },
+                publishedAt: publishedAt,
+                source: URL(string: url)?.host
+            ))
+        }
+
+        return rows
+    }
+
+    private nonisolated static func firstFirecrawlString(in dictionary: [String: Any], keys: [String]) -> String? {
+        for key in keys {
+            if let value = dictionary[key] as? String,
+               let trimmed = value.trimmedNonEmpty {
+                return trimmed
+            }
+        }
+        return nil
     }
 }
