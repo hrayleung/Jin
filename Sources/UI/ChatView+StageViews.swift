@@ -189,9 +189,22 @@ extension ChatView {
     }
 
     func multiThreadMessageStage(geometry: GeometryProxy) -> some View {
-        ChatMultiModelStageView(
+        let visibleContainerWidth = ChatConversationLayoutMetrics.visibleContainerWidth(
+            containerWidth: geometry.size.width,
+            sidebarWidth: mainSidebarWidth,
+            isSidebarHidden: isSidebarHidden
+        )
+        let layoutCenterOffset = ChatConversationLayoutMetrics.sidebarCompensationOffset(
+            sidebarWidth: mainSidebarWidth,
+            isSidebarHidden: isSidebarHidden,
+            compensationRatio: sidebarCompensationRatio
+        )
+
+        return ChatMultiModelStageView(
             conversationMessageCount: conversationEntity.messages.count,
             containerSize: geometry.size,
+            visibleContainerWidth: visibleContainerWidth,
+            layoutCenterOffset: layoutCenterOffset,
             threads: selectedModelThreads,
             contextsByThreadID: selectedThreadRenderContexts,
             assistantDisplayName: assistantDisplayName,

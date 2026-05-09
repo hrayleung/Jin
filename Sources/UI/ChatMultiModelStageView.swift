@@ -5,6 +5,8 @@ import SwiftUI
 struct ChatMultiModelStageView: View {
     let conversationMessageCount: Int
     let containerSize: CGSize
+    let visibleContainerWidth: CGFloat
+    let layoutCenterOffset: CGFloat
     let threads: [ConversationModelThreadEntity]
     let contextsByThreadID: [UUID: ChatThreadRenderContext]
     let assistantDisplayName: String
@@ -28,7 +30,7 @@ struct ChatMultiModelStageView: View {
 
     var body: some View {
         let layout = ChatMessageStagePresentationSupport.MultiModelLayout(
-            containerWidth: containerSize.width,
+            containerWidth: visibleContainerWidth,
             threadCount: threads.count
         )
 
@@ -66,8 +68,11 @@ struct ChatMultiModelStageView: View {
             }
             .padding(.horizontal, layout.horizontalPadding)
             .padding(.top, 16)
-            .frame(minHeight: containerSize.height, alignment: .bottomLeading)
+            .frame(minHeight: containerSize.height, alignment: .bottom)
         }
+        .frame(width: visibleContainerWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .offset(x: layoutCenterOffset)
     }
 }
 
