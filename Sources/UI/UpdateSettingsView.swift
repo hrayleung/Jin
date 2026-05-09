@@ -15,10 +15,7 @@ struct UpdateSettingsView: View {
 
     var body: some View {
         JinSettingsPage {
-            JinSettingsSection(
-                "Update Check",
-                detail: "Control automatic update checks and whether beta builds appear in the update channel."
-            ) {
+            JinSettingsSection("Update Check") {
                 LabeledContent("Current Version") {
                     Text(currentVersion)
                         .foregroundStyle(.secondary)
@@ -41,7 +38,7 @@ struct UpdateSettingsView: View {
                 JinSettingsToggleRow("Include pre-release versions", isOn: preReleaseBinding)
 
                 if updateManager.allowPreRelease {
-                    Text("Pre-release updates are delivered through the beta channel and may be unstable.")
+                    Text("Pre-release builds may be unstable.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

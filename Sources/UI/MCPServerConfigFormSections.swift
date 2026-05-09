@@ -100,10 +100,7 @@ struct MCPServerStdioTransportSections: View {
 
                 if showsNodeIsolationNote {
                     JinDetailsDisclosure(title: "Launcher Details") {
-                        Text("For Node launchers (`npx`, `npm`, `pnpm`, `yarn`, `bunx`, `bun`), Jin isolates npm HOME/cache under Application Support.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("This avoids `~/.npmrc` permission and prefix conflicts.")
+                        Text("Node launchers (`npx`, `npm`, `pnpm`, `yarn`, `bunx`, `bun`) run with an isolated HOME/cache to avoid `~/.npmrc` conflicts.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

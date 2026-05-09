@@ -44,20 +44,18 @@ extension AgentModeSettingsView {
     var detailsSection: some View {
         JinSettingsSection("Details") {
             JinDetailsDisclosure(title: "How Agent Mode Works") {
-                AgentModeDetailsText("Agent Mode can run shell commands, search codebases, and edit local files.")
-                AgentModeDetailsText("Shell, grep, and glob run through RTK. File reads and edits stay local.")
+                AgentModeDetailsText("Runs shell commands, searches codebases, edits files.")
+                AgentModeDetailsText("Shell/grep/glob run through RTK. Reads and edits stay local.")
             }
 
             JinDetailsDisclosure(title: "Approval Rules") {
-                AgentModeDetailsText("Safe commands are auto-approved by prefix, but RTK still rejects commands it cannot rewrite.")
-                AgentModeDetailsText("Additional allowed prefixes extend that auto-approval list.")
-                AgentModeDetailsText("Auto-approve file reads skips approval prompts for reads only.")
+                AgentModeDetailsText("Auto-approval matches prefix; RTK rejects commands it can't rewrite.")
+                AgentModeDetailsText("Allowed prefixes extend the auto-approval list.")
             }
 
             JinDetailsDisclosure(title: "RTK") {
-                AgentModeDetailsText("Agent shell commands must be rewriteable by RTK.")
-                AgentModeDetailsText("Jin manages RTK tee output so you can reopen the full raw logs later.")
-                AgentModeDetailsText("Command timeout is the maximum runtime before a shell command is terminated.")
+                AgentModeDetailsText("Shell commands must be rewriteable by RTK.")
+                AgentModeDetailsText("RTK output is logged for later replay.")
             }
         }
     }

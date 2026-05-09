@@ -79,8 +79,7 @@ extension SpeechToTextPluginSettingsView {
 
             JinSettingsTextFieldRow(
                 "Language",
-                fieldTitle: "Language (optional)",
-                supportingText: "Optional ISO-639-1 code (e.g. en, ja). Leave empty for auto-detection.",
+                fieldTitle: "auto-detect",
                 text: $openRouterLanguage,
                 usesMonospacedFont: true
             )
@@ -116,8 +115,7 @@ extension SpeechToTextPluginSettingsView {
 
             JinSettingsTextFieldRow(
                 "Language Code",
-                fieldTitle: "Language Code (optional)",
-                supportingText: "Optional. Leave empty for auto-detection.",
+                fieldTitle: "auto-detect",
                 text: $elevenLabsLanguageCode,
                 usesMonospacedFont: true
             )
@@ -162,7 +160,7 @@ extension SpeechToTextPluginSettingsView {
     }
 
     var providerErrorSection: some View {
-        JinSettingsSection("Provider Error") {
+        JinSettingsSection("Unknown Provider", style: .plain) {
             JinSettingsErrorText(text: providerErrorMessage(for: providerRaw))
         }
     }
@@ -195,16 +193,13 @@ extension SpeechToTextPluginSettingsView {
 
             JinSettingsTextFieldRow(
                 "Language",
-                fieldTitle: "Language (optional)",
-                supportingText: "Optional. Leave empty for auto-detection.",
+                fieldTitle: "auto-detect",
                 text: language,
                 usesMonospacedFont: true
             )
 
             JinSettingsTextFieldRow(
                 "Prompt",
-                fieldTitle: "Prompt (optional)",
-                supportingText: "Optional.",
                 text: prompt
             )
 

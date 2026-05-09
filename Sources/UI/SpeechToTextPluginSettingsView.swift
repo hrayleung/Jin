@@ -96,15 +96,15 @@ struct SpeechToTextPluginSettingsView: View {
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
 
-                JinSettingsToggleRow("Add recording as file", isOn: $addRecordingAsFile)
-                    .help("Attach microphone recordings as audio files for models that support audio input instead of transcribing.")
+                JinSettingsToggleRow(
+                    "Add recording as file",
+                    supportingText: "Attach audio file instead of transcribing — for models with audio input.",
+                    isOn: $addRecordingAsFile
+                )
             }
 
             if provider?.requiresAPIKey != false {
-                JinSettingsSection(
-                    "API Key",
-                    detail: "Stored locally on this Mac. Changes save automatically."
-                ) {
+                JinSettingsSection("API Key") {
                     JinSettingsSecureFieldRow(
                         "API Key",
                         text: $apiKey,

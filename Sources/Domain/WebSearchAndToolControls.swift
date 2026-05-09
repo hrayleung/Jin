@@ -107,6 +107,17 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
         case .perplexity: return "PPLX"
         }
     }
+
+    var signupURL: URL? {
+        switch self {
+        case .exa: return URL(string: "https://dashboard.exa.ai/")
+        case .brave: return URL(string: "https://api-dashboard.search.brave.com/")
+        case .jina: return URL(string: "https://jina.ai/api-dashboard/")
+        case .firecrawl: return URL(string: "https://www.firecrawl.dev/")
+        case .tavily: return URL(string: "https://app.tavily.com/")
+        case .perplexity: return URL(string: "https://www.perplexity.ai/settings/api")
+        }
+    }
 }
 
 enum ExaSearchType: String, Codable, CaseIterable, Sendable {

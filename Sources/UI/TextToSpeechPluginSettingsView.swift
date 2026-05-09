@@ -86,7 +86,6 @@ struct TextToSpeechPluginSettingsView: View {
         JinSettingsPage {
             JinSettingsSection("Playback") {
                 JinSettingsToggleRow("Show floating mini player", isOn: $miniPlayerEnabled)
-                    .help("Show a floating mini player at the top of the chat when speech is playing.")
             }
 
             JinSettingsSection("Provider") {
@@ -106,10 +105,7 @@ struct TextToSpeechPluginSettingsView: View {
             }
 
             if provider?.requiresAPIKey != false {
-                JinSettingsSection(
-                    "API Key",
-                    detail: "Stored locally on this Mac. Changes save automatically."
-                ) {
+                JinSettingsSection("API Key") {
                     JinSettingsSecureFieldRow(
                         "API Key",
                         text: $apiKey,

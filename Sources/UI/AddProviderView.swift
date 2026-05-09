@@ -75,7 +75,6 @@ struct AddProviderView: View {
                             text: $baseURL,
                             usesMonospacedFont: true
                         )
-                        .help("Default endpoint is pre-filled.")
                     }
 
                     if let providerSetupCallout {
@@ -97,8 +96,7 @@ struct AddProviderView: View {
                     case .optionalAPIKey:
                         JinSettingsSecureFieldRow(
                             "API Key",
-                            fieldTitle: "API Key (Optional)",
-                            supportingText: "Optional. Leave blank to use ChatGPT account login in provider settings.",
+                            supportingText: "Leave blank to use ChatGPT account login.",
                             text: $apiKey,
                             isRevealed: $isKeyVisible,
                             revealHelp: "Show API key",

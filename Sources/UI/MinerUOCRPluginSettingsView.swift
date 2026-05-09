@@ -46,24 +46,25 @@ struct MinerUOCRPluginSettingsView: View {
 
     var body: some View {
         JinSettingsPage {
-            JinSettingsSection(
-                "API Token",
-                detail: "MinerU uses a token plus an optional user header. Changes save automatically."
-            ) {
+            JinSettingsSection("API Key") {
                 JinSettingsSecureFieldRow(
                     "API Token",
                     fieldTitle: "MinerU API Token",
-                    supportingText: "Stored locally on this Mac. Changes save automatically.",
                     text: $apiToken,
                     isRevealed: $isTokenVisible,
                     revealHelp: "Show API token",
                     concealHelp: "Hide API token"
                 )
 
+                if let signupURL = URL(string: "https://mineru.net/") {
+                    Link("Get a MinerU API token", destination: signupURL)
+                        .font(.caption)
+                }
+
                 JinSettingsTextFieldRow(
                     "User Header",
-                    fieldTitle: "Optional user header",
-                    supportingText: "Optional. Sends an extra user identifier with requests.",
+                    fieldTitle: "e.g. team-jin",
+                    supportingText: "Sent as an extra user identifier.",
                     text: $userIdentifier
                 )
 
@@ -165,7 +166,7 @@ struct MinerUOCRPluginSettingsView: View {
         lastPersistedToken = token
         lastPersistedUserIdentifier = userIdentifier
         lastPersistedLanguage = language
-        statusMessage = token.isEmpty ? "Cleared." : "Saved automatically."
+        statusMessage = token.isEmpty ? "Cleared." : nil
         statusIsError = false
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }

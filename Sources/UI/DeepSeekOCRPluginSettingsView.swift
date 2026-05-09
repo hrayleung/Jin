@@ -5,7 +5,7 @@ struct DeepSeekOCRPluginSettingsView: View {
         PluginAPIKeySettingsView(
             title: "DeepSeek OCR (DeepInfra)",
             preferenceKey: AppPreferenceKeys.pluginDeepSeekOCRAPIKey,
-            apiKeyHint: "Use your DeepInfra API key here.",
+            apiKeyHint: "Uses your DeepInfra API key.",
             testConnection: { apiKey in
                 let client = DeepInfraDeepSeekOCRClient(apiKey: apiKey)
                 try await client.validateAPIKey()

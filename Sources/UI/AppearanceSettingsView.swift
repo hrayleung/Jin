@@ -63,7 +63,7 @@ struct AppearanceSettingsView: View {
 
                 JinSettingsToggleRow(
                     "Overlay Scrollbars",
-                    supportingText: "When enabled, scrollbars fade in during scrolling and hide when idle. Turn off to follow the system preference.",
+                    supportingText: "Fade in during scroll, hide when idle.",
                     isOn: $useOverlayScrollbars
                 )
             }

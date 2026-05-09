@@ -33,13 +33,9 @@ struct PluginAPIKeySettingsView: View {
 
     var body: some View {
         JinSettingsPage {
-            JinSettingsSection(
-                "API Key",
-                detail: "Stored locally on this Mac and saved automatically as you type."
-            ) {
+            JinSettingsSection("API Key") {
                 JinSettingsSecureFieldRow(
                     "API Key",
-                    supportingText: "Stored locally on this Mac. Changes save automatically.",
                     text: $apiKey,
                     isRevealed: $isKeyVisible,
                     revealHelp: "Show API key",
@@ -121,7 +117,7 @@ struct PluginAPIKeySettingsView: View {
             UserDefaults.standard.set(key, forKey: preferenceKey)
         }
         lastPersistedAPIKey = key
-        statusMessage = key.isEmpty ? "Cleared." : "Saved automatically."
+        statusMessage = key.isEmpty ? "Cleared." : nil
         statusIsError = false
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }

@@ -4,7 +4,7 @@ extension AgentModeSettingsView {
     var safePrefixesSection: some View {
         JinSettingsSection(
             "Safe Commands",
-            detail: "Commands starting with these prefixes are auto-approved when RTK can rewrite them."
+            detail: "Auto-approved when RTK can rewrite them."
         ) {
             DisclosureGroup("Safe commands (\(safePrefixes.count))") {
                 FlowLayout(spacing: 4) {
@@ -18,7 +18,7 @@ extension AgentModeSettingsView {
 
                 JinSettingsControlRow(
                     "Add safe prefix",
-                    supportingText: "Matches the beginning of a command, for example python3."
+                    supportingText: "Matches command start, e.g., python3."
                 ) {
                     AgentModeCommandPrefixAddRow(
                         title: "Add safe prefix",
@@ -47,10 +47,7 @@ extension AgentModeSettingsView {
     }
 
     var allowedPrefixesSection: some View {
-        JinSettingsSection(
-            "Additional Allowed Prefixes",
-            detail: "Extend the auto-approved list with prefixes that make sense for your workflow."
-        ) {
+        JinSettingsSection("Additional Allowed Prefixes") {
             if allowedPrefixes.isEmpty {
                 Text("No custom prefixes added.")
                     .font(.caption)
@@ -67,7 +64,7 @@ extension AgentModeSettingsView {
 
             JinSettingsControlRow(
                 "Add prefix",
-                supportingText: "Use the full prefix you want auto-approved, for example npm run."
+                supportingText: "Full prefix to auto-approve, e.g., npm run."
             ) {
                 AgentModeCommandPrefixAddRow(
                     title: "Add prefix",

@@ -40,11 +40,13 @@ struct CloudflareR2UploadPluginSettingsView: View {
 
     var body: some View {
         JinSettingsPage {
-            JinSettingsSection(
-                "Credentials",
-                detail: "These keys are used for temporary public uploads before OCR or remote processing."
-            ) {
+            JinSettingsSection("Credentials") {
                 JinSettingsTextFieldRow("Account ID", text: $accountID, usesMonospacedFont: true)
+
+                if let dashboardURL = URL(string: "https://dash.cloudflare.com/?to=/:account/r2/overview") {
+                    Link("Open Cloudflare R2 dashboard", destination: dashboardURL)
+                        .font(.caption)
+                }
 
                 JinSettingsTextFieldRow("Access Key ID", text: $accessKeyID, usesMonospacedFont: true)
 
@@ -63,21 +65,17 @@ struct CloudflareR2UploadPluginSettingsView: View {
 
                 JinSettingsTextFieldRow(
                     "Public Base URL",
-                    supportingText: "Optional public URL, for example https://pub-xxx.r2.dev.",
+                    fieldTitle: "https://pub-xxx.r2.dev",
                     text: $publicBaseURL,
                     usesMonospacedFont: true
                 )
 
                 JinSettingsTextFieldRow(
                     "Key Prefix",
-                    fieldTitle: "Key Prefix (optional)",
-                    supportingText: "Optional.",
                     text: $keyPrefix,
                     usesMonospacedFont: true
                 )
-            }
 
-            JinSettingsSection("Actions") {
                 PluginCredentialActionsView(
                     canTestConnection: canTest,
                     canClear: true,
@@ -207,7 +205,7 @@ struct CloudflareR2UploadPluginSettingsView: View {
 
         lastPersistedConfiguration = configuration
         if showSavedStatus {
-            statusMessage = configurationIsEmpty(configuration) ? "Cleared." : "Saved automatically."
+            statusMessage = configurationIsEmpty(configuration) ? "Cleared." : nil
             statusIsError = false
         }
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)

@@ -48,10 +48,7 @@ struct AddMCPServerQuickSetupSection: View {
                             .jinInlineErrorText()
                     } else {
                         JinDetailsDisclosure(title: "Import Details") {
-                            Text("Supports Claude Desktop-style `mcpServers` configs plus single-server payloads.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("HTTP imports are mapped to native HTTP transport.")
+                            Text("Accepts Claude Desktop `mcpServers` configs and single-server payloads. HTTP entries map to native HTTP transport.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -83,7 +80,6 @@ struct AddMCPServerIdentitySection: View {
                 text: $id,
                 usesMonospacedFont: true
             )
-            .help("Short identifier (e.g. 'git').")
 
             JinSettingsTextFieldRow("Name", fieldTitle: "Exa", text: $name)
 

@@ -173,6 +173,16 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: .pluginCredentialsDidChange)) { _ in
             Task { await refreshPluginStatus() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .settingsNavigateToPlugin)) { notification in
+            guard
+                let pluginID = notification.userInfo?[SettingsNavigationUserInfoKey.pluginID] as? String,
+                Self.availablePlugins.contains(where: { $0.id == pluginID })
+            else { return }
+            withAnimation(settingsMotionAnimation) {
+                selectedSection = .plugins
+                selectedPluginID = pluginID
+            }
+        }
         .confirmationDialog(
             "Delete provider?",
             isPresented: $showingDeleteProviderConfirmation,
