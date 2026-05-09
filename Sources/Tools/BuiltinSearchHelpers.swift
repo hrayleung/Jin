@@ -144,99 +144,30 @@ extension BuiltinSearchToolHub {
         return String(data: data, encoding: .utf8)
     }
 
-    func braveFreshnessValue(recencyDays: Int) -> String {
-        switch recencyDays {
-        case ...1:
-            return "pd"
-        case ...7:
-            return "pw"
-        case ...31:
-            return "pm"
-        default:
-            return "py"
-        }
-    }
+    /// Augments a Firecrawl query with Google-style `site:` / `-site:` operators because the v2
+    /// search endpoint does not accept first-class include/exclude domain arrays.
+    /// Caps each list at 10 entries to keep the URL/query sane.
+    static func firecrawlAugmentedQuery(
+        _ query: String,
+        includeDomains: [String],
+        excludeDomains: [String]
+    ) -> String {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let includes = includeDomains.compactMap { $0.trimmedNonEmpty }.prefix(10)
+        let excludes = excludeDomains.compactMap { $0.trimmedNonEmpty }.prefix(10)
 
-    func tavilyTimeRange(recencyDays: Int) -> String {
-        switch recencyDays {
-        case ...1:
-            return "day"
-        case ...7:
-            return "week"
-        case ...31:
-            return "month"
-        default:
-            return "year"
-        }
-    }
+        var pieces: [String] = trimmed.isEmpty ? [] : [trimmed]
 
-    func perplexityRecencyFilter(recencyDays: Int) -> String {
-        switch recencyDays {
-        case ...1:
-            return "day"
-        case ...7:
-            return "week"
-        case ...31:
-            return "month"
-        default:
-            return "year"
-        }
-    }
-
-    func perplexitySearchDomainFilter(includeDomains: [String], excludeDomains: [String]) -> [String] {
-        let include = includeDomains.compactMap(normalizedTrimmedString)
-        if !include.isEmpty {
-            // Perplexity Search API allows either include-only or exclude-only filters.
-            return Array(include.prefix(20))
+        if !includes.isEmpty {
+            let operators = includes.map { "site:\($0)" }
+            pieces.append(operators.count == 1 ? operators[0] : "(\(operators.joined(separator: " OR ")))")
         }
 
-        let exclude = excludeDomains.compactMap(normalizedTrimmedString).map { "-\($0)" }
-        return Array(exclude.prefix(20))
-    }
-
-    var tavilyDateFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }
-
-    func tavilySearchDepthValue(_ value: String?) -> String {
-        guard let depth = normalizedTrimmedString(value)?.lowercased() else {
-            return "basic"
+        for domain in excludes {
+            pieces.append("-site:\(domain)")
         }
-        let normalized = depth.replacingOccurrences(of: "-", with: "_")
 
-        switch normalized {
-        case "basic", "fast", "advanced", "ultra_fast":
-            return normalized == "ultra_fast" ? "ultra-fast" : normalized
-        default:
-            return "basic"
-        }
-    }
-
-    func tavilyTopicValue(_ value: String?) -> String {
-        guard let topic = normalizedTrimmedString(value)?.lowercased() else { return "general" }
-        switch topic {
-        case "general", "news", "finance":
-            return topic
-        default:
-            return "general"
-        }
-    }
-
-    func firecrawlRecencyValue(recencyDays: Int) -> String {
-        switch recencyDays {
-        case ...1:
-            return "qdr:d"
-        case ...7:
-            return "qdr:w"
-        case ...31:
-            return "qdr:m"
-        default:
-            return "qdr:y"
-        }
+        return pieces.joined(separator: " ")
     }
 
     func urlHost(_ urlString: String) -> String? {

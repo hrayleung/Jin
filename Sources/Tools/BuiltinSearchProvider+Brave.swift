@@ -11,7 +11,7 @@ extension BuiltinSearchToolHub {
         let language = normalizedTrimmedString(route.overrides?.braveLanguage) ?? route.settings.braveLanguage
         let safesearch = normalizedTrimmedString(route.overrides?.braveSafesearch) ?? route.settings.braveSafesearch
 
-        let freshness = args.recencyDays.map { braveFreshnessValue(recencyDays: $0) }
+        let freshness = args.recencyDays.map { Self.braveDateRangeFreshness(recencyDays: $0) }
         let pageCount = Int(ceil(Double(desiredMaxResults) / Double(BraveSearchAPI.maxCount)))
         let maxPages = min(pageCount, BraveSearchAPI.maxOffset + 1)
 
@@ -75,5 +75,23 @@ extension BuiltinSearchToolHub {
         }
 
         return BuiltinSearchToolOutput(provider: .brave, query: args.query, resultCount: rows.count, results: rows)
+    }
+
+    /// Builds a UTC `YYYY-MM-DDtoYYYY-MM-DD` window for Brave's `freshness` parameter — strictly
+    /// more precise than the coarse `pd|pw|pm|py` buckets the API also accepts.
+    nonisolated static func braveDateRangeFreshness(recencyDays: Int, now: Date = Date()) -> String {
+        let calendar = Calendar(identifier: .gregorian)
+        var utc = calendar
+        utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+
+        let clamped = max(1, recencyDays)
+        let start = utc.date(byAdding: .day, value: -clamped, to: now) ?? now
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        return "\(formatter.string(from: start))to\(formatter.string(from: now))"
     }
 }

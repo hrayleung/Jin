@@ -12,28 +12,7 @@ extension BuiltinSearchToolHub {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let maxResults = args.maxResults.clamped(to: 1...50)
-        var body: [String: Any] = [
-            "query": args.query,
-            "numResults": maxResults
-        ]
-
-        if let searchType = route.overrides?.exaSearchType ?? route.settings.exaSearchType {
-            body["type"] = searchType.rawValue
-        }
-        if !args.includeDomains.isEmpty {
-            body["includeDomains"] = args.includeDomains
-        }
-        if !args.excludeDomains.isEmpty {
-            body["excludeDomains"] = args.excludeDomains
-        }
-        if let recencyDays = args.recencyDays {
-            let start = Date(timeIntervalSinceNow: TimeInterval(-recencyDays * 86_400))
-            body["startPublishedDate"] = Self.iso8601String(start)
-        }
-        if args.includeRawContent {
-            // Exa API requires content retrieval to be nested under "contents"
-            body["contents"] = ["text": true]
-        }
+        let body = Self.makeExaRequestBody(args: args, settings: route.settings, overrides: route.overrides)
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, _) = try await networkManager.sendRequest(request)
@@ -62,5 +41,72 @@ extension BuiltinSearchToolHub {
             resultCount: results.count,
             results: results
         )
+    }
+
+    /// Pure builder for the `/search` request body, exposed for tests.
+    nonisolated static func makeExaRequestBody(
+        args: ResolvedArguments,
+        settings: WebSearchPluginSettings,
+        overrides: SearchPluginControls?
+    ) -> [String: Any] {
+        let maxResults = args.maxResults.clamped(to: 1...50)
+        var body: [String: Any] = [
+            "query": args.query,
+            "numResults": maxResults
+        ]
+
+        if let searchType = overrides?.exaSearchType ?? settings.exaSearchType {
+            body["type"] = searchType.rawValue
+        }
+
+        let category = ExaCategory.resolved(from: overrides?.exaCategory ?? settings.exaCategory)
+        if let category {
+            body["category"] = category.rawValue
+        }
+        let usesEntityCategory = category == .company || category == .people
+
+        if let userLocation = settings.exaUserLocation?.trimmedNonEmpty {
+            body["userLocation"] = userLocation
+        }
+
+        if settings.exaModeration {
+            body["moderation"] = true
+        }
+
+        let includeDomains = exaIncludeDomains(args.includeDomains, category: category)
+        if !includeDomains.isEmpty {
+            body["includeDomains"] = includeDomains
+        }
+
+        if !usesEntityCategory, !args.excludeDomains.isEmpty {
+            body["excludeDomains"] = args.excludeDomains
+        }
+
+        if !usesEntityCategory, let recencyDays = args.recencyDays {
+            let start = Date(timeIntervalSinceNow: TimeInterval(-recencyDays * 86_400))
+            body["startPublishedDate"] = iso8601String(start)
+        }
+
+        if args.includeRawContent {
+            let text: [String: Any] = [
+                "maxCharacters": 8_000,
+                "verbosity": "compact"
+            ]
+            var contents: [String: Any] = ["text": text]
+            if let recencyDays = args.recencyDays {
+                contents["maxAgeHours"] = recencyDays * 24
+            }
+            body["contents"] = contents
+        }
+
+        return body
+    }
+
+    nonisolated static func exaIncludeDomains(_ domains: [String], category: ExaCategory?) -> [String] {
+        guard category == .people else { return domains }
+        return domains.filter { domain in
+            guard let normalized = domain.trimmedNonEmpty?.lowercased() else { return false }
+            return normalized == "linkedin.com" || normalized.hasSuffix(".linkedin.com")
+        }
     }
 }

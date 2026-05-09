@@ -204,6 +204,14 @@ final class BuiltinSearchToolHubTests: XCTestCase {
         XCTAssertNil(ExaSearchType.resolved(from: nil))
     }
 
+    func testExaSearchTypeIncludesNewDeepVariants() {
+        XCTAssertEqual(ExaSearchType.resolved(from: "deep-lite"), .deepLite)
+        XCTAssertEqual(ExaSearchType.resolved(from: "deep-reasoning"), .deepReasoning)
+        XCTAssertEqual(ExaSearchType.resolved(from: "deep"), .deep)
+        XCTAssertTrue(ExaSearchType.publicCases.contains(.deepLite))
+        XCTAssertTrue(ExaSearchType.publicCases.contains(.deepReasoning))
+    }
+
     func testWebSearchPluginSettingsLoadMapsLegacyExaType() {
         defaults.set("keyword", forKey: AppPreferenceKeys.pluginWebSearchExaSearchType)
         defaults.set(true, forKey: AppPreferenceKeys.pluginWebSearchEnabled)
