@@ -226,7 +226,7 @@ struct ModelSettingsSheet: View {
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.primary)
 
-            TextField("", text: text, prompt: Text(prompt))
+            TextField(text: text, prompt: Text(prompt)) { EmptyView() }
                 .font(.system(.body, design: .monospaced))
                 .textFieldStyle(.plain)
                 .padding(.horizontal, JinSpacing.medium)
@@ -347,6 +347,7 @@ struct ModelSettingsSheet: View {
                 Toggle("", isOn: $reasoningEnabled.animation(.easeInOut(duration: 0.2)))
                     .labelsHidden()
                     .toggleStyle(.switch)
+                    .accessibilityLabel("Reasoning")
             }
 
             if reasoningEnabled {
@@ -455,7 +456,7 @@ struct ModelSettingsSheet: View {
             Text("Default budget tokens")
                 .font(.subheadline.weight(.medium))
 
-            TextField("", text: $reasoningBudgetText, prompt: Text("e.g. 1024"))
+            TextField(text: $reasoningBudgetText, prompt: Text("e.g. 1024")) { EmptyView() }
                 .font(.system(.body, design: .monospaced))
                 .textFieldStyle(.plain)
                 .padding(.horizontal, JinSpacing.medium)
@@ -480,6 +481,7 @@ struct ModelSettingsSheet: View {
             Toggle("", isOn: isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
+                .accessibilityLabel(title)
         }
     }
 
