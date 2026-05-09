@@ -22,7 +22,7 @@ extension ChatView {
         threadControls: GenerationControls?
     ) -> [ClaudeManagedAgentDescriptor] {
         let resolvedControls = resolvedClaudeManagedControls(for: providerID, threadControls: threadControls)
-        var agents = providerID == conversationEntity.providerID ? claudeManagedAvailableAgents : []
+        var agents = providerID == activeProviderID ? claudeManagedAvailableAgents : []
 
         if let selectedAgentID = resolvedControls.claudeManagedAgentID,
            !agents.contains(where: { $0.id == selectedAgentID }) {
@@ -64,7 +64,7 @@ extension ChatView {
     ) -> String? {
         let resolvedControls = resolvedClaudeManagedControls(for: providerID, threadControls: threadControls)
         if let selectedEnvironmentID = resolvedControls.claudeManagedEnvironmentID,
-           providerID == conversationEntity.providerID,
+           providerID == activeProviderID,
            let descriptor = claudeManagedAvailableEnvironments.first(where: { $0.id == selectedEnvironmentID }) {
             return descriptor.name
         }

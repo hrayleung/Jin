@@ -69,8 +69,8 @@ extension ChatView {
         ModelPickerPopover(
             favoritesStore: favoriteModelsStore,
             providers: providers,
-            selectedProviderID: conversationEntity.providerID,
-            selectedModelID: conversationEntity.modelID,
+            selectedProviderID: activeProviderID,
+            selectedModelID: activeModelID,
             managedAgentContext: includeManagedAgentSelection ? currentManagedAgentPickerContext : nil,
             onSelect: onSelect
         )
@@ -81,7 +81,7 @@ extension ChatView {
               let currentProvider else { return nil }
 
         let resolvedControls = resolvedClaudeManagedControls(
-            for: conversationEntity.providerID,
+            for: activeProviderID,
             threadControls: controls
         )
 
@@ -89,7 +89,7 @@ extension ChatView {
             provider: currentProvider,
             selectedAgentID: resolvedControls.claudeManagedAgentID,
             availableAgents: resolvedClaudeManagedAgentOptions(
-                for: conversationEntity.providerID,
+                for: activeProviderID,
                 threadControls: controls
             ),
             isRefreshing: isRefreshingClaudeManagedSessionResources,

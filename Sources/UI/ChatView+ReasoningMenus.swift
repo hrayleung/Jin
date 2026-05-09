@@ -86,12 +86,12 @@ extension ChatView {
 
     var fireworksReasoningHistoryOptions: [String] {
         guard providerType == .fireworks else { return [] }
-        if isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+        if isFireworksMiniMaxM2FamilyModel(activeModelID) {
             return ["interleaved", "disabled"]
         }
-        if isFireworksModelID(conversationEntity.modelID, canonicalID: "kimi-k2p5")
-            || isFireworksModelID(conversationEntity.modelID, canonicalID: "glm-4p7")
-            || isFireworksModelID(conversationEntity.modelID, canonicalID: "glm-5") {
+        if isFireworksModelID(activeModelID, canonicalID: "kimi-k2p5")
+            || isFireworksModelID(activeModelID, canonicalID: "glm-4p7")
+            || isFireworksModelID(activeModelID, canonicalID: "glm-5") {
             return ["preserved", "interleaved", "disabled"]
         }
         return []
@@ -125,7 +125,7 @@ extension ChatView {
 
     var supportsCerebrasPreservedThinkingToggle: Bool {
         guard providerType == .cerebras else { return false }
-        return conversationEntity.modelID.lowercased() == "zai-glm-4.7"
+        return activeModelID.lowercased() == "zai-glm-4.7"
     }
 
     var cerebrasPreserveThinkingBinding: Binding<Bool> {
@@ -155,7 +155,7 @@ extension ChatView {
     var availableReasoningEffortLevels: [ReasoningEffort] {
         ModelCapabilityRegistry.supportedReasoningEfforts(
             for: providerType,
-            modelID: conversationEntity.modelID
+            modelID: activeModelID
         )
     }
 

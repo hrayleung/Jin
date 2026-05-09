@@ -28,8 +28,8 @@ extension ChatView {
                 ThinkingBudgetSheetView(
                     usesAdaptiveThinking: anthropicUsesAdaptiveThinking,
                     usesEffortMode: anthropicUsesEffortMode,
-                    modelID: conversationEntity.modelID,
-                    modelMaxOutputTokens: AnthropicModelLimits.maxOutputTokens(for: conversationEntity.modelID),
+                    modelID: activeModelID,
+                    modelMaxOutputTokens: AnthropicModelLimits.maxOutputTokens(for: activeModelID),
                     supportedEffortLevels: availableReasoningEffortLevels,
                     thinkingBudgetDraft: $thinkingBudgetDraft,
                     maxTokensDraft: $maxTokensDraft,

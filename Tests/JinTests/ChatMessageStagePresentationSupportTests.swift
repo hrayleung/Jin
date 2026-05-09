@@ -96,6 +96,47 @@ final class ChatMessageStagePresentationSupportTests: XCTestCase {
         XCTAssertEqual(resolvedColumn.bubbleMaxWidth, 246)
     }
 
+    func testMultiModelLayoutTotalColumnsWidthMatchesPaddingSpacingAndColumnSum() {
+        // Wide container, 2 threads: columns expand to fill, total should equal container.
+        let two = ChatMessageStagePresentationSupport.MultiModelLayout(
+            containerWidth: 1_000,
+            threadCount: 2
+        )
+        // expected: 2*20 (padding) + 1*12 (spacing) + 2*((1000 - 40 - 12) / 2) = 40 + 12 + 948 = 1000
+        XCTAssertEqual(two.totalColumnsWidth, 1_000)
+
+        // Wide container, 3 threads: columns expand, total equals container.
+        let three = ChatMessageStagePresentationSupport.MultiModelLayout(
+            containerWidth: 1_500,
+            threadCount: 3
+        )
+        // expected: 40 + 24 + 3 * ((1500 - 40 - 24) / 3) = 40 + 24 + 1436 = 1500
+        XCTAssertEqual(three.totalColumnsWidth, 1_500)
+
+        // Narrow container, columns clamp to minimum 320 — total exceeds visible width
+        // so the multi-model stage scrolls horizontally.
+        let narrow = ChatMessageStagePresentationSupport.MultiModelLayout(
+            containerWidth: 400,
+            threadCount: 3
+        )
+        // expected: 40 + 24 + 3*320 = 40 + 24 + 960 = 1024
+        XCTAssertEqual(narrow.totalColumnsWidth, 1_024)
+
+        // Single thread is still meaningful for fallback paths.
+        let single = ChatMessageStagePresentationSupport.MultiModelLayout(
+            containerWidth: 800,
+            threadCount: 1
+        )
+        // expected: 40 + 0 + 760 = 800
+        XCTAssertEqual(single.totalColumnsWidth, 800)
+
+        // Resolved-column initializer reports zero total since thread count is unknown.
+        let resolvedColumn = ChatMessageStagePresentationSupport.MultiModelLayout(
+            columnWidth: 280
+        )
+        XCTAssertEqual(resolvedColumn.totalColumnsWidth, 0)
+    }
+
     func testBottomAnchorIDsMatchSingleAndThreadedStages() {
         let threadID = UUID(uuidString: "00000000-0000-0000-0000-000000000123")!
 

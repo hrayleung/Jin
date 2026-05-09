@@ -5,6 +5,8 @@ import SwiftUI
 struct ChatMultiModelStageView: View {
     let conversationMessageCount: Int
     let containerSize: CGSize
+    let visibleContainerWidth: CGFloat
+    let layoutCenterOffset: CGFloat
     let threads: [ConversationModelThreadEntity]
     let contextsByThreadID: [UUID: ChatThreadRenderContext]
     let assistantDisplayName: String
@@ -22,13 +24,16 @@ struct ChatMultiModelStageView: View {
     let streamingMessageForThread: (UUID) -> StreamingMessageState?
     let streamingModelLabelForThread: (UUID) -> String?
     let streamingModelIDForThread: (UUID) -> String?
+    let errorMessageForThread: (UUID) -> String?
     let onActivateThread: (UUID) -> Void
+    let onRetryThread: (UUID) -> Void
+    let onDismissThreadError: (UUID) -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
     let expandedCollapsedMessageIDs: Binding<Set<UUID>>
 
     var body: some View {
         let layout = ChatMessageStagePresentationSupport.MultiModelLayout(
-            containerWidth: containerSize.width,
+            containerWidth: visibleContainerWidth,
             threadCount: threads.count
         )
 
@@ -57,17 +62,119 @@ struct ChatMultiModelStageView: View {
                             streamingMessage: streamingMessageForThread(thread.id),
                             streamingModelLabel: streamingModelLabelForThread(thread.id),
                             streamingModelID: streamingModelIDForThread(thread.id),
+                            errorMessage: errorMessageForThread(thread.id),
                             onActivateThread: { onActivateThread(thread.id) },
+                            onRetryThread: { onRetryThread(thread.id) },
+                            onDismissError: { onDismissThreadError(thread.id) },
                             onOpenArtifact: onOpenArtifact,
                             expandedCollapsedMessageIDs: expandedCollapsedMessageIDs
+                        )
+                    } else {
+                        // Render an explicit placeholder rather than silently
+                        // skipping the column. Reaching this branch means the
+                        // render cache hasn't produced a context yet for a
+                        // thread that the layout did include — without a
+                        // placeholder, the column simply disappears and the
+                        // layout shifts beneath the user.
+                        ChatMultiModelPlaceholderColumnView(
+                            columnWidth: layout.columnWidth,
+                            containerHeight: containerSize.height,
+                            providerIconID: providerIconIDForProviderID(thread.providerID),
+                            threadTitle: modelNameForThread(thread),
+                            isActive: activeThreadID == thread.id,
+                            errorMessage: errorMessageForThread(thread.id),
+                            onActivateThread: { onActivateThread(thread.id) },
+                            onRetryThread: { onRetryThread(thread.id) },
+                            onDismissError: { onDismissThreadError(thread.id) }
                         )
                     }
                 }
             }
             .padding(.horizontal, layout.horizontalPadding)
             .padding(.top, 16)
-            .frame(minHeight: containerSize.height, alignment: .bottomLeading)
+            .frame(minHeight: containerSize.height, alignment: .bottom)
         }
+        .frame(width: visibleContainerWidth, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
+        .offset(x: layoutCenterOffset)
+    }
+}
+
+private struct ChatMultiModelPlaceholderColumnView: View {
+    let columnWidth: CGFloat
+    let containerHeight: CGFloat
+    let providerIconID: String?
+    let threadTitle: String
+    let isActive: Bool
+    let errorMessage: String?
+    let onActivateThread: () -> Void
+    let onRetryThread: () -> Void
+    let onDismissError: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: onActivateThread) {
+                HStack(spacing: 8) {
+                    ProviderIconView(iconID: providerIconID, size: 12)
+                        .frame(width: 14, height: 14)
+                    Text(threadTitle)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if isActive {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Divider()
+                .overlay(JinSemanticColor.separator.opacity(0.35))
+
+            Spacer(minLength: 0)
+            if let errorMessage {
+                VStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.orange)
+                    Text(errorMessage)
+                        .font(.callout)
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                    HStack(spacing: 8) {
+                        Button("Retry", action: onRetryThread)
+                            .buttonStyle(.borderedProminent)
+                        Button("Dismiss", action: onDismissError)
+                            .buttonStyle(.bordered)
+                    }
+                }
+            } else {
+                Text("No messages yet")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(width: columnWidth, alignment: .topLeading)
+        .frame(minHeight: containerHeight, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                .fill(JinSemanticColor.detailSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                .stroke(
+                    isActive ? Color.accentColor.opacity(0.65) : JinSemanticColor.separator.opacity(0.45),
+                    lineWidth: isActive ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
+                )
+        )
     }
 }
 
@@ -92,7 +199,10 @@ private struct ChatMultiModelThreadColumnView: View {
     let streamingMessage: StreamingMessageState?
     let streamingModelLabel: String?
     let streamingModelID: String?
+    let errorMessage: String?
     let onActivateThread: () -> Void
+    let onRetryThread: () -> Void
+    let onDismissError: () -> Void
     let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
     let expandedCollapsedMessageIDs: Binding<Set<UUID>>
 
@@ -120,7 +230,10 @@ private struct ChatMultiModelThreadColumnView: View {
         streamingMessage: StreamingMessageState?,
         streamingModelLabel: String?,
         streamingModelID: String?,
+        errorMessage: String?,
         onActivateThread: @escaping () -> Void,
+        onRetryThread: @escaping () -> Void,
+        onDismissError: @escaping () -> Void,
         onOpenArtifact: @escaping (RenderedArtifactVersion, UUID?) -> Void,
         expandedCollapsedMessageIDs: Binding<Set<UUID>>
     ) {
@@ -144,7 +257,10 @@ private struct ChatMultiModelThreadColumnView: View {
         self.streamingMessage = streamingMessage
         self.streamingModelLabel = streamingModelLabel
         self.streamingModelID = streamingModelID
+        self.errorMessage = errorMessage
         self.onActivateThread = onActivateThread
+        self.onRetryThread = onRetryThread
+        self.onDismissError = onDismissError
         self.onOpenArtifact = onOpenArtifact
         self.expandedCollapsedMessageIDs = expandedCollapsedMessageIDs
         _messageRenderLimit = State(initialValue: initialMessageRenderLimit)
@@ -212,6 +328,14 @@ private struct ChatMultiModelThreadColumnView: View {
 
             Divider()
                 .overlay(JinSemanticColor.separator.opacity(0.35))
+
+            if let errorMessage {
+                ChatMultiModelErrorBannerView(
+                    message: errorMessage,
+                    onRetry: onRetryThread,
+                    onDismiss: onDismissError
+                )
+            }
 
             ScrollViewReader { proxy in
                 ScrollView {
@@ -320,5 +444,41 @@ private struct ChatMultiModelThreadColumnView: View {
             byExpanding: messageID,
             from: expandedCollapsedMessageIDs.wrappedValue
         )
+    }
+}
+
+/// Inline error banner used by both the populated and placeholder columns
+/// when a stream attempt for that thread failed. Lets the user retry without
+/// leaving the column or losing the rest of the multi-model layout.
+private struct ChatMultiModelErrorBannerView: View {
+    let message: String
+    let onRetry: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.subheadline)
+                .foregroundStyle(.orange)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Button("Retry", action: onRetry)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    Button("Dismiss", action: onDismiss)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.orange.opacity(0.08))
     }
 }

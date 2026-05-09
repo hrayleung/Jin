@@ -8,7 +8,6 @@ extension ChatView {
     func ensureModelThreadsInitializedIfNeeded() {
         ChatConversationStateSupport.ensureModelThreadsInitializedIfNeeded(
             conversationEntity: conversationEntity,
-            activeThreadID: &activeThreadID,
             modelContext: modelContext,
             activeModelThread: { activeModelThread },
             sortedModelThreads: { sortedModelThreads }
@@ -19,8 +18,8 @@ extension ChatView {
         ChatConversationStateSupport.syncActiveThreadSelection(
             activeModelThread: activeModelThread,
             sortedModelThreads: sortedModelThreads,
-            synchronizeLegacyConversationModelFields: { thread in
-                synchronizeLegacyConversationModelFields(with: thread)
+            setActiveThread: { thread in
+                setActiveThread(thread)
             }
         )
     }
@@ -122,7 +121,7 @@ extension ChatView {
             supportsReasoningControl: supportsReasoningControl,
             selectedReasoningConfig: selectedReasoningConfig,
             providerType: providerType,
-            modelID: conversationEntity.modelID,
+            modelID: activeModelID,
             supportsReasoningSummaryControl: supportsReasoningSummaryControl,
             reasoningMustRemainEnabled: reasoningMustRemainEnabled,
             defaultAnthropicEffort: selectedReasoningConfig?.defaultEffort ?? .high,
@@ -135,7 +134,7 @@ extension ChatView {
             controls: &controls,
             supportsReasoningControl: supportsReasoningControl,
             providerType: providerType,
-            modelID: conversationEntity.modelID,
+            modelID: activeModelID,
             defaultAnthropicEffort: selectedReasoningConfig?.defaultEffort ?? .high,
             defaultAnthropicBudget: anthropicDefaultBudgetTokens
         )
@@ -154,7 +153,7 @@ extension ChatView {
         ChatControlNormalizationSupport.normalizeFireworksProviderSpecific(
             controls: &controls,
             providerType: providerType,
-            isMiniMaxM2FamilyModel: isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID),
+            isMiniMaxM2FamilyModel: isFireworksMiniMaxM2FamilyModel(activeModelID),
             fireworksReasoningHistoryOptions: fireworksReasoningHistoryOptions
         )
     }
@@ -163,7 +162,7 @@ extension ChatView {
         ChatControlNormalizationSupport.normalizeAnthropicProviderSpecific(
             controls: &controls,
             providerType: providerType,
-            modelID: conversationEntity.modelID
+            modelID: activeModelID
         )
     }
 

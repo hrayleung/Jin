@@ -77,7 +77,7 @@ extension ChatView {
                 messageStageContainer
             }
         }
-        .onChange(of: activeThreadID) { _, _ in
+        .onChange(of: conversationEntity.activeThreadID) { _, _ in
             syncArtifactSelectionForActiveThread()
         }
         .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
@@ -121,7 +121,7 @@ extension ChatView {
 
     var messageStage: some View {
         GeometryReader { geometry in
-            if selectedModelThreads.count > 1 {
+            if panelThreads.count > 1 {
                 multiThreadMessageStage(geometry: geometry)
             } else {
                 singleThreadMessageStage(geometry: geometry)
@@ -160,7 +160,7 @@ extension ChatView {
             isStreaming: isStreaming,
             streamingMessage: streamingMessage,
             streamingModelLabel: streamingModelLabel,
-            streamingModelID: activeThreadID.flatMap { streamingModelID(for: $0) },
+            streamingModelID: activeModelThread.flatMap { streamingModelID(for: $0.id) },
             messageRenderPageSize: Self.messageRenderPageSize,
             eagerCodeHighlightTailCount: Self.eagerCodeHighlightTailCount,
             nonLazyMessageStackThreshold: Self.nonLazyMessageStackThreshold,
@@ -189,11 +189,24 @@ extension ChatView {
     }
 
     func multiThreadMessageStage(geometry: GeometryProxy) -> some View {
-        ChatMultiModelStageView(
+        let visibleContainerWidth = ChatConversationLayoutMetrics.visibleContainerWidth(
+            containerWidth: geometry.size.width,
+            sidebarWidth: mainSidebarWidth,
+            isSidebarHidden: isSidebarHidden
+        )
+        let layoutCenterOffset = ChatConversationLayoutMetrics.sidebarCompensationOffset(
+            sidebarWidth: mainSidebarWidth,
+            isSidebarHidden: isSidebarHidden,
+            compensationRatio: sidebarCompensationRatio
+        )
+
+        return ChatMultiModelStageView(
             conversationMessageCount: conversationEntity.messages.count,
             containerSize: geometry.size,
-            threads: selectedModelThreads,
-            contextsByThreadID: selectedThreadRenderContexts,
+            visibleContainerWidth: visibleContainerWidth,
+            layoutCenterOffset: layoutCenterOffset,
+            threads: panelThreads,
+            contextsByThreadID: panelThreadRenderContexts,
             assistantDisplayName: assistantDisplayName,
             composerHeight: composerHeight,
             isStreaming: isStreaming,
@@ -221,8 +234,18 @@ extension ChatView {
             streamingModelIDForThread: { threadID in
                 streamingModelID(for: threadID)
             },
+            errorMessageForThread: { threadID in
+                streamingStore.error(conversationID: conversationEntity.id, threadID: threadID)
+            },
             onActivateThread: { threadID in
                 activateThread(by: threadID)
+            },
+            onRetryThread: { threadID in
+                streamingStore.clearError(conversationID: conversationEntity.id, threadID: threadID)
+                startStreamingResponse(for: threadID)
+            },
+            onDismissThreadError: { threadID in
+                streamingStore.clearError(conversationID: conversationEntity.id, threadID: threadID)
             },
             onOpenArtifact: openArtifact,
             expandedCollapsedMessageIDs: $expandedCollapsedMessageIDs

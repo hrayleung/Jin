@@ -41,9 +41,7 @@ extension ChatView {
     func syncArtifactSelectionForActiveThread() {
         guard let threadID = activeModelThread?.id else { return }
 
-        let catalog = activeModelThread?.id == activeThreadID
-            ? renderCache.artifactCatalog
-            : threadRenderContext(threadID: threadID).artifactCatalog
+        let catalog = threadRenderContext(threadID: threadID).artifactCatalog
         guard !catalog.isEmpty else {
             selectedArtifactIDByThreadID[threadID] = nil
             selectedArtifactVersionByThreadID[threadID] = nil

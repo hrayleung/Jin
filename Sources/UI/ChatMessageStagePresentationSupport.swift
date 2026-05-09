@@ -89,10 +89,12 @@ enum ChatMessageStagePresentationSupport {
         let columnSpacing: CGFloat
         let columnWidth: CGFloat
         let bubbleMaxWidth: CGFloat
+        let threadCount: Int
 
         init(containerWidth: CGFloat, threadCount: Int) {
             horizontalPadding = Self.horizontalPadding
             columnSpacing = Self.columnSpacing
+            self.threadCount = max(threadCount, 0)
 
             let availableWidth = Self.availableColumnSpace(
                 containerWidth: containerWidth,
@@ -106,7 +108,19 @@ enum ChatMessageStagePresentationSupport {
             horizontalPadding = Self.horizontalPadding
             columnSpacing = Self.columnSpacing
             self.columnWidth = columnWidth
+            self.threadCount = 0
             bubbleMaxWidth = Self.bubbleMaxWidth(for: columnWidth)
+        }
+
+        /// Total width occupied by all columns + their padding + spacing.
+        /// Used to size the multi-model HStack so it can be centered within
+        /// the available chat region (mirrors the single-thread centering pattern).
+        var totalColumnsWidth: CGFloat {
+            guard threadCount > 0 else { return 0 }
+            let spacingCount = max(threadCount - 1, 0)
+            return (horizontalPadding * 2)
+                + (columnWidth * CGFloat(threadCount))
+                + (columnSpacing * CGFloat(spacingCount))
         }
 
         private static func availableColumnSpace(containerWidth: CGFloat, threadCount: Int) -> CGFloat {

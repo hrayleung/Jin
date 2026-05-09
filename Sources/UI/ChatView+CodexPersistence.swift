@@ -87,9 +87,6 @@ extension ChatView {
         do {
             thread.modelConfigData = try JSONEncoder().encode(controls)
             thread.updatedAt = Date()
-            if conversationEntity.activeThreadID == thread.id {
-                conversationEntity.modelConfigData = thread.modelConfigData
-            }
             conversationEntity.updatedAt = max(conversationEntity.updatedAt, thread.updatedAt)
             try modelContext.save()
         } catch {
