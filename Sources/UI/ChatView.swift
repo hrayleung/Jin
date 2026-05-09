@@ -269,6 +269,18 @@ struct ChatView: View {
         )
     }
 
+    /// Threads that render as their own panel in the stage. A thread becomes
+    /// a panel only after it has received messages — toggling a tab as a
+    /// next-send recipient no longer summons an empty column. See
+    /// `ChatThreadSupport.panelThreads(...)` for fallback semantics.
+    var panelThreads: [ConversationModelThreadEntity] {
+        ChatThreadSupport.panelThreads(
+            from: sortedModelThreads,
+            allMessages: conversationEntity.messages,
+            activeThread: activeModelThread
+        )
+    }
+
     var secondaryToolbarThreads: [ConversationModelThreadEntity] {
         ChatThreadSupport.secondaryToolbarThreads(
             from: sortedModelThreads,

@@ -44,6 +44,38 @@ enum ChatThreadSupport {
         return base + [activeThread]
     }
 
+    /// Threads that should render as their own column in the message stage.
+    ///
+    /// A thread earns a panel by having received messages. We deliberately
+    /// decouple this from `selectedThreads` (which controls the next-send
+    /// recipients) so that toggling a tab on for a future send doesn't
+    /// summon an empty panel from the past.
+    ///
+    /// When no thread has messages yet (a brand-new conversation), fall back
+    /// to a single panel anchored on the active thread so the user has a
+    /// stage to type into. Once the first message is sent, the populated set
+    /// takes over.
+    static func panelThreads(
+        from sortedThreads: [ConversationModelThreadEntity],
+        allMessages: [MessageEntity],
+        activeThread: ConversationModelThreadEntity?
+    ) -> [ConversationModelThreadEntity] {
+        let threadIDsWithMessages: Set<UUID> = Set(allMessages.compactMap(\.contextThreadID))
+
+        let withMessages = sortedThreads.filter { threadIDsWithMessages.contains($0.id) }
+        if !withMessages.isEmpty {
+            return withMessages
+        }
+
+        if let activeThread {
+            return [activeThread]
+        }
+        if let firstThread = sortedThreads.first {
+            return [firstThread]
+        }
+        return []
+    }
+
     static func secondaryToolbarThreads(
         from sortedThreads: [ConversationModelThreadEntity],
         activeThread: ConversationModelThreadEntity?

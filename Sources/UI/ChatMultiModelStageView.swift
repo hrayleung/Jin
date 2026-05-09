@@ -63,6 +63,21 @@ struct ChatMultiModelStageView: View {
                             onOpenArtifact: onOpenArtifact,
                             expandedCollapsedMessageIDs: expandedCollapsedMessageIDs
                         )
+                    } else {
+                        // Render an explicit placeholder rather than silently
+                        // skipping the column. Reaching this branch means the
+                        // render cache hasn't produced a context yet for a
+                        // thread that the layout did include — without a
+                        // placeholder, the column simply disappears and the
+                        // layout shifts beneath the user.
+                        ChatMultiModelPlaceholderColumnView(
+                            columnWidth: layout.columnWidth,
+                            containerHeight: containerSize.height,
+                            providerIconID: providerIconIDForProviderID(thread.providerID),
+                            threadTitle: modelNameForThread(thread),
+                            isActive: activeThreadID == thread.id,
+                            onActivateThread: { onActivateThread(thread.id) }
+                        )
                     }
                 }
             }
@@ -73,6 +88,62 @@ struct ChatMultiModelStageView: View {
         .frame(width: visibleContainerWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .center)
         .offset(x: layoutCenterOffset)
+    }
+}
+
+private struct ChatMultiModelPlaceholderColumnView: View {
+    let columnWidth: CGFloat
+    let containerHeight: CGFloat
+    let providerIconID: String?
+    let threadTitle: String
+    let isActive: Bool
+    let onActivateThread: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: onActivateThread) {
+                HStack(spacing: 8) {
+                    ProviderIconView(iconID: providerIconID, size: 12)
+                        .frame(width: 14, height: 14)
+                    Text(threadTitle)
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if isActive {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Divider()
+                .overlay(JinSemanticColor.separator.opacity(0.35))
+
+            Spacer(minLength: 0)
+            Text("No messages yet")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .frame(width: columnWidth, alignment: .topLeading)
+        .frame(minHeight: containerHeight, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                .fill(JinSemanticColor.detailSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
+                .stroke(
+                    isActive ? Color.accentColor.opacity(0.65) : JinSemanticColor.separator.opacity(0.45),
+                    lineWidth: isActive ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
+                )
+        )
     }
 }
 

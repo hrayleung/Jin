@@ -121,7 +121,7 @@ extension ChatView {
 
     var messageStage: some View {
         GeometryReader { geometry in
-            if selectedModelThreads.count > 1 {
+            if panelThreads.count > 1 {
                 multiThreadMessageStage(geometry: geometry)
             } else {
                 singleThreadMessageStage(geometry: geometry)
@@ -205,8 +205,8 @@ extension ChatView {
             containerSize: geometry.size,
             visibleContainerWidth: visibleContainerWidth,
             layoutCenterOffset: layoutCenterOffset,
-            threads: selectedModelThreads,
-            contextsByThreadID: selectedThreadRenderContexts,
+            threads: panelThreads,
+            contextsByThreadID: panelThreadRenderContexts,
             assistantDisplayName: assistantDisplayName,
             composerHeight: composerHeight,
             isStreaming: isStreaming,

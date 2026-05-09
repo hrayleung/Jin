@@ -2,7 +2,17 @@ import SwiftUI
 
 extension ChatView {
     var singleThreadRenderContext: ChatThreadRenderContext {
-        renderCache.singleThreadContext(activeThreadID: activeModelThread?.id)
+        // Anchor single-layout content on the first panel thread (the one
+        // with the most recent messages we want to show), falling back to
+        // the active thread when no panel exists yet (brand-new chat).
+        let anchorThreadID = panelThreads.first?.id ?? activeModelThread?.id
+        return renderCache.singleThreadContext(activeThreadID: anchorThreadID)
+    }
+
+    var panelThreadRenderContexts: [UUID: ChatThreadRenderContext] {
+        Dictionary(uniqueKeysWithValues: panelThreads.map { thread in
+            (thread.id, threadRenderContext(threadID: thread.id))
+        })
     }
 
     var selectedThreadRenderContexts: [UUID: ChatThreadRenderContext] {
