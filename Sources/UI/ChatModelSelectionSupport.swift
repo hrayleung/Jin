@@ -60,7 +60,7 @@ enum ChatModelSelectionSupport {
         modelContext: ModelContext,
         clearCodexThreadPersistence: (ConversationModelThreadEntity) -> Void,
         clearClaudeManagedAgentSessionPersistence: (ConversationModelThreadEntity) -> Void,
-        synchronizeLegacyConversationModelFields: (ConversationModelThreadEntity) -> Void,
+        setActiveThread: (ConversationModelThreadEntity) -> Void,
         normalizeControlsForCurrentSelection: () -> Void,
         preferredModelID: ([ModelInfo], String) -> String?
     ) {
@@ -78,7 +78,7 @@ enum ChatModelSelectionSupport {
             if let managedModelID = models.first?.id {
                 activeThread.modelID = managedModelID
             }
-            synchronizeLegacyConversationModelFields(activeThread)
+            setActiveThread(activeThread)
             normalizeControlsForCurrentSelection()
             try? modelContext.save()
             return
@@ -88,14 +88,14 @@ enum ChatModelSelectionSupport {
 
         if let preferredModelID = preferredModelID(models, providerID) {
             activeThread.modelID = preferredModelID
-            synchronizeLegacyConversationModelFields(activeThread)
+            setActiveThread(activeThread)
             normalizeControlsForCurrentSelection()
             try? modelContext.save()
             return
         }
 
         activeThread.modelID = models.first?.id ?? activeThread.modelID
-        synchronizeLegacyConversationModelFields(activeThread)
+        setActiveThread(activeThread)
         normalizeControlsForCurrentSelection()
         try? modelContext.save()
     }
@@ -108,7 +108,7 @@ enum ChatModelSelectionSupport {
         providerTypeForProviderID: (String) -> ProviderType?,
         canonicalModelID: (String, String) -> String,
         clearClaudeManagedAgentSessionPersistence: (ConversationModelThreadEntity) -> Void,
-        synchronizeLegacyConversationModelFields: (ConversationModelThreadEntity) -> Void,
+        setActiveThread: (ConversationModelThreadEntity) -> Void,
         normalizeControlsForCurrentSelection: () -> Void
     ) {
         guard let activeThread else { return }
@@ -118,7 +118,7 @@ enum ChatModelSelectionSupport {
             clearClaudeManagedAgentSessionPersistence(activeThread)
         }
         activeThread.modelID = resolvedModelID
-        synchronizeLegacyConversationModelFields(activeThread)
+        setActiveThread(activeThread)
         normalizeControlsForCurrentSelection()
         try? modelContext.save()
     }
@@ -134,7 +134,7 @@ enum ChatModelSelectionSupport {
         canonicalModelID: (String, String) -> String,
         addOrActivateThread: (String, String) -> Void,
         activateThread: (ConversationModelThreadEntity) -> Void,
-        synchronizeLegacyConversationModelFields: (ConversationModelThreadEntity) -> Void,
+        setActiveThread: (ConversationModelThreadEntity) -> Void,
         normalizeControlsForCurrentSelection: () -> Void,
         persistControlsToConversation: () -> Void
     ) {
@@ -159,7 +159,7 @@ enum ChatModelSelectionSupport {
         activeThread.providerID = providerID
         activeThread.modelID = resolvedModelID
         activeThread.updatedAt = Date()
-        synchronizeLegacyConversationModelFields(activeThread)
+        setActiveThread(activeThread)
         normalizeControlsForCurrentSelection()
         persistControlsToConversation()
     }

@@ -75,15 +75,15 @@ enum ChatConversationStateSupport {
     static func syncActiveThreadSelection(
         activeModelThread: ConversationModelThreadEntity?,
         sortedModelThreads: [ConversationModelThreadEntity],
-        synchronizeLegacyConversationModelFields: (ConversationModelThreadEntity) -> Void
+        setActiveThread: (ConversationModelThreadEntity) -> Void
     ) {
         if let current = activeModelThread {
-            synchronizeLegacyConversationModelFields(current)
+            setActiveThread(current)
             return
         }
 
         if let first = sortedModelThreads.first {
-            synchronizeLegacyConversationModelFields(first)
+            setActiveThread(first)
         }
     }
 

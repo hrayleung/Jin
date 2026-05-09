@@ -295,6 +295,25 @@ struct ChatView: View {
         )
     }
 
+    /// Provider ID of the active thread, or "" if no thread is set up yet.
+    /// Replaces the now-deprecated `conversationEntity.providerID` snapshot.
+    var activeProviderID: String {
+        activeModelThread?.providerID ?? ""
+    }
+
+    /// Model ID of the active thread, or "" if no thread is set up yet.
+    /// Replaces the now-deprecated `conversationEntity.modelID` snapshot.
+    var activeModelID: String {
+        activeModelThread?.modelID ?? ""
+    }
+
+    /// Encoded `GenerationControls` of the active thread, or empty data if
+    /// no thread exists. Replaces the now-deprecated
+    /// `conversationEntity.modelConfigData` snapshot.
+    var activeModelConfigData: Data {
+        activeModelThread?.modelConfigData ?? Data()
+    }
+
     var googleMapsLocationBiasValue: GoogleMapsLocationBias? {
         guard let lat = controls.googleMaps?.latitude,
               let lng = controls.googleMaps?.longitude else {

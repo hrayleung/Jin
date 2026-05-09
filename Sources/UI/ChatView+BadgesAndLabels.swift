@@ -46,21 +46,21 @@ extension ChatView {
 
     var claudeManagedAgentSessionHelpText: String {
         let resolvedControls = resolvedClaudeManagedControls(
-            for: conversationEntity.providerID,
+            for: activeProviderID,
             threadControls: controls
         )
 
         let agentDisplayName = resolvedControls.claudeManagedAgentID.map { _ in
             resolvedClaudeManagedAgentDisplayName(
-                for: conversationEntity.providerID,
-                threadModelID: conversationEntity.modelID,
+                for: activeProviderID,
+                threadModelID: activeModelID,
                 threadControls: controls
             )
         }
 
         let environmentDisplayName = resolvedControls.claudeManagedEnvironmentID.flatMap { _ in
             resolvedClaudeManagedEnvironmentDisplayName(
-                for: conversationEntity.providerID,
+                for: activeProviderID,
                 threadControls: controls
             )
         }

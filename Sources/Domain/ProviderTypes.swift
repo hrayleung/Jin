@@ -344,10 +344,59 @@ struct Conversation: Identifiable, Codable {
     var systemPrompt: String?
     var artifactsEnabled: Bool
     var messages: [Message]
-    var modelConfig: ModelConfig
+    /// Parallel model threads attached to this conversation.
+    var threads: [ModelThread]
+    /// ID of the thread receiving the next user message.
+    var activeThreadID: UUID?
     let createdAt: Date
     var updatedAt: Date
 
+    /// The active thread, or the first thread if `activeThreadID` is unset.
+    var activeThread: ModelThread? {
+        if let activeThreadID, let match = threads.first(where: { $0.id == activeThreadID }) {
+            return match
+        }
+        return threads.first
+    }
+
+    /// Convenience accessor for the active thread's `ModelConfig`. Provided
+    /// for round-trip compatibility with code paths that still think in terms
+    /// of a single `modelConfig` per conversation.
+    var modelConfig: ModelConfig {
+        guard let thread = activeThread else {
+            return ModelConfig(providerID: "", modelID: "", controls: GenerationControls())
+        }
+        return ModelConfig(
+            providerID: thread.providerID,
+            modelID: thread.modelID,
+            controls: thread.controls
+        )
+    }
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        systemPrompt: String? = nil,
+        artifactsEnabled: Bool = false,
+        messages: [Message] = [],
+        threads: [ModelThread] = [],
+        activeThreadID: UUID? = nil,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.title = title
+        self.systemPrompt = systemPrompt
+        self.artifactsEnabled = artifactsEnabled
+        self.messages = messages
+        self.threads = threads
+        self.activeThreadID = activeThreadID
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    /// Back-compat initializer for callers that still build a `Conversation`
+    /// from a single `ModelConfig`. Wraps it in a single primary thread.
     init(
         id: UUID = UUID(),
         title: String,
@@ -358,14 +407,23 @@ struct Conversation: Identifiable, Codable {
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
-        self.id = id
-        self.title = title
-        self.systemPrompt = systemPrompt
-        self.artifactsEnabled = artifactsEnabled
-        self.messages = messages
-        self.modelConfig = modelConfig
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
+        let primaryThread = ModelThread(
+            providerID: modelConfig.providerID,
+            modelID: modelConfig.modelID,
+            controls: modelConfig.controls,
+            isPrimary: true
+        )
+        self.init(
+            id: id,
+            title: title,
+            systemPrompt: systemPrompt,
+            artifactsEnabled: artifactsEnabled,
+            messages: messages,
+            threads: [primaryThread],
+            activeThreadID: primaryThread.id,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
     }
 }
 

@@ -8,14 +8,14 @@ extension ChatView {
     var currentModelName: String {
         if providerType == .claudeManagedAgents {
             return resolvedClaudeManagedAgentDisplayName(
-                for: conversationEntity.providerID,
-                threadModelID: conversationEntity.modelID,
+                for: activeProviderID,
+                threadModelID: activeModelID,
                 threadControls: controls
             )
         }
         return ChatThreadSupport.currentModelName(
-            providerID: conversationEntity.providerID,
-            modelID: conversationEntity.modelID,
+            providerID: activeProviderID,
+            modelID: activeModelID,
             providers: providers,
             providerType: providerType,
             resolveModelInfo: { modelID, providerEntity, providerType in
@@ -30,14 +30,14 @@ extension ChatView {
 
     var currentProvider: ProviderConfigEntity? {
         ChatThreadSupport.currentProvider(
-            for: conversationEntity.providerID,
+            for: activeProviderID,
             in: providers
         )
     }
 
     var currentProviderIconID: String? {
         ChatThreadSupport.providerIconID(
-            for: conversationEntity.providerID,
+            for: activeProviderID,
             in: providers
         )
     }
@@ -95,11 +95,11 @@ extension ChatView {
         )
     }
 
-    func synchronizeLegacyConversationModelFields(with thread: ConversationModelThreadEntity) {
-        ChatThreadSupport.synchronizeLegacyConversationModelFields(
+    func setActiveThread(_ thread: ConversationModelThreadEntity) {
+        ChatThreadSupport.setActiveThread(
+            thread,
             conversationEntity: conversationEntity,
-            activeThreadID: &activeThreadID,
-            thread: thread
+            activeThreadID: &activeThreadID
         )
     }
 
@@ -108,8 +108,8 @@ extension ChatView {
         let isAlreadyActiveThread = activeModelThread?.id == thread.id
         let isLegacySelectionSynchronized =
             conversationEntity.activeThreadID == thread.id
-            && conversationEntity.providerID == thread.providerID
-            && conversationEntity.modelID == thread.modelID
+            && activeProviderID == thread.providerID
+            && activeModelID == thread.modelID
             && thread.isSelected
         // Message selection in the multi-model timeline can bubble up as a row tap.
         // Ignore no-op reactivation so that selection does not churn caches or UI state.
@@ -120,7 +120,7 @@ extension ChatView {
         thread.lastActivatedAt = Date()
         thread.updatedAt = Date()
         thread.isSelected = true
-        synchronizeLegacyConversationModelFields(with: thread)
+        setActiveThread(thread)
         canonicalizeThreadModelIDIfNeeded(thread)
         loadControlsFromConversation()
         normalizeControlsForCurrentSelection()
@@ -203,8 +203,8 @@ extension ChatView {
             clearClaudeManagedAgentSessionPersistence: { thread in
                 clearClaudeManagedAgentSessionPersistence(for: thread)
             },
-            synchronizeLegacyConversationModelFields: { thread in
-                synchronizeLegacyConversationModelFields(with: thread)
+            setActiveThread: { thread in
+                setActiveThread(thread)
             },
             normalizeControlsForCurrentSelection: {
                 normalizeControlsForCurrentSelection()
@@ -229,8 +229,8 @@ extension ChatView {
             clearClaudeManagedAgentSessionPersistence: { thread in
                 clearClaudeManagedAgentSessionPersistence(for: thread)
             },
-            synchronizeLegacyConversationModelFields: { thread in
-                synchronizeLegacyConversationModelFields(with: thread)
+            setActiveThread: { thread in
+                setActiveThread(thread)
             },
             normalizeControlsForCurrentSelection: {
                 normalizeControlsForCurrentSelection()
@@ -259,8 +259,8 @@ extension ChatView {
             activateThread: { thread in
                 activateThread(thread)
             },
-            synchronizeLegacyConversationModelFields: { thread in
-                synchronizeLegacyConversationModelFields(with: thread)
+            setActiveThread: { thread in
+                setActiveThread(thread)
             },
             normalizeControlsForCurrentSelection: {
                 normalizeControlsForCurrentSelection()

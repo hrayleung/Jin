@@ -180,8 +180,8 @@ extension ContentView {
                     ForEach(convs) { conversation in
                         SidebarConversationItem(
                             conversation: conversation,
-                            subtitle: "\(providerName(for: conversation.providerID)) \u{2022} \(modelName(for: conversation))",
-                            providerIconID: providerIconID(for: conversation.providerID),
+                            subtitle: "\(providerName(for: conversation)) \u{2022} \(modelName(for: conversation))",
+                            providerIconID: providerIconID(for: conversation),
                             searchSnippet: searchSnippet(for: conversation),
                             searchQuery: normalizedConversationSearchQuery,
                             isRegeneratingTitle: regeneratingConversationID == conversation.id,

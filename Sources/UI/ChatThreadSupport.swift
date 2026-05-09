@@ -141,20 +141,20 @@ enum ChatThreadSupport {
         }
     }
 
-    static func synchronizeLegacyConversationModelFields(
+    /// Mark `thread` as the conversation's active thread, syncing both the
+    /// persisted `activeThreadID` field and the `ChatView.@State` mirror so
+    /// SwiftUI rebuilds dependent views.
+    ///
+    /// Replaces the prior `synchronizeLegacyConversationModelFields` which
+    /// also mirrored `providerID`/`modelID`/`modelConfigData` onto the
+    /// conversation row. The active thread is now the single source of truth
+    /// for those values; all consumers go through `activeModelThread` (or its
+    /// `activeProviderID` / `activeModelID` accessors).
+    static func setActiveThread(
+        _ thread: ConversationModelThreadEntity,
         conversationEntity: ConversationEntity,
-        activeThreadID: inout UUID?,
-        thread: ConversationModelThreadEntity
+        activeThreadID: inout UUID?
     ) {
-        if conversationEntity.providerID != thread.providerID {
-            conversationEntity.providerID = thread.providerID
-        }
-        if conversationEntity.modelID != thread.modelID {
-            conversationEntity.modelID = thread.modelID
-        }
-        if conversationEntity.modelConfigData != thread.modelConfigData {
-            conversationEntity.modelConfigData = thread.modelConfigData
-        }
         if conversationEntity.activeThreadID != thread.id {
             conversationEntity.activeThreadID = thread.id
         }

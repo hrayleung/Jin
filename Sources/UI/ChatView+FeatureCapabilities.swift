@@ -89,7 +89,7 @@ extension ChatView {
         if reasoningMustRemainEnabled {
             return true
         }
-        if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(conversationEntity.modelID) {
+        if providerType == .fireworks, isFireworksMiniMaxM2FamilyModel(activeModelID) {
             return true
         }
         return controls.reasoning?.enabled == true
@@ -188,7 +188,7 @@ extension ChatView {
 
         return ModelCapabilityRegistry.supportsWebSearch(
             for: providerType,
-            modelID: conversationEntity.modelID
+            modelID: activeModelID
         )
     }
 

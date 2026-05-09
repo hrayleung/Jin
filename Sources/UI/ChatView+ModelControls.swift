@@ -6,13 +6,13 @@ import SwiftData
 extension ChatView {
 
     var providerType: ProviderType? {
-        if let provider = providers.first(where: { $0.id == conversationEntity.providerID }),
+        if let provider = providers.first(where: { $0.id == activeProviderID }),
            let providerType = ProviderType(rawValue: provider.typeRaw) {
             return providerType
         }
 
         // Fallback: for the built-in providers, `providerID` matches the provider type.
-        return ProviderType(rawValue: conversationEntity.providerID)
+        return ProviderType(rawValue: activeProviderID)
     }
 
     func openImageGenerationEditor() {
@@ -44,12 +44,12 @@ extension ChatView {
             controls: controls,
             providerDefaults: providerDefaults,
             resolvedAgentDisplayName: resolvedClaudeManagedAgentDisplayName(
-                for: conversationEntity.providerID,
-                threadModelID: conversationEntity.modelID,
+                for: activeProviderID,
+                threadModelID: activeModelID,
                 threadControls: controls
             ),
             resolvedEnvironmentDisplayName: resolvedClaudeManagedEnvironmentDisplayName(
-                for: conversationEntity.providerID,
+                for: activeProviderID,
                 threadControls: controls
             )
         )
@@ -69,7 +69,7 @@ extension ChatView {
     }
 
     private func claudeManagedProviderDefaults() -> ChatClaudeManagedAgentSessionSupport.ProviderDefaults {
-        let providerDefaults = providers.first(where: { $0.id == conversationEntity.providerID })
+        let providerDefaults = providers.first(where: { $0.id == activeProviderID })
         return ChatClaudeManagedAgentSessionSupport.ProviderDefaults(
             agentID: providerDefaults?.claudeManagedDefaultAgentID,
             environmentID: providerDefaults?.claudeManagedDefaultEnvironmentID,
@@ -129,7 +129,7 @@ extension ChatView {
             currentControls: controls,
             resolveControls: { controls in
                 resolvedClaudeManagedControls(
-                    for: conversationEntity.providerID,
+                    for: activeProviderID,
                     threadControls: controls
                 )
             }
@@ -149,7 +149,7 @@ extension ChatView {
                 providerID: activeModelThread.providerID,
                 controls: update.resolvedControls
             )
-            synchronizeLegacyConversationModelFields(with: activeModelThread)
+            setActiveThread(activeModelThread)
         }
 
         persistControlsToConversation()
@@ -205,7 +205,7 @@ extension ChatView {
                 updatedControls: updatedControls,
                 resolveControls: { controls in
                     resolvedClaudeManagedControls(
-                        for: conversationEntity.providerID,
+                        for: activeProviderID,
                         threadControls: controls
                     )
                 }
@@ -226,7 +226,7 @@ extension ChatView {
                     )
                 )
                 activeModelThread.modelID = syntheticModelID
-                synchronizeLegacyConversationModelFields(with: activeModelThread)
+                setActiveThread(activeModelThread)
             }
             persistControlsToConversation()
             claudeManagedAgentSettingsDraftError = nil
@@ -241,7 +241,7 @@ extension ChatView {
         guard providerType == .claudeManagedAgents else { return }
         guard !isRefreshingClaudeManagedSessionResources else { return }
 
-        guard let providerEntity = providers.first(where: { $0.id == conversationEntity.providerID }),
+        guard let providerEntity = providers.first(where: { $0.id == activeProviderID }),
               let config = try? providerEntity.toDomain(),
               let adapter = try? await ProviderManager().createAdapter(for: config) as? ClaudeManagedAgentsAdapter else {
             if force {
