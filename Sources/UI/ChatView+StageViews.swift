@@ -77,7 +77,7 @@ extension ChatView {
                 messageStageContainer
             }
         }
-        .onChange(of: activeThreadID) { _, _ in
+        .onChange(of: conversationEntity.activeThreadID) { _, _ in
             syncArtifactSelectionForActiveThread()
         }
         .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
@@ -160,7 +160,7 @@ extension ChatView {
             isStreaming: isStreaming,
             streamingMessage: streamingMessage,
             streamingModelLabel: streamingModelLabel,
-            streamingModelID: activeThreadID.flatMap { streamingModelID(for: $0) },
+            streamingModelID: activeModelThread.flatMap { streamingModelID(for: $0.id) },
             messageRenderPageSize: Self.messageRenderPageSize,
             eagerCodeHighlightTailCount: Self.eagerCodeHighlightTailCount,
             nonLazyMessageStackThreshold: Self.nonLazyMessageStackThreshold,
@@ -234,8 +234,18 @@ extension ChatView {
             streamingModelIDForThread: { threadID in
                 streamingModelID(for: threadID)
             },
+            errorMessageForThread: { threadID in
+                streamingStore.error(conversationID: conversationEntity.id, threadID: threadID)
+            },
             onActivateThread: { threadID in
                 activateThread(by: threadID)
+            },
+            onRetryThread: { threadID in
+                streamingStore.clearError(conversationID: conversationEntity.id, threadID: threadID)
+                startStreamingResponse(for: threadID)
+            },
+            onDismissThreadError: { threadID in
+                streamingStore.clearError(conversationID: conversationEntity.id, threadID: threadID)
             },
             onOpenArtifact: openArtifact,
             expandedCollapsedMessageIDs: $expandedCollapsedMessageIDs

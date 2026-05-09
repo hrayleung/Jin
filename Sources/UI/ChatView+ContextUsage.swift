@@ -40,7 +40,7 @@ extension ChatView {
 
         return ContextUsageRefreshToken(
             conversationID: conversationEntity.id,
-            activeThreadID: activeThreadID,
+            activeThreadID: activeModelThread?.id,
             cachedMessagesVersion: renderCache.version,
             trimmedRemoteVideoURLText: trimmedRemoteVideoInputURLText,
             attachmentIDs: draftAttachments.map(\.id),

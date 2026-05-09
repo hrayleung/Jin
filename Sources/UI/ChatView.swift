@@ -109,7 +109,6 @@ struct ChatView: View {
     @State var pinnedBottomRefreshGeneration = 0
     @State var isExpandedComposerPresented = false
     @State var isComposerHidden = false
-    @State var activeThreadID: UUID?
     // swiftlint:disable:next private_swiftui_state
     @State var expandedCollapsedMessageIDs: Set<UUID> = []
 
@@ -237,12 +236,12 @@ struct ChatView: View {
     }
 
     var streamingMessage: StreamingMessageState? {
-        guard let activeThreadID else { return nil }
+        guard let activeThreadID = activeModelThread?.id else { return nil }
         return streamingStore.streamingState(conversationID: conversationEntity.id, threadID: activeThreadID)
     }
 
     var streamingModelLabel: String? {
-        guard let activeThreadID else { return nil }
+        guard let activeThreadID = activeModelThread?.id else { return nil }
         return streamingStore.streamingModelLabel(conversationID: conversationEntity.id, threadID: activeThreadID)
     }
 
@@ -291,7 +290,7 @@ struct ChatView: View {
     var activeModelThread: ConversationModelThreadEntity? {
         ChatThreadSupport.activeThread(
             in: sortedModelThreads,
-            preferredID: activeThreadID ?? conversationEntity.activeThreadID
+            preferredID: conversationEntity.activeThreadID
         )
     }
 

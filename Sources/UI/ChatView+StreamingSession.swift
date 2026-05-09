@@ -20,8 +20,11 @@ extension ChatView {
         do {
             threadControls = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
         } catch {
-            errorMessage = "Failed to load conversation settings: \(error.localizedDescription)"
-            showingError = true
+            streamingStore.recordError(
+                conversationID: conversationID,
+                threadID: threadID,
+                message: "Failed to load conversation settings: \(error.localizedDescription)"
+            )
             streamingStore.endSession(conversationID: conversationID, threadID: threadID)
             return
         }
@@ -33,8 +36,11 @@ extension ChatView {
                 providers: providers
             )
         } catch {
-            errorMessage = "Failed to load provider configuration: \(error.localizedDescription)"
-            showingError = true
+            streamingStore.recordError(
+                conversationID: conversationID,
+                threadID: threadID,
+                message: "Failed to load provider configuration: \(error.localizedDescription)"
+            )
             streamingStore.endSession(conversationID: conversationID, threadID: threadID)
             return
         }
@@ -135,8 +141,11 @@ extension ChatView {
                 perMessageOverrideServerIDs: perMessageMCPServerIDs
             )
         } catch {
-            errorMessage = "Failed to load MCP server configs: \(error.localizedDescription)"
-            showingError = true
+            streamingStore.recordError(
+                conversationID: conversationID,
+                threadID: threadID,
+                message: "Failed to load MCP server configs: \(error.localizedDescription)"
+            )
             streamingStore.endSession(conversationID: conversationID, threadID: threadID)
             return
         }

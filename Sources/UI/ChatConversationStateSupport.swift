@@ -24,7 +24,6 @@ enum ChatConversationStateSupport {
     @MainActor
     static func ensureModelThreadsInitializedIfNeeded(
         conversationEntity: ConversationEntity,
-        activeThreadID: inout UUID?,
         modelContext: ModelContext,
         activeModelThread: () -> ConversationModelThreadEntity?,
         sortedModelThreads: () -> [ConversationModelThreadEntity]
@@ -44,7 +43,6 @@ enum ChatConversationStateSupport {
             thread.conversation = conversationEntity
             conversationEntity.modelThreads.append(thread)
             conversationEntity.activeThreadID = thread.id
-            activeThreadID = thread.id
             didMutate = true
         }
 
@@ -57,7 +55,6 @@ enum ChatConversationStateSupport {
         if let currentActive = conversationEntity.activeThreadID,
            !sortedModelThreads().contains(where: { $0.id == currentActive }) {
             conversationEntity.activeThreadID = fallbackThread.id
-            activeThreadID = fallbackThread.id
             didMutate = true
         }
 

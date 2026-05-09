@@ -98,8 +98,7 @@ extension ChatView {
     func setActiveThread(_ thread: ConversationModelThreadEntity) {
         ChatThreadSupport.setActiveThread(
             thread,
-            conversationEntity: conversationEntity,
-            activeThreadID: &activeThreadID
+            conversationEntity: conversationEntity
         )
     }
 
@@ -138,7 +137,6 @@ extension ChatView {
             thread: thread,
             conversationEntity: conversationEntity,
             sortedThreads: sortedModelThreads,
-            activeThreadID: activeThreadID,
             streamingStore: streamingStore,
             modelContext: modelContext,
             rebuildMessageCaches: {

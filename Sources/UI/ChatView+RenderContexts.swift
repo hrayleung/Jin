@@ -22,7 +22,7 @@ extension ChatView {
     }
 
     var activeArtifactCatalog: ArtifactCatalog {
-        if let activeThreadID, activeModelThread != nil {
+        if let activeThreadID = activeModelThread?.id {
             return threadRenderContext(threadID: activeThreadID).artifactCatalog
         }
         return renderCache.artifactCatalog

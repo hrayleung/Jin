@@ -141,9 +141,9 @@ enum ChatThreadSupport {
         }
     }
 
-    /// Mark `thread` as the conversation's active thread, syncing both the
-    /// persisted `activeThreadID` field and the `ChatView.@State` mirror so
-    /// SwiftUI rebuilds dependent views.
+    /// Mark `thread` as the conversation's active thread by writing to the
+    /// persisted `activeThreadID` field. SwiftData's `@Bindable` propagation
+    /// rebuilds dependent views without needing a separate `@State` mirror.
     ///
     /// Replaces the prior `synchronizeLegacyConversationModelFields` which
     /// also mirrored `providerID`/`modelID`/`modelConfigData` onto the
@@ -152,14 +152,10 @@ enum ChatThreadSupport {
     /// `activeProviderID` / `activeModelID` accessors).
     static func setActiveThread(
         _ thread: ConversationModelThreadEntity,
-        conversationEntity: ConversationEntity,
-        activeThreadID: inout UUID?
+        conversationEntity: ConversationEntity
     ) {
         if conversationEntity.activeThreadID != thread.id {
             conversationEntity.activeThreadID = thread.id
-        }
-        if activeThreadID != thread.id {
-            activeThreadID = thread.id
         }
     }
 
@@ -205,7 +201,6 @@ enum ChatThreadSupport {
         thread: ConversationModelThreadEntity,
         conversationEntity: ConversationEntity,
         sortedThreads: [ConversationModelThreadEntity],
-        activeThreadID: UUID?,
         streamingStore: ConversationStreamingStore,
         modelContext: ModelContext,
         rebuildMessageCaches: () -> Void,
@@ -213,7 +208,7 @@ enum ChatThreadSupport {
     ) {
         guard sortedThreads.count > 1 else { return }
         let removedThreadID = thread.id
-        let activeBeforeRemovalID = activeThreadID ?? conversationEntity.activeThreadID
+        let activeBeforeRemovalID = conversationEntity.activeThreadID
         let removedWasActive = activeBeforeRemovalID == removedThreadID
         streamingStore.cancel(conversationID: conversationEntity.id, threadID: removedThreadID)
         streamingStore.endSession(conversationID: conversationEntity.id, threadID: removedThreadID)

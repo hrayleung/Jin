@@ -8,7 +8,6 @@ extension ChatView {
     func ensureModelThreadsInitializedIfNeeded() {
         ChatConversationStateSupport.ensureModelThreadsInitializedIfNeeded(
             conversationEntity: conversationEntity,
-            activeThreadID: &activeThreadID,
             modelContext: modelContext,
             activeModelThread: { activeModelThread },
             sortedModelThreads: { sortedModelThreads }
