@@ -7,7 +7,7 @@ extension ChatView {
     var supportsAnthropicDynamicFiltering: Bool {
         ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(
             for: providerType,
-            modelID: conversationEntity.modelID
+            modelID: activeModelID
         )
     }
 

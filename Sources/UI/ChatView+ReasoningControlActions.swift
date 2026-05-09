@@ -10,7 +10,7 @@ extension ChatView {
             reasoningMustRemainEnabled: reasoningMustRemainEnabled,
             selectedReasoningConfig: selectedReasoningConfig,
             providerType: providerType,
-            modelID: conversationEntity.modelID,
+            modelID: activeModelID,
             defaultBudget: anthropicDefaultBudgetTokens
         )
         persistControlsToConversation()
@@ -20,7 +20,7 @@ extension ChatView {
         ChatReasoningSupport.setReasoningOn(
             controls: &controls,
             providerType: providerType,
-            modelID: conversationEntity.modelID,
+            modelID: activeModelID,
             defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
             defaultBudget: anthropicDefaultBudgetTokens
         )
@@ -46,7 +46,7 @@ extension ChatView {
             controls: &controls,
             budgetTokens: budgetTokens,
             providerType: providerType,
-            modelID: conversationEntity.modelID,
+            modelID: activeModelID,
             defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
             defaultBudget: anthropicDefaultBudgetTokens
         )
@@ -60,21 +60,21 @@ extension ChatView {
     var anthropicUsesAdaptiveThinking: Bool {
         ChatReasoningSupport.anthropicUsesAdaptiveThinking(
             providerType: providerType,
-            modelID: conversationEntity.modelID
+            modelID: activeModelID
         )
     }
 
     var anthropicUsesEffortMode: Bool {
         ChatReasoningSupport.anthropicUsesEffortMode(
             providerType: providerType,
-            modelID: conversationEntity.modelID
+            modelID: activeModelID
         )
     }
 
     var supportsAnthropicThinkingDisplayControl: Bool {
         ChatReasoningSupport.supportsAnthropicThinkingDisplayControl(
             providerType: providerType,
-            modelID: conversationEntity.modelID
+            modelID: activeModelID
         )
     }
 
@@ -91,7 +91,7 @@ extension ChatView {
                     controls: &controls,
                     newValue: newValue,
                     anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
-                    modelID: conversationEntity.modelID,
+                    modelID: activeModelID,
                     defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
                     defaultBudget: anthropicDefaultBudgetTokens
                 )
@@ -112,7 +112,7 @@ extension ChatView {
         ChatEditorDraftSupport.isThinkingBudgetDraftValid(
             anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
             providerType: providerType,
-            modelID: conversationEntity.modelID,
+            modelID: activeModelID,
             thinkingBudgetDraft: thinkingBudgetDraft,
             maxTokensDraft: maxTokensDraft,
             currentMaxTokens: controls.maxTokens
@@ -123,7 +123,7 @@ extension ChatView {
         ChatEditorDraftSupport.thinkingBudgetValidationWarning(
             providerType: providerType,
             anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
-            modelID: conversationEntity.modelID,
+            modelID: activeModelID,
             thinkingBudgetDraft: thinkingBudgetDraft,
             maxTokensDraft: maxTokensDraft,
             currentMaxTokens: controls.maxTokens
@@ -137,14 +137,14 @@ extension ChatView {
             defaultBudget: anthropicDefaultBudgetTokens,
             providerType: providerType,
             requestedMaxTokens: controls.maxTokens,
-            modelID: conversationEntity.modelID
+            modelID: activeModelID
         )
         thinkingBudgetDraft = prepared.thinkingBudgetDraft
         maxTokensDraft = prepared.maxTokensDraft
         anthropicThinkingDisplayDraft = ChatReasoningSupport.resolvedAnthropicThinkingDisplay(
             currentDisplay: controls.reasoning?.anthropicThinkingDisplay,
             providerType: providerType,
-            modelID: conversationEntity.modelID
+            modelID: activeModelID
         )
         showingThinkingBudgetSheet = true
     }
@@ -153,7 +153,7 @@ extension ChatView {
         let resolvedMaxTokensDraft = ChatReasoningSupport.applyThinkingBudgetDraft(
             controls: &controls,
             providerType: providerType,
-            modelID: conversationEntity.modelID,
+            modelID: activeModelID,
             anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
             anthropicUsesEffortMode: anthropicUsesEffortMode,
             anthropicThinkingDisplay: supportsAnthropicThinkingDisplayControl ? anthropicThinkingDisplayDraft : nil,
@@ -172,7 +172,7 @@ extension ChatView {
         ChatReasoningSupport.normalizeAnthropicReasoningAndMaxTokens(
             controls: &controls,
             providerType: providerType,
-            modelID: conversationEntity.modelID,
+            modelID: activeModelID,
             defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
             defaultBudget: anthropicDefaultBudgetTokens
         )

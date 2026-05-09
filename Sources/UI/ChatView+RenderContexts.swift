@@ -2,11 +2,14 @@ import SwiftUI
 
 extension ChatView {
     var singleThreadRenderContext: ChatThreadRenderContext {
-        // Anchor single-layout content on the first panel thread (the one
-        // with the most recent messages we want to show), falling back to
-        // the active thread when no panel exists yet (brand-new chat).
-        let anchorThreadID = panelThreads.first?.id ?? activeModelThread?.id
-        return renderCache.singleThreadContext(activeThreadID: anchorThreadID)
+        // Always anchor single-layout content on the active thread so the
+        // composer's `controls` and the visible message list refer to the
+        // same model. Layer 1 attempted to anchor on `panelThreads.first`
+        // for continuity when toggling tabs, but that left the user looking
+        // at thread A's content while their next message was already routed
+        // to thread B — confusing and out of sync with the params shown in
+        // the composer.
+        renderCache.singleThreadContext(activeThreadID: activeModelThread?.id)
     }
 
     var panelThreadRenderContexts: [UUID: ChatThreadRenderContext] {
