@@ -54,6 +54,9 @@ tmp/sparkle-derived-data/
 # Codex local skills/config
 .agents/
 
+# Claude Code local skills/config
+.claude/
+
 # Local agent planning/spec artifacts
 /docs/superpowers/
 
