@@ -77,6 +77,7 @@ private enum QuoteCardDensity {
 private struct QuoteCardContainer<Accessory: View>: View {
     let quote: QuoteContent
     let density: QuoteCardDensity
+    let accessoryFocused: Bool
     let accessory: Accessory
 
     @State private var isHovering = false
@@ -84,10 +85,12 @@ private struct QuoteCardContainer<Accessory: View>: View {
     init(
         quote: QuoteContent,
         density: QuoteCardDensity = .message,
+        accessoryFocused: Bool = false,
         @ViewBuilder accessory: () -> Accessory
     ) {
         self.quote = quote
         self.density = density
+        self.accessoryFocused = accessoryFocused
         self.accessory = accessory()
     }
 
@@ -196,8 +199,9 @@ private struct QuoteCardContainer<Accessory: View>: View {
         )
         .overlay(alignment: .topTrailing) {
             accessory
-                .opacity(isHovering ? 1 : 0)
+                .opacity(isHovering || accessoryFocused ? 1 : 0)
                 .animation(.easeInOut(duration: 0.12), value: isHovering)
+                .animation(.easeInOut(duration: 0.12), value: accessoryFocused)
                 .padding(.top, 2)
                 .padding(.trailing, 2)
         }
@@ -227,9 +231,15 @@ struct ComposerQuoteCardView: View, Equatable {
     let quote: DraftQuote
     let onRemove: () -> Void
 
+    @State private var isDismissFocused = false
+
     var body: some View {
-        QuoteCardContainer(quote: quote.content, density: .composer) {
-            QuoteDismissButton(action: onRemove)
+        QuoteCardContainer(
+            quote: quote.content,
+            density: .composer,
+            accessoryFocused: isDismissFocused
+        ) {
+            QuoteDismissButton(action: onRemove, isFocused: $isDismissFocused)
         }
     }
 
@@ -250,15 +260,17 @@ struct ComposerQuoteCardView: View, Equatable {
 
 private struct QuoteDismissButton: View {
     let action: () -> Void
+    @Binding var isFocused: Bool
 
     @State private var isHovering = false
+    @FocusState private var isButtonFocused: Bool
 
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
                 .font(.system(size: 8, weight: .bold))
                 .foregroundStyle(
-                    isHovering
+                    isHovering || isButtonFocused
                         ? AnyShapeStyle(Color.primary.opacity(0.85))
                         : AnyShapeStyle(Color.primary.opacity(0.55))
                 )
@@ -266,15 +278,24 @@ private struct QuoteDismissButton: View {
                 .background(
                     Circle()
                         .fill(.regularMaterial)
-                        .opacity(isHovering ? 1 : 0.85)
+                        .opacity(isHovering || isButtonFocused ? 1 : 0.85)
                 )
                 .overlay(
                     Circle()
-                        .stroke(JinSemanticColor.separator.opacity(0.4), lineWidth: JinStrokeWidth.hairline)
+                        .stroke(
+                            isButtonFocused
+                                ? Color.accentColor.opacity(0.7)
+                                : JinSemanticColor.separator.opacity(0.4),
+                            lineWidth: isButtonFocused ? JinStrokeWidth.regular : JinStrokeWidth.hairline
+                        )
                 )
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focused($isButtonFocused)
+        .onChange(of: isButtonFocused) { _, newValue in
+            isFocused = newValue
+        }
         .onHover { isHovering = $0 }
         .accessibilityLabel("Remove quote")
         .help("Remove quote")
