@@ -44,6 +44,38 @@ enum ChatThreadSupport {
         return base + [activeThread]
     }
 
+    /// Threads that should render as their own column in the message stage.
+    ///
+    /// A thread earns a panel by having received messages. We deliberately
+    /// decouple this from `selectedThreads` (which controls the next-send
+    /// recipients) so that toggling a tab on for a future send doesn't
+    /// summon an empty panel from the past.
+    ///
+    /// When no thread has messages yet (a brand-new conversation), fall back
+    /// to a single panel anchored on the active thread so the user has a
+    /// stage to type into. Once the first message is sent, the populated set
+    /// takes over.
+    static func panelThreads(
+        from sortedThreads: [ConversationModelThreadEntity],
+        allMessages: [MessageEntity],
+        activeThread: ConversationModelThreadEntity?
+    ) -> [ConversationModelThreadEntity] {
+        let threadIDsWithMessages: Set<UUID> = Set(allMessages.compactMap(\.contextThreadID))
+
+        let withMessages = sortedThreads.filter { threadIDsWithMessages.contains($0.id) }
+        if !withMessages.isEmpty {
+            return withMessages
+        }
+
+        if let activeThread {
+            return [activeThread]
+        }
+        if let firstThread = sortedThreads.first {
+            return [firstThread]
+        }
+        return []
+    }
+
     static func secondaryToolbarThreads(
         from sortedThreads: [ConversationModelThreadEntity],
         activeThread: ConversationModelThreadEntity?
@@ -109,25 +141,21 @@ enum ChatThreadSupport {
         }
     }
 
-    static func synchronizeLegacyConversationModelFields(
-        conversationEntity: ConversationEntity,
-        activeThreadID: inout UUID?,
-        thread: ConversationModelThreadEntity
+    /// Mark `thread` as the conversation's active thread by writing to the
+    /// persisted `activeThreadID` field. SwiftData's `@Bindable` propagation
+    /// rebuilds dependent views without needing a separate `@State` mirror.
+    ///
+    /// Replaces the prior `synchronizeLegacyConversationModelFields` which
+    /// also mirrored `providerID`/`modelID`/`modelConfigData` onto the
+    /// conversation row. The active thread is now the single source of truth
+    /// for those values; all consumers go through `activeModelThread` (or its
+    /// `activeProviderID` / `activeModelID` accessors).
+    static func setActiveThread(
+        _ thread: ConversationModelThreadEntity,
+        conversationEntity: ConversationEntity
     ) {
-        if conversationEntity.providerID != thread.providerID {
-            conversationEntity.providerID = thread.providerID
-        }
-        if conversationEntity.modelID != thread.modelID {
-            conversationEntity.modelID = thread.modelID
-        }
-        if conversationEntity.modelConfigData != thread.modelConfigData {
-            conversationEntity.modelConfigData = thread.modelConfigData
-        }
         if conversationEntity.activeThreadID != thread.id {
             conversationEntity.activeThreadID = thread.id
-        }
-        if activeThreadID != thread.id {
-            activeThreadID = thread.id
         }
     }
 
@@ -173,7 +201,6 @@ enum ChatThreadSupport {
         thread: ConversationModelThreadEntity,
         conversationEntity: ConversationEntity,
         sortedThreads: [ConversationModelThreadEntity],
-        activeThreadID: UUID?,
         streamingStore: ConversationStreamingStore,
         modelContext: ModelContext,
         rebuildMessageCaches: () -> Void,
@@ -181,7 +208,7 @@ enum ChatThreadSupport {
     ) {
         guard sortedThreads.count > 1 else { return }
         let removedThreadID = thread.id
-        let activeBeforeRemovalID = activeThreadID ?? conversationEntity.activeThreadID
+        let activeBeforeRemovalID = conversationEntity.activeThreadID
         let removedWasActive = activeBeforeRemovalID == removedThreadID
         streamingStore.cancel(conversationID: conversationEntity.id, threadID: removedThreadID)
         streamingStore.endSession(conversationID: conversationEntity.id, threadID: removedThreadID)

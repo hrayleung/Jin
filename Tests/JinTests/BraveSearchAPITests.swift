@@ -66,5 +66,29 @@ final class BraveSearchAPITests: XCTestCase {
         let queryItems = components.queryItems ?? []
         XCTAssertFalse(queryItems.contains(where: { $0.name == "extra_snippets" }))
     }
+
+    func testMakeWebSearchURLPassesCustomDateRangeFreshnessVerbatim() throws {
+        let url = try XCTUnwrap(
+            BraveSearchAPI.makeWebSearchURL(
+                query: "test",
+                count: 10,
+                freshness: "2026-01-01to2026-02-01"
+            )
+        )
+
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let queryItems = components.queryItems ?? []
+        XCTAssertTrue(queryItems.contains(where: {
+            $0.name == "freshness" && $0.value == "2026-01-01to2026-02-01"
+        }))
+    }
+
+    func testBraveDateRangeFreshnessProducesUTCWindow() {
+        let now = ISO8601DateFormatter().date(from: "2026-05-09T12:34:56Z")!
+
+        let value = BuiltinSearchToolHub.braveDateRangeFreshness(recencyDays: 7, now: now)
+
+        XCTAssertEqual(value, "2026-05-02to2026-05-09")
+    }
 }
 

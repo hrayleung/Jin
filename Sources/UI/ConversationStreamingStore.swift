@@ -26,6 +26,12 @@ final class ConversationStreamingStore: ObservableObject {
     /// manually so that only session creation / removal triggers view updates.
     private var sessionsByConversationID: [UUID: SessionMap] = [:]
 
+    /// Per-thread streaming errors keyed `(conversationID, threadID)`. Set by
+    /// orchestrator failure paths via `recordError(...)` and cleared on the
+    /// next `beginSession` for that thread. Allows the multi-model stage to
+    /// surface errors inside the failing column instead of as a global toast.
+    private var errorsByConversationID: [UUID: [UUID: String]] = [:]
+
     // MARK: - Queries (no side-effects)
 
     func isStreaming(conversationID: UUID) -> Bool {
@@ -56,11 +62,23 @@ final class ConversationStreamingStore: ObservableObject {
         session(conversationID: conversationID, threadID: threadID)?.modelID
     }
 
+    /// Returns the most recent unrecovered streaming error for `threadID`, or
+    /// nil. Cleared on the next `beginSession` for that thread.
+    func error(conversationID: UUID, threadID: UUID) -> String? {
+        errorsByConversationID[conversationID]?[threadID]
+    }
+
     // MARK: - Lifecycle (publishes objectWillChange)
 
     /// Creates (or returns) a streaming session for a conversation thread.
     @discardableResult
     func beginSession(conversationID: UUID, threadID: UUID, modelLabel: String?, modelID: String? = nil) -> StreamingMessageState {
+        // Begin clears any previous failure on this thread — the new attempt
+        // is the source of truth from here forward.
+        if errorsByConversationID[conversationID]?[threadID] != nil {
+            clearError(conversationID: conversationID, threadID: threadID)
+        }
+
         if let existing = session(conversationID: conversationID, threadID: threadID) {
             // Update label if we have a better one — silent, no publish.
             if (existing.modelLabel == nil && modelLabel != nil) || (existing.modelID == nil && modelID != nil) {
@@ -128,6 +146,30 @@ final class ConversationStreamingStore: ObservableObject {
 
     func cancel(conversationID: UUID, threadID: UUID) {
         session(conversationID: conversationID, threadID: threadID)?.task?.cancel()
+    }
+
+    /// Records a streaming error for `threadID` so the failing panel can
+    /// render it inline. Publishes `objectWillChange` so observers (e.g. the
+    /// multi-model stage's placeholder column) refresh.
+    func recordError(conversationID: UUID, threadID: UUID, message: String) {
+        objectWillChange.send()
+        var byThread = errorsByConversationID[conversationID] ?? [:]
+        byThread[threadID] = message
+        errorsByConversationID[conversationID] = byThread
+    }
+
+    /// Clears any recorded error for `threadID`. Called automatically by
+    /// `beginSession`; also exposed for explicit "dismiss" UX.
+    func clearError(conversationID: UUID, threadID: UUID) {
+        guard var byThread = errorsByConversationID[conversationID] else { return }
+        guard byThread[threadID] != nil else { return }
+        objectWillChange.send()
+        byThread.removeValue(forKey: threadID)
+        if byThread.isEmpty {
+            errorsByConversationID.removeValue(forKey: conversationID)
+        } else {
+            errorsByConversationID[conversationID] = byThread
+        }
     }
 
     // MARK: - Private helpers

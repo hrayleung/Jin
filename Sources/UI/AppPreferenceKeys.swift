@@ -92,6 +92,18 @@ enum AppPreferenceKeys {
     static let pluginWebSearchPerplexityAPIKey = "pluginWebSearchPerplexityAPIKey"
     static let pluginWebSearchTavilySearchDepth = "pluginWebSearchTavilySearchDepth"
     static let pluginWebSearchTavilyTopic = "pluginWebSearchTavilyTopic"
+    static let pluginWebSearchExaCategory = "pluginWebSearchExaCategory"
+    static let pluginWebSearchExaUserLocation = "pluginWebSearchExaUserLocation"
+    static let pluginWebSearchExaModeration = "pluginWebSearchExaModeration"
+    static let pluginWebSearchJinaCountry = "pluginWebSearchJinaCountry"
+    static let pluginWebSearchJinaLocale = "pluginWebSearchJinaLocale"
+    static let pluginWebSearchFirecrawlCountry = "pluginWebSearchFirecrawlCountry"
+    static let pluginWebSearchFirecrawlLanguage = "pluginWebSearchFirecrawlLanguage"
+    static let pluginWebSearchFirecrawlSources = "pluginWebSearchFirecrawlSources"
+    static let pluginWebSearchTavilyCountry = "pluginWebSearchTavilyCountry"
+    static let pluginWebSearchTavilyAutoParameters = "pluginWebSearchTavilyAutoParameters"
+    static let pluginWebSearchPerplexityCountry = "pluginWebSearchPerplexityCountry"
+    static let pluginWebSearchPerplexityLanguage = "pluginWebSearchPerplexityLanguage"
 
     // Cloudflare R2 Upload
     static let cloudflareR2AccountID = "cloudflareR2AccountID"

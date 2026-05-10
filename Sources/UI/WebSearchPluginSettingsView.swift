@@ -14,13 +14,25 @@ struct WebSearchPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.pluginWebSearchPerplexityAPIKey) private var perplexityAPIKey = ""
 
     @AppStorage(AppPreferenceKeys.pluginWebSearchExaSearchType) private var exaSearchTypeRaw = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchExaCategory) private var exaCategory = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchExaUserLocation) private var exaUserLocation = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchExaModeration) private var exaModeration = false
     @AppStorage(AppPreferenceKeys.pluginWebSearchBraveCountry) private var braveCountry = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchBraveLanguage) private var braveLanguage = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchBraveSafesearch) private var braveSafesearch = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchJinaReadPages) private var jinaReadPages = true
+    @AppStorage(AppPreferenceKeys.pluginWebSearchJinaCountry) private var jinaCountry = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchJinaLocale) private var jinaLocale = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchFirecrawlExtractContent) private var firecrawlExtractContent = true
+    @AppStorage(AppPreferenceKeys.pluginWebSearchFirecrawlCountry) private var firecrawlCountry = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchFirecrawlLanguage) private var firecrawlLanguage = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchFirecrawlSources) private var firecrawlSourcesRaw = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchTavilySearchDepth) private var tavilySearchDepth = "basic"
     @AppStorage(AppPreferenceKeys.pluginWebSearchTavilyTopic) private var tavilyTopic = "general"
+    @AppStorage(AppPreferenceKeys.pluginWebSearchTavilyCountry) private var tavilyCountry = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchTavilyAutoParameters) private var tavilyAutoParameters = false
+    @AppStorage(AppPreferenceKeys.pluginWebSearchPerplexityCountry) private var perplexityCountry = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchPerplexityLanguage) private var perplexityLanguage = ""
 
     @State private var isExaKeyVisible = false
     @State private var isBraveKeyVisible = false
@@ -60,14 +72,44 @@ struct WebSearchPluginSettingsView: View {
 
     var body: some View {
         formContentWithAPIKeyObservers
-            .onChange(of: exaSearchTypeRaw) { _, _ in notifyCredentialsChanged() }
-            .onChange(of: braveCountry) { _, _ in notifyCredentialsChanged() }
-            .onChange(of: braveLanguage) { _, _ in notifyCredentialsChanged() }
-            .onChange(of: braveSafesearch) { _, _ in notifyCredentialsChanged() }
-            .onChange(of: jinaReadPages) { _, _ in notifyCredentialsChanged() }
-            .onChange(of: firecrawlExtractContent) { _, _ in notifyCredentialsChanged() }
-            .onChange(of: tavilySearchDepth) { _, _ in notifyCredentialsChanged() }
-            .onChange(of: tavilyTopic) { _, _ in notifyCredentialsChanged() }
+            .modifier(ExaProviderObservers(
+                exaSearchTypeRaw: exaSearchTypeRaw,
+                exaCategory: exaCategory,
+                exaUserLocation: exaUserLocation,
+                exaModeration: exaModeration,
+                onChange: notifyCredentialsChanged
+            ))
+            .modifier(BraveProviderObservers(
+                braveCountry: braveCountry,
+                braveLanguage: braveLanguage,
+                braveSafesearch: braveSafesearch,
+                onChange: notifyCredentialsChanged
+            ))
+            .modifier(JinaProviderObservers(
+                jinaReadPages: jinaReadPages,
+                jinaCountry: jinaCountry,
+                jinaLocale: jinaLocale,
+                onChange: notifyCredentialsChanged
+            ))
+            .modifier(FirecrawlProviderObservers(
+                firecrawlExtractContent: firecrawlExtractContent,
+                firecrawlCountry: firecrawlCountry,
+                firecrawlLanguage: firecrawlLanguage,
+                firecrawlSourcesRaw: firecrawlSourcesRaw,
+                onChange: notifyCredentialsChanged
+            ))
+            .modifier(TavilyProviderObservers(
+                tavilySearchDepth: tavilySearchDepth,
+                tavilyTopic: tavilyTopic,
+                tavilyCountry: tavilyCountry,
+                tavilyAutoParameters: tavilyAutoParameters,
+                onChange: notifyCredentialsChanged
+            ))
+            .modifier(PerplexityProviderObservers(
+                perplexityCountry: perplexityCountry,
+                perplexityLanguage: perplexityLanguage,
+                onChange: notifyCredentialsChanged
+            ))
             .onAppear {
                 initializeCredentialEditorProviderIfNeeded()
             }
@@ -163,13 +205,25 @@ struct WebSearchPluginSettingsView: View {
         WebSearchAdvancedProviderSettingsView(
             provider: defaultProvider,
             exaSearchTypeRaw: $exaSearchTypeRaw,
+            exaCategory: $exaCategory,
+            exaUserLocation: $exaUserLocation,
+            exaModeration: $exaModeration,
             braveCountry: $braveCountry,
             braveLanguage: $braveLanguage,
             braveSafesearch: $braveSafesearch,
             jinaReadPages: $jinaReadPages,
+            jinaCountry: $jinaCountry,
+            jinaLocale: $jinaLocale,
             firecrawlExtractContent: $firecrawlExtractContent,
+            firecrawlCountry: $firecrawlCountry,
+            firecrawlLanguage: $firecrawlLanguage,
+            firecrawlSourcesRaw: $firecrawlSourcesRaw,
             tavilySearchDepth: $tavilySearchDepth,
-            tavilyTopic: $tavilyTopic
+            tavilyTopic: $tavilyTopic,
+            tavilyCountry: $tavilyCountry,
+            tavilyAutoParameters: $tavilyAutoParameters,
+            perplexityCountry: $perplexityCountry,
+            perplexityLanguage: $perplexityLanguage
         )
     }
 

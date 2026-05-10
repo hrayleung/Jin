@@ -11,7 +11,7 @@ extension ChatView {
         if providerType == .claudeManagedAgents {
             let threadControls = activeModelThread.flatMap(storedGenerationControls(for:))
             if let model = ChatModelCapabilitySupport.resolvedClaudeManagedAgentModelInfo(
-                threadModelID: conversationEntity.modelID,
+                threadModelID: activeModelID,
                 providerEntity: currentProvider,
                 threadControls: threadControls
             ) {
@@ -23,7 +23,7 @@ extension ChatView {
         }
 
         guard let model = ChatModelCapabilitySupport.resolvedModelInfo(
-            modelID: conversationEntity.modelID,
+            modelID: activeModelID,
             providerEntity: currentProvider,
             providerType: providerType
         ) else {
@@ -42,7 +42,7 @@ extension ChatView {
     }
 
     var lowerModelID: String {
-        conversationEntity.modelID.lowercased()
+        activeModelID.lowercased()
     }
 
     func resolvedModelInfo(
@@ -68,7 +68,7 @@ extension ChatView {
         if providerType == .claudeManagedAgents {
             let threadControls = activeModelThread.flatMap(storedGenerationControls(for:))
             let resolvedControls = resolvedClaudeManagedControls(
-                for: providerEntity?.id ?? conversationEntity.providerID,
+                for: providerEntity?.id ?? activeProviderID,
                 threadControls: threadControls
             )
             return ClaudeManagedAgentRuntime.resolvedRuntimeModelID(
@@ -90,9 +90,6 @@ extension ChatView {
     ) {
         guard resolvedModelID != thread.modelID else { return }
         thread.modelID = resolvedModelID
-        if conversationEntity.activeThreadID == thread.id {
-            conversationEntity.modelID = resolvedModelID
-        }
         conversationEntity.updatedAt = Date()
         try? modelContext.save()
     }
@@ -229,7 +226,7 @@ extension ChatView {
             supportsImageGenerationControl: supportsImageGenerationControl,
             resolvedModelSettings: resolvedModelSettings,
             providerType: providerType,
-            conversationModelID: conversationEntity.modelID
+            conversationModelID: activeModelID
         )
     }
 

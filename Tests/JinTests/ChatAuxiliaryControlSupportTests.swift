@@ -1739,15 +1739,27 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
             jinaAPIKey: "",
             firecrawlAPIKey: "",
             exaSearchType: nil,
+            exaCategory: nil,
+            exaUserLocation: nil,
+            exaModeration: false,
             braveCountry: nil,
             braveLanguage: nil,
             braveSafesearch: nil,
             jinaReadPages: jinaReadPages,
+            jinaCountry: nil,
+            jinaLocale: nil,
             firecrawlExtractContent: firecrawlExtractContent,
+            firecrawlCountry: nil,
+            firecrawlLanguage: nil,
+            firecrawlSources: [],
             tavilyAPIKey: "",
             perplexityAPIKey: "",
             tavilySearchDepth: nil,
-            tavilyTopic: nil
+            tavilyTopic: nil,
+            tavilyCountry: nil,
+            tavilyAutoParameters: false,
+            perplexityCountry: nil,
+            perplexityLanguage: nil
         )
     }
 }

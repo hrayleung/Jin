@@ -109,7 +109,6 @@ struct ChatView: View {
     @State var pinnedBottomRefreshGeneration = 0
     @State var isExpandedComposerPresented = false
     @State var isComposerHidden = false
-    @State var activeThreadID: UUID?
     // swiftlint:disable:next private_swiftui_state
     @State var expandedCollapsedMessageIDs: Set<UUID> = []
 
@@ -237,12 +236,12 @@ struct ChatView: View {
     }
 
     var streamingMessage: StreamingMessageState? {
-        guard let activeThreadID else { return nil }
+        guard let activeThreadID = activeModelThread?.id else { return nil }
         return streamingStore.streamingState(conversationID: conversationEntity.id, threadID: activeThreadID)
     }
 
     var streamingModelLabel: String? {
-        guard let activeThreadID else { return nil }
+        guard let activeThreadID = activeModelThread?.id else { return nil }
         return streamingStore.streamingModelLabel(conversationID: conversationEntity.id, threadID: activeThreadID)
     }
 
@@ -269,6 +268,18 @@ struct ChatView: View {
         )
     }
 
+    /// Threads that render as their own panel in the stage. A thread becomes
+    /// a panel only after it has received messages — toggling a tab as a
+    /// next-send recipient no longer summons an empty column. See
+    /// `ChatThreadSupport.panelThreads(...)` for fallback semantics.
+    var panelThreads: [ConversationModelThreadEntity] {
+        ChatThreadSupport.panelThreads(
+            from: sortedModelThreads,
+            allMessages: conversationEntity.messages,
+            activeThread: activeModelThread
+        )
+    }
+
     var secondaryToolbarThreads: [ConversationModelThreadEntity] {
         ChatThreadSupport.secondaryToolbarThreads(
             from: sortedModelThreads,
@@ -279,8 +290,27 @@ struct ChatView: View {
     var activeModelThread: ConversationModelThreadEntity? {
         ChatThreadSupport.activeThread(
             in: sortedModelThreads,
-            preferredID: activeThreadID ?? conversationEntity.activeThreadID
+            preferredID: conversationEntity.activeThreadID
         )
+    }
+
+    /// Provider ID of the active thread, or "" if no thread is set up yet.
+    /// Replaces the now-deprecated `conversationEntity.providerID` snapshot.
+    var activeProviderID: String {
+        activeModelThread?.providerID ?? ""
+    }
+
+    /// Model ID of the active thread, or "" if no thread is set up yet.
+    /// Replaces the now-deprecated `conversationEntity.modelID` snapshot.
+    var activeModelID: String {
+        activeModelThread?.modelID ?? ""
+    }
+
+    /// Encoded `GenerationControls` of the active thread, or empty data if
+    /// no thread exists. Replaces the now-deprecated
+    /// `conversationEntity.modelConfigData` snapshot.
+    var activeModelConfigData: Data {
+        activeModelThread?.modelConfigData ?? Data()
     }
 
     var googleMapsLocationBiasValue: GoogleMapsLocationBias? {

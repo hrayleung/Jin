@@ -123,11 +123,13 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
 enum ExaSearchType: String, Codable, CaseIterable, Sendable {
     case auto
     case fast
-    case deep
     case neural
+    case deepLite = "deep-lite"
+    case deep
+    case deepReasoning = "deep-reasoning"
     case instant
 
-    static let publicCases: [ExaSearchType] = [.auto, .fast, .neural, .deep, .instant]
+    static let publicCases: [ExaSearchType] = [.auto, .fast, .neural, .deepLite, .deep, .deepReasoning, .instant]
 
     static func resolved(from rawValue: String?) -> ExaSearchType? {
         guard let value = rawValue?.trimmedNonEmpty?.lowercased() else {
@@ -142,6 +144,30 @@ enum ExaSearchType: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// Exa per-request category filter. Validated against Exa's documented allowlist.
+enum ExaCategory: String, Codable, CaseIterable, Sendable {
+    case company
+    case researchPaper = "research paper"
+    case news
+    case personalSite = "personal site"
+    case financialReport = "financial report"
+    case people
+
+    static func resolved(from rawValue: String?) -> ExaCategory? {
+        guard let value = rawValue?.trimmedNonEmpty?.lowercased() else {
+            return nil
+        }
+        return ExaCategory(rawValue: value)
+    }
+}
+
+/// Firecrawl source kinds for the v2 search API. JSON-encoded as `[String]` in user defaults.
+enum FirecrawlSourceKind: String, Codable, CaseIterable, Sendable {
+    case web
+    case news
+    case images
+}
+
 /// Built-in web search controls (app plugin-backed).
 struct SearchPluginControls: Codable, Sendable {
     var preferJinSearch: Bool?
@@ -153,6 +179,7 @@ struct SearchPluginControls: Codable, Sendable {
 
     // Exa-specific
     var exaSearchType: ExaSearchType?
+    var exaCategory: String?
 
     // Brave-specific
     var braveCountry: String?
@@ -161,6 +188,7 @@ struct SearchPluginControls: Codable, Sendable {
 
     // Firecrawl-specific
     var firecrawlExtractContent: Bool?
+    var firecrawlCountry: String?
 
     // Tavily-specific
     var tavilySearchDepth: String?  // "basic" | "fast" | "advanced" | "ultra_fast"
@@ -174,10 +202,12 @@ struct SearchPluginControls: Codable, Sendable {
         includeRawContent: Bool? = nil,
         fetchPageContent: Bool? = nil,
         exaSearchType: ExaSearchType? = nil,
+        exaCategory: String? = nil,
         braveCountry: String? = nil,
         braveLanguage: String? = nil,
         braveSafesearch: String? = nil,
         firecrawlExtractContent: Bool? = nil,
+        firecrawlCountry: String? = nil,
         tavilySearchDepth: String? = nil,
         tavilyTopic: String? = nil
     ) {
@@ -188,10 +218,12 @@ struct SearchPluginControls: Codable, Sendable {
         self.includeRawContent = includeRawContent
         self.fetchPageContent = fetchPageContent
         self.exaSearchType = exaSearchType
+        self.exaCategory = exaCategory
         self.braveCountry = braveCountry
         self.braveLanguage = braveLanguage
         self.braveSafesearch = braveSafesearch
         self.firecrawlExtractContent = firecrawlExtractContent
+        self.firecrawlCountry = firecrawlCountry
         self.tavilySearchDepth = tavilySearchDepth
         self.tavilyTopic = tavilyTopic
     }
