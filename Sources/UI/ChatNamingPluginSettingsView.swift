@@ -10,18 +10,13 @@ struct ChatNamingPluginSettingsView: View {
 
     var body: some View {
         JinSettingsPage {
-            JinSettingsSection("Behavior") {
+            JinSettingsSection("Chat Naming") {
                 Picker("Rename Mode", selection: $chatNamingMode) {
                     ForEach(ChatNamingMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
-            }
 
-            JinSettingsSection(
-                "Naming Model",
-                detail: "Choose the provider and model used when Jin suggests chat titles."
-            ) {
                 if allProviderModelPairs.isEmpty {
                     Text("No providers with chat-capable models found. Add or enable a chat model under Settings → Providers.")
                         .jinInfoCallout()

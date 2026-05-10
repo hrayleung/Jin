@@ -131,18 +131,13 @@ struct WebSearchPluginSettingsView: View {
 
     private var formContent: some View {
         JinSettingsPage {
-            JinSettingsSection("Web Search") {
-                JinSettingsToggleRow("Enable Web Search", isOn: $pluginEnabled)
-            }
+            JinSettingsToggleRow("Enable Web Search", isOn: $pluginEnabled)
 
             defaultsSection
 
             providerCredentialsSection
 
-            JinSettingsSection(
-                "Provider Settings",
-                detail: "These options apply to the current default provider."
-            ) {
+            JinSettingsSection("\(defaultProvider.displayName) Options") {
                 providerAdvancedContent()
             }
         }
@@ -153,7 +148,6 @@ struct WebSearchPluginSettingsView: View {
         JinSettingsSection("Search Defaults") {
             JinSettingsPickerRow(
                 "Default search provider",
-                supportingText: "Used when chat does not explicitly choose a web search provider.",
                 selection: $defaultProviderRaw
             ) {
                 ForEach(SearchPluginProvider.allCases) { provider in
@@ -161,10 +155,7 @@ struct WebSearchPluginSettingsView: View {
                 }
             }
 
-            JinSettingsControlRow(
-                "Default max results",
-                supportingText: "Applies to web searches unless a request overrides the limit."
-            ) {
+            JinSettingsControlRow("Default max results") {
                 Stepper(
                     value: Binding(
                         get: { effectiveDefaultMaxResults },
@@ -176,11 +167,7 @@ struct WebSearchPluginSettingsView: View {
                 }
             }
 
-            JinSettingsPickerRow(
-                "Default recency",
-                supportingText: "Filters for recent content when the selected provider supports recency windows.",
-                selection: $defaultRecencyDays
-            ) {
+            JinSettingsPickerRow("Default recency", selection: $defaultRecencyDays) {
                 ForEach(WebSearchPluginSettingsSupport.recencyChoices) { choice in
                     Text(choice.label).tag(choice.value)
                 }
@@ -189,15 +176,8 @@ struct WebSearchPluginSettingsView: View {
     }
 
     private var providerCredentialsSection: some View {
-        JinSettingsSection(
-            "Search Providers",
-            detail: "Only providers with configured API keys are available in chat."
-        ) {
-            JinSettingsPickerRow(
-                "Provider",
-                supportingText: "Choose which provider you want to edit.",
-                selection: $credentialEditorProviderRaw
-            ) {
+        JinSettingsSection("Search Providers") {
+            JinSettingsPickerRow("Provider", selection: $credentialEditorProviderRaw) {
                 ForEach(SearchPluginProvider.allCases) { provider in
                     Text(provider.displayName).tag(provider.rawValue)
                 }
@@ -206,18 +186,17 @@ struct WebSearchPluginSettingsView: View {
             WebSearchAPIKeyRow(
                 label: "\(credentialEditorProvider.displayName) API Key",
                 text: apiKeyBinding(for: credentialEditorProvider),
-                isRevealed: keyVisibilityBinding(for: credentialEditorProvider)
+                isRevealed: keyVisibilityBinding(for: credentialEditorProvider),
+                onClear: {
+                    apiKeyBinding(for: credentialEditorProvider).wrappedValue = ""
+                    keyVisibilityBinding(for: credentialEditorProvider).wrappedValue = false
+                }
             )
 
-            WebSearchCredentialStatusRow(
-                provider: credentialEditorProvider,
-                apiKey: apiKeyBinding(for: credentialEditorProvider).wrappedValue
-            ) {
-                apiKeyBinding(for: credentialEditorProvider).wrappedValue = ""
-                keyVisibilityBinding(for: credentialEditorProvider).wrappedValue = false
+            if let signupURL = credentialEditorProvider.signupURL {
+                Link("Get an API key on \(credentialEditorProvider.displayName)", destination: signupURL)
+                    .font(.caption)
             }
-
-            WebSearchConfiguredProvidersRow(configuredProviders: configuredProviders)
         }
     }
 

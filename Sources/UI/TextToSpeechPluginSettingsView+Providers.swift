@@ -71,7 +71,6 @@ extension TextToSpeechPluginSettingsView {
 
             JinSettingsTextFieldRow(
                 "Instructions",
-                fieldTitle: "Instructions (optional)",
                 supportingText: "OpenAI TTS family only — silently ignored by other providers.",
                 text: $openRouterInstructions
             )
@@ -110,8 +109,6 @@ extension TextToSpeechPluginSettingsView {
 
             JinSettingsTextFieldRow(
                 "Instructions",
-                fieldTitle: "Instructions (optional)",
-                supportingText: "Optional.",
                 text: $openAIInstructions
             )
         }
@@ -126,7 +123,6 @@ extension TextToSpeechPluginSettingsView {
                     Text(model.name).tag(model.id)
                 }
             }
-            .help("Orpheus models: canopylabs/orpheus-v1-english, canopylabs/orpheus-arabic-saudi")
             .onChange(of: groqModel) { _, _ in
                 normalizeGroqVoiceIfNeeded()
             }
@@ -235,9 +231,8 @@ extension TextToSpeechPluginSettingsView {
                     }
                 }
             } else {
-                Text("No voices loaded. Enter your API key and click \u{201C}Test Connection\u{201D} to fetch voices.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("Enter your API key and tap Test Connection to load voices.")
+                    .jinInfoCallout()
             }
 
             JinSettingsPickerRow("Output Format", selection: $elevenLabsOutputFormat) {
@@ -281,7 +276,7 @@ extension TextToSpeechPluginSettingsView {
     }
 
     var providerErrorSection: some View {
-        JinSettingsSection("Provider Error") {
+        JinSettingsSection("Unknown Provider", style: .plain) {
             JinSettingsErrorText(text: providerErrorMessage(for: providerRaw))
         }
     }

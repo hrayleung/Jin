@@ -4,67 +4,24 @@ struct WebSearchAPIKeyRow: View {
     let label: String
     @Binding var text: String
     @Binding var isRevealed: Bool
-
-    var body: some View {
-        JinSettingsSecureFieldRow(
-            label,
-            supportingText: "Leave blank to keep this provider unavailable in chat.",
-            text: $text,
-            isRevealed: $isRevealed,
-            usesMonospacedFont: true,
-            revealHelp: "Show API key",
-            concealHelp: "Hide API key"
-        )
-    }
-}
-
-struct WebSearchCredentialStatusRow: View {
-    let provider: SearchPluginProvider
-    let apiKey: String
     let onClear: () -> Void
 
     var body: some View {
-        JinSettingsControlRow(
-            "Status",
-            supportingText: "Clearing removes the stored key for the selected provider."
-        ) {
+        JinSettingsControlRow(label) {
             HStack(spacing: JinSpacing.small) {
-                Text(WebSearchPluginSettingsSupport.credentialStatusText(apiKey: apiKey))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                JinRevealableSecureField(
+                    title: label,
+                    text: $text,
+                    isRevealed: $isRevealed,
+                    usesMonospacedFont: true,
+                    revealHelp: "Show API key",
+                    concealHelp: "Hide API key"
+                )
 
-                Spacer(minLength: JinSpacing.small)
-
-                if WebSearchPluginSettingsSupport.hasConfiguredCredential(apiKey) {
-                    Button("Clear", role: .destructive) {
-                        onClear()
-                    }
-                    .font(.caption)
-                    .help("Clear the stored API key for \(provider.displayName).")
-                }
-            }
-        }
-    }
-}
-
-struct WebSearchConfiguredProvidersRow: View {
-    let configuredProviders: [SearchPluginProvider]
-
-    var body: some View {
-        JinSettingsControlRow(
-            "Configured",
-            supportingText: "Only configured providers appear in chat."
-        ) {
-            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                Text(WebSearchPluginSettingsSupport.configuredCountText(configuredProviders))
-                    .foregroundStyle(.secondary)
-
-                let summary = WebSearchPluginSettingsSupport.configuredProviderNamesText(configuredProviders)
-                if !summary.isEmpty {
-                    Text(summary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                if !text.isEmpty {
+                    Button("Clear", role: .destructive, action: onClear)
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
                 }
             }
         }
@@ -124,22 +81,14 @@ struct WebSearchAdvancedProviderSettingsView: View {
 
     @ViewBuilder
     private var exaSettings: some View {
-        JinSettingsPickerRow(
-            "Search type",
-            supportingText: "Auto works well for most queries. Pick a type only when you need a stronger bias.",
-            selection: $exaSearchTypeRaw
-        ) {
+        JinSettingsPickerRow("Search type", selection: $exaSearchTypeRaw) {
             Text("Auto").tag("")
             ForEach(ExaSearchType.publicCases, id: \.self) { value in
                 Text(exaSearchTypeLabel(for: value)).tag(value.rawValue)
             }
         }
 
-        JinSettingsPickerRow(
-            "Category",
-            supportingText: "Restrict results to a content kind. Useful for research, company, or people queries.",
-            selection: $exaCategory
-        ) {
+        JinSettingsPickerRow("Category", selection: $exaCategory) {
             Text("Any").tag("")
             ForEach(ExaCategory.allCases, id: \.self) { value in
                 Text(exaCategoryLabel(for: value)).tag(value.rawValue)
@@ -148,17 +97,12 @@ struct WebSearchAdvancedProviderSettingsView: View {
 
         JinSettingsTextFieldRow(
             "User location",
-            fieldTitle: "User location",
-            supportingText: "Optional 2-letter country code (ISO-3166) to localize results.",
+            fieldTitle: "e.g. US",
             text: $exaUserLocation,
             usesMonospacedFont: true
         )
 
-        JinSettingsToggleRow(
-            "Filter unsafe content",
-            supportingText: "Asks Exa to drop adult, violent, or otherwise unsafe results.",
-            isOn: $exaModeration
-        )
+        JinSettingsToggleRow("Filter unsafe content", isOn: $exaModeration)
     }
 
     @ViewBuilder
@@ -171,8 +115,7 @@ struct WebSearchAdvancedProviderSettingsView: View {
     private var braveCountryRow: some View {
         JinSettingsTextFieldRow(
             "Country",
-            fieldTitle: "Country",
-            supportingText: "Optional 2-letter country code such as US, SG, or DE.",
+            fieldTitle: "e.g. US",
             text: $braveCountry,
             usesMonospacedFont: true
         )
@@ -181,19 +124,14 @@ struct WebSearchAdvancedProviderSettingsView: View {
     private var braveLanguageRow: some View {
         JinSettingsTextFieldRow(
             "Language",
-            fieldTitle: "Language",
-            supportingText: "Optional language hint such as en or zh-hans.",
+            fieldTitle: "e.g. en",
             text: $braveLanguage,
             usesMonospacedFont: true
         )
     }
 
     private var braveSafesearchRow: some View {
-        JinSettingsPickerRow(
-            "Safesearch",
-            supportingText: "Uses Brave's provider-side safe search filter.",
-            selection: $braveSafesearch
-        ) {
+        JinSettingsPickerRow("Safesearch", selection: $braveSafesearch) {
             Text("Provider default").tag("")
             Text("Off").tag("off")
             Text("Moderate").tag("moderate")
@@ -203,24 +141,18 @@ struct WebSearchAdvancedProviderSettingsView: View {
 
     @ViewBuilder
     private var jinaSettings: some View {
-        JinSettingsToggleRow(
-            "Fetch pages with Jina Reader",
-            supportingText: "When off, Jina returns search hits with no per-page content (fast path).",
-            isOn: $jinaReadPages
-        )
+        JinSettingsToggleRow("Fetch pages with Jina Reader", isOn: $jinaReadPages)
 
         JinSettingsTextFieldRow(
             "Country",
-            fieldTitle: "Country",
-            supportingText: "Optional 2-letter country code that Jina passes through to the search engine.",
+            fieldTitle: "e.g. US",
             text: $jinaCountry,
             usesMonospacedFont: true
         )
 
         JinSettingsTextFieldRow(
             "Locale",
-            fieldTitle: "Locale",
-            supportingText: "Optional locale (BCP-47), e.g. en-US or de-DE.",
+            fieldTitle: "e.g. en-US",
             text: $jinaLocale,
             usesMonospacedFont: true
         )
@@ -228,45 +160,25 @@ struct WebSearchAdvancedProviderSettingsView: View {
 
     @ViewBuilder
     private var firecrawlSettings: some View {
-        JinSettingsToggleRow(
-            "Extract markdown content",
-            supportingText: "When enabled, Firecrawl returns extracted page content instead of just the search hit.",
-            isOn: $firecrawlExtractContent
-        )
+        JinSettingsToggleRow("Extract markdown content", isOn: $firecrawlExtractContent)
 
         JinSettingsTextFieldRow(
             "Country",
-            fieldTitle: "Country",
-            supportingText: "Optional 2-letter country code for Firecrawl results.",
+            fieldTitle: "e.g. US",
             text: $firecrawlCountry,
             usesMonospacedFont: true
         )
 
         JinSettingsTextFieldRow(
             "Language",
-            fieldTitle: "Language",
-            supportingText: "Optional language hint passed as `lang` to Firecrawl.",
+            fieldTitle: "e.g. en",
             text: $firecrawlLanguage,
             usesMonospacedFont: true
         )
 
-        JinSettingsToggleRow(
-            "Web results",
-            supportingText: "Standard search hits.",
-            isOn: firecrawlSourceBinding(for: .web)
-        )
-
-        JinSettingsToggleRow(
-            "News results",
-            supportingText: "Includes news articles when Firecrawl has them.",
-            isOn: firecrawlSourceBinding(for: .news)
-        )
-
-        JinSettingsToggleRow(
-            "Image results",
-            supportingText: "Includes image hits when Firecrawl has them.",
-            isOn: firecrawlSourceBinding(for: .images)
-        )
+        JinSettingsToggleRow("Web results", isOn: firecrawlSourceBinding(for: .web))
+        JinSettingsToggleRow("News results", isOn: firecrawlSourceBinding(for: .news))
+        JinSettingsToggleRow("Image results", isOn: firecrawlSourceBinding(for: .images))
     }
 
     @ViewBuilder
@@ -276,38 +188,30 @@ struct WebSearchAdvancedProviderSettingsView: View {
 
         JinSettingsTextFieldRow(
             "Country",
-            fieldTitle: "Country",
-            supportingText: "Optional 2-letter country code. Tavily applies country only on the General topic.",
+            fieldTitle: "e.g. US",
+            supportingText: "Applies on General topic only.",
             text: $tavilyCountry,
             usesMonospacedFont: true
         )
 
         JinSettingsToggleRow(
             "Auto-tune parameters",
-            supportingText: "Lets Tavily override search depth and topic when it has higher confidence.",
+            supportingText: "Tavily may override depth and topic.",
             isOn: $tavilyAutoParameters
         )
     }
 
     private var tavilySearchDepthRow: some View {
-        JinSettingsPickerRow(
-            "Search depth",
-            supportingText: "Deeper searches can improve coverage but may consume more credits.",
-            selection: $tavilySearchDepth
-        ) {
-            Text("Basic (1 credit)").tag("basic")
-            Text("Fast (1 credit)").tag("fast")
-            Text("Advanced (2 credits)").tag("advanced")
-            Text("Ultra-fast (2 credits)").tag("ultra-fast")
+        JinSettingsPickerRow("Search depth", selection: $tavilySearchDepth) {
+            Text("Basic").tag("basic")
+            Text("Fast").tag("fast")
+            Text("Advanced").tag("advanced")
+            Text("Ultra-fast").tag("ultra-fast")
         }
     }
 
     private var tavilyTopicRow: some View {
-        JinSettingsPickerRow(
-            "Topic",
-            supportingText: "Choose a topic hint when you want results tuned for a specific domain.",
-            selection: $tavilyTopic
-        ) {
+        JinSettingsPickerRow("Topic", selection: $tavilyTopic) {
             Text("General").tag("general")
             Text("News").tag("news")
             Text("Finance").tag("finance")
@@ -318,16 +222,14 @@ struct WebSearchAdvancedProviderSettingsView: View {
     private var perplexitySettings: some View {
         JinSettingsTextFieldRow(
             "Country",
-            fieldTitle: "Country",
-            supportingText: "Optional 2-letter country code (ISO 3166-1 alpha-2).",
+            fieldTitle: "e.g. US",
             text: $perplexityCountry,
             usesMonospacedFont: true
         )
 
         JinSettingsTextFieldRow(
             "Language",
-            fieldTitle: "Language",
-            supportingText: "Optional ISO 639-1 language code, e.g. en or de.",
+            fieldTitle: "e.g. en",
             text: $perplexityLanguage,
             usesMonospacedFont: true
         )

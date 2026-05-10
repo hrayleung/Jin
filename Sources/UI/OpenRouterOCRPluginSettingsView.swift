@@ -18,7 +18,7 @@ struct OpenRouterOCRPluginSettingsView: View {
 
     var body: some View {
         JinSettingsPage(maxWidth: 620) {
-            JinSettingsSection("Connection") {
+            JinSettingsSection("API Key") {
                 JinSettingsSecureFieldRow(
                     "API Key",
                     text: $apiKey,
@@ -90,7 +90,7 @@ struct OpenRouterOCRPluginSettingsView: View {
         lastPersistedAPIKey = ""
         apiKey = ""
         UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.pluginOpenRouterOCRAPIKey)
-        statusMessage = "Cleared"
+        statusMessage = "Cleared."
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 
@@ -117,7 +117,7 @@ struct OpenRouterOCRPluginSettingsView: View {
             UserDefaults.standard.set(key, forKey: AppPreferenceKeys.pluginOpenRouterOCRAPIKey)
         }
         lastPersistedAPIKey = key
-        statusMessage = key.isEmpty ? "Cleared" : nil
+        statusMessage = key.isEmpty ? "Cleared." : nil
         statusIsError = false
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }

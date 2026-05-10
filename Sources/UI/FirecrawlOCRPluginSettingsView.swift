@@ -20,11 +20,10 @@ struct FirecrawlOCRPluginSettingsView: View {
         JinSettingsPage(maxWidth: 620) {
             JinSettingsSection(
                 "Shared Firecrawl API Key",
-                detail: "This key is used by Firecrawl OCR and the Web Search plugin."
+                detail: "Used by Firecrawl OCR and the Web Search plugin."
             ) {
                 JinSettingsSecureFieldRow(
                     "API Key",
-                    supportingText: "Changes save automatically.",
                     text: $apiKey,
                     isRevealed: $isKeyVisible,
                     usesMonospacedFont: true,
@@ -41,19 +40,15 @@ struct FirecrawlOCRPluginSettingsView: View {
                     Spacer()
                 }
 
-                Text(statusMessage ?? "Shared with Web Search.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let statusMessage {
+                    Text(statusMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
-            JinSettingsSection(
-                "Before You Use Firecrawl OCR",
-                detail: "Firecrawl OCR needs one shared API key and a configured Cloudflare R2 upload target.",
-                style: .plain
-            ) {
-                guidanceSection
-            }
+            r2RequirementCallout
         }
         .navigationTitle("Firecrawl OCR")
         .task {
@@ -69,49 +64,23 @@ struct FirecrawlOCRPluginSettingsView: View {
         }
     }
 
-    private var guidanceSection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            guidanceRow(
-                title: "Cloudflare R2 is required",
-                detail: "Firecrawl OCR uploads each local PDF to your configured public R2 bucket before calling Firecrawl.",
-                systemImage: "externaldrive.badge.icloud"
-            )
+    private var r2RequirementCallout: some View {
+        HStack(alignment: .firstTextBaseline, spacing: JinSpacing.medium) {
+            Text("Requires Cloudflare R2 to be configured for uploads.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Divider()
+            Spacer(minLength: JinSpacing.small)
 
-            guidanceRow(
-                title: "Configure the upload target first",
-                detail: "Open Settings → Plugins → Cloudflare R2 Upload and add your bucket details there.",
-                systemImage: "gearshape.2"
-            )
-
-            Divider()
-
-            guidanceRow(
-                title: "Choose a parser per chat",
-                detail: "Use the PDF menu to switch between Fast, Auto, and OCR for each conversation.",
-                systemImage: "doc.text.magnifyingglass"
-            )
-        }
-    }
-
-    private func guidanceRow(title: String, detail: String, systemImage: String) -> some View {
-        HStack(alignment: .top, spacing: JinSpacing.medium) {
-            Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.tertiary)
-                .frame(width: 16)
-                .padding(.top, 2)
-
-            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            Button("Configure R2 Upload…") {
+                NotificationCenter.default.post(
+                    name: .settingsNavigateToPlugin,
+                    object: nil,
+                    userInfo: [SettingsNavigationUserInfoKey.pluginID: "cloudflare_r2_upload"]
+                )
             }
+            .buttonStyle(.link)
         }
     }
 
@@ -155,7 +124,7 @@ struct FirecrawlOCRPluginSettingsView: View {
             UserDefaults.standard.set(key, forKey: AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)
         }
         lastPersistedAPIKey = key
-        statusMessage = key.isEmpty ? "Cleared." : "Saved automatically."
+        statusMessage = key.isEmpty ? "Cleared." : nil
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
     }
 }

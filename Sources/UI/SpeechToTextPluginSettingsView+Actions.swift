@@ -138,7 +138,7 @@ extension SpeechToTextPluginSettingsView {
         if isCurrentProvider {
             lastPersistedAPIKey = key
             if showSavedStatus {
-                statusMessage = key.isEmpty ? "Cleared." : "Saved automatically."
+                statusMessage = key.isEmpty ? "Cleared." : nil
                 statusIsError = false
             }
         }
