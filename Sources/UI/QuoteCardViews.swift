@@ -79,6 +79,8 @@ private struct QuoteCardContainer<Accessory: View>: View {
     let density: QuoteCardDensity
     let accessory: Accessory
 
+    @State private var isHovering = false
+
     init(
         quote: QuoteContent,
         density: QuoteCardDensity = .message,
@@ -149,76 +151,66 @@ private struct QuoteCardContainer<Accessory: View>: View {
         )
     }
 
+    private var composerTooltip: String {
+        let header = composerHeader
+        let prefix: String
+        if let modelName = header.modelName {
+            prefix = "\(header.prefix) \(modelName)"
+        } else {
+            prefix = header.prefix
+        }
+        return "\(prefix)\n\n\(quote.quotedText)"
+    }
+
     private var composerQuoteBody: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .center, spacing: JinSpacing.xSmall + 2) {
-                Image(systemName: "arrowshape.turn.up.left.fill")
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(QuoteCardPalette.accent)
-
-                if let iconID = quote.sourceProviderIconID {
-                    ProviderIconView(iconID: iconID, fallbackSystemName: "sparkles", size: 11)
-                        .frame(width: 11, height: 11)
-                }
-
-                headerLabel
-
-                Spacer(minLength: JinSpacing.xSmall)
-
-                accessory
-                    .layoutPriority(1)
-            }
+        HStack(alignment: .top, spacing: 0) {
+            RoundedRectangle(cornerRadius: 1, style: .continuous)
+                .fill(QuoteCardPalette.accent)
+                .frame(width: 2)
+                .padding(.vertical, JinSpacing.small - 2)
+                .padding(.leading, JinSpacing.small - 2)
 
             Text(quote.quotedText)
-                .font(.callout)
-                .foregroundStyle(.primary.opacity(0.86))
-                .lineLimit(2)
+                .font(.caption)
+                .foregroundStyle(.primary.opacity(0.85))
+                .lineLimit(QuoteCardLayout.composerLineLimit)
                 .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.leading, JinSpacing.medium + 4)
-        .padding(.trailing, JinSpacing.small + 2)
-        .padding(.vertical, JinSpacing.small)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
-        .background(
-            RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                .fill(JinSemanticColor.subtleSurface)
-        )
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 1.25, style: .continuous)
-                .fill(QuoteCardPalette.accent)
-                .frame(width: 2.5)
-                .padding(.vertical, JinSpacing.small)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(.leading, JinSpacing.small)
+                .padding(.trailing, JinSpacing.small)
+                .padding(.vertical, JinSpacing.small)
         }
-        .overlay(
-            RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                .stroke(JinSemanticColor.separator.opacity(0.5), lineWidth: JinStrokeWidth.hairline)
+        .frame(
+            width: QuoteCardLayout.composerWidth,
+            height: QuoteCardLayout.composerHeight,
+            alignment: .topLeading
         )
-    }
-
-    @ViewBuilder
-    private var headerLabel: some View {
-        let header = composerHeader
-        if let modelName = header.modelName {
-            HStack(spacing: 4) {
-                Text(header.prefix)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Text(modelName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-        } else {
-            Text(header.prefix)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+        .background(
+            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                .fill(JinSemanticColor.subtleSurface.opacity(0.65))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                .stroke(JinSemanticColor.separator.opacity(0.4), lineWidth: JinStrokeWidth.hairline)
+        )
+        .overlay(alignment: .topTrailing) {
+            accessory
+                .opacity(isHovering ? 1 : 0)
+                .animation(.easeInOut(duration: 0.12), value: isHovering)
+                .padding(.top, 2)
+                .padding(.trailing, 2)
         }
+        .contentShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+        .onHover { isHovering = $0 }
+        .help(composerTooltip)
     }
+}
+
+enum QuoteCardLayout {
+    static let composerWidth: CGFloat = 160
+    static let composerHeight: CGFloat = 76
+    static let composerLineLimit: Int = 4
 }
 
 struct MessageQuoteCardView: View {
@@ -264,16 +256,21 @@ private struct QuoteDismissButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 9, weight: .bold))
+                .font(.system(size: 8, weight: .bold))
                 .foregroundStyle(
                     isHovering
-                        ? AnyShapeStyle(Color.primary.opacity(0.78))
-                        : AnyShapeStyle(HierarchicalShapeStyle.tertiary)
+                        ? AnyShapeStyle(Color.primary.opacity(0.85))
+                        : AnyShapeStyle(Color.primary.opacity(0.55))
                 )
-                .frame(width: 18, height: 18)
+                .frame(width: 16, height: 16)
                 .background(
                     Circle()
-                        .fill(Color.primary.opacity(isHovering ? 0.08 : 0))
+                        .fill(.regularMaterial)
+                        .opacity(isHovering ? 1 : 0.85)
+                )
+                .overlay(
+                    Circle()
+                        .stroke(JinSemanticColor.separator.opacity(0.4), lineWidth: JinStrokeWidth.hairline)
                 )
                 .contentShape(Rectangle())
         }
