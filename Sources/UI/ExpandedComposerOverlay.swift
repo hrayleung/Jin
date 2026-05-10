@@ -85,8 +85,8 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
 
         if !draftQuotes.isEmpty {
             ExpandedComposerAccessorySection(title: "Quotes", systemName: "quote.opening") {
-                ScrollView(.vertical, showsIndicators: true) {
-                    VStack(alignment: .leading, spacing: JinSpacing.xSmall + 2) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: JinSpacing.small) {
                         ForEach(draftQuotes) { quote in
                             ComposerQuoteCardView(quote: quote) {
                                 onRemoveQuote(quote)
@@ -95,8 +95,9 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
                             .transition(ComposerQuoteCardView.transition(reduceMotion: reduceMotion))
                         }
                     }
+                    .padding(.horizontal, JinSpacing.xSmall)
+                    .padding(.vertical, 2)
                 }
-                .frame(maxHeight: 168)
             }
         }
 
