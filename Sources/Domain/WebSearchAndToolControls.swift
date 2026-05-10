@@ -115,7 +115,7 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
         case .jina: return URL(string: "https://jina.ai/api-dashboard/")
         case .firecrawl: return URL(string: "https://www.firecrawl.dev/")
         case .tavily: return URL(string: "https://app.tavily.com/")
-        case .perplexity: return URL(string: "https://www.perplexity.ai/settings/api")
+        case .perplexity: return URL(string: "https://docs.perplexity.ai/")
         }
     }
 }
