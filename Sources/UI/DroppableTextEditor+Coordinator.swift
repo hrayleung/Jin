@@ -12,6 +12,8 @@ extension DroppableTextEditor {
         private let onCancel: () -> Bool
         private let onContentHeightChanged: ((CGFloat) -> Void)?
         private var onInterceptKeyDown: ((UInt16) -> Bool)?
+        private var lastReportedContentHeight: CGFloat?
+        private var hasPendingBindingFlush = false
 
         init(
             text: Binding<String>,
@@ -45,8 +47,28 @@ extension DroppableTextEditor {
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
-            textBinding.wrappedValue = textView.string
             reportContentHeight(textView)
+            scheduleBindingFlush(for: textView)
+        }
+
+        /// Treat NSTextView's native string as the source of truth during
+        /// active typing. The SwiftUI binding (and the view-update cascade
+        /// downstream of it) flushes on the next runloop iteration so the
+        /// character display is not gated on `withObservationTracking`
+        /// re-evaluating the composer subtree.
+        var isBindingFlushPending: Bool { hasPendingBindingFlush }
+
+        private func scheduleBindingFlush(for textView: NSTextView) {
+            if hasPendingBindingFlush { return }
+            hasPendingBindingFlush = true
+            DispatchQueue.main.async { [weak self, weak textView] in
+                guard let self = self, let textView = textView else { return }
+                let latest = textView.string
+                self.hasPendingBindingFlush = false
+                if self.textBinding.wrappedValue != latest {
+                    self.textBinding.wrappedValue = latest
+                }
+            }
         }
 
         func reportContentHeight(_ textView: NSTextView) {
@@ -57,6 +79,10 @@ extension DroppableTextEditor {
             let usedRect = layoutManager.usedRect(for: textContainer)
             let insets = textView.textContainerInset
             let height = usedRect.height + insets.height * 2
+            if let last = lastReportedContentHeight, abs(last - height) <= 0.5 {
+                return
+            }
+            lastReportedContentHeight = height
             onContentHeightChanged(height)
         }
 

@@ -44,12 +44,9 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     let controlsRow: () -> ControlsRow
 
     @State private var isEditorFocused = false
+    @State private var draftMetrics: ComposerDraftTextMetrics = ComposerDraftTextMetrics(messageText: "")
 
     private let panelCornerRadius: CGFloat = 26
-
-    private var draftMetrics: ComposerDraftTextMetrics {
-        ComposerDraftTextMetrics(messageText: messageText)
-    }
 
     private var sendButtonPresentation: ComposerSendButtonPresentation {
         ComposerSendButtonPresentation(
@@ -132,10 +129,14 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
             .frame(minWidth: 760, idealWidth: 820, maxWidth: 860, minHeight: 560, idealHeight: 640, maxHeight: 680)
             .background(sheetBackground)
             .onAppear {
+                draftMetrics = ComposerDraftTextMetrics(messageText: messageText)
                 DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.02 : 0.08)) {
                     guard isPresented else { return }
                     isEditorFocused = true
                 }
+            }
+            .onChange(of: messageText) { _, newValue in
+                draftMetrics = ComposerDraftTextMetrics(messageText: newValue)
             }
             .onDisappear {
                 isEditorFocused = false

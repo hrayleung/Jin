@@ -19,8 +19,9 @@ extension ChatView {
     private var floatingComposerContent: some View {
         VStack(spacing: JinSpacing.small) {
             if isComposerHidden {
-                CollapsedComposerBar(
-                    hasContent: !messageText.isEmpty || !draftAttachments.isEmpty || !draftQuotes.isEmpty,
+                ChatCollapsedComposerBarHost(
+                    composerTextStore: composerTextStore,
+                    hasOtherContent: !draftAttachments.isEmpty || !draftQuotes.isEmpty,
                     onExpand: showComposer
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -53,6 +54,9 @@ extension ChatView {
             GeometryReader { geo in
                 Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)
             }
+        }
+        .overlay {
+            composerTextChangeObserver
         }
     }
 

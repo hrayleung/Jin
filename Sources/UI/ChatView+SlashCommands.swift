@@ -35,6 +35,10 @@ extension ChatView {
             return
         }
 
+        if !isSlashMCPPopoverVisible, !SlashCommandDetection.mayContainActiveToken(in: text) {
+            return
+        }
+
         if let filter = SlashCommandDetection.detectFilter(in: text) {
             slashMCPFilterText = filter
             slashCommandTarget = target
