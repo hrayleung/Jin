@@ -5,9 +5,8 @@ import UniformTypeIdentifiers
 /// `.onDrop` API with the standard `public.text` UTI and an NSString
 /// payload — the modern Transferable + custom-UTType path silently
 /// dropped on macOS, and so did `.ownProcess` NSItemProvider visibility
-/// + bespoke UTI. See `/Users/hinrayleung/.claude/plans/lucky-skipping-reef.md`
-/// for the full diagnosis (List ancestor + Button + visibility + UTI
-/// declaration each kill the drop).
+/// + bespoke UTI. (List ancestor + Button wrapper + visibility +
+/// custom UTI declaration each independently kill the drop.)
 struct AssistantDragReorderModifier: ViewModifier {
     let isEnabled: Bool
     let assistantID: String
