@@ -80,7 +80,13 @@ struct ChatView: View {
     // MARK: - State Properties
 
     @State var controls: GenerationControls = GenerationControls()
-    @State var messageText = ""
+    // Composer text lives in an @Observable store so per-keystroke writes do
+    // not invalidate ChatView's body. Read `composerTextStore.text` only from
+    // action handlers (or via the `messageText` accessor); body-context reads
+    // must go through ChatComposerBindingHost / ChatComposerTextChangeObserver
+    // so the dependency is scoped to those small wrapper views.
+    // swiftlint:disable:next private_swiftui_state
+    @State var composerTextStore = ComposerTextStore()
     @State var remoteVideoInputURLText = ""
     @State var draftAttachments: [DraftAttachment] = []
     // swiftlint:disable:next private_swiftui_state

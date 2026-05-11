@@ -180,10 +180,31 @@ final class ChatComposerSupportTests: XCTestCase {
         XCTAssertNil(SlashCommandDetection.detectFilter(in: "ask //git"))
     }
 
+    func testSlashCommandDetectionEdgeCases() {
+        XCTAssertNil(SlashCommandDetection.detectFilter(in: ""))
+        XCTAssertNil(SlashCommandDetection.detectFilter(in: "    "))
+        XCTAssertNil(SlashCommandDetection.detectFilter(in: "just plain text"))
+        XCTAssertNil(SlashCommandDetection.detectFilter(in: "trailing space "))
+        XCTAssertEqual(SlashCommandDetection.detectFilter(in: "line one\n/git"), "git")
+        XCTAssertEqual(SlashCommandDetection.detectFilter(in: "tab\there\t/git"), "git")
+        XCTAssertNil(SlashCommandDetection.detectFilter(in: "line one\n/git now"))
+    }
+
     func testSlashCommandRemovalDropsOnlyTrailingBoundaryToken() {
         XCTAssertEqual(SlashCommandDetection.removeSlashToken(from: "/git"), "")
         XCTAssertEqual(SlashCommandDetection.removeSlashToken(from: "ask /git"), "ask ")
         XCTAssertEqual(SlashCommandDetection.removeSlashToken(from: "ask/git"), "ask/git")
         XCTAssertEqual(SlashCommandDetection.removeSlashToken(from: "ask /git now"), "ask /git now")
+        XCTAssertEqual(SlashCommandDetection.removeSlashToken(from: ""), "")
+        XCTAssertEqual(SlashCommandDetection.removeSlashToken(from: "line one\n/git"), "line one\n")
+    }
+
+    func testMayContainActiveTokenShortCircuitsWhenSafe() {
+        XCTAssertFalse(SlashCommandDetection.mayContainActiveToken(in: ""))
+        XCTAssertFalse(SlashCommandDetection.mayContainActiveToken(in: "plain message without any slash"))
+        XCTAssertFalse(SlashCommandDetection.mayContainActiveToken(in: "text /command was here "))
+        XCTAssertTrue(SlashCommandDetection.mayContainActiveToken(in: "/"))
+        XCTAssertTrue(SlashCommandDetection.mayContainActiveToken(in: "ask /git"))
+        XCTAssertTrue(SlashCommandDetection.mayContainActiveToken(in: "ask/git"))
     }
 }

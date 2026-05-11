@@ -5,6 +5,16 @@ import UniformTypeIdentifiers
 
 extension ChatView {
 
+    /// Accessor for the composer text. **Only safe to use from action handlers
+    /// (button taps, drop callbacks, streaming events, etc.)**. Reading this
+    /// from a SwiftUI view body would observe `composerTextStore.text` and
+    /// invalidate the body on every keystroke — the whole point of the store
+    /// is to keep that observation scoped to the small wrapper hosts.
+    var messageText: String {
+        get { composerTextStore.text }
+        nonmutating set { composerTextStore.text = newValue }
+    }
+
     var trimmedMessageText: String {
         messageText.trimmed
     }

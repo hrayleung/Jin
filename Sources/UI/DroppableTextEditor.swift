@@ -132,8 +132,16 @@ struct DroppableTextEditor: NSViewRepresentable {
             textView.useCommandEnterToSubmit = useCommandEnterToSubmit
         }
 
-        if textView.syncExternalTextIfNeeded(text) {
-            context.coordinator.reportContentHeight(textView)
+        // While the user is actively typing, the pending-flush flag tells us
+        // the binding value carried by SwiftUI is stale — the authoritative
+        // text is whatever the NSTextView already shows. Skipping the sync
+        // prevents the stale binding from overwriting the in-flight string
+        // when an unrelated state change triggers updateNSView between
+        // textDidChange and the next runloop flush.
+        if !context.coordinator.isBindingFlushPending {
+            if textView.syncExternalTextIfNeeded(text) {
+                context.coordinator.reportContentHeight(textView)
+            }
         }
 
         if textView.font != font {
