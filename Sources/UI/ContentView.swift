@@ -126,8 +126,9 @@ struct ContentView: View {
         VStack(spacing: 0) {
             sidebarPinnedChrome
 
+            assistantsArea
+
             List(selection: conversationListSelectionBinding) {
-                assistantsSection
                 chatsSection
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
