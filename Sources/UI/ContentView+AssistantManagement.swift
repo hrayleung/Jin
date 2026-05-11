@@ -67,6 +67,35 @@ extension ContentView {
         assistantPendingDeletion = nil
     }
 
+    /// Reorders `sourceID` so it skips past `targetID` in the direction it was
+    /// dragged: forward drags land the source immediately *after* the target,
+    /// backward drags land it immediately *before*. Returns `true` if the
+    /// order changed and was persisted.
+    @discardableResult
+    func reorderAssistant(sourceID: String, onto targetID: String) -> Bool {
+        guard sourceID != targetID else { return false }
+        var ordered = assistants
+        guard let sourceIdx = ordered.firstIndex(where: { $0.id == sourceID }),
+              let targetIdx = ordered.firstIndex(where: { $0.id == targetID }) else {
+            return false
+        }
+
+        let item = ordered.remove(at: sourceIdx)
+        ordered.insert(item, at: targetIdx)
+
+        let now = Date()
+        var changed = false
+        for (newOrder, assistant) in ordered.enumerated() where assistant.sortOrder != newOrder {
+            assistant.sortOrder = newOrder
+            assistant.updatedAt = now
+            changed = true
+        }
+        guard changed else { return false }
+
+        try? modelContext.save()
+        return true
+    }
+
     // MARK: - Sidebar Layout Helpers
 
     var displayedAssistants: [AssistantEntity] {
