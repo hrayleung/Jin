@@ -61,11 +61,18 @@ extension DroppableTextEditor {
         private func scheduleBindingFlush(for textView: NSTextView) {
             if hasPendingBindingFlush { return }
             hasPendingBindingFlush = true
+            // Capture the binding value at schedule time. If app code mutates
+            // it before our async block runs (e.g. clear-on-submit), the
+            // baseline check below makes the programmatic change win — we
+            // would otherwise restore stale text the user already "sent".
+            let baseline = textBinding.wrappedValue
             DispatchQueue.main.async { [weak self, weak textView] in
-                guard let self = self, let textView = textView else { return }
+                guard let self = self else { return }
+                defer { self.hasPendingBindingFlush = false }
+                guard let textView = textView else { return }
+                guard self.textBinding.wrappedValue == baseline else { return }
                 let latest = textView.string
-                self.hasPendingBindingFlush = false
-                if self.textBinding.wrappedValue != latest {
+                if latest != baseline {
                     self.textBinding.wrappedValue = latest
                 }
             }

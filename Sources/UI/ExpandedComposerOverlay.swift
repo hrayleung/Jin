@@ -44,9 +44,86 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     let controlsRow: () -> ControlsRow
 
     @State private var isEditorFocused = false
-    @State private var draftMetrics: ComposerDraftTextMetrics = ComposerDraftTextMetrics(messageText: "")
+    @State private var draftMetrics: ComposerDraftTextMetrics
 
     private let panelCornerRadius: CGFloat = 26
+
+    // Custom init so `draftMetrics` reflects the existing draft on first render
+    // instead of flashing "0 words · 0 characters" while expanding from compact.
+    init(
+        messageText: Binding<String>,
+        remoteVideoURLText: Binding<String>,
+        draftAttachments: Binding<[DraftAttachment]>,
+        draftQuotes: Binding<[DraftQuote]>,
+        isPresented: Binding<Bool>,
+        isComposerDropTargeted: Binding<Bool>,
+        contextUsageEstimate: ChatContextUsageEstimate?,
+        currentModelName: String?,
+        sendWithCommandEnter: Bool,
+        isBusy: Bool,
+        canSendDraft: Bool,
+        showsRemoteVideoURLField: Bool,
+        isPreparingToSend: Bool,
+        prepareToSendStatus: String?,
+        isRecording: Bool,
+        isTranscribing: Bool,
+        recordingDurationText: String,
+        transcribingStatusText: String,
+        onCollapse: @escaping () -> Void,
+        onHide: @escaping () -> Void,
+        onSend: @escaping () -> Void,
+        onDropFileURLs: @escaping ([URL]) -> Bool,
+        onDropImages: @escaping ([NSImage]) -> Bool,
+        onRemoveAttachment: @escaping (DraftAttachment) -> Void,
+        onRemoveQuote: @escaping (DraftQuote) -> Void,
+        slashCommandServers: [SlashCommandMCPServerItem],
+        isSlashCommandActive: Bool,
+        slashCommandFilterText: String,
+        slashCommandHighlightedIndex: Int,
+        perMessageMCPChips: [SlashCommandMCPServerItem],
+        onSlashCommandSelectServer: @escaping (String) -> Void,
+        onSlashCommandDismiss: @escaping () -> Void,
+        onRemovePerMessageMCPServer: @escaping (String) -> Void,
+        onInterceptKeyDown: ((UInt16) -> Bool)?,
+        @ViewBuilder controlsRow: @escaping () -> ControlsRow
+    ) {
+        _messageText = messageText
+        _remoteVideoURLText = remoteVideoURLText
+        _draftAttachments = draftAttachments
+        _draftQuotes = draftQuotes
+        _isPresented = isPresented
+        _isComposerDropTargeted = isComposerDropTargeted
+        self.contextUsageEstimate = contextUsageEstimate
+        self.currentModelName = currentModelName
+        self.sendWithCommandEnter = sendWithCommandEnter
+        self.isBusy = isBusy
+        self.canSendDraft = canSendDraft
+        self.showsRemoteVideoURLField = showsRemoteVideoURLField
+        self.isPreparingToSend = isPreparingToSend
+        self.prepareToSendStatus = prepareToSendStatus
+        self.isRecording = isRecording
+        self.isTranscribing = isTranscribing
+        self.recordingDurationText = recordingDurationText
+        self.transcribingStatusText = transcribingStatusText
+        self.onCollapse = onCollapse
+        self.onHide = onHide
+        self.onSend = onSend
+        self.onDropFileURLs = onDropFileURLs
+        self.onDropImages = onDropImages
+        self.onRemoveAttachment = onRemoveAttachment
+        self.onRemoveQuote = onRemoveQuote
+        self.slashCommandServers = slashCommandServers
+        self.isSlashCommandActive = isSlashCommandActive
+        self.slashCommandFilterText = slashCommandFilterText
+        self.slashCommandHighlightedIndex = slashCommandHighlightedIndex
+        self.perMessageMCPChips = perMessageMCPChips
+        self.onSlashCommandSelectServer = onSlashCommandSelectServer
+        self.onSlashCommandDismiss = onSlashCommandDismiss
+        self.onRemovePerMessageMCPServer = onRemovePerMessageMCPServer
+        self.onInterceptKeyDown = onInterceptKeyDown
+        self.controlsRow = controlsRow
+        _draftMetrics = State(initialValue: ComposerDraftTextMetrics(messageText: messageText.wrappedValue))
+    }
 
     private var sendButtonPresentation: ComposerSendButtonPresentation {
         ComposerSendButtonPresentation(
@@ -129,7 +206,6 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
             .frame(minWidth: 760, idealWidth: 820, maxWidth: 860, minHeight: 560, idealHeight: 640, maxHeight: 680)
             .background(sheetBackground)
             .onAppear {
-                draftMetrics = ComposerDraftTextMetrics(messageText: messageText)
                 DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.02 : 0.08)) {
                     guard isPresented else { return }
                     isEditorFocused = true

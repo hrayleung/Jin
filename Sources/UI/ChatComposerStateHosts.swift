@@ -32,7 +32,7 @@ struct ChatCollapsedComposerBarHost: View {
 
     var body: some View {
         CollapsedComposerBar(
-            hasContent: !composerTextStore.text.isEmpty || hasOtherContent,
+            hasContent: !composerTextStore.text.trimmed.isEmpty || hasOtherContent,
             onExpand: onExpand
         )
     }

@@ -7,6 +7,7 @@ import Observation
 /// commands) observe this store directly; ChatView itself only passes the
 /// reference down and reads `text` from non-body contexts.
 @Observable
+@MainActor
 final class ComposerTextStore {
     var text: String = ""
 }
