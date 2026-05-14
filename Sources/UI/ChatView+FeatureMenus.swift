@@ -28,7 +28,7 @@ extension ChatView {
 
         Divider()
 
-        Text("$30 / $150 MTok \u{00B7} extra usage")
+        Text("$30/$150 MTok \u{00B7} extra usage")
             .font(.caption)
             .foregroundStyle(.secondary)
     }

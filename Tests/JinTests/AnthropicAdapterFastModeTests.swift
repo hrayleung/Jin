@@ -112,7 +112,9 @@ final class AnthropicAdapterFastModeTests: XCTestCase {
             )
         )
 
-        let parts = header.split(separator: ",").map(String.init)
+        let parts = header
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         XCTAssertTrue(parts.contains("files-api-2025-04-14"))
         XCTAssertTrue(parts.contains("fast-mode-2026-02-01"))
         XCTAssertEqual(parts.count, 2)
