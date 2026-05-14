@@ -290,4 +290,138 @@ final class MarkdownRenderPreparationTests: XCTestCase {
         XCTAssertFalse(result.didChange)
         XCTAssertEqual(result.text, input)
     }
+
+    // MARK: - Smushed `**bold title**` at end of heading line
+
+    func testSplitsSmushedBoldTitleInH2WithEmojiPrefix() {
+        let input = "## 🌍 Major Stories**Trump-Xi Summit in Beijing**"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertEqual(result.diagnostics.repairMode, .repaired)
+        XCTAssertLessThan(result.diagnostics.anomalyScoreAfter, result.diagnostics.anomalyScoreBefore)
+        XCTAssertTrue(result.text.contains("## 🌍 Major Stories\n**Trump-Xi Summit in Beijing**"))
+    }
+
+    func testSplitsSmushedBoldTitleAcrossMultipleSectionsScreenshotInput() {
+        let input = """
+        ## 🌍 Major Stories**Trump-Xi Summit in Beijing**
+        President Trump is meeting with Xi Jinping in Beijing.
+
+        **China Gains Edge on U.S. Amid Iran War**
+        A confidential U.S. intelligence assessment circulating during the trip.
+
+        ## 🏛️ U.S. News**Alex Murdaugh Convictions Overturned**
+        The South Carolina Supreme Court overturned the murder convictions.
+
+        ## 🌐 International**Kyiv Under Attack**
+        Russian missiles and drones pounded Kyiv overnight.
+        """
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertTrue(result.text.contains("## 🌍 Major Stories\n**Trump-Xi Summit in Beijing**"))
+        XCTAssertTrue(result.text.contains("## 🏛️ U.S. News\n**Alex Murdaugh Convictions Overturned**"))
+        XCTAssertTrue(result.text.contains("## 🌐 International\n**Kyiv Under Attack**"))
+        // Already-correct subsection titles must not be duplicated or mangled.
+        let correctOccurrences = result.text.components(separatedBy: "**China Gains Edge on U.S. Amid Iran War**").count - 1
+        XCTAssertEqual(correctOccurrences, 1)
+    }
+
+    func testSplitsSmushedBoldTitleWhileStreaming() {
+        let input = "## 🌍 Major Stories**Trump-Xi Summit in Beijing**"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertTrue(result.text.contains("## 🌍 Major Stories\n**Trump-Xi Summit in Beijing**"))
+    }
+
+    func testSplitsSmushedBoldTitleAtOtherHeadingLevels() {
+        let h1Input = "# Top Section**Multi Word Subtitle Here**"
+        let h1Result = MarkdownRenderPreparation.prepareForRender(h1Input, isStreaming: false)
+        XCTAssertTrue(h1Result.text.contains("# Top Section\n**Multi Word Subtitle Here**"))
+
+        let h3Input = "### Sub Section**Multi Word Subtitle Here**"
+        let h3Result = MarkdownRenderPreparation.prepareForRender(h3Input, isStreaming: false)
+        XCTAssertTrue(h3Result.text.contains("### Sub Section\n**Multi Word Subtitle Here**"))
+    }
+
+    func testDoesNotSplitHeadingWithSpacedBoldFollowedByPunctuation() {
+        let input = "## Welcome to **Jin**!"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testDoesNotSplitHeadingWithSpacedBoldReference() {
+        let input = "## See **Section 3.2 for details**"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testDoesNotSplitHeadingStartingWithBold() {
+        let input = "## **Important multi word**: update available"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testDoesNotSplitShortBoldAbbreviation() {
+        let input = "## Note**TODO**"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testDoesNotSplitSmushedSingleWordBold() {
+        let input = "## Section**Subtitle**"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testDoesNotSplitWhenBoldNotAtEndOfLine() {
+        let input = "## Section**Bold word here**More text after"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testDoesNotSplitStreamingPartialBeforeClosingMarkers() {
+        // Closing `**` hasn't arrived yet — the detector requires it at end
+        // of line, so during streaming the smushed heading stays as one line
+        // until the next chunk fills in the close.
+        let input = "## 🌍 Major Stories**Trump-Xi Summit in Beij"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertFalse(result.text.contains("## 🌍 Major Stories\n**"))
+    }
+
+    func testStreamingUnclosedBoldHeadingStillGetsSyntheticClose() {
+        let input = "## Foo**Bar Baz"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertEqual(result.text, "## Foo**Bar Baz**")
+    }
+
+    func testDoesNotSplitEscapedSmushedBoldMarkerInHeading() {
+        let input = #"## Title\**not bold text**"#
+
+        let finalResult = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+        XCTAssertFalse(finalResult.didChange)
+        XCTAssertEqual(finalResult.text, input)
+
+        let streamingResult = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+        XCTAssertFalse(streamingResult.didChange)
+        XCTAssertEqual(streamingResult.text, input)
+    }
+
+    func testDoesNotSplitBoldInsideInlineCode() {
+        let input = "## Use `**foo bar baz**` literally"
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
 }
