@@ -44,7 +44,7 @@ extension ContentView {
 
         switch newChatModelMode {
         case .lastUsed:
-            let candidateProviderID = lastConversation?.providerID
+            let candidateProviderID = lastConversation.map { activeProviderID(for: $0) }
             let resolvedProviderID = candidateProviderID.flatMap { candidate in
                 providers.first(where: { $0.id == candidate })?.id
             }
@@ -53,7 +53,7 @@ extension ContentView {
                 ?? providers.first?.id
                 ?? "openai"
 
-            let candidateModelID = lastConversation?.modelID
+            let candidateModelID = lastConversation.map { activeModelID(for: $0) }
             let models = modelsForProvider(providerID)
             if let candidateModelID, models.contains(where: { $0.id == candidateModelID }) {
                 modelID = candidateModelID
