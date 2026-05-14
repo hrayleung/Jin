@@ -28,7 +28,7 @@ enum StreamEvent: Sendable {
 /// LLM errors (normalized across providers)
 enum LLMError: Error, LocalizedError {
     case authenticationFailed(message: String?)
-    case rateLimitExceeded(retryAfter: TimeInterval?)
+    case rateLimitExceeded(retryAfter: TimeInterval?, providerMessage: String?, fastModeExhausted: Bool)
     case invalidRequest(message: String)
     case contentFiltered // Safety/moderation
     case networkError(underlying: Error)
@@ -42,11 +42,19 @@ enum LLMError: Error, LocalizedError {
                 return "Authentication failed. Please check your API key."
             }
             return "Authentication failed. Please check your API key.\n\n\(trimmed)"
-        case .rateLimitExceeded(let retryAfter):
-            if let retryAfter {
-                return "Rate limit exceeded. Retry after \(Int(retryAfter)) seconds."
+        case .rateLimitExceeded(let retryAfter, let providerMessage, let fastModeExhausted):
+            var lines: [String] = []
+            if let trimmed = providerMessage?.trimmedNonEmpty {
+                lines.append(trimmed)
+            } else if let retryAfter {
+                lines.append("Rate limit exceeded. Retry after \(Int(retryAfter)) seconds.")
+            } else {
+                lines.append("Rate limit exceeded.")
             }
-            return "Rate limit exceeded."
+            if fastModeExhausted {
+                lines.append("Fast mode capacity reached. Wait for the reset or turn off Fast mode in the composer to use standard speed.")
+            }
+            return lines.joined(separator: "\n\n")
         case .invalidRequest(let message):
             return "Invalid request: \(message)"
         case .contentFiltered:
