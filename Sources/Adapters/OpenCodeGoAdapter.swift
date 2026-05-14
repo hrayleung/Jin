@@ -1,12 +1,12 @@
 import Foundation
 
-/// OpenCode Go provider adapter.
+/// OpenCode Zen provider adapter.
 ///
 /// Routes requests to the correct endpoint format based on model ID:
-/// - DeepSeek V4 Pro/Flash, GLM-5, Kimi K2.5/K2.6, MiMo V2.5/V2.5 Pro → OpenAI-compatible `/chat/completions`
-/// - MiniMax M2.7/M2.5 → Anthropic-compatible `/messages`
+/// - Cataloged non-Claude models → OpenAI-compatible `/chat/completions`
+/// - Claude models manually added by ID → Anthropic-compatible `/messages`
 ///
-/// Docs: https://opencode.ai/docs/go/
+/// Docs: https://opencode.ai/docs/zen/
 actor OpenCodeGoAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]
@@ -15,11 +15,17 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
     let networkManager: NetworkManager
     private let anthropicDelegate: AnthropicAdapter
 
-    static let hardcodedBaseURL = "https://opencode.ai/zen/go/v1"
+    static let hardcodedBaseURL = "https://opencode.ai/zen/v1"
     static let anthropicModelIDs: Set<String> = [
-        "minimax-m2.7",
-        "minimax-m2.5",
-        "minimax-m2.5-free",
+        "claude-opus-4-7",
+        "claude-opus-4-6",
+        "claude-opus-4-5",
+        "claude-opus-4-1",
+        "claude-sonnet-4-6",
+        "claude-sonnet-4-5",
+        "claude-sonnet-4",
+        "claude-haiku-4-5",
+        "claude-3-5-haiku",
     ]
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {

@@ -1520,7 +1520,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
@@ -1629,7 +1629,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
@@ -2093,7 +2093,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
             XCTAssertNil(request.value(forHTTPHeaderField: "x-api-key"))
@@ -2175,6 +2175,73 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd = events[2] else { return XCTFail("Expected messageEnd") }
     }
 
+    func testOpenCodeGoAdapterRoutesRingFreeToZenChatCompletionsEndpoint() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            XCTAssertNil(request.value(forHTTPHeaderField: "x-api-key"))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "ring-2.6-1t-free")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_ring",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "ring-2.6-1t-free",
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .medium)
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 3)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_opencode_ring")
+        guard case .contentDelta(.text(let content)) = events[1] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd = events[2] else { return XCTFail("Expected messageEnd") }
+    }
+
     func testOpenCodeGoValidateAPIKeyUsesMessagesEndpointForAnthropicRoutedModel() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -2186,16 +2253,16 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             apiKey: "ignored",
             models: [
                 ModelInfo(
-                    id: "minimax-m2.5",
-                    name: "MiniMax M2.5",
+                    id: "claude-sonnet-4-6",
+                    name: "Claude Sonnet 4.6",
                     capabilities: [.streaming, .toolCalling, .reasoning],
-                    contextWindow: 1_000_000
+                    contextWindow: 200_000
                 )
             ]
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/messages")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/messages")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "test-key")
             XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
@@ -2204,7 +2271,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             let body = try XCTUnwrap(requestBodyData(request))
             let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
             let root = try XCTUnwrap(json)
-            XCTAssertEqual(root["model"] as? String, "minimax-m2.5")
+            XCTAssertEqual(root["model"] as? String, "claude-sonnet-4-6")
             XCTAssertEqual(root["max_tokens"] as? Int, 1)
             XCTAssertEqual(root["stream"] as? Bool, false)
 

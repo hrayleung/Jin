@@ -326,7 +326,7 @@ enum DefaultProviderSeeds {
             name: "OpenCode Go",
             type: .opencodeGo,
             iconID: LobeProviderIconCatalog.defaultIconID(for: .opencodeGo),
-            baseURL: "https://opencode.ai/zen/go/v1",
+            baseURL: "https://opencode.ai/zen/v1",
             models: ModelCatalog.seededModels(for: .opencodeGo)
         )
     }
