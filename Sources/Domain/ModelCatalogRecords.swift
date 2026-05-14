@@ -42,6 +42,7 @@ extension ModelCatalog {
         .mimoTokenPlanOpenAI: mimoTokenPlanOpenAIRecords,
         .mimoTokenPlanAnthropic: mimoTokenPlanAnthropicRecords,
         .fireworks: fireworksRecords,
+        .groq: groqRecords,
         .cerebras: cerebrasRecords,
         .sambanova: sambaNovaRecords,
         .morphllm: morphLLMRecords,

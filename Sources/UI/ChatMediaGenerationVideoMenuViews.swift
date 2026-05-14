@@ -2,6 +2,7 @@ import SwiftUI
 
 struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
     let isVeo3: Bool
+    let availableResolutions: [GoogleVideoResolution]
     let isVertexProvider: Bool
     let isConfigured: Bool
     let currentDurationSeconds: Int?
@@ -60,7 +61,7 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
                 } label: {
                     menuItemLabel("Default (720p)", currentResolution == nil)
                 }
-                ForEach(GoogleVideoResolution.allCases, id: \.self) { resolution in
+                ForEach(availableResolutions, id: \.self) { resolution in
                     Button {
                         onSetResolution(resolution)
                     } label: {

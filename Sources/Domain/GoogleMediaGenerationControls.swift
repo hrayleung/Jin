@@ -52,8 +52,16 @@ enum GoogleVideoAspectRatio: String, Codable, CaseIterable {
 enum GoogleVideoResolution: String, Codable, CaseIterable {
     case res720p = "720p"
     case res1080p = "1080p"
+    case res4k = "4k"
 
-    var displayName: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .res720p, .res1080p:
+            return rawValue
+        case .res4k:
+            return "4K"
+        }
+    }
 }
 
 enum GoogleVideoPersonGeneration: String, Codable, CaseIterable {

@@ -180,6 +180,54 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testFireworksAdapterOmitsReasoningEffortNoneForMiniMaxM2p7Family() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/chat/completions")
+            XCTAssertEqual(root["model"] as? String, "fireworks/minimax-m2p7")
+            XCTAssertNil(root["reasoning_effort"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_m2p7",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "fireworks/minimax-m2p7",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testFireworksAdapterBuildsDeepSeekV4ProThinkingRequest() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -1472,7 +1520,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
@@ -1581,7 +1629,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
@@ -2045,7 +2093,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
             XCTAssertNil(request.value(forHTTPHeaderField: "x-api-key"))
@@ -2127,6 +2175,73 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd = events[2] else { return XCTFail("Expected messageEnd") }
     }
 
+    func testOpenCodeGoAdapterRoutesRingFreeToZenChatCompletionsEndpoint() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            XCTAssertNil(request.value(forHTTPHeaderField: "x-api-key"))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+
+            XCTAssertEqual(root["model"] as? String, "ring-2.6-1t-free")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_ring",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "ring-2.6-1t-free",
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .medium)
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+
+        XCTAssertEqual(events.count, 3)
+        guard case .messageStart(let id) = events[0] else { return XCTFail("Expected messageStart") }
+        XCTAssertEqual(id, "cmpl_opencode_ring")
+        guard case .contentDelta(.text(let content)) = events[1] else { return XCTFail("Expected contentDelta") }
+        XCTAssertEqual(content, "OK")
+        guard case .messageEnd = events[2] else { return XCTFail("Expected messageEnd") }
+    }
+
     func testOpenCodeGoValidateAPIKeyUsesMessagesEndpointForAnthropicRoutedModel() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -2138,16 +2253,16 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             apiKey: "ignored",
             models: [
                 ModelInfo(
-                    id: "minimax-m2.5",
-                    name: "MiniMax M2.5",
+                    id: "claude-sonnet-4-6",
+                    name: "Claude Sonnet 4.6",
                     capabilities: [.streaming, .toolCalling, .reasoning],
-                    contextWindow: 1_000_000
+                    contextWindow: 200_000
                 )
             ]
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/messages")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/messages")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "test-key")
             XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
@@ -2156,7 +2271,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             let body = try XCTUnwrap(requestBodyData(request))
             let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
             let root = try XCTUnwrap(json)
-            XCTAssertEqual(root["model"] as? String, "minimax-m2.5")
+            XCTAssertEqual(root["model"] as? String, "claude-sonnet-4-6")
             XCTAssertEqual(root["max_tokens"] as? Int, 1)
             XCTAssertEqual(root["stream"] as? Bool, false)
 
@@ -2897,6 +3012,105 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             messages: [Message(role: .user, content: [.text("hello")])],
             modelID: "openai/gpt-5",
             controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testOpenAICompatibleGroqGPTOSSSendsTopLevelReasoningFields() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "groq",
+            name: "Groq",
+            type: .groq,
+            apiKey: "ignored",
+            baseURL: "https://api.groq.com/openai/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.groq.com/openai/v1/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "openai/gpt-oss-120b")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertEqual(root["include_reasoning"] as? Bool, true)
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_groq_gpt_oss",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "openai/gpt-oss-120b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testOpenAICompatibleGroqGPTOSSReasoningOffOmitsEffortAndDisablesInclusion() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "groq",
+            name: "Groq",
+            type: .groq,
+            apiKey: "ignored",
+            baseURL: "https://api.groq.com/openai/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "openai/gpt-oss-20b")
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertEqual(root["include_reasoning"] as? Bool, false)
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_groq_gpt_oss_off",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "openai/gpt-oss-20b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
             tools: [],
             streaming: false
         )
@@ -5405,6 +5619,102 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd(let usage) = events[3] else { return XCTFail("Expected messageEnd") }
         XCTAssertEqual(usage?.inputTokens, 10)
         XCTAssertEqual(usage?.outputTokens, 20)
+    }
+
+    func testOpenAICompatibleMistralSmall4UsesOfficialReasoningEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "mistral",
+            name: "Mistral",
+            type: .mistral,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "mistral-small-4-0-26-03")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_mistral_small_4",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "mistral-small-4-0-26-03",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .low)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testOpenAICompatibleMagistralMediumReasoningOffUsesNone() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "mistral",
+            name: "Mistral",
+            type: .mistral,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "magistral-medium-1-2-25-09")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "none")
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_magistral_off",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "magistral-medium-1-2-25-09",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
     }
 
     func testOpenAICompatibleMistralMedium35ReasoningOffUsesNone() async throws {

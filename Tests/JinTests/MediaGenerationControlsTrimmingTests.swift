@@ -43,6 +43,26 @@ final class MediaGenerationControlsTrimmingTests: XCTestCase {
         XCTAssertEqual(vertex["generateAudio"] as? Bool, true)
     }
 
+    func testGoogleVideoVeo31Supports4KResolution() {
+        let resolutions = GoogleVideoGenerationCore.supportedResolutions(
+            for: "veo-3.1-generate-preview"
+        )
+        XCTAssertTrue(resolutions.contains(.res4k))
+
+        let parameters = GoogleVideoGenerationCore.buildGeminiParameters(
+            controls: GoogleVideoGenerationControls(resolution: .res4k),
+            modelID: "veo-3.1-generate-preview"
+        )
+        XCTAssertEqual(parameters["resolution"] as? String, "4k")
+    }
+
+    func testGoogleVideoVeo30DoesNotOffer4KResolution() {
+        let resolutions = GoogleVideoGenerationCore.supportedResolutions(
+            for: "veo-3.0-generate-001"
+        )
+        XCTAssertEqual(resolutions, [.res720p, .res1080p])
+    }
+
     func testGoogleMapsControlsTreatBlankLanguageCodeAsEmpty() {
         XCTAssertTrue(GoogleMapsControls(languageCode: " \n\t ").isEmpty)
         XCTAssertFalse(GoogleMapsControls(languageCode: " en_US ").isEmpty)

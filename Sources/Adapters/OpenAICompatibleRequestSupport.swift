@@ -89,6 +89,14 @@ enum OpenAICompatibleRequestSupport {
                 continue
             }
 
+            if (key == "reasoning" || key == "reasoning_effort"),
+               OpenAICompatibleReasoningSupport.isMistralReasoningEffortModel(
+                   providerConfig: providerConfig,
+                   modelID: modelID
+               ) {
+                continue
+            }
+
             body[key] = value.value
         }
     }

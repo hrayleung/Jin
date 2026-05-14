@@ -114,6 +114,10 @@ extension FireworksAdapter {
         let isMiniMaxM2 = isFireworksModelID(id, canonicalID: "minimax-m2")
         let isMiniMaxM2p1 = isFireworksModelID(id, canonicalID: "minimax-m2p1")
         let isMiniMaxM2p5 = isFireworksModelID(id, canonicalID: "minimax-m2p5")
+        let isMiniMaxM2p7 = isFireworksModelID(id, canonicalID: "minimax-m2p7")
+        let isGLM5p1 = isFireworksModelID(id, canonicalID: "glm-5p1")
+        let isLlama3p3_70B = isFireworksModelID(id, canonicalID: "llama-v3p3-70b-instruct")
+        let isQwen3_8B = isFireworksModelID(id, canonicalID: "qwen3-8b")
         let isQwen3235 = isFireworksModelID(id, canonicalID: "qwen3-235b-a22b")
         let isQwen3OmniInstruct = isFireworksModelID(id, canonicalID: "qwen3-omni-30b-a3b-instruct")
         let isQwen3OmniThinking = isFireworksModelID(id, canonicalID: "qwen3-omni-30b-a3b-thinking")
@@ -155,6 +159,17 @@ extension FireworksAdapter {
         } else if isQwen3235 {
             contextWindow = 131_100
             name = "Qwen3 235B A22B"
+        } else if isQwen3_8B {
+            contextWindow = 40_960
+            name = "Qwen3 8B"
+        } else if isLlama3p3_70B {
+            contextWindow = 131_072
+            name = "Llama 3.3 70B Instruct"
+        } else if isMiniMaxM2p7 {
+            caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            contextWindow = 196_608
+            name = "MiniMax M2.7"
         } else if isMiniMaxM2p5 {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
@@ -170,6 +185,11 @@ extension FireworksAdapter {
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             contextWindow = 196_600
             name = "MiniMax M2"
+        } else if isGLM5p1 {
+            caps.insert(.reasoning)
+            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+            contextWindow = 202_752
+            name = "GLM-5.1"
         } else if isGLM5 {
             caps.insert(.reasoning)
             reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
