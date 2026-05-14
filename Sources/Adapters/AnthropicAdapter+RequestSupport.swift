@@ -106,6 +106,12 @@ extension AnthropicAdapter {
             providerType: providerConfig.type,
             modelID: modelID
         )
+        AnthropicRequestBodySupport.applySpeedConfig(
+            to: &body,
+            controls: controls,
+            providerType: providerConfig.type,
+            modelID: modelID
+        )
         let customTools = tools.isEmpty ? [] : (translateTools(tools) as? [[String: Any]] ?? [])
         AnthropicRequestBodySupport.applyToolSpecs(
             to: &body,
@@ -171,10 +177,14 @@ extension AnthropicAdapter {
             from: controls.contextCache,
             strategy: cacheStrategy
         )
+        let fastModeEnabled = providerConfig.type == .anthropic
+            && controls.anthropicSpeed == .fast
+            && AnthropicModelLimits.supportsFastMode(for: modelID)
         let betaHeader = AnthropicRequestPreparationSupport.betaHeader(
             from: controls,
             messages: normalizedMessages,
-            codeExecutionEnabled: codeExecutionEnabled
+            codeExecutionEnabled: codeExecutionEnabled,
+            fastModeEnabled: fastModeEnabled
         )
 
         return RequestPreparation(

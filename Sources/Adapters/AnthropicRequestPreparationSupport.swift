@@ -4,14 +4,17 @@ enum AnthropicRequestPreparationSupport {
     static func betaHeader(
         from controls: GenerationControls,
         messages: [Message],
-        codeExecutionEnabled: Bool
+        codeExecutionEnabled: Bool,
+        fastModeEnabled: Bool = false
     ) -> String? {
-        mergedBetaHeader(
-            extractBetaHeader(from: controls),
-            additions: requestUsesFilesAPI(messages, codeExecutionEnabled: codeExecutionEnabled)
-                ? [anthropicFilesAPIBetaHeader]
-                : []
-        )
+        var additions: [String] = []
+        if requestUsesFilesAPI(messages, codeExecutionEnabled: codeExecutionEnabled) {
+            additions.append(anthropicFilesAPIBetaHeader)
+        }
+        if fastModeEnabled {
+            additions.append(anthropicFastModeBetaHeader)
+        }
+        return mergedBetaHeader(extractBetaHeader(from: controls), additions: additions)
     }
 
     static func requestUsesFilesAPI(_ messages: [Message], codeExecutionEnabled: Bool) -> Bool {

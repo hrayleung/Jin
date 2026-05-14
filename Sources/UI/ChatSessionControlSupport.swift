@@ -17,12 +17,29 @@ extension ChatAuxiliaryControlSupport {
         return providerType == .openai || providerType == .openaiWebSocket
     }
 
+    static func supportsAnthropicFastModeControl(
+        providerType: ProviderType?,
+        modelID: String?
+    ) -> Bool {
+        guard providerType == .anthropic, let modelID else { return false }
+        return AnthropicModelLimits.supportsFastMode(for: modelID)
+    }
+
     static func setOpenAIServiceTier(
         _ serviceTier: OpenAIServiceTier?,
         controls: GenerationControls
     ) -> GenerationControls {
         var controls = controls
         controls.openAIServiceTier = serviceTier
+        return controls
+    }
+
+    static func setAnthropicSpeed(
+        _ speed: AnthropicSpeed?,
+        controls: GenerationControls
+    ) -> GenerationControls {
+        var controls = controls
+        controls.anthropicSpeed = speed
         return controls
     }
 

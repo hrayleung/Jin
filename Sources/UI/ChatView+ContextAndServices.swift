@@ -101,6 +101,13 @@ extension ChatView {
         )
     }
 
+    var supportsAnthropicFastModeControl: Bool {
+        ChatAuxiliaryControlSupport.supportsAnthropicFastModeControl(
+            providerType: providerType,
+            modelID: activeModelID
+        )
+    }
+
     var isAgentModeConfigured: Bool {
         AppPreferences.isPluginEnabled("agent_mode")
     }

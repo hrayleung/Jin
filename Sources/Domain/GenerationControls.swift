@@ -8,6 +8,7 @@ import Foundation
 /// - `ReasoningControls.swift` -- thinking/reasoning
 /// - `WebSearchAndToolControls.swift` -- web search, MCP tools, PDF processing
 /// - `OpenAIServiceTier.swift` -- OpenAI `service_tier` (priority/flex/default/scale)
+/// - `AnthropicSpeed.swift` -- Anthropic `speed` (fast mode on Opus 4.6/4.7)
 /// - `OpenAIImageGenerationControls.swift` -- OpenAI image generation
 /// - `XAIMediaGenerationControls.swift` -- xAI image/video generation
 /// - `GoogleMediaGenerationControls.swift` -- Gemini/Vertex image/video generation
@@ -20,6 +21,7 @@ struct GenerationControls: Codable {
     var reasoning: ReasoningControls?
     var webSearch: WebSearchControls?
     var openAIServiceTier: OpenAIServiceTier?
+    var anthropicSpeed: AnthropicSpeed?
     var searchPlugin: SearchPluginControls?
     var mcpTools: MCPToolsControls?
     var contextCache: ContextCacheControls?
@@ -43,6 +45,7 @@ struct GenerationControls: Codable {
         reasoning: ReasoningControls? = nil,
         webSearch: WebSearchControls? = nil,
         openAIServiceTier: OpenAIServiceTier? = nil,
+        anthropicSpeed: AnthropicSpeed? = nil,
         searchPlugin: SearchPluginControls? = nil,
         mcpTools: MCPToolsControls? = nil,
         contextCache: ContextCacheControls? = nil,
@@ -65,6 +68,7 @@ struct GenerationControls: Codable {
         self.reasoning = reasoning
         self.webSearch = webSearch
         self.openAIServiceTier = openAIServiceTier
+        self.anthropicSpeed = anthropicSpeed
         self.searchPlugin = searchPlugin
         self.mcpTools = mcpTools
         self.contextCache = contextCache

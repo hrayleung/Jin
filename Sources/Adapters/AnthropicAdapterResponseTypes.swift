@@ -115,6 +115,7 @@ struct AnthropicStreamEvent: Decodable {
         let cacheReadInputTokens: Int?
         let serviceTier: String?
         let inferenceGeo: String?
+        let speed: String?
     }
 
     struct WebSearchResult: Decodable {
@@ -143,6 +144,7 @@ struct AnthropicUsageAccumulator {
     var cacheReadInputTokens: Int?
     var serviceTier: String?
     var inferenceGeo: String?
+    var speed: String?
 
     mutating func merge(_ usage: AnthropicStreamEvent.UsageInfo?) {
         guard let usage else { return }
@@ -163,6 +165,9 @@ struct AnthropicUsageAccumulator {
         }
         if let inferenceGeo = usage.inferenceGeo {
             self.inferenceGeo = inferenceGeo
+        }
+        if let speed = usage.speed {
+            self.speed = speed
         }
     }
 
