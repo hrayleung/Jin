@@ -10,9 +10,11 @@ struct ModelPickerSearchField: View {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
 
-            TextField(placeholder, text: $searchText)
-                .textFieldStyle(.plain)
-                .focused($isFocused)
+            TextField(text: $searchText, prompt: Text(placeholder)) {
+                EmptyView()
+            }
+            .textFieldStyle(.plain)
+            .focused($isFocused)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
