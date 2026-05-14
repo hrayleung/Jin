@@ -3,6 +3,7 @@ import SwiftUI
 struct ModelPickerSearchField: View {
     @Binding var searchText: String
     let placeholder: String
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -11,6 +12,7 @@ struct ModelPickerSearchField: View {
 
             TextField(placeholder, text: $searchText)
                 .textFieldStyle(.plain)
+                .focused($isFocused)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -22,6 +24,12 @@ struct ModelPickerSearchField: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
         )
+        .task {
+            // Popover's window needs a tick to become key before
+            // first-responder hand-off lands.
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            isFocused = true
+        }
     }
 }
 
