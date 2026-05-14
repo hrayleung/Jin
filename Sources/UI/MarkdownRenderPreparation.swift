@@ -57,7 +57,10 @@ enum MarkdownRenderPreparation {
         }
 
         let repaired = repairMarkdown(markdown, isStreaming: isStreaming)
-        let scoreAfter = anomalyScore(in: repaired)
+        let scoreAfter = anomalyScore(
+            in: repaired,
+            ignoringSmushedBoldTitleInHeading: isStreaming
+        )
         let shouldUseRepair = repaired != markdown && scoreAfter <= scoreBefore
         let output = shouldUseRepair ? repaired : markdown
 

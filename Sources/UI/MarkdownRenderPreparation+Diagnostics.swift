@@ -1,7 +1,10 @@
 import Foundation
 
 extension MarkdownRenderPreparation {
-    static func anomalyScore(in markdown: String) -> Int {
+    static func anomalyScore(
+        in markdown: String,
+        ignoringSmushedBoldTitleInHeading: Bool = false
+    ) -> Int {
         var score = 0
 
         _ = transformOutsideProtectedBlocks(in: markdown) { line in
@@ -30,6 +33,10 @@ extension MarkdownRenderPreparation {
             }
             if MarkdownStructuralRepair.headingBodySplitIndex(in: protectedLine) != nil {
                 score += 1
+            }
+            if !ignoringSmushedBoldTitleInHeading,
+               MarkdownStructuralRepair.hasSmushedBoldTitleInHeading(in: protectedLine) {
+                score += 2
             }
 
             return protectedLine
