@@ -29,6 +29,13 @@ extension ChatView {
         )
     }
 
+    var anthropicFastModeHelpText: String {
+        ChatAuxiliaryControlSupport.anthropicFastModeHelpText(
+            supportsAnthropicFastModeControl: supportsAnthropicFastModeControl,
+            controls: controls
+        )
+    }
+
     var mcpToolsHelpText: String {
         ChatAuxiliaryControlSupport.mcpToolsHelpText(
             supportsMCPToolsControl: supportsMCPToolsControl,
@@ -104,6 +111,13 @@ extension ChatView {
     var openAIServiceTierBadgeText: String? {
         ChatAuxiliaryControlSupport.openAIServiceTierBadgeText(
             supportsOpenAIServiceTierControl: supportsOpenAIServiceTierControl,
+            controls: controls
+        )
+    }
+
+    var anthropicFastModeBadgeText: String? {
+        ChatAuxiliaryControlSupport.anthropicFastModeBadgeText(
+            supportsAnthropicFastModeControl: supportsAnthropicFastModeControl,
             controls: controls
         )
     }

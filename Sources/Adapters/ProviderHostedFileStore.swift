@@ -32,6 +32,7 @@ let anthropicCodeExecutionUploadMIMETypes: Set<String> = [
 ]
 
 let anthropicFilesAPIBetaHeader = "files-api-2025-04-14"
+let anthropicFastModeBetaHeader = "fast-mode-2026-02-01"
 
 let googleHostedPromptFileMIMETypes: Set<String> = [
     "application/pdf",

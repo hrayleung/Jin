@@ -21,6 +21,23 @@ extension ChatAuxiliaryControlSupport {
         return controls.openAIServiceTier?.badgeText
     }
 
+    static func anthropicFastModeHelpText(
+        supportsAnthropicFastModeControl: Bool,
+        controls: GenerationControls
+    ) -> String {
+        guard supportsAnthropicFastModeControl else { return "Fast Mode: Not supported" }
+        let state = controls.anthropicSpeed == .fast ? "On" : "Off"
+        return "Fast Mode (beta): \(state) \u{00B7} 2.5x faster output, $30/$150 MTok"
+    }
+
+    static func anthropicFastModeBadgeText(
+        supportsAnthropicFastModeControl: Bool,
+        controls: GenerationControls
+    ) -> String? {
+        guard supportsAnthropicFastModeControl else { return nil }
+        return controls.anthropicSpeed?.badgeText
+    }
+
     static func codexSessionBadgeText(controls: GenerationControls) -> String? {
         guard controls.codexActiveOverrideCount > 0 else { return nil }
         return controls.codexSandboxMode.badgeText

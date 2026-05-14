@@ -74,6 +74,17 @@ extension ChatView {
                 }
             }
 
+            if supportsAnthropicFastModeControl {
+                composerMenuControl(
+                    systemName: "bolt",
+                    isActive: controls.anthropicSpeed == .fast,
+                    badgeText: anthropicFastModeBadgeText,
+                    help: anthropicFastModeHelpText
+                ) {
+                    anthropicFastModeMenuContent
+                }
+            }
+
             if supportsWebSearchControl {
                 composerMenuControl(
                     systemName: "globe",

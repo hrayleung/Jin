@@ -23,6 +23,24 @@ extension ChatView {
     }
 
     @ViewBuilder
+    var anthropicFastModeMenuContent: some View {
+        Toggle("Fast mode (beta)", isOn: anthropicFastModeEnabledBinding)
+
+        Divider()
+
+        Text("$30/$150 MTok \u{00B7} extra usage")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    var anthropicFastModeEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { controls.anthropicSpeed == .fast },
+            set: { enabled in setAnthropicSpeed(enabled ? .fast : nil) }
+        )
+    }
+
+    @ViewBuilder
     var googleMapsMenuContent: some View {
         Toggle("Google Maps", isOn: googleMapsEnabledBinding)
 
@@ -140,6 +158,14 @@ extension ChatView {
     func setOpenAIServiceTier(_ serviceTier: OpenAIServiceTier?) {
         controls = ChatAuxiliaryControlSupport.setOpenAIServiceTier(
             serviceTier,
+            controls: controls
+        )
+        persistControlsToConversation()
+    }
+
+    func setAnthropicSpeed(_ speed: AnthropicSpeed?) {
+        controls = ChatAuxiliaryControlSupport.setAnthropicSpeed(
+            speed,
             controls: controls
         )
         persistControlsToConversation()

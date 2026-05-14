@@ -21,6 +21,24 @@ enum AnthropicRequestBodySupport {
         body["system"] = [block]
     }
 
+    /// Injects `"speed": "fast"` into the Messages API request body when fast
+    /// mode is enabled on a supported Opus model on direct Anthropic. The beta
+    /// header `fast-mode-2026-02-01` must also be set on the request — see
+    /// `AnthropicRequestPreparationSupport.betaHeader(...)`.
+    static func applySpeedConfig(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        providerType: ProviderType,
+        modelID: String
+    ) {
+        guard providerType == .anthropic,
+              controls.anthropicSpeed == .fast,
+              AnthropicModelLimits.supportsFastMode(for: modelID) else {
+            return
+        }
+        body["speed"] = "fast"
+    }
+
     static func applyThinkingConfig(
         to body: inout [String: Any],
         controls: GenerationControls,

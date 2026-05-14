@@ -25,6 +25,16 @@ enum AnthropicModelLimits {
         isOpus47(modelID.lowercased())
     }
 
+    /// Fast mode (beta: research preview) is documented for the exact model IDs
+    /// `claude-opus-4-7` and `claude-opus-4-6` only. Sending `speed: "fast"` to
+    /// any other model — including date-suffixed snapshots of Opus 4.7/4.6 —
+    /// returns an API error, and the request still bills at the fast-mode rate
+    /// as extra usage, so we gate strictly on exact-match.
+    static func supportsFastMode(for modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        return lower == "claude-opus-4-7" || lower == "claude-opus-4-6"
+    }
+
     static func supportsMaxEffort(for modelID: String) -> Bool {
         // Opus 4.7 supports both xhigh and max. Opus 4.6 supports max only.
         let lower = modelID.lowercased()
