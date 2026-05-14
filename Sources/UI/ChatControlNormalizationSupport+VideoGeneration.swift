@@ -16,6 +16,10 @@ extension ChatControlNormalizationSupport {
                 controls.googleVideoGeneration = nil
                 controls.openRouterVideoGeneration = nil
             case .gemini, .vertexai:
+                if let resolution = controls.googleVideoGeneration?.resolution,
+                   !GoogleVideoGenerationCore.supportedResolutions(for: lowerModelID).contains(resolution) {
+                    controls.googleVideoGeneration?.resolution = nil
+                }
                 if controls.googleVideoGeneration?.isEmpty == true {
                     controls.googleVideoGeneration = nil
                 }

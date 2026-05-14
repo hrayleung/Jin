@@ -122,7 +122,7 @@ func isAudioInputModelID(_ lowerModelID: String) -> Bool {
 // MARK: - Fireworks Model ID Utilities
 
 private let fireworksMiniMaxM2CanonicalIDs: Set<String> = [
-    "minimax-m2", "minimax-m2p1", "minimax-m2p5"
+    "minimax-m2", "minimax-m2p1", "minimax-m2p5", "minimax-m2p7"
 ]
 
 let fireworksDeepSeekV4ProAccountModelID = "accounts/fireworks/models/deepseek-v4-pro"

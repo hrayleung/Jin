@@ -94,7 +94,7 @@ enum DefaultProviderSeeds {
             type: .groq,
             iconID: LobeProviderIconCatalog.defaultIconID(for: .groq),
             baseURL: ProviderType.groq.defaultBaseURL,
-            models: []
+            models: ModelCatalog.seededModels(for: .groq)
         )
     }
 

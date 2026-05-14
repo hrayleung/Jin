@@ -152,7 +152,9 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testCerebrasUsesExactMatchForFullySupportedTag() {
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cerebras, modelID: "qwen-3-235b-a22b-instruct-2507"))
+        // qwen-3-235b-a22b-instruct-2507 is being retired by Cerebras on 2026-05-27 — flagged
+        // unsupported in catalog so the picker no longer shows the ✦ badge.
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .cerebras, modelID: "qwen-3-235b-a22b-instruct-2507"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cerebras, modelID: "zai-glm-4.7"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .cerebras, modelID: "gpt-oss-120b"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .cerebras, modelID: "qwen-3-235b-a22b-instruct-2507-custom"))

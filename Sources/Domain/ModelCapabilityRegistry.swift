@@ -291,6 +291,8 @@ enum ModelCapabilityRegistry {
     ]
     private static let mistralHighOnlyReasoningEffortModelIDs: Set<String> = [
         "mistral-medium-3.5",
+        "mistral-small-4-0-26-03",
+        "magistral-medium-1-2-25-09",
     ]
     private static let googleModelPrefixes = [
         "google/",

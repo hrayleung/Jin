@@ -19,6 +19,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
     static let anthropicModelIDs: Set<String> = [
         "minimax-m2.7",
         "minimax-m2.5",
+        "minimax-m2.5-free",
     ]
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {

@@ -180,6 +180,54 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testFireworksAdapterOmitsReasoningEffortNoneForMiniMaxM2p7Family() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/chat/completions")
+            XCTAssertEqual(root["model"] as? String, "fireworks/minimax-m2p7")
+            XCTAssertNil(root["reasoning_effort"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_m2p7",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "fireworks/minimax-m2p7",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testFireworksAdapterBuildsDeepSeekV4ProThinkingRequest() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -2904,6 +2952,105 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenAICompatibleGroqGPTOSSSendsTopLevelReasoningFields() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "groq",
+            name: "Groq",
+            type: .groq,
+            apiKey: "ignored",
+            baseURL: "https://api.groq.com/openai/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.groq.com/openai/v1/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "openai/gpt-oss-120b")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertEqual(root["include_reasoning"] as? Bool, true)
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_groq_gpt_oss",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "openai/gpt-oss-120b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testOpenAICompatibleGroqGPTOSSReasoningOffOmitsEffortAndDisablesInclusion() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "groq",
+            name: "Groq",
+            type: .groq,
+            apiKey: "ignored",
+            baseURL: "https://api.groq.com/openai/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "openai/gpt-oss-20b")
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertEqual(root["include_reasoning"] as? Bool, false)
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_groq_gpt_oss_off",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "openai/gpt-oss-20b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenAICompatibleAdapterDoesNotInferAnthropicShapeFromModelName() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -5405,6 +5552,102 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd(let usage) = events[3] else { return XCTFail("Expected messageEnd") }
         XCTAssertEqual(usage?.inputTokens, 10)
         XCTAssertEqual(usage?.outputTokens, 20)
+    }
+
+    func testOpenAICompatibleMistralSmall4UsesOfficialReasoningEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "mistral",
+            name: "Mistral",
+            type: .mistral,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "mistral-small-4-0-26-03")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_mistral_small_4",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "mistral-small-4-0-26-03",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .low)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testOpenAICompatibleMagistralMediumReasoningOffUsesNone() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "mistral",
+            name: "Mistral",
+            type: .mistral,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "magistral-medium-1-2-25-09")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "none")
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_magistral_off",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "magistral-medium-1-2-25-09",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
     }
 
     func testOpenAICompatibleMistralMedium35ReasoningOffUsesNone() async throws {

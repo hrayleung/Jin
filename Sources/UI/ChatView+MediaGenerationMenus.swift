@@ -172,6 +172,7 @@ extension ChatView {
         case .gemini, .vertexai:
             GoogleVideoGenerationMenuView(
                 isVeo3: GoogleVideoGenerationCore.isVeo3OrLater(activeModelID),
+                availableResolutions: GoogleVideoGenerationCore.supportedResolutions(for: activeModelID),
                 isVertexProvider: providerType == .vertexai,
                 isConfigured: isVideoGenerationConfigured,
                 currentDurationSeconds: controls.googleVideoGeneration?.durationSeconds,

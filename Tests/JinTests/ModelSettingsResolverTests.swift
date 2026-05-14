@@ -168,12 +168,12 @@ final class ModelSettingsResolverTests: XCTestCase {
 
         let opus46 = ModelCatalog.modelInfo(for: "claude-opus-4-6", provider: .anthropic)
         let resolvedOpus46 = ModelSettingsResolver.resolve(model: opus46, providerType: .anthropic)
-        XCTAssertEqual(resolvedOpus46.contextWindow, 200_000)
+        XCTAssertEqual(resolvedOpus46.contextWindow, 1_000_000)
         XCTAssertEqual(resolvedOpus46.maxOutputTokens, 128_000)
 
         let sonnet46 = ModelCatalog.modelInfo(for: "claude-sonnet-4-6", provider: .anthropic)
         let resolvedSonnet46 = ModelSettingsResolver.resolve(model: sonnet46, providerType: .anthropic)
-        XCTAssertEqual(resolvedSonnet46.contextWindow, 200_000)
+        XCTAssertEqual(resolvedSonnet46.contextWindow, 1_000_000)
         XCTAssertEqual(resolvedSonnet46.maxOutputTokens, 64_000)
 
         let opus45 = ModelCatalog.modelInfo(for: "claude-opus-4-5-20251101", provider: .anthropic)
@@ -929,6 +929,20 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertFalse(resolved.reasoningCanDisable)
     }
 
+    func testFireworksMiniMaxM2p7ReasoningCannotDisableByDefault() {
+        let model = ModelInfo(
+            id: "fireworks/minimax-m2p7",
+            name: "MiniMax M2.7",
+            capabilities: [.streaming, .reasoning],
+            contextWindow: 196_608,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: .fireworks)
+        XCTAssertFalse(resolved.reasoningCanDisable)
+    }
+
     func testResolverInfersRecentFireworksCatalogMetadataForLegacyPersistedModels() {
         let qwen36Legacy = ModelInfo(
             id: "accounts/fireworks/models/qwen3p6-plus",
@@ -1369,7 +1383,7 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
         XCTAssertEqual(
             ModelSettingsResolver.resolve(model: anthropicLegacy, providerType: .anthropic).contextWindow,
-            200_000
+            1_000_000
         )
 
         let perplexityLegacy = ModelInfo(

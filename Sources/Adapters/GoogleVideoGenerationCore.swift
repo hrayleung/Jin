@@ -23,6 +23,26 @@ enum GoogleVideoGenerationCore {
         return version >= 3
     }
 
+    static func supportedResolutions(for modelID: String) -> [GoogleVideoResolution] {
+        if supports4KResolution(modelID) {
+            return [.res720p, .res1080p, .res4k]
+        }
+        if isVeo3OrLater(modelID) {
+            return [.res720p, .res1080p]
+        }
+        return []
+    }
+
+    static func supports4KResolution(_ modelID: String) -> Bool {
+        switch modelID.lowercased() {
+        case "veo-3.1-generate-preview",
+             "veo-3.1-fast-generate-preview":
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - Parameter Building (Gemini API / AI Studio)
 
     /// Builds the `parameters` dict for the Gemini API.

@@ -48,8 +48,18 @@ enum OpenAICompatibleReasoningSupport {
         modelID: String,
         requestShape: ModelRequestShape
     ) -> Bool {
-        if isMistralMedium35Model(providerConfig: providerConfig, modelID: modelID) {
-            applyMistralMedium35Reasoning(to: &body, reasoning: reasoning)
+        if isMistralReasoningEffortModel(providerConfig: providerConfig, modelID: modelID) {
+            applyMistralReasoningEffort(to: &body, reasoning: reasoning)
+            return false
+        }
+
+        if isGroqGPTOSSReasoningModel(providerConfig: providerConfig, modelID: modelID) {
+            applyGroqGPTOSSReasoning(
+                to: &body,
+                reasoning: reasoning,
+                providerConfig: providerConfig,
+                modelID: modelID
+            )
             return false
         }
 
@@ -104,30 +114,82 @@ enum OpenAICompatibleReasoningSupport {
         providerConfig: ProviderConfig,
         modelID: String
     ) {
-        guard isMistralMedium35Model(providerConfig: providerConfig, modelID: modelID) else {
+        if isMistralReasoningEffortModel(providerConfig: providerConfig, modelID: modelID) {
+            body.removeValue(forKey: "reasoning")
+            guard let reasoning = controls.reasoning else {
+                body.removeValue(forKey: "reasoning_effort")
+                return
+            }
+
+            applyMistralReasoningEffort(to: &body, reasoning: reasoning)
             return
         }
 
-        body.removeValue(forKey: "reasoning")
-        guard let reasoning = controls.reasoning else {
-            body.removeValue(forKey: "reasoning_effort")
-            return
+        if isGroqGPTOSSReasoningModel(providerConfig: providerConfig, modelID: modelID) {
+            body.removeValue(forKey: "reasoning")
+            guard let reasoning = controls.reasoning else { return }
+            applyGroqGPTOSSReasoning(
+                to: &body,
+                reasoning: reasoning,
+                providerConfig: providerConfig,
+                modelID: modelID
+            )
         }
+    }
 
-        applyMistralMedium35Reasoning(to: &body, reasoning: reasoning)
+    static func isMistralReasoningEffortModel(providerConfig: ProviderConfig, modelID: String) -> Bool {
+        guard providerConfig.type == .mistral else { return false }
+        return mistralReasoningEffortModelIDs.contains(modelID.lowercased())
     }
 
     static func isMistralMedium35Model(providerConfig: ProviderConfig, modelID: String) -> Bool {
-        providerConfig.type == .mistral && modelID.lowercased() == "mistral-medium-3.5"
+        isMistralReasoningEffortModel(providerConfig: providerConfig, modelID: modelID)
     }
 
-    private static func applyMistralMedium35Reasoning(
+    private static let mistralReasoningEffortModelIDs: Set<String> = [
+        "mistral-medium-3.5",
+        "mistral-small-4-0-26-03",
+        "magistral-medium-1-2-25-09",
+    ]
+
+    private static let groqGPTOSSReasoningModelIDs: Set<String> = [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+    ]
+
+    private static func applyMistralReasoningEffort(
         to body: inout [String: Any],
         reasoning: ReasoningControls
     ) {
         body.removeValue(forKey: "reasoning")
         let isDisabled = reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none
         body["reasoning_effort"] = isDisabled ? "none" : "high"
+    }
+
+    private static func isGroqGPTOSSReasoningModel(providerConfig: ProviderConfig, modelID: String) -> Bool {
+        providerConfig.type == .groq
+            && groqGPTOSSReasoningModelIDs.contains(modelID.lowercased())
+    }
+
+    private static func applyGroqGPTOSSReasoning(
+        to body: inout [String: Any],
+        reasoning: ReasoningControls,
+        providerConfig: ProviderConfig,
+        modelID: String
+    ) {
+        body.removeValue(forKey: "reasoning")
+        let isDisabled = reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none
+        body["include_reasoning"] = !isDisabled
+        guard !isDisabled else {
+            body.removeValue(forKey: "reasoning_effort")
+            return
+        }
+
+        body["reasoning_effort"] = mapReasoningEffort(
+            reasoning.effort ?? .medium,
+            providerConfig: providerConfig,
+            modelID: modelID
+        )
     }
 
     // MARK: - Anthropic-Style Reasoning
