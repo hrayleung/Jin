@@ -192,4 +192,62 @@ final class AnthropicAdapterFastModeTests: XCTestCase {
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-7-custom"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-7-thinking"))
     }
+
+    // MARK: - Error parsing for fast mode
+
+    func test429WithFastModeHeadersFlagsExhaustedAndSurfacesProviderMessage() throws {
+        let body = Data(#"""
+        {"type":"error","error":{"type":"rate_limit_error","message":"Fast mode rate limit reached."}}
+        """#.utf8)
+        let headers: [AnyHashable: Any] = [
+            "Retry-After": "7",
+            "anthropic-fast-input-tokens-remaining": "0",
+            "anthropic-fast-input-tokens-reset": "2026-05-14T12:00:00Z"
+        ]
+
+        let error = try NetworkManager().parseHTTPError(statusCode: 429, data: body, headers: headers)
+
+        guard case let .rateLimitExceeded(retryAfter, providerMessage, fastModeExhausted) = error else {
+            XCTFail("Expected .rateLimitExceeded, got \(error)")
+            return
+        }
+        XCTAssertEqual(retryAfter, 7)
+        XCTAssertEqual(providerMessage, "Fast mode rate limit reached.")
+        XCTAssertTrue(fastModeExhausted)
+
+        let description = try XCTUnwrap(error.errorDescription)
+        XCTAssertTrue(description.contains("Fast mode rate limit reached."))
+        XCTAssertTrue(description.contains("Fast mode capacity reached"))
+    }
+
+    func test429WithoutFastModeHeadersDoesNotFlagExhausted() throws {
+        let body = Data(#"{"error":{"message":"Slow down"}}"#.utf8)
+        let headers: [AnyHashable: Any] = ["Retry-After": "5"]
+
+        let error = try NetworkManager().parseHTTPError(statusCode: 429, data: body, headers: headers)
+
+        guard case let .rateLimitExceeded(_, _, fastModeExhausted) = error else {
+            XCTFail("Expected .rateLimitExceeded, got \(error)")
+            return
+        }
+        XCTAssertFalse(fastModeExhausted)
+
+        let description = try XCTUnwrap(error.errorDescription)
+        XCTAssertFalse(description.contains("Fast mode capacity reached"))
+    }
+
+    func test400WithAnthropicErrorBodySurfacesMessage() throws {
+        let body = Data(#"""
+        {"type":"error","error":{"type":"invalid_request_error","message":"Fast mode is not enabled for this organization."}}
+        """#.utf8)
+
+        let error = try NetworkManager().parseHTTPError(statusCode: 400, data: body, headers: [:])
+
+        guard case let .providerError(code, message) = error else {
+            XCTFail("Expected .providerError, got \(error)")
+            return
+        }
+        XCTAssertEqual(code, "400")
+        XCTAssertEqual(message, "Fast mode is not enabled for this organization.")
+    }
 }

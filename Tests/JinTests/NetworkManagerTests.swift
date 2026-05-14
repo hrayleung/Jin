@@ -221,8 +221,9 @@ final class NetworkManagerTests: XCTestCase {
         do {
             _ = try await networkManager.sendRequest(Self.makeRequest(path: "/rate-limit"))
             XCTFail("Expected rate limit error")
-        } catch let LLMError.rateLimitExceeded(retryAfter) {
+        } catch let LLMError.rateLimitExceeded(retryAfter, _, fastModeExhausted) {
             XCTAssertEqual(retryAfter, 12)
+            XCTAssertFalse(fastModeExhausted)
         } catch {
             XCTFail("Unexpected error: \(error)")
         }

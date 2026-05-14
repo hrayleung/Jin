@@ -152,17 +152,51 @@ extension NetworkManager {
     nonisolated func parseHTTPError(statusCode: Int, data: Data, headers: [AnyHashable: Any]) throws -> LLMError {
         switch statusCode {
         case 401:
-            let message = normalizedTrimmedString(String(data: data, encoding: .utf8))
-                .map { String($0.prefix(2000)) }
+            let message = providerErrorMessage(from: data)
+                ?? normalizedTrimmedString(String(data: data, encoding: .utf8))
+                    .map { String($0.prefix(2000)) }
             return .authenticationFailed(message: message)
         case 429:
             let retryAfter = (headers["Retry-After"] as? String).flatMap(TimeInterval.init)
-            return .rateLimitExceeded(retryAfter: retryAfter)
+            let providerMessage = providerErrorMessage(from: data)
+            return .rateLimitExceeded(
+                retryAfter: retryAfter,
+                providerMessage: providerMessage,
+                fastModeExhausted: hasFastModeHeader(in: headers)
+            )
         default:
-            let message = normalizedTrimmedString(String(data: data, encoding: .utf8))
-                .map { String($0.prefix(2000)) }
+            let message = providerErrorMessage(from: data)
+                ?? normalizedTrimmedString(String(data: data, encoding: .utf8))
+                    .map { String($0.prefix(2000)) }
                 ?? "Unknown error"
             return .providerError(code: "\(statusCode)", message: message)
         }
+    }
+
+    /// Extract `error.message` from a JSON error body. Matches the shape used by
+    /// Anthropic and OpenAI-compatible providers: `{"error": {"message": "..."}}`.
+    /// Returns `nil` if the body isn't JSON in that shape.
+    nonisolated func providerErrorMessage(from data: Data) -> String? {
+        guard !data.isEmpty,
+              let json = try? JSONSerialization.jsonObject(with: data),
+              let dict = json as? [String: Any],
+              let errorObj = dict["error"] as? [String: Any],
+              let message = errorObj["message"] as? String,
+              let trimmed = message.trimmedNonEmpty else {
+            return nil
+        }
+        return String(trimmed.prefix(2000))
+    }
+
+    /// `true` when any response header key starts with `anthropic-fast-`, which
+    /// Anthropic includes on 429s tied to fast mode's dedicated rate-limit pool.
+    nonisolated func hasFastModeHeader(in headers: [AnyHashable: Any]) -> Bool {
+        for key in headers.keys {
+            if let name = (key as? String)?.lowercased(),
+               name.hasPrefix("anthropic-fast-") {
+                return true
+            }
+        }
+        return false
     }
 }
