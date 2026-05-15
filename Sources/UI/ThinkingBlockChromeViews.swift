@@ -135,7 +135,7 @@ struct ThinkingHeaderCopyButton: View {
     var body: some View {
         Button(action: copy) {
             ZStack {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
                     .fill(backgroundFill)
                 Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
                     .font(.system(size: Self.glyphSize, weight: .semibold))
