@@ -10,7 +10,6 @@ struct ContentView: View {
     @EnvironmentObject var shortcutsStore: AppShortcutsStore
     @EnvironmentObject var updateManager: SparkleUpdateManager
     @Query(sort: \AssistantEntity.sortOrder, order: .forward) var assistants: [AssistantEntity]
-    @Query(sort: \ConversationEntity.updatedAt, order: .reverse) var conversations: [ConversationEntity]
     @Query var providers: [ProviderConfigEntity]
 
     @StateObject private var ttsPlaybackManager = TextToSpeechPlaybackManager()
@@ -127,7 +126,7 @@ struct ContentView: View {
 
             assistantsArea
 
-            ChatsSidebarSection(
+            ChatsSidebarSectionView(
                 searchText: searchText,
                 selectedAssistantID: selectedAssistant?.id,
                 regeneratingConversationID: regeneratingConversationID,
@@ -260,7 +259,7 @@ struct ContentView: View {
     }
 
     func navigateToConversation(_ conversationID: UUID) {
-        guard let conversation = conversations.first(where: { $0.id == conversationID }) else { return }
+        guard let conversation = fetchPersistedConversation(id: conversationID) else { return }
         selectConversation(conversation)
     }
 

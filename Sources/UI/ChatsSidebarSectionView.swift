@@ -6,7 +6,7 @@ import SwiftData
 /// `ContentView` (which renders the detail pane). All filter/search/group
 /// work is scoped here so it doesn't run when only unrelated parent state
 /// changes.
-struct ChatsSidebarSection: View {
+struct ChatsSidebarSectionView: View {
     @Query(sort: \ConversationEntity.updatedAt, order: .reverse)
     private var conversations: [ConversationEntity]
     @Query private var providers: [ProviderConfigEntity]
@@ -143,8 +143,12 @@ struct ChatsSidebarSection: View {
         }
 
         if ProviderType(rawValue: provider.typeRaw) == .claudeManagedAgents {
-            let configData = conversation.modelThreads.first(where: { $0.id == conversation.activeThreadID })?.modelConfigData
-                ?? conversation.modelThreads.first?.modelConfigData
+            let sortedThreads = ChatThreadSupport.sortedThreads(in: conversation.modelThreads)
+            let activeThread = ChatThreadSupport.activeThread(
+                in: sortedThreads,
+                preferredID: conversation.activeThreadID
+            )
+            let configData = activeThread?.modelConfigData
                 ?? conversation.modelConfigData
             let storedControls = try? JSONDecoder().decode(GenerationControls.self, from: configData)
             return ClaudeManagedAgentResolutionSupport.resolvedConversationDisplayName(

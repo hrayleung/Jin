@@ -75,7 +75,8 @@ extension ContentView {
             selectedAssistant = defaultAssistant
         }
 
-        for conversation in conversations where conversation.assistant == nil {
+        let persistedConversations = fetchPersistedConversations()
+        for conversation in persistedConversations where conversation.assistant == nil {
             conversation.assistant = defaultAssistant
         }
     }
@@ -96,7 +97,8 @@ extension ContentView {
             didMutate = true
         }
 
-        for conversation in conversations {
+        let persistedConversations = fetchPersistedConversations()
+        for conversation in persistedConversations {
             let assistantMaxOutputTokens = conversation.assistant?.maxOutputTokens
 
             if let migrated = migratedModelConfigDataIfNeeded(

@@ -329,8 +329,13 @@ final class ChatRenderCacheController {
         toolResultsByCallID = activeContext.toolResultsByCallID
         artifactCatalog = activeContext.artifactCatalog
         contextsByThreadID = batch.contextsByThreadID
-        panelThreadIDs = Set(allMessages.compactMap(\.contextThreadID))
-        cachedTotalMessageCount = cacheMessageCount
+        let newPanelThreadIDs = Set(allMessages.compactMap(\.contextThreadID))
+        if panelThreadIDs != newPanelThreadIDs {
+            panelThreadIDs = newPanelThreadIDs
+        }
+        if cachedTotalMessageCount != cacheMessageCount {
+            cachedTotalMessageCount = cacheMessageCount
+        }
         version &+= 1
         lastRebuildMessageCount = cacheMessageCount
         lastRebuildUpdatedAt = updatedAt

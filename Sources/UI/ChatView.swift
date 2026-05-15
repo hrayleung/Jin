@@ -104,6 +104,7 @@ struct ChatView: View {
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
     // `@State` (paired with `@Observable` on the controller) gives SwiftUI
     // per-property read tracking, so views observe only the keys they read.
+    // swiftlint:disable:next private_swiftui_state
     @State var renderCache = ChatRenderCacheController()
     @State var isArtifactPaneVisible = false
     @State var selectedArtifactIDByThreadID: [UUID: String] = [:]
@@ -199,6 +200,7 @@ struct ChatView: View {
     @State var prepareToSendStatus: String?
     @State var prepareToSendTask: Task<Void, Never>?
     @State var prepareToSendCancellationReason: PrepareToSendCancellationReason?
+    // swiftlint:disable:next private_swiftui_state
     @State var pendingPersistenceSaveTask: Task<Void, Never>?
     @EnvironmentObject var ttsPlaybackManager: TextToSpeechPlaybackManager
     @StateObject var speechToTextManager = SpeechToTextManager()

@@ -1,8 +1,23 @@
+import SwiftData
 import SwiftUI
 
-// MARK: - Conversation Helpers (sidebar-row helpers now live in ChatsSidebarSection)
+// MARK: - Conversation Helpers (sidebar-row helpers now live in ChatsSidebarSectionView)
 
 extension ContentView {
+    func fetchPersistedConversations() -> [ConversationEntity] {
+        (try? modelContext.fetch(FetchDescriptor<ConversationEntity>())) ?? []
+    }
+
+    func fetchPersistedConversation(id: UUID) -> ConversationEntity? {
+        fetchPersistedConversations().first { $0.id == id }
+    }
+
+    func fetchPersistedConversationsByUpdatedAtDescending() -> [ConversationEntity] {
+        fetchPersistedConversations().sorted { lhs, rhs in
+            lhs.updatedAt > rhs.updatedAt
+        }
+    }
+
     func providerName(for providerID: String) -> String {
         providers.first(where: { $0.id == providerID })?.name ?? providerID
     }

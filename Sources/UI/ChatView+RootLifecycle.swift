@@ -15,15 +15,15 @@ extension ChatView {
                 updateSlashCommandState(for: newValue, target: .editMessage)
             }
             // `conversationEntity.messages.count` and `.updatedAt` are observed
-            // inside `ChatConversationChangeObserver` (a 0-sized child view) so
+            // inside `ChatConversationChangeObserverView` (a 0-sized child view) so
             // streaming-token writes don't re-evaluate `ChatView.body`.
-            .background(
-                ChatConversationChangeObserver(
+            .background {
+                ChatConversationChangeObserverView(
                     conversation: conversationEntity,
                     onMessageCountChanged: rebuildMessageCachesIfNeeded,
                     onUpdatedAtChanged: scheduleUpdatedAtDrivenCacheRebuild
                 )
-            )
+            }
             .onChange(of: contextUsageRefreshToken) { _, _ in
                 refreshContextUsageEstimate()
             }

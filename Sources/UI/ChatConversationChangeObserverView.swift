@@ -4,7 +4,7 @@ import SwiftUI
 /// `updatedAt`) into a 0-sized child view so they don't widen the observation
 /// scope of `ChatView.body`. Every token write fires this view's `.onChange`
 /// callbacks instead of invalidating the entire chat tree.
-struct ChatConversationChangeObserver: View {
+struct ChatConversationChangeObserverView: View {
     @Bindable var conversation: ConversationEntity
     let onMessageCountChanged: () -> Void
     let onUpdatedAtChanged: () -> Void

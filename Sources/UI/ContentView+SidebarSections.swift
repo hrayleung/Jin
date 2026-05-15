@@ -4,24 +4,22 @@ import SwiftData
 // MARK: - Sidebar Sections
 
 extension ContentView {
-    var conversationCountsByAssistantID: [String: Int] {
-        Dictionary(grouping: conversations) { conversation in
-            conversation.assistant?.id ?? "default"
-        }
-        .mapValues(\.count)
-    }
-
     @ViewBuilder
     var assistantsArea: some View {
-        VStack(spacing: 0) {
-            assistantsAreaHeader
-            assistantsAreaBody
-            newAssistantButton
-        }
-        .padding(.bottom, JinSpacing.xSmall)
-        .onDeleteCommand {
-            guard let selectedAssistant else { return }
-            requestDeleteAssistant(selectedAssistant)
+        AssistantConversationStatsObserverView { conversationCountsByAssistantID, lastConversationByAssistantID in
+            VStack(spacing: 0) {
+                assistantsAreaHeader
+                assistantsAreaBody(
+                    conversationCountsByAssistantID: conversationCountsByAssistantID,
+                    lastConversationByAssistantID: lastConversationByAssistantID
+                )
+                newAssistantButton
+            }
+            .padding(.bottom, JinSpacing.xSmall)
+            .onDeleteCommand {
+                guard let selectedAssistant else { return }
+                requestDeleteAssistant(selectedAssistant)
+            }
         }
     }
 
@@ -81,7 +79,12 @@ extension ContentView {
     }
 
     @ViewBuilder
-    private var assistantsAreaBody: some View {
+    private func assistantsAreaBody(
+        conversationCountsByAssistantID: [String: Int],
+        lastConversationByAssistantID: [String: Date]
+    ) -> some View {
+        let displayedAssistants = displayedAssistants(lastConversationByAssistantID: lastConversationByAssistantID)
+
         switch assistantSidebarLayout {
         case .dropdown:
             HStack(spacing: 8) {
@@ -199,7 +202,33 @@ extension ContentView {
         .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .newAssistant))
     }
 
-    // The conversations List moved into `ChatsSidebarSection.swift`. That
-    // subview owns its own `@Query` so streaming-driven `updatedAt` writes
-    // invalidate the sidebar list only — not `ContentView` itself.
+    // The conversations List moved into `ChatsSidebarSectionView.swift`. That
+    // subview owns its own `@Query`; assistant chat counts / recent sort dates
+    // are likewise isolated in `AssistantConversationStatsObserverView`.
+}
+
+private struct AssistantConversationStatsObserverView<Content: View>: View {
+    @Query(sort: \ConversationEntity.updatedAt, order: .reverse)
+    private var conversations: [ConversationEntity]
+    @ViewBuilder let content: ([String: Int], [String: Date]) -> Content
+
+    var body: some View {
+        content(conversationCountsByAssistantID, lastConversationByAssistantID)
+    }
+
+    private var conversationCountsByAssistantID: [String: Int] {
+        Dictionary(grouping: conversations) { conversation in
+            conversation.assistant?.id ?? "default"
+        }
+        .mapValues(\.count)
+    }
+
+    private var lastConversationByAssistantID: [String: Date] {
+        Dictionary(grouping: conversations.filter { !$0.messages.isEmpty }) { conversation in
+            conversation.assistant?.id ?? "default"
+        }
+        .mapValues { conversations in
+            conversations.map(\.updatedAt).max() ?? Date.distantPast
+        }
+    }
 }

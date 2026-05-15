@@ -296,11 +296,10 @@ extension ChatView {
     @MainActor
     func schedulePersistenceSave() {
         pendingPersistenceSaveTask?.cancel()
-        let modelContext = modelContext
         pendingPersistenceSaveTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }
-            try? modelContext.save()
+            persistModelContext(context: "debounced streaming save")
         }
     }
 
@@ -310,6 +309,27 @@ extension ChatView {
     func flushPendingPersistenceSave() {
         pendingPersistenceSaveTask?.cancel()
         pendingPersistenceSaveTask = nil
-        try? modelContext.save()
+        persistModelContext(context: "streaming save flush")
+    }
+
+    @MainActor
+    private func persistModelContext(context: String) {
+        do {
+            try modelContext.save()
+        } catch {
+            let message = "Failed to save chat: \(error.localizedDescription)"
+            errorMessage = message
+            showingError = true
+            ChatDiagnosticLogger.log(
+                runId: conversationEntity.id.uuidString,
+                hypothesisId: "persistence",
+                message: "chat_persistence_save_failed",
+                data: [
+                    "conversationID": conversationEntity.id.uuidString,
+                    "context": context,
+                    "error": error.localizedDescription
+                ]
+            )
+        }
     }
 }
