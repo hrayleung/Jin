@@ -80,10 +80,9 @@ struct MessageTextView: View {
     }
 
     private var needsSelectionAwarePlainTextRenderer: Bool {
-        selectionMessageID != nil
-            && (
-                !persistedHighlights.isEmpty
-                || selectionAnchorID != nil
-            )
+        // Quote and highlight actions are implemented by MarkdownWKWebView's
+        // selection snapshot pipeline, so selectable plain-text messages need
+        // the web renderer even before the first highlight exists.
+        selectionMessageID != nil || !persistedHighlights.isEmpty
     }
 }

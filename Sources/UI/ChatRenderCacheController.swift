@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftUI
 
 struct ChatRenderCacheRebuildRequest {
@@ -12,16 +13,29 @@ struct ChatRenderCacheRebuildRequest {
     let providerIconsByID: [String: String?]
 }
 
+/// `@Observable` (Observation framework) gives per-property read tracking so
+/// views that only consume `version` aren't re-evaluated when `artifactCatalog`
+/// changes, etc. Replaces the previous coarse `ObservableObject`/`@Published`
+/// fan-out, which invalidated every consumer on every published mutation.
+@Observable
 @MainActor
-final class ChatRenderCacheController: ObservableObject {
-    @Published private(set) var visibleMessages: [MessageRenderItem] = []
-    @Published private(set) var version: Int = 0
-    @Published private(set) var messageEntitiesByID: [UUID: MessageEntity] = [:]
-    @Published private(set) var activeThreadHistory: [Message] = []
-    @Published private(set) var isHistoryReady = true
-    @Published private(set) var toolResultsByCallID: [String: ToolResult] = [:]
-    @Published private(set) var artifactCatalog: ArtifactCatalog = .empty
-    @Published private(set) var contextsByThreadID: [UUID: ChatThreadRenderContext] = [:]
+final class ChatRenderCacheController {
+    private(set) var visibleMessages: [MessageRenderItem] = []
+    private(set) var version: Int = 0
+    private(set) var messageEntitiesByID: [UUID: MessageEntity] = [:]
+    private(set) var activeThreadHistory: [Message] = []
+    private(set) var isHistoryReady = true
+    private(set) var toolResultsByCallID: [String: ToolResult] = [:]
+    private(set) var artifactCatalog: ArtifactCatalog = .empty
+    private(set) var contextsByThreadID: [UUID: ChatThreadRenderContext] = [:]
+    /// Set of thread IDs that have at least one message. ChatView reads this
+    /// (rather than `conversationEntity.messages`) so streaming-token writes
+    /// to messages don't register an observation on `ChatView.body`.
+    private(set) var panelThreadIDs: Set<UUID> = []
+    /// Total message count from the most recent rebuild. Mirror of the
+    /// previously-private `lastRebuildMessageCount`, exposed so `ChatView.body`
+    /// can drive its EquatableKey without reading `conversationEntity.messages.count`.
+    private(set) var cachedTotalMessageCount: Int = 0
 
     private var lastRebuildMessageCount = 0
     private var lastRebuildUpdatedAt: Date = .distantPast
@@ -31,12 +45,11 @@ final class ChatRenderCacheController: ObservableObject {
     private var historyDecodeTask: Task<Void, Never>?
     private var activeBuildToken = UUID()
 
-    deinit {
-        updatedAtDebounceTask?.cancel()
-        renderContextBuildTask?.cancel()
-        renderContextDecodeTask?.cancel()
-        historyDecodeTask?.cancel()
-    }
+    // No `deinit` cancel: a nonisolated deinit can't touch these @MainActor
+    // properties under the Observation macro's stricter isolation. Cancellation
+    // is driven by `cancelPendingWork()` from `handleChatDisappear` /
+    // `handleConversationSwitch`. Tasks that outlive the controller hold their
+    // own captures and complete normally.
 
     func rebuildIfNeeded(
         request: ChatRenderCacheRebuildRequest,
@@ -217,6 +230,8 @@ final class ChatRenderCacheController: ObservableObject {
         toolResultsByCallID = [:]
         artifactCatalog = .empty
         contextsByThreadID = [:]
+        panelThreadIDs = []
+        cachedTotalMessageCount = 0
         version &+= 1
         lastRebuildMessageCount = 0
         lastRebuildUpdatedAt = .distantPast
@@ -293,7 +308,8 @@ final class ChatRenderCacheController: ObservableObject {
             batch,
             activeMessageCount: activeMessageCount,
             cacheMessageCount: cacheMessageCount,
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            allMessages: allMessages
         )
         onContextApplied()
     }
@@ -302,7 +318,8 @@ final class ChatRenderCacheController: ObservableObject {
         _ batch: ChatRenderContextBatch,
         activeMessageCount: Int,
         cacheMessageCount: Int,
-        updatedAt: Date
+        updatedAt: Date,
+        allMessages: [MessageEntity]
     ) {
         let activeContext = batch.activeContext
         visibleMessages = activeContext.visibleMessages
@@ -312,6 +329,13 @@ final class ChatRenderCacheController: ObservableObject {
         toolResultsByCallID = activeContext.toolResultsByCallID
         artifactCatalog = activeContext.artifactCatalog
         contextsByThreadID = batch.contextsByThreadID
+        let newPanelThreadIDs = Set(allMessages.compactMap(\.contextThreadID))
+        if panelThreadIDs != newPanelThreadIDs {
+            panelThreadIDs = newPanelThreadIDs
+        }
+        if cachedTotalMessageCount != cacheMessageCount {
+            cachedTotalMessageCount = cacheMessageCount
+        }
         version &+= 1
         lastRebuildMessageCount = cacheMessageCount
         lastRebuildUpdatedAt = updatedAt

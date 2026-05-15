@@ -1,70 +1,21 @@
+import SwiftData
 import SwiftUI
 
-// MARK: - Conversation Filtering & Helpers
+// MARK: - Conversation Helpers (sidebar-row helpers now live in ChatsSidebarSectionView)
 
 extension ContentView {
-    var normalizedConversationSearchQuery: String {
-        ContentViewConversationListSupport.normalizedSearchQuery(searchText)
+    func fetchPersistedConversations() -> [ConversationEntity] {
+        (try? modelContext.fetch(FetchDescriptor<ConversationEntity>())) ?? []
     }
 
-    var filteredConversations: [ConversationEntity] {
-        let query = normalizedConversationSearchQuery
-        let isSearching = !query.isEmpty
+    func fetchPersistedConversation(id: UUID) -> ConversationEntity? {
+        fetchPersistedConversations().first { $0.id == id }
+    }
 
-        let baseConversations = conversations.filter { conversation in
-            guard !conversation.messages.isEmpty else { return false }
-            if isSearching { return true }
-            guard let selectedAssistant else { return true }
-            return conversation.assistant?.id == selectedAssistant.id
+    func fetchPersistedConversationsByUpdatedAtDescending() -> [ConversationEntity] {
+        fetchPersistedConversations().sorted { lhs, rhs in
+            lhs.updatedAt > rhs.updatedAt
         }
-
-        guard isSearching else { return baseConversations }
-
-        let lowered = query.lowercased()
-        return baseConversations.filter { conversation in
-            if conversation.title.lowercased().contains(lowered)
-                || activeModelID(for: conversation).lowercased().contains(lowered)
-                || providerName(for: conversation).lowercased().contains(lowered) {
-                return true
-            }
-            return searchCache.searchableText(for: conversation)
-                .localizedCaseInsensitiveContains(query)
-        }
-    }
-
-    func searchSnippet(for conversation: ConversationEntity) -> String? {
-        let query = normalizedConversationSearchQuery
-        guard !query.isEmpty else { return nil }
-        let lowered = query.lowercased()
-        if conversation.title.lowercased().contains(lowered) { return nil }
-        return ConversationSearchCache.extractSnippet(
-            from: searchCache.searchableText(for: conversation),
-            query: query
-        )
-    }
-
-    var groupedConversations: [(key: String, value: [ConversationEntity])] {
-        ConversationGrouping.groupedConversations(filteredConversations)
-    }
-
-    var conversationListSelectionBinding: Binding<ConversationEntity?> {
-        Binding(
-            get: {
-                guard let selectedConversation else { return nil }
-                return conversations.first(where: { $0.id == selectedConversation.id })
-            },
-            set: { newValue in
-                guard let newValue else {
-                    guard let current = selectedConversation else { return }
-                    if conversations.contains(where: { $0.id == current.id }) {
-                        selectedConversation = nil
-                    }
-                    return
-                }
-
-                selectConversation(newValue)
-            }
-        )
     }
 
     func providerName(for providerID: String) -> String {

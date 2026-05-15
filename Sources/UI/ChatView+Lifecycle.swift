@@ -26,6 +26,10 @@ extension ChatView {
         // displayed messages immediately so the switch feels instant, then
         // rebuild caches on the next run-loop tick.
 
+        // Commit any pending debounced save from the previous conversation
+        // before its state is unbound.
+        flushPendingPersistenceSave()
+
         resetComposerAndEditingStateForConversationSwitch()
         resetPrepareToSendStateForConversationSwitch()
         resetPresentationStateForConversationSwitch()
@@ -44,11 +48,21 @@ extension ChatView {
         // and syncActiveThreadSelection, so calling them separately is redundant.
         loadControlsFromConversation()
 
-        // Defer the heavy rebuild so SwiftUI can commit the state reset above
-        // (clears the view) before we block the main actor with JSON decoding.
-        let targetConversationID = conversationEntity.id
-        Task { @MainActor in
-            guard conversationEntity.id == targetConversationID else { return }
+        // For small conversations the rebuild is cheap (no JSON decode async
+        // path) — run it synchronously so the user doesn't see a one-runloop
+        // empty flash. For large conversations defer it so SwiftUI can commit
+        // the cleared state first; the user perceives an instant response with
+        // content streaming in.
+        let orderedMessages = orderedConversationMessages(threadID: activeModelThread?.id)
+        if ChatMessageRenderPipeline.shouldBuildRenderContextAsynchronously(from: orderedMessages) {
+            let targetConversationID = conversationEntity.id
+            Task { @MainActor in
+                guard conversationEntity.id == targetConversationID else { return }
+                rebuildMessageCaches()
+                syncArtifactSelectionForActiveThread()
+                refreshContextUsageEstimate(debounced: false)
+            }
+        } else {
             rebuildMessageCaches()
             syncArtifactSelectionForActiveThread()
             refreshContextUsageEstimate(debounced: false)

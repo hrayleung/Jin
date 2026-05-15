@@ -98,7 +98,7 @@ extension ContentView {
 
     // MARK: - Sidebar Layout Helpers
 
-    var displayedAssistants: [AssistantEntity] {
+    func displayedAssistants(lastConversationByAssistantID: [String: Date] = [:]) -> [AssistantEntity] {
         switch assistantSidebarSort {
         case .custom:
             return assistants
@@ -107,13 +107,6 @@ extension ContentView {
                 $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
             }
         case .recent:
-            let lastConversationByAssistantID = Dictionary(grouping: conversations.filter { !$0.messages.isEmpty }) { conversation in
-                conversation.assistant?.id ?? "default"
-            }
-            .mapValues { conversations in
-                conversations.map(\.updatedAt).max() ?? Date.distantPast
-            }
-
             return assistants.sorted { lhs, rhs in
                 let lhsDate = lastConversationByAssistantID[lhs.id] ?? Date.distantPast
                 let rhsDate = lastConversationByAssistantID[rhs.id] ?? Date.distantPast

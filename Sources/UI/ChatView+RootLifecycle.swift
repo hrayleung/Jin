@@ -14,11 +14,15 @@ extension ChatView {
             .onChange(of: editingUserMessageText) { _, newValue in
                 updateSlashCommandState(for: newValue, target: .editMessage)
             }
-            .onChange(of: conversationEntity.messages.count) { _, _ in
-                rebuildMessageCachesIfNeeded()
-            }
-            .onChange(of: conversationEntity.updatedAt) { _, _ in
-                scheduleUpdatedAtDrivenCacheRebuild()
+            // `conversationEntity.messages.count` and `.updatedAt` are observed
+            // inside `ChatConversationChangeObserverView` (a 0-sized child view) so
+            // streaming-token writes don't re-evaluate `ChatView.body`.
+            .background {
+                ChatConversationChangeObserverView(
+                    conversation: conversationEntity,
+                    onMessageCountChanged: rebuildMessageCachesIfNeeded,
+                    onUpdatedAtChanged: scheduleUpdatedAtDrivenCacheRebuild
+                )
             }
             .onChange(of: contextUsageRefreshToken) { _, _ in
                 refreshContextUsageEstimate()
@@ -42,6 +46,7 @@ extension ChatView {
         contextUsageRefreshTask = nil
         draftContextUsageRefreshTask?.cancel()
         draftContextUsageRefreshTask = nil
+        flushPendingPersistenceSave()
     }
 
     func scheduleUpdatedAtDrivenCacheRebuild() {

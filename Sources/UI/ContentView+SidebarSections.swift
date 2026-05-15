@@ -4,24 +4,22 @@ import SwiftData
 // MARK: - Sidebar Sections
 
 extension ContentView {
-    var conversationCountsByAssistantID: [String: Int] {
-        Dictionary(grouping: conversations) { conversation in
-            conversation.assistant?.id ?? "default"
-        }
-        .mapValues(\.count)
-    }
-
     @ViewBuilder
     var assistantsArea: some View {
-        VStack(spacing: 0) {
-            assistantsAreaHeader
-            assistantsAreaBody
-            newAssistantButton
-        }
-        .padding(.bottom, JinSpacing.xSmall)
-        .onDeleteCommand {
-            guard let selectedAssistant else { return }
-            requestDeleteAssistant(selectedAssistant)
+        AssistantConversationStatsObserverView { conversationCountsByAssistantID, lastConversationByAssistantID in
+            VStack(spacing: 0) {
+                assistantsAreaHeader
+                assistantsAreaBody(
+                    conversationCountsByAssistantID: conversationCountsByAssistantID,
+                    lastConversationByAssistantID: lastConversationByAssistantID
+                )
+                newAssistantButton
+            }
+            .padding(.bottom, JinSpacing.xSmall)
+            .onDeleteCommand {
+                guard let selectedAssistant else { return }
+                requestDeleteAssistant(selectedAssistant)
+            }
         }
     }
 
@@ -81,7 +79,12 @@ extension ContentView {
     }
 
     @ViewBuilder
-    private var assistantsAreaBody: some View {
+    private func assistantsAreaBody(
+        conversationCountsByAssistantID: [String: Int],
+        lastConversationByAssistantID: [String: Date]
+    ) -> some View {
+        let displayedAssistants = displayedAssistants(lastConversationByAssistantID: lastConversationByAssistantID)
+
         switch assistantSidebarLayout {
         case .dropdown:
             HStack(spacing: 8) {
@@ -141,7 +144,10 @@ extension ContentView {
                     }
                 }
             }
-            .animation(.spring(duration: 0.3), value: displayedAssistants.map(\.id))
+            // No `.animation(value: displayedAssistants.map(\.id))`: spring
+            // re-runs on every selection because the array identity allocates,
+            // and the actual user-visible event we want to animate (add/delete
+            // assistant) is rare — the cost on every click outweighed it.
             .contextMenu {
                 if let assistant = resolveAssistantForContextMenu() {
                     assistantContextMenu(for: assistant)
@@ -172,7 +178,10 @@ extension ContentView {
                     }
                 }
             }
-            .animation(.spring(duration: 0.3), value: displayedAssistants.map(\.id))
+            // No `.animation(value: displayedAssistants.map(\.id))`: spring
+            // re-runs on every selection because the array identity allocates,
+            // and the actual user-visible event we want to animate (add/delete
+            // assistant) is rare — the cost on every click outweighed it.
         }
     }
 
@@ -193,49 +202,33 @@ extension ContentView {
         .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .newAssistant))
     }
 
-    @ViewBuilder
-    var chatsSection: some View {
-        if !filteredConversations.isEmpty {
-            ForEach(groupedConversations, id: \.key) { period, convs in
-                Section {
-                    ForEach(convs) { conversation in
-                        SidebarConversationItem(
-                            conversation: conversation,
-                            subtitle: "\(providerName(for: conversation)) \u{2022} \(modelName(for: conversation))",
-                            providerIconID: providerIconID(for: conversation),
-                            searchSnippet: searchSnippet(for: conversation),
-                            searchQuery: normalizedConversationSearchQuery,
-                            isRegeneratingTitle: regeneratingConversationID == conversation.id,
-                            onToggleStar: { toggleConversationStar(conversation) },
-                            onRename: { requestRenameConversation(conversation) },
-                            onRegenerateTitle: { Task { await regenerateConversationTitle(conversation) } },
-                            onDelete: { requestDeleteConversation(conversation) }
-                        )
-                        .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                    }
-                    .onDelete { indexSet in
-                        deleteConversations(at: indexSet, in: convs)
-                    }
-                } header: {
-                    Text(period)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, JinSpacing.medium + 2)
-                        .padding(.top, JinSpacing.medium)
-                        .padding(.bottom, JinSpacing.xSmall + 1)
-                }
-                .textCase(nil)
-            }
-        } else if !searchText.isEmpty {
-            ContentUnavailableView.search(text: searchText)
-        } else {
-            ContentUnavailableView {
-                Label("No Conversations", systemImage: "bubble.left.and.bubble.right")
-            } description: {
-                Text("Start a new chat to begin.")
-            }
+    // The conversations List moved into `ChatsSidebarSectionView.swift`. That
+    // subview owns its own `@Query`; assistant chat counts / recent sort dates
+    // are likewise isolated in `AssistantConversationStatsObserverView`.
+}
+
+private struct AssistantConversationStatsObserverView<Content: View>: View {
+    @Query(sort: \ConversationEntity.updatedAt, order: .reverse)
+    private var conversations: [ConversationEntity]
+    @ViewBuilder let content: ([String: Int], [String: Date]) -> Content
+
+    var body: some View {
+        content(conversationCountsByAssistantID, lastConversationByAssistantID)
+    }
+
+    private var conversationCountsByAssistantID: [String: Int] {
+        Dictionary(grouping: conversations) { conversation in
+            conversation.assistant?.id ?? "default"
+        }
+        .mapValues(\.count)
+    }
+
+    private var lastConversationByAssistantID: [String: Date] {
+        Dictionary(grouping: conversations.filter { !$0.messages.isEmpty }) { conversation in
+            conversation.assistant?.id ?? "default"
+        }
+        .mapValues { conversations in
+            conversations.map(\.updatedAt).max() ?? Date.distantPast
         }
     }
 }
