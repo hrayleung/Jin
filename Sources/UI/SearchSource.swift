@@ -2,10 +2,15 @@ import Foundation
 
 enum SearchSourceKind: String, Hashable {
     case web
+    case x
     case googleMaps = "google_maps"
 
     var isGoogleMaps: Bool {
         self == .googleMaps
+    }
+
+    var isXTwitter: Bool {
+        self == .x
     }
 
     init(rawValueOrDefault rawValue: String?) {
@@ -53,7 +58,8 @@ struct SearchSource: Identifiable, Hashable {
         guard let normalizedURL = SearchSource.normalizeURLString(rawURL) else { return nil }
         guard let rawHost = URL(string: normalizedURL)?.host?.trimmedNonEmpty else { return nil }
 
-        let identity = SearchSourceIdentitySupport.identity(rawHost: rawHost, title: title, kind: kind)
+        let resolvedKind: SearchSourceKind = (kind == .web && SearchSource.isXTwitterHost(rawHost)) ? .x : kind
+        let identity = SearchSourceIdentitySupport.identity(rawHost: rawHost, title: title, kind: resolvedKind)
 
         self.id = normalizedURL.lowercased()
         self.canonicalURLString = normalizedURL
@@ -61,9 +67,22 @@ struct SearchSource: Identifiable, Hashable {
         self.previewText = SearchSourcePresentationSupport.normalizeSnippet(previewText)
         self.host = identity.host
         self.hostDisplay = identity.hostDisplay
-        self.kind = kind
+        self.kind = resolvedKind
         self.mapsPlaceID = mapsPlaceID?.trimmedNonEmpty
         self.usesGoogleGroundingRedirect = identity.usesGoogleGroundingRedirect
+    }
+
+    private static func isXTwitterHost(_ rawHost: String) -> Bool {
+        let normalized = rawHost.lowercased()
+        let stripped = normalized.hasPrefix("www.") ? String(normalized.dropFirst(4)) : normalized
+        let roots: Set<String> = ["x.com", "twitter.com"]
+        if roots.contains(stripped) { return true }
+        for root in roots {
+            if stripped == "mobile.\(root)" || stripped == "m.\(root)" {
+                return true
+            }
+        }
+        return false
     }
 
     func merged(
@@ -77,8 +96,13 @@ struct SearchSource: Identifiable, Hashable {
             existing: previewText,
             candidate: normalizedNewPreview
         )
-        let mergedHostDisplay = newerKind.isGoogleMaps
-            ? SearchSourceIdentitySupport.hostDisplay(for: host, kind: newerKind)
+        let resolvedKind: SearchSourceKind = {
+            if newerKind.isGoogleMaps { return newerKind }
+            if newerKind == .x && kind == .web { return .x }
+            return kind
+        }()
+        let mergedHostDisplay = resolvedKind.isGoogleMaps
+            ? SearchSourceIdentitySupport.hostDisplay(for: host, kind: resolvedKind)
             : hostDisplay
 
         return SearchSource(
@@ -88,7 +112,7 @@ struct SearchSource: Identifiable, Hashable {
             previewText: mergedPreviewText,
             host: host,
             hostDisplay: mergedHostDisplay,
-            kind: newerKind.isGoogleMaps ? newerKind : kind,
+            kind: resolvedKind,
             mapsPlaceID: newerMapsPlaceID?.trimmedNonEmpty ?? mapsPlaceID,
             usesGoogleGroundingRedirect: usesGoogleGroundingRedirect
         )

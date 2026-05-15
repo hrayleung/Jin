@@ -936,7 +936,7 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
             providerType: .xai
         )
         XCTAssertEqual(created.webSearch?.enabled, true)
-        XCTAssertEqual(created.webSearch?.sources, [.web])
+        XCTAssertEqual(created.webSearch?.sources, [.web, .x])
 
         var existing = GenerationControls(webSearch: WebSearchControls(enabled: false, contextSize: nil, sources: [.x]))
         existing = ChatAuxiliaryControlSupport.setWebSearchEnabled(

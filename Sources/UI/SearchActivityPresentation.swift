@@ -3,15 +3,21 @@ import Foundation
 struct SearchActivityPresentation: Equatable {
     enum DisplayKind: Equatable {
         case web
+        case x
         case maps
+        case webAndX
         case mixed
 
         var sectionTitle: String {
             switch self {
             case .web:
                 return "Web Search"
+            case .x:
+                return "X Search"
             case .maps:
                 return "Google Maps"
+            case .webAndX:
+                return "Web + X"
             case .mixed:
                 return "Search & Maps"
             }
@@ -21,8 +27,12 @@ struct SearchActivityPresentation: Equatable {
             switch self {
             case .web:
                 return "magnifyingglass"
+            case .x:
+                return "at"
             case .maps:
                 return "map"
+            case .webAndX:
+                return "magnifyingglass"
             case .mixed:
                 return "map.circle"
             }
@@ -30,7 +40,7 @@ struct SearchActivityPresentation: Equatable {
 
         func sourceSummaryText(count: Int) -> String {
             switch self {
-            case .web:
+            case .web, .x, .webAndX:
                 return "Browsed \(count) link" + (count == 1 ? "" : "s")
             case .maps:
                 return "Cited \(count) place source" + (count == 1 ? "" : "s")
@@ -57,14 +67,17 @@ struct SearchActivityPresentation: Equatable {
 
     private static func displayKind(for sources: [SearchSource]) -> DisplayKind {
         let hasMapsSources = sources.contains(where: { $0.kind.isGoogleMaps })
-        let hasWebSources = sources.contains(where: { !$0.kind.isGoogleMaps })
-        switch (hasMapsSources, hasWebSources) {
-        case (true, true):
-            return .mixed
-        case (true, false):
-            return .maps
-        default:
-            return .web
+        let hasXSources = sources.contains(where: { $0.kind.isXTwitter })
+        let hasWebSources = sources.contains(where: { $0.kind == .web })
+        if hasMapsSources {
+            return (hasWebSources || hasXSources) ? .mixed : .maps
         }
+        if hasWebSources && hasXSources {
+            return .webAndX
+        }
+        if hasXSources {
+            return .x
+        }
+        return .web
     }
 }

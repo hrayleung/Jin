@@ -141,6 +141,25 @@ final class SearchActivityTimelineSupportTests: XCTestCase {
         XCTAssertEqual(mixed.sectionTitle, "Search & Maps")
         XCTAssertEqual(mixed.summarySystemImage, "map.circle")
         XCTAssertEqual(mixed.sourceSummaryText, "Browsed 2 grounded sources")
+
+        let xOnly = SearchActivityPresentation(
+            activities: [sourceActivity(id: "x", url: "https://x.com/jack/status/1", sourceKind: nil)]
+        )
+        XCTAssertEqual(xOnly.displayKind, .x)
+        XCTAssertEqual(xOnly.sectionTitle, "X Search")
+        XCTAssertEqual(xOnly.summarySystemImage, "at")
+        XCTAssertEqual(xOnly.sourceSummaryText, "Browsed 1 link")
+
+        let webAndX = SearchActivityPresentation(
+            activities: [
+                sourceActivity(id: "web", url: "https://example.com", sourceKind: nil),
+                sourceActivity(id: "x", url: "https://twitter.com/jack/status/1", sourceKind: nil)
+            ]
+        )
+        XCTAssertEqual(webAndX.displayKind, .webAndX)
+        XCTAssertEqual(webAndX.sectionTitle, "Web + X")
+        XCTAssertEqual(webAndX.summarySystemImage, "magnifyingglass")
+        XCTAssertEqual(webAndX.sourceSummaryText, "Browsed 2 links")
     }
 
     func testMapsAndSearchActivityPredicatesMatchTimelineFiltering() {

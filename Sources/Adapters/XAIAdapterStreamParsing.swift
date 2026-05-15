@@ -46,6 +46,15 @@ extension XAIAdapter {
                 ))
             }
 
+            if event.item.type == "web_search_call" || event.item.type == "x_search_call",
+               let activity = searchActivityFromOutputItem(
+                event.item,
+                outputIndex: event.outputIndex,
+                sequenceNumber: event.sequenceNumber
+               ) {
+                return .searchActivity(activity)
+            }
+
             guard event.item.type == "function_call",
                   let itemID = event.item.id,
                   let callID = event.item.callId,
@@ -118,14 +127,53 @@ extension XAIAdapter {
             ))
 
         case "response.output_item.done":
-            if data.contains("\"code_interpreter_call\"") {
-                let event = try decoder.decode(ResponsesAPIOutputItemDoneEvent.self, from: jsonData)
-                let item = event.item
-                if let activity = parseCodeInterpreterOutputItem(item, state: &codeInterpreterState) {
-                    return .codeExecutionActivity(activity)
+            let doneEvent = try? decoder.decode(ResponsesAPIOutputItemDoneEvent.self, from: jsonData)
+            if let doneEvent {
+                let item = doneEvent.item
+                if item.type == "code_interpreter_call" {
+                    if let activity = parseCodeInterpreterOutputItem(item, state: &codeInterpreterState) {
+                        return .codeExecutionActivity(activity)
+                    }
+                    return nil
+                }
+                if item.type == "web_search_call" || item.type == "x_search_call",
+                   let activity = searchActivityFromOutputItem(
+                    item,
+                    outputIndex: doneEvent.outputIndex,
+                    sequenceNumber: doneEvent.sequenceNumber
+                   ) {
+                    return .searchActivity(activity)
                 }
             }
             return nil
+
+        case "response.web_search_call.in_progress",
+             "response.web_search_call.searching",
+             "response.web_search_call.completed",
+             "response.web_search_call.failed":
+            let event = try decoder.decode(ResponsesAPIWebSearchCallStatusEvent.self, from: jsonData)
+            return .searchActivity(SearchActivity(
+                id: event.itemId,
+                type: "web_search_call",
+                status: searchStatus(fromEventType: type),
+                arguments: [:],
+                outputIndex: event.outputIndex,
+                sequenceNumber: event.sequenceNumber
+            ))
+
+        case "response.x_search_call.in_progress",
+             "response.x_search_call.searching",
+             "response.x_search_call.completed",
+             "response.x_search_call.failed":
+            let event = try decoder.decode(ResponsesAPIWebSearchCallStatusEvent.self, from: jsonData)
+            return .searchActivity(SearchActivity(
+                id: event.itemId,
+                type: "x_search_call",
+                status: searchStatus(fromEventType: type),
+                arguments: [:],
+                outputIndex: event.outputIndex,
+                sequenceNumber: event.sequenceNumber
+            ))
 
         case "response.failed":
             if let errorEvent = try? decoder.decode(ResponsesAPIFailedEvent.self, from: jsonData),

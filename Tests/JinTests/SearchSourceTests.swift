@@ -114,4 +114,50 @@ final class SearchSourceTests: XCTestCase {
         XCTAssertEqual(merged.hostDisplay, "Google Maps")
         XCTAssertEqual(merged.mapsPlaceID, "place-456")
     }
+
+    func testInitAutoUpgradesXAndTwitterHostsToXKind() throws {
+        let canonicalHosts = [
+            "https://x.com/elonmusk/status/123",
+            "https://www.x.com/elonmusk",
+            "https://twitter.com/jack/status/456",
+            "https://mobile.x.com/foo",
+            "https://m.twitter.com/bar"
+        ]
+
+        for url in canonicalHosts {
+            let source = try XCTUnwrap(
+                SearchSource(rawURL: url, title: "Post", previewText: nil),
+                "Failed to construct source for \(url)"
+            )
+            XCTAssertEqual(source.kind, .x, "Expected .x kind for \(url) but got \(source.kind)")
+            XCTAssertTrue(source.kind.isXTwitter)
+        }
+    }
+
+    func testInitKeepsNonXHostsAsWeb() throws {
+        let source = try XCTUnwrap(
+            SearchSource(rawURL: "https://trends24.in", title: "Trends", previewText: nil)
+        )
+        XCTAssertEqual(source.kind, .web)
+    }
+
+    func testMergedUpgradesWebKindToXWhenNewerKindIsX() throws {
+        let source = try XCTUnwrap(
+            SearchSource(
+                rawURL: "https://example.com",
+                title: nil,
+                previewText: nil,
+                kind: .web
+            )
+        )
+
+        let merged = source.merged(
+            withTitle: nil,
+            previewText: nil,
+            kind: .x,
+            mapsPlaceID: nil
+        )
+
+        XCTAssertEqual(merged.kind, .x)
+    }
 }

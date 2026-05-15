@@ -26,7 +26,7 @@ extension ChatControlNormalizationSupport {
         case .perplexity:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         case .xai:
-            return WebSearchControls(enabled: true, contextSize: nil, sources: [.web])
+            return WebSearchControls(enabled: true, contextSize: nil, sources: [.web, .x])
         case .mimoTokenPlanOpenAI:
             return WebSearchControls(enabled: true, maxUses: 3)
         case .anthropic, .claudeManagedAgents:
@@ -56,7 +56,7 @@ extension ChatControlNormalizationSupport {
             controls.webSearch?.contextSize = nil
             let sources = controls.webSearch?.sources ?? []
             if sources.isEmpty {
-                controls.webSearch?.sources = [.web]
+                controls.webSearch?.sources = [.web, .x]
             }
         case .mimoTokenPlanOpenAI:
             controls.webSearch?.contextSize = nil

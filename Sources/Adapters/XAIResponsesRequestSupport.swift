@@ -58,6 +58,7 @@ enum XAIResponsesRequestSupport {
             body["tools"] = toolObjects
         }
 
+        applyXSearchOnlyToolChoice(to: &body, controls: controls, toolObjects: toolObjects)
         applyRequiredIncludeFields(to: &body, codeExecutionEnabled: codeExecutionEnabled)
         applyProviderSpecificOverrides(to: &body, controls: controls, modelID: modelID)
 
@@ -154,6 +155,22 @@ enum XAIResponsesRequestSupport {
         }
 
         return toolObjects
+    }
+
+    // Grok's auto-orchestrator often skips x_search even when it's the only enabled
+    // built-in source. Force tool use in that narrow case so the model actually queries X.
+    static func applyXSearchOnlyToolChoice(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        toolObjects: [[String: Any]]
+    ) {
+        guard controls.webSearch?.enabled == true,
+              Set(controls.webSearch?.sources ?? []) == [.x],
+              toolObjects.count == 1,
+              (toolObjects.first?["type"] as? String) == "x_search" else {
+            return
+        }
+        body["tool_choice"] = "required"
     }
 
     static func applyRequiredIncludeFields(

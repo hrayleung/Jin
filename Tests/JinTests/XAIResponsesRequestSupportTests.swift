@@ -171,4 +171,90 @@ final class XAIResponsesRequestSupportTests: XCTestCase {
 
         XCTAssertEqual(body["include"] as? [String], ["custom.include"])
     }
+
+    func testToolChoiceRequiredWhenXIsSoleTool() {
+        let body = XAIResponsesRequestSupport.responsesBody(
+            modelID: "grok-4.3",
+            input: [["role": "user", "content": []]],
+            streaming: false,
+            controls: GenerationControls(
+                webSearch: WebSearchControls(enabled: true, sources: [.x])
+            ),
+            functionTools: [],
+            supportsWebSearch: true,
+            supportsClientFunctionTools: true
+        )
+
+        let tools = body["tools"] as? [[String: Any]] ?? []
+        XCTAssertEqual(tools.count, 1)
+        XCTAssertEqual(tools.first?["type"] as? String, "x_search")
+        XCTAssertEqual(body["tool_choice"] as? String, "required")
+    }
+
+    func testToolChoiceOmittedWhenBothWebAndXSourcesEnabled() {
+        let body = XAIResponsesRequestSupport.responsesBody(
+            modelID: "grok-4.3",
+            input: [["role": "user", "content": []]],
+            streaming: false,
+            controls: GenerationControls(
+                webSearch: WebSearchControls(enabled: true, sources: [.web, .x])
+            ),
+            functionTools: [],
+            supportsWebSearch: true,
+            supportsClientFunctionTools: true
+        )
+
+        XCTAssertNil(body["tool_choice"])
+    }
+
+    func testToolChoiceOmittedWhenXOnlyButFunctionToolsPresent() {
+        let body = XAIResponsesRequestSupport.responsesBody(
+            modelID: "grok-4.3",
+            input: [["role": "user", "content": []]],
+            streaming: false,
+            controls: GenerationControls(
+                webSearch: WebSearchControls(enabled: true, sources: [.x])
+            ),
+            functionTools: [["type": "function", "name": "lookup_status"]],
+            supportsWebSearch: true,
+            supportsClientFunctionTools: true
+        )
+
+        let tools = body["tools"] as? [[String: Any]] ?? []
+        XCTAssertEqual(tools.count, 2)
+        XCTAssertNil(body["tool_choice"])
+    }
+
+    func testToolChoiceOmittedWhenXOnlyButCodeExecutionEnabled() {
+        let body = XAIResponsesRequestSupport.responsesBody(
+            modelID: "grok-4.3",
+            input: [["role": "user", "content": []]],
+            streaming: false,
+            controls: GenerationControls(
+                webSearch: WebSearchControls(enabled: true, sources: [.x]),
+                codeExecution: CodeExecutionControls(enabled: true)
+            ),
+            functionTools: [],
+            supportsWebSearch: true,
+            supportsClientFunctionTools: true
+        )
+
+        XCTAssertNil(body["tool_choice"])
+    }
+
+    func testToolChoiceOmittedWhenWebOnly() {
+        let body = XAIResponsesRequestSupport.responsesBody(
+            modelID: "grok-4.3",
+            input: [["role": "user", "content": []]],
+            streaming: false,
+            controls: GenerationControls(
+                webSearch: WebSearchControls(enabled: true, sources: [.web])
+            ),
+            functionTools: [],
+            supportsWebSearch: true,
+            supportsClientFunctionTools: true
+        )
+
+        XCTAssertNil(body["tool_choice"])
+    }
 }
