@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct ThinkingBlockHeaderButton: View {
     enum Style {
@@ -8,26 +9,40 @@ struct ThinkingBlockHeaderButton: View {
 
     let style: Style
     let isExpanded: Bool
+    let copyText: String
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            headerRow
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var headerRow: some View {
-        HStack(spacing: JinSpacing.small) {
-            headerIcon
-            titleText
-            streamingIndicator
-            Spacer()
-            disclosureIndicator
+        HStack(spacing: JinSpacing.xSmall) {
+            disclosureRegion
+            copyAffordance
         }
         .padding(.horizontal, JinSpacing.medium)
         .padding(.vertical, JinSpacing.small)
         .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+    }
+
+    private var disclosureRegion: some View {
+        Button(action: action) {
+            HStack(spacing: JinSpacing.small) {
+                headerIcon
+                titleText
+                streamingIndicator
+                Spacer(minLength: JinSpacing.small)
+                disclosureIndicator
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var copyAffordance: some View {
+        if !copyText.isEmpty {
+            ThinkingHeaderCopyButton(text: copyText)
+                .accessibilityLabel("Copy thinking")
+        }
     }
 
     @ViewBuilder
@@ -104,6 +119,76 @@ struct StreamingThinkingBlockExpandedContent: View {
             font: codeFont,
             allowsTextSelection: false
         )
+    }
+}
+
+struct ThinkingHeaderCopyButton: View {
+    let text: String
+
+    @State private var didCopy = false
+    @State private var isHovering = false
+    @State private var resetTask: Task<Void, Never>?
+
+    private static let glyphSize: CGFloat = 11
+    private static let hitSize: CGFloat = 22
+
+    var body: some View {
+        Button(action: copy) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(backgroundFill)
+                Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+                    .font(.system(size: Self.glyphSize, weight: .semibold))
+                    .foregroundStyle(glyphColor)
+                    .symbolRenderingMode(.monochrome)
+                    .contentTransition(.symbolEffect(.replace.downUp))
+            }
+            .frame(width: Self.hitSize, height: Self.hitSize)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(didCopy ? "Copied" : "Copy thinking")
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                isHovering = hovering
+            }
+        }
+        .onDisappear {
+            resetTask?.cancel()
+        }
+    }
+
+    private var backgroundFill: Color {
+        if didCopy {
+            return Color.accentColor.opacity(0.18)
+        }
+        return isHovering
+            ? JinSemanticColor.subtleSurfaceStrong
+            : Color.clear
+    }
+
+    private var glyphColor: Color {
+        didCopy ? Color.accentColor : .secondary
+    }
+
+    @MainActor
+    private func copy() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            didCopy = true
+        }
+
+        resetTask?.cancel()
+        resetTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                didCopy = false
+            }
+        }
     }
 }
 

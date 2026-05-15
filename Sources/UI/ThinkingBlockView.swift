@@ -19,7 +19,11 @@ struct ThinkingBlockView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ThinkingBlockHeaderButton(style: .completed, isExpanded: isExpanded) {
+            ThinkingBlockHeaderButton(
+                style: .completed,
+                isExpanded: isExpanded,
+                copyText: thinking.text
+            ) {
                 withAnimation(.spring(duration: 0.25, bounce: 0.0)) {
                     isExpanded.toggle()
                 }
@@ -69,7 +73,8 @@ struct StreamingThinkingBlockView: View {
         VStack(alignment: .leading, spacing: 0) {
             ThinkingBlockHeaderButton(
                 style: isThinkingComplete ? .completed : .streaming,
-                isExpanded: isExpanded
+                isExpanded: isExpanded,
+                copyText: chunks.joined()
             ) {
                 withAnimation(.spring(duration: 0.25, bounce: 0.0)) {
                     isExpanded.toggle()
