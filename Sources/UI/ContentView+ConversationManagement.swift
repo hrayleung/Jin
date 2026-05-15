@@ -9,12 +9,13 @@ extension ContentView {
             ?? assistants.first(where: { $0.id == "default" })
             ?? assistants.first
 
-        withAnimation(.easeInOut(duration: 0.15)) {
-            if let assistant {
-                selectedAssistant = assistant
-            }
-            selectedConversation = conversation
+        // Instant swap. Animating a destination change here cross-fades the
+        // outgoing ChatView against an incoming one whose state is still
+        // being rebuilt, which surfaces as visible jank.
+        if let assistant {
+            selectedAssistant = assistant
         }
+        selectedConversation = conversation
     }
 
     func createNewConversation() {

@@ -200,9 +200,12 @@ extension ChatView {
                     entity.conversation = conversationEntity
                     conversationEntity.messages.append(entity)
                     conversationEntity.updatedAt = Date()
+                    // Assistant rebuilds must remain synchronous so that
+                    // `autoOpenLatestArtifactIfNeeded` sees the fresh artifact
+                    // catalog before it inspects it.
                     rebuildMessageCaches()
                     autoOpenLatestArtifactIfNeeded(from: message, threadID: threadID)
-                    try? modelContext.save()
+                    schedulePersistenceSave()
                     return entity.id
                 } catch {
                     errorMessage = error.localizedDescription
@@ -218,8 +221,12 @@ extension ChatView {
                     entity.conversation = conversationEntity
                     conversationEntity.messages.append(entity)
                     conversationEntity.updatedAt = Date()
-                    rebuildMessageCaches()
-                    try? modelContext.save()
+                    // Tool messages can land many-per-second on heavy turns.
+                    // Coalesce both the rebuild and the SwiftData save.
+                    renderCache.scheduleDebouncedRebuild(after: .milliseconds(120)) {
+                        rebuildMessageCachesIfNeeded()
+                    }
+                    schedulePersistenceSave()
                 } catch {
                     errorMessage = error.localizedDescription
                     showingError = true
@@ -262,6 +269,11 @@ extension ChatView {
                 }
                 streamingStore.endSession(conversationID: conversationID, threadID: threadID)
                 pendingManagedAgentInteractions.removeAll { $0.localThreadID == sessionThreadID }
+                // Flush the debounced rebuild so the final tool result is
+                // reflected immediately, then commit the SwiftData save so a
+                // crash after this point doesn't lose the finished turn.
+                rebuildMessageCachesIfNeeded()
+                flushPendingPersistenceSave()
             }
         )
 
@@ -273,5 +285,31 @@ extension ChatView {
             )
         }
         streamingStore.attachTask(task, conversationID: conversationID, threadID: threadID)
+    }
+
+    // MARK: - Debounced SwiftData persistence
+
+    /// Coalesces SwiftData writes during streaming. Each call resets a 500ms
+    /// timer; if streaming is generating messages faster than that we save at
+    /// most once per quiet window. Must be paired with `flushPendingPersistenceSave`
+    /// at session end so a final commit always lands.
+    @MainActor
+    func schedulePersistenceSave() {
+        pendingPersistenceSaveTask?.cancel()
+        let modelContext = modelContext
+        pendingPersistenceSaveTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            try? modelContext.save()
+        }
+    }
+
+    /// Cancels any pending debounced save and commits synchronously. Called on
+    /// session end and on conversation switch / chat disappearance.
+    @MainActor
+    func flushPendingPersistenceSave() {
+        pendingPersistenceSaveTask?.cancel()
+        pendingPersistenceSaveTask = nil
+        try? modelContext.save()
     }
 }

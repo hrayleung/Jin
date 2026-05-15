@@ -145,7 +145,7 @@ extension ChatView {
 
         return ChatSingleThreadMessagesView(
             conversationID: conversationEntity.id,
-            conversationMessageCount: conversationEntity.messages.count,
+            conversationMessageCount: renderCache.cachedTotalMessageCount,
             renderRevision: renderCache.version,
             containerSize: geometry.size,
             visibleContainerWidth: visibleContainerWidth,
@@ -179,7 +179,6 @@ extension ChatView {
             isPinnedToBottom: $isPinnedToBottom,
             pinnedBottomRefreshGeneration: $pinnedBottomRefreshGeneration
         )
-        .animation(.easeInOut(duration: 0.24), value: mainSidebarWidth)
     }
 
     var sidebarCompensationRatio: CGFloat {
@@ -201,7 +200,7 @@ extension ChatView {
         )
 
         return ChatMultiModelStageView(
-            conversationMessageCount: conversationEntity.messages.count,
+            conversationMessageCount: renderCache.cachedTotalMessageCount,
             containerSize: geometry.size,
             visibleContainerWidth: visibleContainerWidth,
             layoutCenterOffset: layoutCenterOffset,

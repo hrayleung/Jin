@@ -102,7 +102,9 @@ struct ChatView: View {
     @State var expandedCollapsedMessageIDs: Set<UUID> = []
 
     // Cache expensive derived data so typing/streaming doesn't repeatedly sort/decode the entire history.
-    @StateObject var renderCache = ChatRenderCacheController()
+    // `@State` (paired with `@Observable` on the controller) gives SwiftUI
+    // per-property read tracking, so views observe only the keys they read.
+    @State var renderCache = ChatRenderCacheController()
     @State var isArtifactPaneVisible = false
     @State var selectedArtifactIDByThreadID: [UUID: String] = [:]
     @State var selectedArtifactVersionByThreadID: [UUID: Int] = [:]
@@ -197,6 +199,7 @@ struct ChatView: View {
     @State var prepareToSendStatus: String?
     @State var prepareToSendTask: Task<Void, Never>?
     @State var prepareToSendCancellationReason: PrepareToSendCancellationReason?
+    @State var pendingPersistenceSaveTask: Task<Void, Never>?
     @EnvironmentObject var ttsPlaybackManager: TextToSpeechPlaybackManager
     @StateObject var speechToTextManager = SpeechToTextManager()
 
@@ -251,14 +254,26 @@ struct ChatView: View {
 
     /// Threads that render as their own panel in the stage. A thread becomes
     /// a panel only after it has received messages — toggling a tab as a
-    /// next-send recipient no longer summons an empty column. See
-    /// `ChatThreadSupport.panelThreads(...)` for fallback semantics.
+    /// next-send recipient no longer summons an empty column.
+    ///
+    /// Reads `renderCache.panelThreadIDs` (populated by `rebuildMessageCaches`)
+    /// rather than `conversationEntity.messages` so streaming-token writes
+    /// don't register a SwiftData observation on `ChatView.body`. Without this,
+    /// every persisted message would invalidate the whole chat tree even
+    /// though panel membership only changes when a thread crosses 0 → ≥1
+    /// messages.
     var panelThreads: [ConversationModelThreadEntity] {
-        ChatThreadSupport.panelThreads(
-            from: sortedModelThreads,
-            allMessages: conversationEntity.messages,
-            activeThread: activeModelThread
-        )
+        let withMessages = sortedModelThreads.filter { renderCache.panelThreadIDs.contains($0.id) }
+        if !withMessages.isEmpty {
+            return withMessages
+        }
+        if let activeModelThread {
+            return [activeModelThread]
+        }
+        if let firstThread = sortedModelThreads.first {
+            return [firstThread]
+        }
+        return []
     }
 
     var secondaryToolbarThreads: [ConversationModelThreadEntity] {

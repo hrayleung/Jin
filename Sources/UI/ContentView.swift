@@ -22,7 +22,6 @@ struct ContentView: View {
     @State var didBootstrapDefaults = false
     @State var didBootstrapAssistants = false
     @State var searchText = ""
-    @State var searchCache = ConversationSearchCache()
     @State var isAssistantInspectorPresented = false
     @State private var sidebarResizeStartWidth: CGFloat?
     @State private var sidebarLiveResizeWidth: CGFloat?
@@ -128,14 +127,20 @@ struct ContentView: View {
 
             assistantsArea
 
-            List(selection: conversationListSelectionBinding) {
-                chatsSection
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .listStyle(.plain)
-            .contentMargins(.vertical, 0, for: .scrollContent)
-            .overlayScrollerStyle()
-            .scrollContentBackground(.hidden)
+            ChatsSidebarSection(
+                searchText: searchText,
+                selectedAssistantID: selectedAssistant?.id,
+                regeneratingConversationID: regeneratingConversationID,
+                selection: $selectedConversation,
+                onSelectConversation: selectConversation,
+                onToggleStar: toggleConversationStar,
+                onRename: requestRenameConversation,
+                onRegenerateTitle: { conversation in
+                    Task { await regenerateConversationTitle(conversation) }
+                },
+                onDelete: requestDeleteConversation,
+                onDeleteAtOffsets: deleteConversations
+            )
         }
         .background {
             JinSemanticColor.sidebarSurface.ignoresSafeArea()
