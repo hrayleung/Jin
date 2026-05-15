@@ -3,8 +3,26 @@ import SwiftUI
 
 extension CompactComposerOverlayView {
     @ViewBuilder
-    var trailingActions: some View {
+    var leftColumn: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
+            perMessageMCPChipsRow
+            quoteCardsRow
+            attachmentChipsRow
+            remoteVideoInputRow
+            composerTextEditor
+            composerActionBar
+            prepareStatusRow
+            speechStatusRow
+        }
+        // Reserve space for the top-right hide/expand overlay so accessory rows and the editor stay clear of it.
+        .padding(.trailing, CompactComposerOverlayMetrics.topTrailingOverlayInset)
+    }
+
+    @ViewBuilder
+    var composerActionBar: some View {
         HStack(alignment: .center, spacing: JinSpacing.small) {
+            controlsRow()
+
             if let contextUsageEstimate {
                 ContextUsageIndicatorView(
                     estimate: contextUsageEstimate,
@@ -15,20 +33,6 @@ extension CompactComposerOverlayView {
             }
 
             sendButton
-        }
-    }
-
-    @ViewBuilder
-    var leftColumn: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            perMessageMCPChipsRow
-            quoteCardsRow
-            attachmentChipsRow
-            remoteVideoInputRow
-            composerTextEditor
-            controlsRow()
-            prepareStatusRow
-            speechStatusRow
         }
     }
 

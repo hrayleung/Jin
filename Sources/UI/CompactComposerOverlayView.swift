@@ -3,6 +3,10 @@ import AppKit
 
 // MARK: - Compact Composer Overlay
 
+enum CompactComposerOverlayMetrics {
+    static let topTrailingOverlayInset: CGFloat = 52
+}
+
 struct CompactComposerOverlayView<ControlsRow: View>: View {
     @Environment(\.accessibilityReduceMotion) var reduceMotion
 
@@ -139,30 +143,27 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
 
-        HStack(alignment: .bottom, spacing: JinSpacing.medium) {
-            leftColumn
-            trailingActions
-        }
-        .padding(JinSpacing.medium)
-        .frame(maxWidth: ChatConversationLayoutMetrics.composerMaxWidth)
-        .background {
-            shape.fill(.regularMaterial)
-        }
-        .overlay(
-            shape.stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
-        )
-        .overlay(
-            shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: JinStrokeWidth.emphasized)
-        )
-        .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
-        .overlay(alignment: .topTrailing) {
-            HStack(spacing: 2) {
-                hideButton
-                expandButton
+        leftColumn
+            .padding(JinSpacing.medium)
+            .frame(maxWidth: ChatConversationLayoutMetrics.composerMaxWidth)
+            .background {
+                shape.fill(.regularMaterial)
             }
-            .padding(.top, JinSpacing.medium)
-            .padding(.trailing, JinSpacing.medium)
-        }
+            .overlay(
+                shape.stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+            )
+            .overlay(
+                shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: JinStrokeWidth.emphasized)
+            )
+            .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
+            .overlay(alignment: .topTrailing) {
+                HStack(spacing: 2) {
+                    hideButton
+                    expandButton
+                }
+                .padding(.top, JinSpacing.medium)
+                .padding(.trailing, JinSpacing.medium)
+            }
     }
 }
 
