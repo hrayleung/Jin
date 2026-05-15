@@ -25,12 +25,12 @@ extension ResponsesAPIResponse {
         var out: [SearchActivity] = []
 
         for (index, item) in output.enumerated() {
-            if item.type == "web_search_call",
+            if (item.type == "web_search_call" || item.type == "x_search_call"),
                let id = item.id {
                 out.append(
                     SearchActivity(
                         id: id,
-                        type: item.action?.type ?? "web_search_call",
+                        type: item.action?.type ?? item.type,
                         status: SearchActivityStatus(rawValue: item.status ?? "in_progress"),
                         arguments: ResponsesAPIResponse.searchActivityArguments(from: item.action),
                         outputIndex: index
