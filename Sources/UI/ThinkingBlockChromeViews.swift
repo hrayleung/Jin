@@ -17,6 +17,7 @@ struct ThinkingBlockHeaderButton: View {
             disclosureRegion
             copyAffordance
         }
+        .frame(minHeight: ThinkingHeaderCopyButton.hitSize)
         .padding(.horizontal, JinSpacing.medium)
         .padding(.vertical, JinSpacing.small)
         .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
@@ -130,7 +131,7 @@ struct ThinkingHeaderCopyButton: View {
     @State private var resetTask: Task<Void, Never>?
 
     private static let glyphSize: CGFloat = 11
-    private static let hitSize: CGFloat = 22
+    fileprivate static let hitSize: CGFloat = 22
 
     var body: some View {
         Button(action: copy) {
@@ -201,8 +202,11 @@ private struct ThinkingPulseIcon: View {
             .foregroundStyle(.primary)
             .scaleEffect(pulseScale)
             .opacity(pulseOpacity)
-            .animation(pulseAnimation, value: isPulsing)
-            .onAppear { isPulsing = true }
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    isPulsing = true
+                }
+            }
     }
 
     private var pulseScale: CGFloat {
@@ -211,10 +215,6 @@ private struct ThinkingPulseIcon: View {
 
     private var pulseOpacity: Double {
         isPulsing ? 1.0 : 0.65
-    }
-
-    private var pulseAnimation: Animation {
-        .easeInOut(duration: 1.2).repeatForever(autoreverses: true)
     }
 }
 
