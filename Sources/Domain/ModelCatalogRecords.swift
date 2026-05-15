@@ -25,7 +25,6 @@ extension ModelCatalog {
 
     static let orderedRecords: [ProviderType: [Record]] = [
         .openai: openAIRecords,
-        .codexAppServer: codexAppServerRecords,
         .cloudflareAIGateway: cloudflareAIGatewayRecords,
         .vercelAIGateway: vercelAIGatewayRecords,
         .anthropic: anthropicRecords,

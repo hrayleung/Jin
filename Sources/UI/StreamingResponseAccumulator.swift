@@ -20,15 +20,11 @@ struct StreamingResponseSnapshot {
     let toolCalls: [ToolCall]
     let searchActivities: [SearchActivity]
     let codeExecutionActivities: [CodeExecutionActivity]
-    let codexToolActivities: [CodexToolActivity]
-    let agentToolActivities: [CodexToolActivity]
 
     var hasRenderableAssistantContent: Bool {
         !assistantParts.isEmpty
             || !searchActivities.isEmpty
             || !codeExecutionActivities.isEmpty
-            || !codexToolActivities.isEmpty
-            || !agentToolActivities.isEmpty
     }
 }
 
@@ -45,8 +41,6 @@ struct StreamingResponseAccumulator {
     private var toolCallsByID: OrderedDictionary<String, ToolCall> = [:]
     private var searchActivitiesByID: OrderedDictionary<String, SearchActivity> = [:]
     private var codeExecutionActivitiesByID: OrderedDictionary<String, CodeExecutionActivity> = [:]
-    private var codexToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
-    private var agentToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
 
     /// The provider type string for tagging thinking blocks (e.g. "anthropic", "gemini").
     private let providerTypeRawValue: String?
@@ -186,30 +180,6 @@ struct StreamingResponseAccumulator {
         Array(codeExecutionActivitiesByID.values)
     }
 
-    mutating func upsertCodexToolActivity(_ activity: CodexToolActivity) {
-        if let existing = codexToolActivitiesByID[activity.id] {
-            codexToolActivitiesByID[activity.id] = existing.merged(with: activity)
-        } else {
-            codexToolActivitiesByID[activity.id] = activity
-        }
-    }
-
-    func buildCodexToolActivities() -> [CodexToolActivity] {
-        Array(codexToolActivitiesByID.values)
-    }
-
-    mutating func upsertAgentToolActivity(_ activity: CodexToolActivity) {
-        if let existing = agentToolActivitiesByID[activity.id] {
-            agentToolActivitiesByID[activity.id] = existing.merged(with: activity)
-        } else {
-            agentToolActivitiesByID[activity.id] = activity
-        }
-    }
-
-    func buildAgentToolActivities() -> [CodexToolActivity] {
-        Array(agentToolActivitiesByID.values)
-    }
-
     func buildToolCalls() -> [ToolCall] {
         Array(toolCallsByID.values)
     }
@@ -219,9 +189,7 @@ struct StreamingResponseAccumulator {
             assistantParts: buildAssistantParts(),
             toolCalls: buildToolCalls(),
             searchActivities: buildSearchActivities(),
-            codeExecutionActivities: buildCodeExecutionActivities(),
-            codexToolActivities: buildCodexToolActivities(),
-            agentToolActivities: buildAgentToolActivities()
+            codeExecutionActivities: buildCodeExecutionActivities()
         )
     }
 }

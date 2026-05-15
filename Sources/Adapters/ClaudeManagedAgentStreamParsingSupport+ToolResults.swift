@@ -34,10 +34,6 @@ extension ClaudeManagedAgentStreamParsingSupport {
             let completed = completedSearchActivity(from: object, fallback: activity)
             state.pendingSearchActivities.removeValue(forKey: referencedID)
             events.append(.searchActivity(completed))
-        } else if let activity = state.pendingGenericToolActivities[referencedID] {
-            let completed = completedGenericToolActivity(from: object, fallback: activity)
-            state.pendingGenericToolActivities.removeValue(forKey: referencedID)
-            events.append(.codexToolActivity(completed))
         }
     }
 
@@ -69,25 +65,7 @@ extension ClaudeManagedAgentStreamParsingSupport {
         )
     }
 
-    static func completedGenericToolActivity(
-        from object: [String: JSONValue],
-        fallback: CodexToolActivity
-    ) -> CodexToolActivity {
-        let output = extractToolResultOutput(from: object)
-        return CodexToolActivity(
-            id: fallback.id,
-            toolName: fallback.toolName,
-            status: genericStatusForToolResult(from: object),
-            arguments: fallback.arguments,
-            output: output
-        )
-    }
-
     static func searchStatusForToolResult(from object: [String: JSONValue]) -> SearchActivityStatus {
-        toolResultIsError(from: object) ? .failed : .completed
-    }
-
-    static func genericStatusForToolResult(from object: [String: JSONValue]) -> CodexToolActivityStatus {
         toolResultIsError(from: object) ? .failed : .completed
     }
 

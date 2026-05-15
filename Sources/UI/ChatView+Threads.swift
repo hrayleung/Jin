@@ -195,9 +195,6 @@ extension ChatView {
             activeThread: activeModelThread,
             providers: providers,
             modelContext: modelContext,
-            clearCodexThreadPersistence: { thread in
-                clearCodexThreadPersistence(for: thread)
-            },
             clearClaudeManagedAgentSessionPersistence: { thread in
                 clearClaudeManagedAgentSessionPersistence(for: thread)
             },
@@ -242,9 +239,6 @@ extension ChatView {
             modelID: modelID,
             activeThread: activeModelThread,
             sortedThreads: sortedModelThreads,
-            clearCodexThreadPersistence: { thread in
-                clearCodexThreadPersistence(for: thread)
-            },
             clearClaudeManagedAgentSessionPersistence: { thread in
                 clearClaudeManagedAgentSessionPersistence(for: thread)
             },

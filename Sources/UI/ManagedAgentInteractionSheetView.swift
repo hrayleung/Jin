@@ -1,19 +1,19 @@
 import SwiftUI
 
-struct CodexInteractionSheetView: View {
-    let request: CodexInteractionRequest
-    let onResolve: (CodexInteractionResponse) -> Void
+struct ManagedAgentInteractionSheetView: View {
+    let request: ManagedAgentInteractionRequest
+    let onResolve: (ManagedAgentInteractionResponse) -> Void
 
     @State private var textAnswers: [String: String]
     @State private var selectedOptions: [String: String]
     @State private var validationMessage: String?
 
-    init(request: CodexInteractionRequest, onResolve: @escaping (CodexInteractionResponse) -> Void) {
+    init(request: ManagedAgentInteractionRequest, onResolve: @escaping (ManagedAgentInteractionResponse) -> Void) {
         self.request = request
         self.onResolve = onResolve
 
         if case .userInput(let input) = request.kind {
-            _selectedOptions = State(initialValue: CodexInteractionSheetSupport.initialSelectedOptions(for: input))
+            _selectedOptions = State(initialValue: ManagedAgentInteractionSheetSupport.initialSelectedOptions(for: input))
         } else {
             _selectedOptions = State(initialValue: [:])
         }
@@ -25,20 +25,20 @@ struct CodexInteractionSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: JinSpacing.large) {
-                    CodexInteractionHeaderCardView(
+                    ManagedAgentInteractionHeaderCardView(
                         subtitle: request.subtitle,
-                        description: CodexInteractionSheetSupport.requestDescription(for: request.kind),
+                        description: ManagedAgentInteractionSheetSupport.requestDescription(for: request.kind),
                         threadID: request.threadID,
                         turnID: request.turnID
                     )
 
                     switch request.kind {
                     case .commandApproval(let approval):
-                        CodexCommandApprovalContentView(approval: approval) { choice in
+                        ManagedAgentCommandApprovalContentView(approval: approval) { choice in
                             onResolve(.approval(choice))
                         }
                     case .fileChangeApproval(let approval):
-                        CodexFileChangeApprovalContentView(approval: approval) { choice in
+                        ManagedAgentFileChangeApprovalContentView(approval: approval) { choice in
                             onResolve(.approval(choice))
                         }
                     case .userInput(let input):
@@ -63,7 +63,7 @@ struct CodexInteractionSheetView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        onResolve(CodexInteractionSheetSupport.cancelResponse(for: request.kind))
+                        onResolve(ManagedAgentInteractionSheetSupport.cancelResponse(for: request.kind))
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -83,10 +83,10 @@ struct CodexInteractionSheetView: View {
     }
 
     @ViewBuilder
-    private func userInputContent(_ input: CodexUserInputRequest) -> some View {
+    private func userInputContent(_ input: ManagedAgentUserInputRequest) -> some View {
         VStack(alignment: .leading, spacing: JinSpacing.large) {
             ForEach(input.questions) { question in
-                CodexInteractionSectionCardView {
+                ManagedAgentInteractionSectionCardView {
                     VStack(alignment: .leading, spacing: JinSpacing.small) {
                         Text(question.header)
                             .font(.headline)
@@ -136,12 +136,12 @@ struct CodexInteractionSheetView: View {
             return nil
         }
 
-        guard let answers = CodexInteractionSheetSupport.answers(
+        guard let answers = ManagedAgentInteractionSheetSupport.answers(
             for: input,
             textAnswers: textAnswers,
             selectedOptions: selectedOptions
         ) else {
-            validationMessage = CodexInteractionSheetSupport.requiredAnswerValidationMessage
+            validationMessage = ManagedAgentInteractionSheetSupport.requiredAnswerValidationMessage
             return nil
         }
 

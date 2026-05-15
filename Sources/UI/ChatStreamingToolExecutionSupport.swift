@@ -3,12 +3,8 @@ import Foundation
 extension ChatStreamingOrchestrator {
     static func toolExecutionRoute(
         for call: ToolCall,
-        builtinRoutes: BuiltinToolRouteSnapshot,
-        agentRoutes: AgentToolRouteSnapshot
+        builtinRoutes: BuiltinToolRouteSnapshot
     ) -> ToolExecutionRoute {
-        if agentRoutes.contains(functionName: call.name) {
-            return .agent
-        }
         if builtinRoutes.contains(functionName: call.name) {
             return .builtin
         }

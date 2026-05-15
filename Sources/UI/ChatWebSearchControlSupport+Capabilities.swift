@@ -11,7 +11,7 @@ extension ChatAuxiliaryControlSupport {
         switch providerType {
         case .perplexity:
             return controls.webSearch?.enabled ?? true
-        case .openai, .openaiWebSocket, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
+        case .openai, .openaiWebSocket, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .claudeManagedAgents, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
              .fireworks, .cerebras, .sambanova, .gemini, .vertexai, .morphllm, .opencodeGo, .zyphra, .none:
@@ -28,7 +28,6 @@ extension ChatAuxiliaryControlSupport {
         modelSupportsWebSearch: Bool
     ) -> Bool {
         guard !hidesManagedAgentInternalUI else { return false }
-        guard providerType != .codexAppServer else { return false }
 
         if supportsMediaGenerationControl {
             if supportsImageGenerationControl {
@@ -47,7 +46,6 @@ extension ChatAuxiliaryControlSupport {
         modelSupportsToolCalling: Bool
     ) -> Bool {
         guard !hidesManagedAgentInternalUI else { return false }
-        guard providerType != .codexAppServer else { return false }
         guard !supportsMediaGenerationControl else { return false }
         return modelSupportsToolCalling
     }

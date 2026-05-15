@@ -26,15 +26,11 @@ extension ChatStreamingOrchestrator {
     static func hasRenderableAssistantContent(
         assistantPartCount: Int,
         searchActivityCount: Int,
-        codeExecutionActivityCount: Int,
-        codexToolActivityCount: Int,
-        agentToolActivityCount: Int = 0
+        codeExecutionActivityCount: Int
     ) -> Bool {
         assistantPartCount > 0
             || searchActivityCount > 0
             || codeExecutionActivityCount > 0
-            || codexToolActivityCount > 0
-            || agentToolActivityCount > 0
     }
 
     static func persistAssistantOutput(
@@ -60,9 +56,7 @@ extension ChatStreamingOrchestrator {
             content: persistedParts,
             toolCalls: response.toolCalls.isEmpty ? nil : response.toolCalls,
             searchActivities: response.searchActivities.isEmpty ? nil : response.searchActivities,
-            codeExecutionActivities: response.codeExecutionActivities.isEmpty ? nil : response.codeExecutionActivities,
-            codexToolActivities: response.codexToolActivities.isEmpty ? nil : response.codexToolActivities,
-            agentToolActivities: response.agentToolActivities.isEmpty ? nil : response.agentToolActivities
+            codeExecutionActivities: response.codeExecutionActivities.isEmpty ? nil : response.codeExecutionActivities
         )
         let completionPreview = AttachmentImportPipeline.completionNotificationPreview(from: persistedParts)
 

@@ -8,9 +8,6 @@ enum ChatMCPToolCapabilitySupport {
         guard !ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType) else {
             return false
         }
-        guard providerType != .codexAppServer else {
-            return false
-        }
         guard resolvedModelSettings?.capabilities.contains(.imageGeneration) != true,
               resolvedModelSettings?.capabilities.contains(.videoGeneration) != true else {
             return false

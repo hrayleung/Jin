@@ -11,7 +11,7 @@ extension ChatAuxiliaryControlSupport {
             return "OpenAI uses prompt cache hints. A stable key and retention hint can improve reuse across similar prompts."
         case .xai:
             return "xAI supports prompt cache hints and optional conversation scoping for continuity across related turns."
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:
             return "Context cache controls are only available for providers with native prompt caching support."
@@ -26,7 +26,7 @@ extension ChatAuxiliaryControlSupport {
             return "Use a stable cache key when your prompt prefix is consistent."
         case .anthropic, .claudeManagedAgents:
             return "For best results, keep system prompts and tool descriptions stable so Anthropic can reuse cacheable blocks."
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:
             return "Use explicit mode for Gemini/Vertex cached content resources. Other providers use implicit cache hints."

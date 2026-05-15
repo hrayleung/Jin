@@ -81,7 +81,6 @@ extension ChatView {
         normalizeVertexAIGenerationConfig()
         normalizeFireworksProviderSpecific()
         normalizeAnthropicProviderSpecific()
-        normalizeCodexProviderSpecific()
         normalizeClaudeManagedAgentProviderSpecific()
         normalizeOpenAIServiceTierControls()
         normalizeWebSearchControls()
@@ -163,13 +162,6 @@ extension ChatView {
             controls: &controls,
             providerType: providerType,
             modelID: activeModelID
-        )
-    }
-
-    func normalizeCodexProviderSpecific() {
-        ChatControlNormalizationSupport.normalizeCodexProviderSpecific(
-            controls: &controls,
-            providerType: providerType
         )
     }
 

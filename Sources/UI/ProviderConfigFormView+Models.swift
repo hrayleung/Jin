@@ -118,8 +118,6 @@ extension ProviderConfigFormView {
         ProviderFormSupport.isFetchModelsDisabled(
             isFetchingModels: isFetchingModels,
             providerType: providerType,
-            codexCanUseCurrentAuthenticationMode: codexCanUseCurrentAuthenticationMode,
-            codexAuthIsWorking: codexAuthStatus == .working,
             apiKey: apiKey,
             serviceAccountJSON: serviceAccountJSON
         )

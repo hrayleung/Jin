@@ -1,36 +1,36 @@
 import Foundation
 
-enum CodexInteractionSheetSupport {
-    static let requiredAnswerValidationMessage = "Please answer every required Codex question before continuing."
+enum ManagedAgentInteractionSheetSupport {
+    static let requiredAnswerValidationMessage = "Please answer every required question before continuing."
 
-    static func initialSelectedOptions(for input: CodexUserInputRequest) -> [String: String] {
+    static func initialSelectedOptions(for input: ManagedAgentUserInputRequest) -> [String: String] {
         Dictionary(uniqueKeysWithValues: input.questions.compactMap { question in
             question.options.first.map { (question.id, $0.label) }
         })
     }
 
-    static func requestDescription(for kind: CodexInteractionKind) -> String {
+    static func requestDescription(for kind: ManagedAgentInteractionKind) -> String {
         switch kind {
         case .commandApproval:
-            return "Codex paused because the current approval policy requires explicit consent for this command."
+            return "The agent paused because the current approval policy requires explicit consent for this command."
         case .fileChangeApproval:
-            return "Codex paused before writing files outside the current allowance."
+            return "The agent paused before writing files outside the current allowance."
         case .userInput:
-            return "Codex needs a small bit of guidance before it can continue the turn."
+            return "The agent needs a small bit of guidance before it can continue the turn."
         }
     }
 
-    static func cancelResponse(for kind: CodexInteractionKind) -> CodexInteractionResponse {
+    static func cancelResponse(for kind: ManagedAgentInteractionKind) -> ManagedAgentInteractionResponse {
         switch kind {
         case .commandApproval, .fileChangeApproval:
             return .approval(.cancel)
         case .userInput:
-            return .cancelled(message: "User cancelled the Codex interaction.")
+            return .cancelled(message: "User cancelled the interaction.")
         }
     }
 
     static func answers(
-        for input: CodexUserInputRequest,
+        for input: ManagedAgentUserInputRequest,
         textAnswers: [String: String],
         selectedOptions: [String: String]
     ) -> [String: [String]]? {

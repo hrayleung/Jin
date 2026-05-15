@@ -268,8 +268,6 @@ enum LobeProviderIconCatalog {
             return "OpenAI"
         case .openaiWebSocket:
             return "OpenAI"
-        case .codexAppServer:
-            return "Codex"
         case .githubCopilot:
             return "GithubCopilot"
         case .openaiCompatible:

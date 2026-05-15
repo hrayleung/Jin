@@ -96,10 +96,8 @@ enum ChatStreamingSessionResolver {
         assistant: AssistantEntity?,
         modelSnapshot: ChatStreamingModelSnapshot,
         providerType: ProviderType?,
-        isAgentModeActive: Bool,
         automaticContextCacheControls: (ProviderType?, String, ModelCapability?) -> ContextCacheControls?,
         sanitizeProviderSpecific: (ProviderType?, inout GenerationControls) -> Void,
-        injectCodexThreadPersistence: (inout GenerationControls) -> Void,
         injectClaudeManagedAgentSessionPersistence: (inout GenerationControls) -> Void
     ) -> GenerationControls {
         var controlsToUse = GenerationControlsResolver.resolvedForRequest(
@@ -114,9 +112,7 @@ enum ChatStreamingSessionResolver {
             modelSnapshot.resolvedSettings?.capabilities
         )
         sanitizeProviderSpecific(providerType, &controlsToUse)
-        injectCodexThreadPersistence(&controlsToUse)
         injectClaudeManagedAgentSessionPersistence(&controlsToUse)
-        controlsToUse.agentMode = AgentModeControlsResolver.controls(active: isAgentModeActive)
         return controlsToUse
     }
 

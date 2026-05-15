@@ -98,18 +98,6 @@ extension ChatControlNormalizationSupport {
         )
     }
 
-    static func normalizeCodexProviderSpecific(
-        controls: inout GenerationControls,
-        providerType: ProviderType?
-    ) {
-        guard providerType == .codexAppServer else {
-            sanitizeProviderSpecificForProvider(providerType, controls: &controls)
-            return
-        }
-
-        controls.normalizeCodexProviderSpecific(for: providerType)
-    }
-
     static func normalizeClaudeManagedAgentProviderSpecific(
         controls: inout GenerationControls,
         providerType: ProviderType?
@@ -138,9 +126,6 @@ extension ChatControlNormalizationSupport {
         _ providerType: ProviderType?,
         controls: inout GenerationControls
     ) {
-        if providerType != .codexAppServer {
-            controls.removeCodexProviderSpecificKeys()
-        }
         if providerType != .claudeManagedAgents {
             controls.removeClaudeManagedAgentProviderSpecificKeys()
         }

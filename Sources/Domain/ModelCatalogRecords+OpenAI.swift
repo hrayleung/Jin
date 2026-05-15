@@ -220,16 +220,6 @@ extension ModelCatalog {
                isFullySupported: false, isSeeded: false),
     ]
 
-    // MARK: Codex App Server
-
-    static let codexAppServerRecords: [Record] = [
-        Record(id: "gpt-5.1-codex", displayName: "GPT-5.1 Codex",
-               capabilities: [.streaming, .reasoning],
-               contextWindow: 256_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
-               isFullySupported: false, isSeeded: true),
-    ]
-
     // MARK: Cloudflare AI Gateway
 
     static let cloudflareAIGatewayRecords: [Record] = [

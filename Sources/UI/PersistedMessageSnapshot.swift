@@ -11,8 +11,6 @@ struct PersistedMessageSnapshot: Sendable {
     let toolResultsData: Data?
     let searchActivitiesData: Data?
     let codeExecutionActivitiesData: Data?
-    let codexToolActivitiesData: Data?
-    let agentToolActivitiesData: Data?
     let perMessageMCPServerNamesData: Data?
     let responseMetricsData: Data?
     let generatedProviderID: String?
@@ -31,8 +29,6 @@ struct PersistedMessageSnapshot: Sendable {
         self.toolResultsData = entity.toolResultsData
         self.searchActivitiesData = entity.searchActivitiesData
         self.codeExecutionActivitiesData = entity.codeExecutionActivitiesData
-        self.codexToolActivitiesData = entity.codexToolActivitiesData
-        self.agentToolActivitiesData = entity.agentToolActivitiesData
         self.perMessageMCPServerNamesData = entity.perMessageMCPServerNamesData
         self.responseMetricsData = entity.responseMetricsData
         self.generatedProviderID = entity.generatedProviderID
@@ -49,8 +45,6 @@ struct PersistedMessageSnapshot: Sendable {
         let toolResults = toolResultsData.flatMap { try? decoder.decode([ToolResult].self, from: $0) }
         let searchActivities = searchActivitiesData.flatMap { try? decoder.decode([SearchActivity].self, from: $0) }
         let codeExecutionActivities = codeExecutionActivitiesData.flatMap { try? decoder.decode([CodeExecutionActivity].self, from: $0) }
-        let codexToolActivities = codexToolActivitiesData.flatMap { try? decoder.decode([CodexToolActivity].self, from: $0) }
-        let agentToolActivities = agentToolActivitiesData.flatMap { try? decoder.decode([CodexToolActivity].self, from: $0) }
         let perMessageMCPServerNames = perMessageMCPServerNamesData.flatMap { try? decoder.decode([String].self, from: $0) }
 
         return Message(
@@ -61,8 +55,6 @@ struct PersistedMessageSnapshot: Sendable {
             toolResults: toolResults,
             searchActivities: searchActivities,
             codeExecutionActivities: codeExecutionActivities,
-            codexToolActivities: codexToolActivities,
-            agentToolActivities: agentToolActivities,
             timestamp: timestamp,
             perMessageMCPServerNames: perMessageMCPServerNames
         )

@@ -15,19 +15,6 @@ enum ChatMessageActivityMergeSupport {
         return mergedActivities.isEmpty ? nil : try? encoder.encode(mergedActivities)
     }
 
-    static func mergedAgentToolActivities(
-        existingData: Data?,
-        newActivities: [CodexToolActivity],
-        decoder: JSONDecoder = JSONDecoder(),
-        encoder: JSONEncoder = JSONEncoder()
-    ) -> Data? {
-        let existingActivities = decoded([CodexToolActivity].self, from: existingData, using: decoder) ?? []
-        let mergedActivities = mergeOrderedByID(existingActivities, with: newActivities) { existing, incoming in
-            existing.merged(with: incoming)
-        }
-        return mergedActivities.isEmpty ? nil : try? encoder.encode(mergedActivities)
-    }
-
     private static func decoded<T: Decodable>(_ type: T.Type, from data: Data?, using decoder: JSONDecoder) -> T? {
         guard let data else { return nil }
         return try? decoder.decode(type, from: data)

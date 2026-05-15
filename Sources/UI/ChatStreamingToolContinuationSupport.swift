@@ -46,7 +46,6 @@ extension ChatStreamingOrchestrator {
     static func persistToolContinuation(
         executableToolCalls: [ToolCall],
         toolExecutionResult: ToolExecutionResult,
-        completedAgentActivities: [CodexToolActivity],
         persistedAssistantMessageID: UUID?,
         providerType: ProviderType,
         context ctx: SessionContext,
@@ -70,12 +69,6 @@ extension ChatStreamingOrchestrator {
         if let assistantMessageID = persistedAssistantMessageID, !toolExecutionResult.searchActivities.isEmpty {
             await MainActor.run {
                 callbacks.mergeSearchActivities(assistantMessageID, toolExecutionResult.searchActivities)
-            }
-        }
-
-        if let assistantMessageID = persistedAssistantMessageID, !completedAgentActivities.isEmpty {
-            await MainActor.run {
-                callbacks.mergeAgentToolActivities(assistantMessageID, completedAgentActivities)
             }
         }
 

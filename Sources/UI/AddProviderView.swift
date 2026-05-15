@@ -93,15 +93,6 @@ struct AddProviderView: View {
 
                 JinSettingsSection("Credentials") {
                     switch ProviderFormSupport.credentialKind(for: providerType) {
-                    case .optionalAPIKey:
-                        JinSettingsSecureFieldRow(
-                            "API Key",
-                            supportingText: "Leave blank to use ChatGPT account login.",
-                            text: $apiKey,
-                            isRevealed: $isKeyVisible,
-                            revealHelp: "Show API key",
-                            concealHelp: "Hide API key"
-                        )
                     case .apiKey:
                         JinSettingsSecureFieldRow(
                             ProviderFormSupport.apiKeyFieldTitle(for: providerType),

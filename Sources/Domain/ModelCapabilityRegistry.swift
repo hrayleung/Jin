@@ -320,7 +320,7 @@ enum ModelCapabilityRegistry {
             return .anthropic
         case .gemini, .vertexai:
             return .gemini
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .minimax, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .perplexity, .morphllm, .opencodeGo,
              .zyphra, .none:
@@ -477,7 +477,7 @@ enum ModelCapabilityRegistry {
             return MiMoModelIDs.tokenPlanExactModelIDs.contains(lowerModelID)
         case .mimoTokenPlanOpenAI:
             return MiMoModelIDs.tokenPlanExactModelIDs.contains(lowerModelID)
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .morphllm, .zyphra, .none:
             return false
@@ -704,7 +704,7 @@ enum ModelCapabilityRegistry {
         case .vertexai:
             // Vertex AI `tools.codeExecution`
             return supportsGoogleCodeExecution(lowerModelID: lowerModelID, providerType: .vertexai)
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .zyphra, .none:
@@ -736,7 +736,7 @@ enum ModelCapabilityRegistry {
             return supportsGoogleMapsGrounding(lowerModelID: lowerModelID, providerType: .gemini)
         case .vertexai:
             return supportsGoogleMapsGrounding(lowerModelID: lowerModelID, providerType: .vertexai)
-        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .codexAppServer, .githubCopilot,
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .githubCopilot,
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo,

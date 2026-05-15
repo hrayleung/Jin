@@ -34,10 +34,7 @@ extension ChatStreamingOrchestrator {
             for: ctx.controlsToUse,
             useBuiltinSearch: ctx.shouldOfferBuiltinSearch
         )
-        let (agentTools, agentRoutes) = await AgentToolHub.shared.toolDefinitions(
-            for: ctx.controlsToUse
-        )
-        let allTools = mcpTools + builtinTools + agentTools
+        let allTools = mcpTools + builtinTools
 
         var requestControls = ctx.controlsToUse
         let optimizedContextCache = await ContextCacheUtilities.applyAutomaticContextCacheOptimizations(
@@ -55,7 +52,6 @@ extension ChatStreamingOrchestrator {
             controls: &requestControls
         )
 
-        let agentModeActive = ctx.controlsToUse.agentMode?.enabled == true
         return PreparedSession(
             providerConfig: providerConfig,
             adapter: adapter,
@@ -64,8 +60,7 @@ extension ChatStreamingOrchestrator {
             allTools: allTools,
             mcpRoutes: mcpRoutes,
             builtinRoutes: builtinRoutes,
-            agentRoutes: agentRoutes,
-            maxToolIterations: agentModeActive ? 25 : 8
+            maxToolIterations: 8
         )
     }
 

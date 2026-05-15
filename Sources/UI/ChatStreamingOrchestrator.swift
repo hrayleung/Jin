@@ -12,7 +12,6 @@ enum ChatStreamingOrchestrator {
     ) async {
         await NetworkDebugLogScope.$current.withValue(ctx.networkLogContext) {
             var completionNotification = CompletionNotificationState()
-            let approvalStore = AgentApprovalSessionStore()
 
             do {
                 let preparedSession = try await prepareSession(from: ctx)
@@ -21,7 +20,6 @@ enum ChatStreamingOrchestrator {
                 let allTools = preparedSession.allTools
                 let mcpRoutes = preparedSession.mcpRoutes
                 let builtinRoutes = preparedSession.builtinRoutes
-                let agentRoutes = preparedSession.agentRoutes
                 var history = preparedSession.history
                 var requestControls = preparedSession.requestControls
                 var iteration = 0
@@ -126,19 +124,15 @@ enum ChatStreamingOrchestrator {
                         accumulator: &eventState.accumulator,
                         streamingState: streamingState,
                         callbacks: callbacks,
-                        approvalStore: approvalStore,
                         builtinRoutes: builtinRoutes,
-                        agentRoutes: agentRoutes,
                         mcpRoutes: mcpRoutes
                     )
 
                     guard !toolExecutionResult.cancelled else { return }
 
-                    let completedAgentActivities = eventState.accumulator.buildAgentToolActivities()
                     let continuationPersistenceResult = await persistToolContinuation(
                         executableToolCalls: executableToolCalls,
                         toolExecutionResult: toolExecutionResult,
-                        completedAgentActivities: completedAgentActivities,
                         persistedAssistantMessageID: persistedAssistantMessageID,
                         providerType: providerConfig.type,
                         context: ctx,

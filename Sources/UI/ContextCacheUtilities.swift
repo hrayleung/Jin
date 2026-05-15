@@ -245,7 +245,7 @@ enum ContextCacheUtilities {
                 adjustedMessages = prepared.messages
                 adjustedControls = prepared.controls
             }
-        case .xai, .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
+        case .xai, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
              .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra:

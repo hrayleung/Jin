@@ -42,15 +42,6 @@ extension ClaudeManagedAgentStreamParsingSupport {
             )
             state.pendingSearchActivities[eventID] = activity
             events.append(.searchActivity(activity))
-        } else {
-            let activity = CodexToolActivity(
-                id: eventID,
-                toolName: toolName,
-                status: .running,
-                arguments: arguments
-            )
-            state.pendingGenericToolActivities[eventID] = activity
-            events.append(.codexToolActivity(activity))
         }
     }
 
@@ -64,7 +55,7 @@ extension ClaudeManagedAgentStreamParsingSupport {
     static func makeToolConfirmationInteraction(
         from object: [String: JSONValue],
         sessionID: String
-    ) -> CodexInteractionRequest? {
+    ) -> ManagedAgentInteractionRequest? {
         guard let toolUseID = approvalToolUseID(from: object) else {
             return nil
         }
@@ -72,14 +63,14 @@ extension ClaudeManagedAgentStreamParsingSupport {
         let command = toolName(from: object)
         let cwd = object.string(at: ["cwd"]) ?? object.string(at: ["working_directory"])
         let reason = object.string(at: ["reason"]) ?? object.string(at: ["message"])
-        let request = CodexCommandApprovalRequest(
+        let request = ManagedAgentCommandApprovalRequest(
             command: command,
             cwd: cwd,
             reason: reason,
             actionSummaries: []
         )
 
-        return CodexInteractionRequest(
+        return ManagedAgentInteractionRequest(
             method: "claude_managed_agents/tool_confirmation",
             threadID: sessionID,
             turnID: object.string(at: ["turn_id"]),

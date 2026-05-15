@@ -194,12 +194,12 @@ final class ClaudeManagedAgentRequestSupportTests: XCTestCase {
     }
 
     func testApprovalEventMapsResponsesToAllowAndDeny() throws {
-        let interaction = CodexInteractionRequest(
+        let interaction = ManagedAgentInteractionRequest(
             method: "claude_managed_agents/tool_confirmation",
             threadID: "sess_123",
             turnID: "turn_1",
             itemID: "approval_1",
-            kind: .commandApproval(CodexCommandApprovalRequest(command: "shell", cwd: nil, reason: nil, actionSummaries: []))
+            kind: .commandApproval(ManagedAgentCommandApprovalRequest(command: "shell", cwd: nil, reason: nil, actionSummaries: []))
         )
 
         let acceptEvent = try ClaudeManagedAgentRequestSupport.approvalEvent(
@@ -225,12 +225,12 @@ final class ClaudeManagedAgentRequestSupportTests: XCTestCase {
     }
 
     func testApprovalEventIncludesTrimmedCancelMessageForDeniedReply() throws {
-        let interaction = CodexInteractionRequest(
+        let interaction = ManagedAgentInteractionRequest(
             method: "claude_managed_agents/tool_confirmation",
             threadID: "sess_123",
             turnID: "turn_1",
             itemID: "approval_1",
-            kind: .commandApproval(CodexCommandApprovalRequest(command: "shell", cwd: nil, reason: nil, actionSummaries: []))
+            kind: .commandApproval(ManagedAgentCommandApprovalRequest(command: "shell", cwd: nil, reason: nil, actionSummaries: []))
         )
 
         let event = try ClaudeManagedAgentRequestSupport.approvalEvent(
@@ -243,12 +243,12 @@ final class ClaudeManagedAgentRequestSupportTests: XCTestCase {
     }
 
     func testApprovalEventRejectsUserInputResponsesAndMissingItemID() {
-        let interaction = CodexInteractionRequest(
+        let interaction = ManagedAgentInteractionRequest(
             method: "claude_managed_agents/tool_confirmation",
             threadID: "sess_123",
             turnID: nil,
             itemID: "approval_1",
-            kind: .commandApproval(CodexCommandApprovalRequest(command: nil, cwd: nil, reason: nil, actionSummaries: []))
+            kind: .commandApproval(ManagedAgentCommandApprovalRequest(command: nil, cwd: nil, reason: nil, actionSummaries: []))
         )
 
         XCTAssertThrowsError(try ClaudeManagedAgentRequestSupport.approvalEvent(
@@ -261,12 +261,12 @@ final class ClaudeManagedAgentRequestSupportTests: XCTestCase {
             XCTAssertTrue(message.contains("does not accept free-form user input"))
         }
 
-        let missingItemInteraction = CodexInteractionRequest(
+        let missingItemInteraction = ManagedAgentInteractionRequest(
             method: "claude_managed_agents/tool_confirmation",
             threadID: "sess_123",
             turnID: nil,
             itemID: nil,
-            kind: .commandApproval(CodexCommandApprovalRequest(command: nil, cwd: nil, reason: nil, actionSummaries: []))
+            kind: .commandApproval(ManagedAgentCommandApprovalRequest(command: nil, cwd: nil, reason: nil, actionSummaries: []))
         )
         XCTAssertThrowsError(try ClaudeManagedAgentRequestSupport.approvalEvent(
             from: missingItemInteraction,

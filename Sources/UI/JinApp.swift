@@ -10,7 +10,6 @@ private final class JinAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        CodexAppServerController.shared.shutdownForApplicationTermination()
         _ = AppPreferencesSnapshotStore.persistCurrentDomain()
         if !AppRuntimeProtection.automaticSnapshotsSuspended {
             _ = try? AppSnapshotManager.captureAutomaticSnapshot(reason: .termination)
@@ -40,7 +39,6 @@ struct JinApp: App {
             AppPreferenceKeys.notifyOnBackgroundResponseCompletion: true,
             AppPreferenceKeys.updateAutoCheckOnLaunch: true,
             AppPreferenceKeys.updateAllowPreRelease: false,
-            AppPreferenceKeys.codexWorkingDirectoryPresetsJSON: "[]",
             AppPreferenceKeys.useOverlayScrollbars: true
         ])
         ImageCache.default.memoryStorage.config.expiration = .seconds(3600)

@@ -20,36 +20,19 @@ struct ChatView: View {
         case conversationSwitch
     }
 
-    struct PendingCodexInteraction: Identifiable {
+    struct PendingManagedAgentInteraction: Identifiable {
         let localThreadID: UUID
-        let request: CodexInteractionRequest
+        let request: ManagedAgentInteractionRequest
 
         var id: UUID { request.id }
     }
 
-    struct PendingAgentApproval: Identifiable {
-        let localThreadID: UUID
-        let request: AgentApprovalRequest
-
-        var id: UUID { request.id }
-    }
-
-    var activeAgentApprovalBinding: Binding<PendingAgentApproval?> {
+    var activeManagedAgentInteractionBinding: Binding<PendingManagedAgentInteraction?> {
         Binding(
-            get: { pendingAgentApprovals.first },
+            get: { pendingManagedAgentInteractions.first },
             set: { newValue in
-                guard newValue == nil, !pendingAgentApprovals.isEmpty else { return }
-                _ = pendingAgentApprovals.popFirst()
-            }
-        )
-    }
-
-    var activeCodexInteractionBinding: Binding<PendingCodexInteraction?> {
-        Binding(
-            get: { pendingCodexInteractions.first },
-            set: { newValue in
-                guard newValue == nil, !pendingCodexInteractions.isEmpty else { return }
-                _ = pendingCodexInteractions.popFirst()
+                guard newValue == nil, !pendingManagedAgentInteractions.isEmpty else { return }
+                _ = pendingManagedAgentInteractions.popFirst()
             }
         )
     }
@@ -137,11 +120,6 @@ struct ChatView: View {
     @State var codeExecutionDraftError: String?
     @State var codeExecutionOpenAIUseExistingContainer = false
     @State var codeExecutionOpenAIFileIDsDraft = ""
-    @State var showingCodexSessionSettingsSheet = false
-    @State var codexWorkingDirectoryDraft = ""
-    @State var codexWorkingDirectoryDraftError: String?
-    @State var codexSandboxModeDraft: CodexSandboxMode = .default
-    @State var codexPersonalityDraft: CodexPersonality?
     @State var showingClaudeManagedAgentSessionSettingsSheet = false
     @State var claudeManagedAgentIDDraft = ""
     @State var claudeManagedEnvironmentIDDraft = ""
@@ -155,8 +133,7 @@ struct ChatView: View {
     @State var claudeManagedProviderDefaultEnvironmentID = ""
     @State var claudeManagedProviderDefaultAgentDisplayName = ""
     @State var claudeManagedProviderDefaultEnvironmentDisplayName = ""
-    @State var pendingCodexInteractions: Deque<PendingCodexInteraction> = []
-    @State var pendingAgentApprovals: Deque<PendingAgentApproval> = []
+    @State var pendingManagedAgentInteractions: Deque<PendingManagedAgentInteraction> = []
 
     enum SlashCommandTarget { case composer, editMessage }
     @State var isSlashMCPPopoverVisible = false
@@ -216,8 +193,6 @@ struct ChatView: View {
     @State var webSearchPluginEnabled = true
     @State var webSearchPluginConfigured = false
     // swiftlint:enable private_swiftui_state
-    @State var isAgentModeActive = false
-    @State var isAgentModePopoverPresented = false
     @State var isPreparingToSend = false
     @State var prepareToSendStatus: String?
     @State var prepareToSendTask: Task<Void, Never>?

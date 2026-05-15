@@ -76,8 +76,6 @@ enum ChatMessageRenderPipeline {
                 toolCalls: message.toolCalls ?? [],
                 searchActivities: message.searchActivities ?? [],
                 codeExecutionActivities: message.codeExecutionActivities ?? [],
-                codexToolActivities: message.codexToolActivities ?? [],
-                agentToolActivities: message.agentToolActivities ?? [],
                 assistantModelLabel: entity.role == MessageRole.assistant.rawValue
                     ? (entity.generatedModelName ?? entity.generatedModelID ?? fallbackModelLabel)
                     : nil,
@@ -141,8 +139,6 @@ enum ChatMessageRenderPipeline {
                 toolCalls: decode([ToolCall].self, from: snapshot.toolCallsData, using: decoder) ?? [],
                 searchActivities: decode([SearchActivity].self, from: snapshot.searchActivitiesData, using: decoder) ?? [],
                 codeExecutionActivities: decode([CodeExecutionActivity].self, from: snapshot.codeExecutionActivitiesData, using: decoder) ?? [],
-                codexToolActivities: decode([CodexToolActivity].self, from: snapshot.codexToolActivitiesData, using: decoder) ?? [],
-                agentToolActivities: decode([CodexToolActivity].self, from: snapshot.agentToolActivitiesData, using: decoder) ?? [],
                 assistantModelLabel: snapshot.role == MessageRole.assistant.rawValue
                     ? (snapshot.generatedModelName ?? snapshot.generatedModelID ?? fallbackModelLabel)
                     : nil,
@@ -207,8 +203,6 @@ enum ChatMessageRenderPipeline {
         toolCalls: [ToolCall],
         searchActivities: [SearchActivity],
         codeExecutionActivities: [CodeExecutionActivity],
-        codexToolActivities: [CodexToolActivity],
-        agentToolActivities: [CodexToolActivity],
         assistantModelLabel: String?,
         assistantModelID: String?,
         assistantProviderIconID: String?,
@@ -244,8 +238,6 @@ enum ChatMessageRenderPipeline {
             toolCalls: toolCalls,
             searchActivities: searchActivities,
             codeExecutionActivities: codeExecutionActivities,
-            codexToolActivities: codexToolActivities,
-            agentToolActivities: agentToolActivities,
             assistantModelLabel: assistantModelLabel,
             assistantModelID: assistantModelID,
             assistantProviderIconID: assistantProviderIconID,

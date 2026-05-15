@@ -33,7 +33,7 @@ extension ChatView {
     }
 
     var supportsReasoningSummaryControl: Bool {
-        providerType == .openai || providerType == .openaiWebSocket || providerType == .codexAppServer
+        providerType == .openai || providerType == .openaiWebSocket
     }
 
     @ViewBuilder

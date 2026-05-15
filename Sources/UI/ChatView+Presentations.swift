@@ -126,25 +126,6 @@ extension ChatView {
                     }
                 )
             }
-            .sheet(isPresented: $showingCodexSessionSettingsSheet) {
-                CodexSessionSettingsSheetView(
-                    workingDirectoryDraft: $codexWorkingDirectoryDraft,
-                    workingDirectoryDraftError: $codexWorkingDirectoryDraftError,
-                    sandboxModeDraft: $codexSandboxModeDraft,
-                    personalityDraft: $codexPersonalityDraft,
-                    onChooseDirectory: { pickCodexWorkingDirectory() },
-                    onSelectPreset: { preset in
-                        codexWorkingDirectoryDraft = preset.path
-                        codexWorkingDirectoryDraftError = nil
-                    },
-                    onResetWorkingDirectory: {
-                        codexWorkingDirectoryDraft = ""
-                        codexWorkingDirectoryDraftError = nil
-                    },
-                    onCancel: { showingCodexSessionSettingsSheet = false },
-                    onSave: { applyCodexSessionSettingsDraft() }
-                )
-            }
             .sheet(isPresented: $showingClaudeManagedAgentSessionSettingsSheet) {
                 ClaudeManagedAgentSessionSettingsSheetView(
                     agentIDDraft: $claudeManagedAgentIDDraft,
@@ -167,14 +148,9 @@ extension ChatView {
                     onSave: { applyClaudeManagedAgentSessionSettingsDraft() }
                 )
             }
-            .sheet(item: activeCodexInteractionBinding) { item in
-                CodexInteractionSheetView(request: item.request) { response in
-                    resolveCodexInteraction(item, response: response)
-                }
-            }
-            .sheet(item: activeAgentApprovalBinding) { item in
-                AgentApprovalView(request: item.request) { choice in
-                    resolveAgentApproval(item, choice: choice)
+            .sheet(item: activeManagedAgentInteractionBinding) { item in
+                ManagedAgentInteractionSheetView(request: item.request) { response in
+                    resolveManagedAgentInteraction(item, response: response)
                 }
             }
     }

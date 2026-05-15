@@ -157,8 +157,6 @@ final class ChatMessageStagePresentationSupportTests: XCTestCase {
             toolCalls: [],
             searchActivities: [],
             codeExecutionActivities: [],
-            codexToolActivities: [],
-            agentToolActivities: [],
             assistantModelLabel: nil,
             assistantProviderIconID: nil,
             responseMetrics: nil,

@@ -13,7 +13,7 @@ enum ClaudeManagedAgentStreamParsingSupport {
         let type = eventType(from: object)
 
         var events: [StreamEvent] = []
-        var pendingInteraction: CodexInteractionRequest?
+        var pendingInteraction: ManagedAgentInteractionRequest?
 
         appendSessionStateChangeIfNeeded(from: object, state: &state, events: &events)
 
@@ -64,11 +64,11 @@ enum ClaudeManagedAgentStreamParsingSupport {
 
 struct ClaudeManagedAgentsParsedEvent {
     let events: [StreamEvent]
-    let pendingInteraction: CodexInteractionRequest?
+    let pendingInteraction: ManagedAgentInteractionRequest?
 
     init(
         events: [StreamEvent],
-        pendingInteraction: CodexInteractionRequest? = nil
+        pendingInteraction: ManagedAgentInteractionRequest? = nil
     ) {
         self.events = events
         self.pendingInteraction = pendingInteraction
@@ -82,7 +82,6 @@ struct ClaudeManagedAgentsStreamState {
     var didReachIdle = false
     var currentMessageID: String?
     var accumulatedUsage: Usage?
-    var pendingApprovalInteractions: [CodexInteractionRequest] = []
+    var pendingApprovalInteractions: [ManagedAgentInteractionRequest] = []
     var pendingSearchActivities: [String: SearchActivity] = [:]
-    var pendingGenericToolActivities: [String: CodexToolActivity] = [:]
 }

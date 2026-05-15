@@ -70,53 +70,6 @@ final class ChatEditorDraftSupportTests: XCTestCase {
         XCTAssertNil(ChatEditorDraftSupport.maxTokensDraftInt(from: "0"))
     }
 
-    func testApplyCodexSessionSettingsDraftClearsBlankWorkingDirectoryAndStoresMode() {
-        var controls = GenerationControls()
-        controls.codexWorkingDirectory = "/tmp/old"
-        controls.codexSandboxMode = .dangerFullAccess
-
-        let result = ChatEditorDraftSupport.applyCodexSessionSettingsDraft(
-            workingDirectoryDraft: " ",
-            sandboxModeDraft: .readOnly,
-            personalityDraft: .pragmatic,
-            controls: controls
-        )
-
-        switch result {
-        case .success(let result):
-            XCTAssertNil(result.normalizedPath)
-            XCTAssertNil(result.controls.codexWorkingDirectory)
-            XCTAssertEqual(result.controls.codexSandboxMode, .readOnly)
-            XCTAssertEqual(result.controls.codexPersonality, .pragmatic)
-        case .failure(let error):
-            XCTFail("Unexpected validation error: \(error.localizedDescription)")
-        }
-    }
-
-    func testApplyCodexSessionSettingsDraftNormalizesPaddedExistingWorkingDirectory() throws {
-        let directoryURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ChatEditorDraftSupportTests-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directoryURL) }
-
-        let result = ChatEditorDraftSupport.applyCodexSessionSettingsDraft(
-            workingDirectoryDraft: "  \(directoryURL.path)  ",
-            sandboxModeDraft: .dangerFullAccess,
-            personalityDraft: .friendly,
-            controls: GenerationControls()
-        )
-
-        switch result {
-        case .success(let result):
-            XCTAssertEqual(result.normalizedPath, directoryURL.standardizedFileURL.path)
-            XCTAssertEqual(result.controls.codexWorkingDirectory, directoryURL.standardizedFileURL.path)
-            XCTAssertEqual(result.controls.codexSandboxMode, .dangerFullAccess)
-            XCTAssertEqual(result.controls.codexPersonality, .friendly)
-        case .failure(let error):
-            XCTFail("Unexpected validation error: \(error.localizedDescription)")
-        }
-    }
-
     func testAnthropicThinkingDraftValidationUsesCurrentMaxTokensFallbackWhenDraftIsEmpty() {
         XCTAssertTrue(
             ChatEditorDraftSupport.isThinkingBudgetDraftValid(

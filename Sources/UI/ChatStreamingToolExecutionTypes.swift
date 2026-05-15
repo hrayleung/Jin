@@ -44,24 +44,11 @@ extension ChatStreamingOrchestrator {
     struct ToolExecutionRecord {
         let toolResult: ToolResult
         let outputLine: String
-        let agentActivity: CodexToolActivity?
         let searchActivity: SearchActivity?
     }
 
     enum ToolExecutionRoute: Equatable {
-        case agent
         case builtin
         case mcp
-    }
-
-    struct AgentToolExecutionPreparation: Sendable {
-        let controls: AgentModeControls
-        let preparedShellExecution: AgentToolHub.PreparedShellExecution?
-    }
-
-    enum AgentToolApprovalDecision: Sendable {
-        case approved(AgentToolExecutionPreparation)
-        case denied
-        case cancelled
     }
 }

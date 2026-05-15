@@ -18,12 +18,7 @@ final class StreamEventDiagnosticsTests: XCTestCase {
                 .codeExecutionActivity(CodeExecutionActivity(id: "code_1", status: .inProgress)),
                 "codeExecutionActivity"
             ),
-            (
-                .codexToolActivity(CodexToolActivity(id: "codex_1", toolName: "shell", status: .running)),
-                "codexToolActivity"
-            ),
-            (.codexInteractionRequest(makeCodexInteractionRequest()), "codexInteractionRequest"),
-            (.codexThreadState(CodexThreadState(remoteThreadID: "thread_1")), "codexThreadState"),
+            (.managedAgentInteractionRequest(makeManagedAgentInteractionRequest()), "managedAgentInteractionRequest"),
             (
                 .claudeManagedSessionState(ClaudeManagedAgentSessionState(remoteSessionID: "session_1")),
                 "claudeManagedSessionState"
@@ -50,14 +45,14 @@ final class StreamEventDiagnosticsTests: XCTestCase {
         }
     }
 
-    private func makeCodexInteractionRequest() -> CodexInteractionRequest {
-        CodexInteractionRequest(
-            method: "codex/command_approval",
+    private func makeManagedAgentInteractionRequest() -> ManagedAgentInteractionRequest {
+        ManagedAgentInteractionRequest(
+            method: "claude_managed_agents/tool_confirmation",
             threadID: nil,
             turnID: nil,
             itemID: nil,
             kind: .commandApproval(
-                CodexCommandApprovalRequest(
+                ManagedAgentCommandApprovalRequest(
                     command: "pwd",
                     cwd: nil,
                     reason: nil,

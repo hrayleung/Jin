@@ -123,20 +123,6 @@ struct MessageRow: View {
                                         )
                                     }
 
-                                    if !presentation.visibleCodexToolActivities.isEmpty {
-                                        CodexToolTimelineView(
-                                            activities: presentation.visibleCodexToolActivities,
-                                            isStreaming: false
-                                        )
-                                    }
-
-                                    if !presentation.visibleAgentToolActivities.isEmpty {
-                                        AgentToolTimelineView(
-                                            activities: presentation.visibleAgentToolActivities,
-                                            isStreaming: false
-                                        )
-                                    }
-
                                     if !presentation.visibleCodeExecutionActivities.isEmpty {
                                         CodeExecutionTimelineView(
                                             activities: presentation.visibleCodeExecutionActivities,

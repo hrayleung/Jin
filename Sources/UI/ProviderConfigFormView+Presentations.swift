@@ -4,17 +4,6 @@ extension ProviderConfigFormView {
 
     func providerFormPresentations<Content: View>(_ content: Content) -> some View {
         content
-            .sheet(isPresented: $showingCodexWorkingDirectoryPresetsSheet) {
-                CodexWorkingDirectoryPresetsManagerSheetView(
-                    presets: $codexWorkingDirectoryPresetsDraft,
-                    onCancel: { showingCodexWorkingDirectoryPresetsSheet = false },
-                    onSave: {
-                        codexWorkingDirectoryPresets = codexWorkingDirectoryPresetsDraft
-                        persistCodexWorkingDirectoryPresets()
-                        showingCodexWorkingDirectoryPresetsSheet = false
-                    }
-                )
-            }
             .sheet(item: $fetchedModelsForSelection) { selection in
                 FetchedModelsSelectionSheet(
                     fetchedModels: selection.models,

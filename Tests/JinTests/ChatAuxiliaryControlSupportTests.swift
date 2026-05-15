@@ -477,8 +477,6 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
     }
 
     func testSessionControlSupportAndBadgesMatchProviderAndOverrideState() {
-        XCTAssertTrue(ChatAuxiliaryControlSupport.supportsCodexSessionControl(providerType: .codexAppServer))
-        XCTAssertFalse(ChatAuxiliaryControlSupport.supportsCodexSessionControl(providerType: .openai))
         XCTAssertTrue(ChatAuxiliaryControlSupport.supportsClaudeManagedAgentSessionControl(providerType: .claudeManagedAgents))
         XCTAssertFalse(ChatAuxiliaryControlSupport.supportsClaudeManagedAgentSessionControl(providerType: .anthropic))
 
@@ -507,49 +505,12 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
             )
         )
 
-        var codexControls = GenerationControls()
-        XCTAssertNil(ChatAuxiliaryControlSupport.codexSessionBadgeText(controls: codexControls))
-        codexControls.codexWorkingDirectory = "/tmp/project"
-        XCTAssertEqual(ChatAuxiliaryControlSupport.codexSessionBadgeText(controls: codexControls), "RW")
-        codexControls.codexSandboxMode = .readOnly
-        XCTAssertEqual(ChatAuxiliaryControlSupport.codexSessionBadgeText(controls: codexControls), "RO")
-
         var claudeControls = GenerationControls()
         XCTAssertNil(ChatAuxiliaryControlSupport.claudeManagedAgentSessionBadgeText(controls: claudeControls))
         claudeControls.claudeManagedAgentID = "agent-1"
         XCTAssertEqual(ChatAuxiliaryControlSupport.claudeManagedAgentSessionBadgeText(controls: claudeControls), "1")
         claudeControls.claudeManagedEnvironmentID = "env-1"
         XCTAssertEqual(ChatAuxiliaryControlSupport.claudeManagedAgentSessionBadgeText(controls: claudeControls), "2")
-    }
-
-    func testCodexSessionHelpTextMatchesSupportAndOverrides() {
-        XCTAssertEqual(
-            ChatAuxiliaryControlSupport.codexSessionHelpText(
-                supportsCodexSessionControl: false,
-                controls: GenerationControls()
-            ),
-            "Codex Session: Not supported"
-        )
-        XCTAssertEqual(
-            ChatAuxiliaryControlSupport.codexSessionHelpText(
-                supportsCodexSessionControl: true,
-                controls: GenerationControls()
-            ),
-            "Codex Session: Sandbox: Workspace Write \u{00B7} Working Directory: app-server default"
-        )
-
-        var controls = GenerationControls()
-        controls.codexWorkingDirectory = "/tmp/project"
-        controls.codexSandboxMode = .readOnly
-        controls.codexPersonality = .pragmatic
-
-        XCTAssertEqual(
-            ChatAuxiliaryControlSupport.codexSessionHelpText(
-                supportsCodexSessionControl: true,
-                controls: controls
-            ),
-            "Codex Session: Sandbox: Read Only \u{00B7} Working Directory: /tmp/project \u{00B7} Personality: Pragmatic"
-        )
     }
 
     func testClaudeManagedAgentSessionHelpTextMatchesResolvedState() {
@@ -1098,16 +1059,6 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
                 modelSupportsWebSearch: true
             )
         )
-        XCTAssertFalse(
-            ChatAuxiliaryControlSupport.supportsNativeWebSearchControl(
-                hidesManagedAgentInternalUI: false,
-                providerType: .codexAppServer,
-                supportsMediaGenerationControl: false,
-                supportsImageGenerationControl: false,
-                supportsImageGenerationWebSearch: false,
-                modelSupportsWebSearch: true
-            )
-        )
         XCTAssertTrue(
             ChatAuxiliaryControlSupport.supportsNativeWebSearchControl(
                 hidesManagedAgentInternalUI: false,
@@ -1145,14 +1096,6 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
             ChatAuxiliaryControlSupport.modelSupportsBuiltinSearchPluginControl(
                 hidesManagedAgentInternalUI: true,
                 providerType: .openai,
-                supportsMediaGenerationControl: false,
-                modelSupportsToolCalling: true
-            )
-        )
-        XCTAssertFalse(
-            ChatAuxiliaryControlSupport.modelSupportsBuiltinSearchPluginControl(
-                hidesManagedAgentInternalUI: false,
-                providerType: .codexAppServer,
                 supportsMediaGenerationControl: false,
                 modelSupportsToolCalling: true
             )

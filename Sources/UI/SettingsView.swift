@@ -45,8 +45,7 @@ struct SettingsView: View {
         PluginDescriptor(id: "openrouter_ocr", name: "OpenRouter OCR", systemImage: "doc.text.magnifyingglass", summary: "OCR PDFs using curated OpenRouter OCR and document vision models."),
         PluginDescriptor(id: "firecrawl_ocr", name: "Firecrawl OCR", systemImage: "doc.text.magnifyingglass", summary: "OCR PDFs via Firecrawl after temporary Cloudflare R2 upload."),
         PluginDescriptor(id: "chat_naming", name: "Chat Naming", systemImage: "text.bubble", summary: "Auto-name chats with a selected model."),
-        PluginDescriptor(id: "cloudflare_r2_upload", name: "Cloudflare R2 Upload", systemImage: "externaldrive.badge.icloud", summary: "Upload local videos to R2 for remote video URLs."),
-        PluginDescriptor(id: "agent_mode", name: "Agent Mode", systemImage: "terminal", summary: "Execute local tools through the bundled RTK helper and local file operations.")
+        PluginDescriptor(id: "cloudflare_r2_upload", name: "Cloudflare R2 Upload", systemImage: "externaldrive.badge.icloud", summary: "Upload local videos to R2 for remote video URLs.")
     ]
 
     @State var columnVisibility: NavigationSplitViewVisibility = .all
@@ -328,8 +327,6 @@ struct SettingsView: View {
             identifiedDetail("chat_naming") { ChatNamingPluginSettingsView() }
         case "cloudflare_r2_upload":
             identifiedDetail("cloudflare_r2_upload") { CloudflareR2UploadPluginSettingsView() }
-        case "agent_mode":
-            identifiedDetail("agent_mode") { AgentModeSettingsView() }
         default:
             transitionedDetail {
                 ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")

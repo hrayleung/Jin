@@ -32,7 +32,7 @@ extension ChatAuxiliaryControlSupport {
             return (controls.webSearch?.contextSize ?? .low).displayName
         case .xai:
             return webSearchSourcesLabel(controls: controls)
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .anthropic, .claudeManagedAgents,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .anthropic, .claudeManagedAgents,
              .groq, .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
              .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:
@@ -83,7 +83,7 @@ extension ChatAuxiliaryControlSupport {
             return "On"
         case .anthropic, .claudeManagedAgents, .mimoTokenPlanOpenAI:
             return "On"
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
              .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:

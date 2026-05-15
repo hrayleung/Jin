@@ -40,9 +40,6 @@ actor ProviderManager {
         case .openaiWebSocket:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return OpenAIWebSocketAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
-        case .codexAppServer:
-            let apiKey = optionalAPIKey(from: credentials)
-            return CodexAppServerAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq, .mistral, .deepinfra,
              .zhipuCodingPlan, .minimax, .mimoTokenPlanOpenAI:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
@@ -113,10 +110,6 @@ actor ProviderManager {
             return .serviceAccount(try await resolveServiceAccountCredentials(for: config))
         }
 
-        if config.type == .codexAppServer {
-            return try await resolveCodexCredentials(for: config)
-        }
-
         return .apiKey(try await resolveRequiredAPIKey(for: config))
     }
 
@@ -124,21 +117,6 @@ actor ProviderManager {
         if let direct = config.apiKey?.trimmedNonEmpty { return direct }
 
         throw ProviderError.missingAPIKey(provider: config.name)
-    }
-
-    private func resolveCodexCredentials(for config: ProviderConfig) async throws -> ResolvedCredentials {
-        if let direct = config.apiKey?.trimmedNonEmpty {
-            return .apiKey(direct)
-        }
-
-        if config.authModeHint == CodexLocalAuthStore.authModeHint {
-            if let localKey = CodexLocalAuthStore.loadAPIKey() {
-                return .apiKey(localKey)
-            }
-            throw ProviderError.missingAPIKey(provider: config.name)
-        }
-
-        return .noAPIKeyRequired
     }
 
     private func resolveServiceAccountCredentials(for config: ProviderConfig) async throws -> ServiceAccountCredentials {
@@ -161,17 +139,6 @@ actor ProviderManager {
             fatalError("Expected API key credentials for provider type: \(providerType.rawValue)")
         }
         return apiKey
-    }
-
-    private func optionalAPIKey(from credentials: ResolvedCredentials) -> String {
-        switch credentials {
-        case .apiKey(let apiKey):
-            return apiKey
-        case .noAPIKeyRequired:
-            return ""
-        case .serviceAccount:
-            fatalError("Unexpected service account credentials for Codex App Server")
-        }
     }
 
     private func requiredServiceAccount(from credentials: ResolvedCredentials) -> ServiceAccountCredentials {

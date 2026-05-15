@@ -30,8 +30,6 @@ enum AppPreferences {
             return AppPreferenceKeys.pluginCloudflareR2UploadEnabled
         case "web_search_builtin":
             return AppPreferenceKeys.pluginWebSearchEnabled
-        case "agent_mode":
-            return AppPreferenceKeys.agentModeEnabled
         default:
             return nil
         }
@@ -42,7 +40,7 @@ enum AppPreferences {
         if let value = defaults.object(forKey: key) as? Bool {
             return value
         }
-        if pluginID == "chat_naming" || pluginID == "cloudflare_r2_upload" || pluginID == "agent_mode" {
+        if pluginID == "chat_naming" || pluginID == "cloudflare_r2_upload" {
             return false
         }
         return true

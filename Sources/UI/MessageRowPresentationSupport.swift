@@ -134,8 +134,6 @@ enum MessageRowPresentationSupport {
         let effectiveMaxBubbleWidth: CGFloat
         let collapsedPreview: LightweightMessagePreview?
         let visibleToolCalls: [ToolCall]
-        let visibleCodexToolActivities: [CodexToolActivity]
-        let visibleAgentToolActivities: [CodexToolActivity]
         let visibleCodeExecutionActivities: [CodeExecutionActivity]
         let visibleRenderedBlocks: [RenderedMessageBlock]
         let hasVisibleAssistantPresentation: Bool
@@ -167,14 +165,6 @@ enum MessageRowPresentationSupport {
                 item.visibleToolCalls,
                 hidesManagedAgentInternalUI: hidesManagedAgentInternalUI
             )
-            visibleCodexToolActivities = Self.visibleValues(
-                item.codexToolActivities,
-                hidesManagedAgentInternalUI: hidesManagedAgentInternalUI
-            )
-            visibleAgentToolActivities = Self.visibleValues(
-                item.agentToolActivities,
-                hidesManagedAgentInternalUI: hidesManagedAgentInternalUI
-            )
             visibleCodeExecutionActivities = Self.visibleValues(
                 item.codeExecutionActivities,
                 hidesManagedAgentInternalUI: hidesManagedAgentInternalUI
@@ -186,8 +176,6 @@ enum MessageRowPresentationSupport {
             hasVisibleAssistantPresentation = Self.hasVisibleAssistantPresentation(
                 collapsedPreview: collapsedPreview,
                 searchActivities: item.searchActivities,
-                codexToolActivities: visibleCodexToolActivities,
-                agentToolActivities: visibleAgentToolActivities,
                 codeExecutionActivities: visibleCodeExecutionActivities,
                 renderedBlocks: visibleRenderedBlocks,
                 toolCalls: visibleToolCalls
@@ -217,16 +205,12 @@ enum MessageRowPresentationSupport {
         private static func hasVisibleAssistantPresentation(
             collapsedPreview: LightweightMessagePreview?,
             searchActivities: [SearchActivity],
-            codexToolActivities: [CodexToolActivity],
-            agentToolActivities: [CodexToolActivity],
             codeExecutionActivities: [CodeExecutionActivity],
             renderedBlocks: [RenderedMessageBlock],
             toolCalls: [ToolCall]
         ) -> Bool {
             collapsedPreview != nil
                 || !searchActivities.isEmpty
-                || !codexToolActivities.isEmpty
-                || !agentToolActivities.isEmpty
                 || !codeExecutionActivities.isEmpty
                 || !renderedBlocks.isEmpty
                 || !toolCalls.isEmpty

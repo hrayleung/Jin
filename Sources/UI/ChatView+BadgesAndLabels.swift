@@ -44,13 +44,6 @@ extension ChatView {
         )
     }
 
-    var codexSessionHelpText: String {
-        ChatAuxiliaryControlSupport.codexSessionHelpText(
-            supportsCodexSessionControl: supportsCodexSessionControl,
-            controls: controls
-        )
-    }
-
     var claudeManagedAgentSessionHelpText: String {
         let resolvedControls = resolvedClaudeManagedControls(
             for: activeProviderID,

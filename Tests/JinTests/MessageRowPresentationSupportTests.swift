@@ -127,9 +127,7 @@ final class MessageRowPresentationSupportTests: XCTestCase {
             role: .assistant,
             renderedBlocks: [thinkingBlock, redactedBlock, textBlock],
             toolCalls: [ToolCall(id: "tool", name: "weather", arguments: [:])],
-            codeExecutionActivities: [CodeExecutionActivity(id: "code", status: .inProgress)],
-            codexToolActivities: [CodexToolActivity(id: "codex", toolName: "shell", status: .running)],
-            agentToolActivities: [CodexToolActivity(id: "agent", toolName: "agent", status: .running)]
+            codeExecutionActivities: [CodeExecutionActivity(id: "code", status: .inProgress)]
         )
 
         let presentation = MessageRowPresentationSupport.Presentation(
@@ -143,8 +141,6 @@ final class MessageRowPresentationSupportTests: XCTestCase {
         XCTAssertTrue(presentation.hidesManagedAgentInternalUI)
         XCTAssertTrue(presentation.visibleToolCalls.isEmpty)
         XCTAssertTrue(presentation.visibleCodeExecutionActivities.isEmpty)
-        XCTAssertTrue(presentation.visibleCodexToolActivities.isEmpty)
-        XCTAssertTrue(presentation.visibleAgentToolActivities.isEmpty)
         XCTAssertEqual(presentation.visibleRenderedBlocks.count, 1)
         guard case .content("text", .text("visible")) = presentation.visibleRenderedBlocks[0] else {
             return XCTFail("Expected only the visible text block to remain")
@@ -361,8 +357,6 @@ final class MessageRowPresentationSupportTests: XCTestCase {
         toolCalls: [ToolCall] = [],
         searchActivities: [SearchActivity] = [],
         codeExecutionActivities: [CodeExecutionActivity] = [],
-        codexToolActivities: [CodexToolActivity] = [],
-        agentToolActivities: [CodexToolActivity] = [],
         copyText: String = "body",
         collapsedPreview: LightweightMessagePreview? = nil
     ) -> MessageRenderItem {
@@ -375,8 +369,6 @@ final class MessageRowPresentationSupportTests: XCTestCase {
             toolCalls: toolCalls,
             searchActivities: searchActivities,
             codeExecutionActivities: codeExecutionActivities,
-            codexToolActivities: codexToolActivities,
-            agentToolActivities: agentToolActivities,
             assistantModelLabel: nil,
             assistantProviderIconID: nil,
             responseMetrics: nil,

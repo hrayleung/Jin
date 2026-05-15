@@ -4,8 +4,6 @@ import XCTest
 final class ChatStreamingOrchestratorTests: XCTestCase {
     @MainActor
     private final class ContinuationCallbackRecorder {
-        var persistedCodexThreadState: CodexThreadState?
-        var persistedCodexThreadLocalThreadID: UUID?
         var persistedClaudeManagedSessionState: ClaudeManagedAgentSessionState?
         var persistedClaudeManagedSessionLocalThreadID: UUID?
         var persistedPendingResults: [ClaudeManagedAgentPendingToolResult] = []
@@ -15,18 +13,15 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
         var persistedToolThreadID: UUID?
         var persistedToolTurnID: UUID?
         var mergedSearchActivities: (messageID: UUID, activities: [SearchActivity])?
-        var mergedAgentActivities: (messageID: UUID, activities: [CodexToolActivity])?
         var autoRenameRequest: (
             provider: ProviderConfig,
             modelID: String,
             history: [Message],
             assistantMessage: Message
         )?
-        var appendedCodexInteractionRequest: CodexInteractionRequest?
-        var appendedCodexInteractionThreadID: UUID?
-        var onAppendCodexInteraction: (() -> Void)?
-        var appendedApprovalRequest: AgentApprovalRequest?
-        var appendedApprovalThreadID: UUID?
+        var appendedManagedAgentInteractionRequest: ManagedAgentInteractionRequest?
+        var appendedManagedAgentInteractionThreadID: UUID?
+        var onAppendManagedAgentInteraction: (() -> Void)?
     }
 
     @MainActor
@@ -40,10 +35,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
                 recorder.persistedToolThreadID = localThreadID
                 recorder.persistedToolTurnID = localTurnID
             },
-            persistCodexThreadState: { state, localThreadID in
-                recorder.persistedCodexThreadState = state
-                recorder.persistedCodexThreadLocalThreadID = localThreadID
-            },
             persistClaudeManagedSessionState: { state, localThreadID in
                 recorder.persistedClaudeManagedSessionState = state
                 recorder.persistedClaudeManagedSessionLocalThreadID = localThreadID
@@ -53,23 +44,16 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
                 recorder.persistedPendingResults = results
                 recorder.persistedPendingResultsThreadID = localThreadID
             },
-            appendCodexInteraction: { request, localThreadID in
-                recorder.appendedCodexInteractionRequest = request
-                recorder.appendedCodexInteractionThreadID = localThreadID
-                recorder.onAppendCodexInteraction?()
+            appendManagedAgentInteraction: { request, localThreadID in
+                recorder.appendedManagedAgentInteractionRequest = request
+                recorder.appendedManagedAgentInteractionThreadID = localThreadID
+                recorder.onAppendManagedAgentInteraction?()
             },
             mergeSearchActivities: { messageID, activities in
                 recorder.mergedSearchActivities = (messageID, activities)
             },
-            mergeAgentToolActivities: { messageID, activities in
-                recorder.mergedAgentActivities = (messageID, activities)
-            },
             maybeAutoRename: { provider, modelID, history, assistantMessage in
                 recorder.autoRenameRequest = (provider, modelID, history, assistantMessage)
-            },
-            appendAgentApproval: { request, localThreadID in
-                recorder.appendedApprovalRequest = request
-                recorder.appendedApprovalThreadID = localThreadID
             },
             showError: { _ in },
             endStreamingSession: {},
@@ -185,8 +169,7 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
             ChatStreamingOrchestrator.hasRenderableAssistantContent(
                 assistantPartCount: 0,
                 searchActivityCount: 0,
-                codeExecutionActivityCount: 0,
-                codexToolActivityCount: 0
+                codeExecutionActivityCount: 0
             )
         )
     }
@@ -196,24 +179,14 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
             ChatStreamingOrchestrator.hasRenderableAssistantContent(
                 assistantPartCount: 0,
                 searchActivityCount: 1,
-                codeExecutionActivityCount: 0,
-                codexToolActivityCount: 0
+                codeExecutionActivityCount: 0
             )
         )
         XCTAssertTrue(
             ChatStreamingOrchestrator.hasRenderableAssistantContent(
                 assistantPartCount: 0,
                 searchActivityCount: 0,
-                codeExecutionActivityCount: 1,
-                codexToolActivityCount: 0
-            )
-        )
-        XCTAssertTrue(
-            ChatStreamingOrchestrator.hasRenderableAssistantContent(
-                assistantPartCount: 0,
-                searchActivityCount: 0,
-                codeExecutionActivityCount: 0,
-                codexToolActivityCount: 1
+                codeExecutionActivityCount: 1
             )
         )
     }
@@ -686,12 +659,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
             status: .writingCode,
             code: "print(\"hi\")"
         )
-        let codexActivity = CodexToolActivity(
-            id: "codex-1",
-            toolName: "shell",
-            status: .running,
-            arguments: ["command": AnyCodable("swift test")]
-        )
 
         await ChatStreamingOrchestrator.applyStreamSearchActivity(
             searchActivity,
@@ -700,11 +667,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
         )
         await ChatStreamingOrchestrator.applyStreamCodeExecutionActivity(
             codeActivity,
-            accumulator: &accumulator,
-            streamingState: state
-        )
-        await ChatStreamingOrchestrator.applyStreamCodexToolActivity(
-            codexActivity,
             accumulator: &accumulator,
             streamingState: state
         )
@@ -718,78 +680,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
         XCTAssertEqual(accumulator.buildCodeExecutionActivities().single?.code, "print(\"hi\")")
         XCTAssertEqual(state.codeExecutionActivities.single?.id, "code-1")
         XCTAssertEqual(state.codeExecutionActivities.single?.code, "print(\"hi\")")
-
-        XCTAssertEqual(accumulator.buildCodexToolActivities().single?.id, "codex-1")
-        XCTAssertEqual(accumulator.buildCodexToolActivities().single?.arguments["command"]?.value as? String, "swift test")
-        XCTAssertEqual(state.codexToolActivities.single?.id, "codex-1")
-        XCTAssertEqual(state.codexToolActivities.single?.arguments["command"]?.value as? String, "swift test")
-    }
-
-    @MainActor
-    func testHandleStreamEventFlushesBufferedTextBeforeAppendingCodexInteraction() async throws {
-        let recorder = ContinuationCallbackRecorder()
-        let callbacks = makeContinuationCallbacks(recording: recorder)
-        let threadID = UUID()
-        let context = makeSessionContext(providerType: .openai, threadID: threadID)
-        let state = StreamingMessageState()
-        var eventState = ChatStreamingOrchestrator.StreamEventHandlingState(providerType: .openai)
-        var controls = GenerationControls()
-        let builtinRoutes = await BuiltinSearchToolHub.shared.toolDefinitions(
-            for: GenerationControls(),
-            useBuiltinSearch: false
-        ).routes
-        let request = CodexInteractionRequest(
-            method: "codex/command_approval",
-            threadID: nil,
-            turnID: nil,
-            itemID: nil,
-            kind: .commandApproval(
-                CodexCommandApprovalRequest(
-                    command: "pwd",
-                    cwd: nil,
-                    reason: nil,
-                    actionSummaries: []
-                )
-            )
-        )
-
-        ChatStreamingOrchestrator.applyStreamContentPart(
-            .text("pending text"),
-            accumulator: &eventState.accumulator,
-            uiFlushBuffer: &eventState.uiFlushBuffer,
-            diagnostics: &eventState.diagnostics,
-            context: context
-        )
-        recorder.onAppendCodexInteraction = {
-            XCTAssertEqual(state.textContent, "pending text")
-        }
-
-        try await ChatStreamingOrchestrator.handleStreamEvent(
-            .codexInteractionRequest(request),
-            state: &eventState,
-            requestControls: &controls,
-            streamingState: state,
-            builtinRoutes: builtinRoutes,
-            context: context,
-            callbacks: callbacks
-        )
-
-        XCTAssertTrue(recorder.appendedCodexInteractionRequest === request)
-        XCTAssertEqual(recorder.appendedCodexInteractionThreadID, threadID)
-        XCTAssertEqual(state.textContent, "pending text")
-    }
-
-    func testRequestControlsApplyCodexThreadUpdateAndClearRollback() {
-        var controls = GenerationControls()
-        controls.codexResumeThreadID = "old-thread"
-        controls.codexPendingRollbackTurns = 3
-
-        controls.applyChatStreamingUpdate(
-            .codexThread(CodexThreadState(remoteThreadID: "new-thread"))
-        )
-
-        XCTAssertEqual(controls.codexResumeThreadID, "new-thread")
-        XCTAssertEqual(controls.codexPendingRollbackTurns, 0)
     }
 
     func testRequestControlsApplyClaudeManagedSessionAndToolResultUpdates() {
@@ -833,11 +723,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
         )
 
         await ChatStreamingOrchestrator.persistRequestControlStreamUpdate(
-            .codexThread(CodexThreadState(remoteThreadID: "codex-thread-1")),
-            threadID: threadID,
-            callbacks: callbacks
-        )
-        await ChatStreamingOrchestrator.persistRequestControlStreamUpdate(
             .claudeManagedSession(
                 ClaudeManagedAgentSessionState(
                     remoteSessionID: "session-1",
@@ -853,36 +738,12 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
             callbacks: callbacks
         )
 
-        XCTAssertEqual(recorder.persistedCodexThreadState?.remoteThreadID, "codex-thread-1")
-        XCTAssertEqual(recorder.persistedCodexThreadLocalThreadID, threadID)
         XCTAssertEqual(recorder.persistedClaudeManagedSessionState?.remoteSessionID, "session-1")
         XCTAssertEqual(recorder.persistedClaudeManagedSessionState?.remoteModelID, "claude-sonnet")
         XCTAssertEqual(recorder.persistedClaudeManagedSessionLocalThreadID, threadID)
         XCTAssertTrue(recorder.didPersistPendingResults)
         XCTAssertEqual(recorder.persistedPendingResults.single?.toolCallID, "toolu-1")
         XCTAssertEqual(recorder.persistedPendingResultsThreadID, threadID)
-    }
-
-    @MainActor
-    func testApplyRequestControlStreamUpdateMutatesControlsAndPersistsState() async {
-        let recorder = ContinuationCallbackRecorder()
-        let callbacks = makeContinuationCallbacks(recording: recorder)
-        let threadID = UUID()
-        var controls = GenerationControls()
-        controls.codexResumeThreadID = "old-thread"
-        controls.codexPendingRollbackTurns = 2
-
-        await ChatStreamingOrchestrator.applyRequestControlStreamUpdate(
-            .codexThread(CodexThreadState(remoteThreadID: "new-thread")),
-            requestControls: &controls,
-            threadID: threadID,
-            callbacks: callbacks
-        )
-
-        XCTAssertEqual(controls.codexResumeThreadID, "new-thread")
-        XCTAssertEqual(controls.codexPendingRollbackTurns, 0)
-        XCTAssertEqual(recorder.persistedCodexThreadState?.remoteThreadID, "new-thread")
-        XCTAssertEqual(recorder.persistedCodexThreadLocalThreadID, threadID)
     }
 
     @MainActor
@@ -1029,13 +890,7 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
         )
     }
 
-    func testToolExecutionRoutePrefersAgentThenBuiltinThenMCP() async throws {
-        var agentControls = AgentModeControls()
-        agentControls.enabled = true
-        let (_, agentRoutes) = await AgentToolHub.shared.toolDefinitions(
-            for: GenerationControls(agentMode: agentControls)
-        )
-
+    func testToolExecutionRoutePrefersBuiltinThenMCP() async throws {
         let suiteName = "ChatStreamingOrchestratorTests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
@@ -1054,25 +909,15 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
 
         XCTAssertEqual(
             ChatStreamingOrchestrator.toolExecutionRoute(
-                for: ToolCall(id: "agent", name: AgentToolNames.shellExecute, arguments: [:]),
-                builtinRoutes: builtinRoutes,
-                agentRoutes: agentRoutes
-            ),
-            .agent
-        )
-        XCTAssertEqual(
-            ChatStreamingOrchestrator.toolExecutionRoute(
                 for: ToolCall(id: "builtin", name: BuiltinSearchToolHub.functionName, arguments: [:]),
-                builtinRoutes: builtinRoutes,
-                agentRoutes: agentRoutes
+                builtinRoutes: builtinRoutes
             ),
             .builtin
         )
         XCTAssertEqual(
             ChatStreamingOrchestrator.toolExecutionRoute(
                 for: ToolCall(id: "mcp", name: "server__tool", arguments: [:]),
-                builtinRoutes: builtinRoutes,
-                agentRoutes: agentRoutes
+                builtinRoutes: builtinRoutes
             ),
             .mcp
         )
@@ -1082,13 +927,12 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
         let toolCalls = [
             ToolCall(id: "call-1", name: "google_search", arguments: [:]),
             ToolCall(id: "call-2", name: "server__lookup", arguments: [:]),
-            ToolCall(id: "call-3", name: "google_maps", arguments: [:]),
-            ToolCall(id: "call-4", name: AgentToolNames.fileRead, arguments: [:])
+            ToolCall(id: "call-3", name: "google_maps", arguments: [:])
         ]
 
         let executable = ChatStreamingOrchestrator.executableToolCalls(from: toolCalls)
 
-        XCTAssertEqual(executable.map(\.id), ["call-2", "call-4"])
+        XCTAssertEqual(executable.map(\.id), ["call-2"])
     }
 
     func testToolSearchStartActivityOnlyBuildsForBuiltinRoute() async throws {
@@ -1167,15 +1011,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
         XCTAssertEqual(builtinActivity?.arguments["provider"]?.value as? String, SearchPluginProvider.exa.rawValue)
         XCTAssertNil(
             ChatStreamingOrchestrator.toolSearchActivity(
-                route: .agent,
-                call: call,
-                toolResultText: text,
-                isError: false,
-                builtinRoutes: builtinRoutes
-            )
-        )
-        XCTAssertNil(
-            ChatStreamingOrchestrator.toolSearchActivity(
                 route: .mcp,
                 call: call,
                 toolResultText: text,
@@ -1222,31 +1057,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
         XCTAssertEqual(deniedResult.signature, "sig")
     }
 
-    func testDeniedAgentToolExecutionBuildsConsistentResultOutputAndActivity() {
-        let call = ToolCall(
-            id: "call-1",
-            name: AgentToolNames.fileWrite,
-            arguments: ["path": AnyCodable("README.md")],
-            signature: "sig"
-        )
-
-        let denied = ChatStreamingOrchestrator.deniedAgentToolExecution(
-            for: call,
-            durationSeconds: 0.25
-        )
-
-        XCTAssertEqual(denied.toolResult.toolCallID, "call-1")
-        XCTAssertEqual(denied.toolResult.toolName, AgentToolNames.fileWrite)
-        XCTAssertEqual(denied.toolResult.content, ChatStreamingOrchestrator.deniedToolResultContent())
-        XCTAssertTrue(denied.toolResult.isError)
-        XCTAssertEqual(denied.toolResult.signature, "sig")
-        XCTAssertEqual(denied.toolResult.durationSeconds, 0.25)
-        XCTAssertEqual(denied.outputLine, "Tool \(AgentToolNames.fileWrite) denied by user.")
-        XCTAssertEqual(denied.activity.id, "call-1")
-        XCTAssertEqual(denied.activity.status, .failed)
-        XCTAssertEqual(denied.activity.output, "Denied by user")
-    }
-
     func testToolExecutionProgressPreservesResultOrderAndMergesSearchActivities() {
         var progress = ChatStreamingOrchestrator.ToolExecutionProgress()
         let firstResult = ToolResult(
@@ -1290,106 +1100,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
         XCTAssertFalse(result.cancelled)
     }
 
-    @MainActor
-    func testAgentToolApprovalDecisionReturnsApprovedWithoutRequestWhenApprovalIsNotNeeded() async throws {
-        let recorder = ContinuationCallbackRecorder()
-        let callbacks = makeContinuationCallbacks(recording: recorder)
-
-        let decision = try await ChatStreamingOrchestrator.agentToolApprovalDecision(
-            for: ToolCall(
-                id: "call-1",
-                name: AgentToolNames.globSearch,
-                arguments: ["pattern": AnyCodable("*.swift")]
-            ),
-            controls: AgentModeControls(),
-            approvalStore: AgentApprovalSessionStore(),
-            callbacks: callbacks,
-            threadID: UUID()
-        )
-
-        guard case .approved(let preparation) = decision else {
-            return XCTFail("Expected approval to be skipped for read-only search")
-        }
-        XCTAssertNil(preparation.preparedShellExecution)
-        XCTAssertNil(recorder.appendedApprovalRequest)
-    }
-
-    @MainActor
-    func testAgentToolApprovalDecisionDeniesQueuedRequest() async throws {
-        let recorder = ContinuationCallbackRecorder()
-        let callbacks = makeContinuationCallbacks(recording: recorder)
-        var controls = AgentModeControls()
-        controls.autoApproveFileReads = false
-        let approvalControls = controls
-        let threadID = UUID()
-
-        async let pendingDecision = ChatStreamingOrchestrator.agentToolApprovalDecision(
-            for: ToolCall(
-                id: "call-1",
-                name: AgentToolNames.fileRead,
-                arguments: ["path": AnyCodable("README.md")]
-            ),
-            controls: approvalControls,
-            approvalStore: AgentApprovalSessionStore(),
-            callbacks: callbacks,
-            threadID: threadID
-        )
-
-        while recorder.appendedApprovalRequest == nil {
-            try await Task.sleep(nanoseconds: 1_000_000)
-        }
-        XCTAssertEqual(recorder.appendedApprovalThreadID, threadID)
-        await recorder.appendedApprovalRequest?.resolve(.deny)
-
-        let decision = try await pendingDecision
-        guard case .denied = decision else {
-            return XCTFail("Expected denied approval decision")
-        }
-    }
-
-    @MainActor
-    func testAgentToolApprovalDecisionStoresAllowForSessionChoice() async throws {
-        let recorder = ContinuationCallbackRecorder()
-        let callbacks = makeContinuationCallbacks(recording: recorder)
-        let store = AgentApprovalSessionStore()
-        let call = ToolCall(
-            id: "call-1",
-            name: AgentToolNames.fileRead,
-            arguments: ["path": AnyCodable("README.md")]
-        )
-        var controls = AgentModeControls()
-        controls.autoApproveFileReads = false
-        let approvalControls = controls
-
-        async let pendingDecision = ChatStreamingOrchestrator.agentToolApprovalDecision(
-            for: call,
-            controls: approvalControls,
-            approvalStore: store,
-            callbacks: callbacks,
-            threadID: UUID()
-        )
-
-        while recorder.appendedApprovalRequest == nil {
-            try await Task.sleep(nanoseconds: 1_000_000)
-        }
-        await recorder.appendedApprovalRequest?.resolve(.allowForSession)
-
-        let decision = try await pendingDecision
-        guard case .approved = decision else {
-            return XCTFail("Expected approved approval decision")
-        }
-
-        let approvalKey = try XCTUnwrap(
-            AgentToolApprovalSupport.sessionKey(
-                functionName: call.name,
-                arguments: call.arguments,
-                controls: approvalControls
-            )
-        )
-        let isApproved = await store.isApproved(key: approvalKey)
-        XCTAssertTrue(isApproved)
-    }
-
     func testToolExecutionFailureContentNormalizesEmptyError() {
         struct EmptyLocalizedError: LocalizedError {
             var errorDescription: String? { "" }
@@ -1405,39 +1115,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
             content,
             "Tool execution failed: Tool lookup failed without details. You may retry this tool call with corrected arguments."
         )
-    }
-
-    func testAgentToolActivityHelpersPreserveCallIdentityAndClampOutput() {
-        let call = ToolCall(
-            id: "call-1",
-            name: "agent.shell",
-            arguments: ["command": AnyCodable("echo hi")]
-        )
-        let longOutput = String(repeating: "x", count: 4_200)
-        let result = MCPToolCallResult(text: longOutput, isError: false, rawOutputPath: "/tmp/output.log")
-
-        let running = ChatStreamingOrchestrator.runningAgentToolActivity(for: call)
-        XCTAssertEqual(running.id, "call-1")
-        XCTAssertEqual(running.toolName, "agent.shell")
-        XCTAssertEqual(running.status, .running)
-        XCTAssertEqual(running.arguments["command"]?.value as? String, "echo hi")
-
-        let completed = ChatStreamingOrchestrator.completedAgentToolActivity(
-            for: call,
-            result: result,
-            normalizedContent: longOutput
-        )
-        XCTAssertEqual(completed.status, .completed)
-        XCTAssertEqual(completed.output?.count, 4_096)
-        XCTAssertEqual(completed.rawOutputPath, "/tmp/output.log")
-
-        let failed = ChatStreamingOrchestrator.failedAgentToolActivity(
-            for: call,
-            content: longOutput
-        )
-        XCTAssertEqual(failed.status, .failed)
-        XCTAssertEqual(failed.output?.count, 4_096)
-        XCTAssertNil(failed.rawOutputPath)
     }
 
     @MainActor
@@ -1471,44 +1148,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
     }
 
     @MainActor
-    func testApplyAgentToolActivityUpdatesAccumulatorAndStreamingState() async {
-        var accumulator = StreamingResponseAccumulator(providerType: .openai)
-        let state = StreamingMessageState()
-        let running = CodexToolActivity(
-            id: "agent-1",
-            toolName: "shell",
-            status: .running,
-            arguments: ["command": AnyCodable("echo hi")]
-        )
-        let completed = CodexToolActivity(
-            id: "agent-1",
-            toolName: "shell",
-            status: .completed,
-            output: "ok"
-        )
-
-        await ChatStreamingOrchestrator.applyAgentToolActivity(
-            running,
-            accumulator: &accumulator,
-            streamingState: state
-        )
-        await ChatStreamingOrchestrator.applyAgentToolActivity(
-            completed,
-            accumulator: &accumulator,
-            streamingState: state
-        )
-
-        XCTAssertEqual(accumulator.buildAgentToolActivities().single?.id, "agent-1")
-        XCTAssertEqual(accumulator.buildAgentToolActivities().single?.status, .completed)
-        XCTAssertEqual(accumulator.buildAgentToolActivities().single?.arguments["command"]?.value as? String, "echo hi")
-        XCTAssertEqual(accumulator.buildAgentToolActivities().single?.output, "ok")
-        XCTAssertEqual(state.agentToolActivities.single?.id, "agent-1")
-        XCTAssertEqual(state.agentToolActivities.single?.status, .completed)
-        XCTAssertEqual(state.agentToolActivities.single?.arguments["command"]?.value as? String, "echo hi")
-        XCTAssertEqual(state.agentToolActivities.single?.output, "ok")
-    }
-
-    @MainActor
     func testPersistToolContinuationPersistsFollowUpAndMergesActivities() async {
         let threadID = UUID()
         let turnID = UUID()
@@ -1530,7 +1169,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
             isError: false
         )
         let searchActivity = SearchActivity(id: "search-1", type: "web_search", status: .completed)
-        let agentActivity = CodexToolActivity(id: "agent-1", toolName: "shell", status: .completed)
         let context = makeSessionContext(providerType: .claudeManagedAgents, threadID: threadID, turnID: turnID)
         let callbacks = makeContinuationCallbacks(recording: recorder)
 
@@ -1542,7 +1180,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
                 searchActivities: [searchActivity],
                 cancelled: false
             ),
-            completedAgentActivities: [agentActivity],
             persistedAssistantMessageID: assistantMessageID,
             providerType: .claudeManagedAgents,
             context: context,
@@ -1560,8 +1197,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
         XCTAssertEqual(recorder.persistedToolTurnID, turnID)
         XCTAssertEqual(recorder.mergedSearchActivities?.messageID, assistantMessageID)
         XCTAssertEqual(recorder.mergedSearchActivities?.activities.first?.id, "search-1")
-        XCTAssertEqual(recorder.mergedAgentActivities?.messageID, assistantMessageID)
-        XCTAssertEqual(recorder.mergedAgentActivities?.activities.first?.id, "agent-1")
     }
 
     @MainActor
@@ -1578,7 +1213,6 @@ final class ChatStreamingOrchestratorTests: XCTestCase {
                 searchActivities: [],
                 cancelled: false
             ),
-            completedAgentActivities: [],
             persistedAssistantMessageID: nil,
             providerType: .openai,
             context: context,

@@ -109,11 +109,6 @@ extension ProviderConfigFormView {
     private var credentialRows: some View {
         if let providerType {
             switch ProviderFormSupport.credentialKind(for: providerType) {
-            case .optionalAPIKey:
-                codexOverviewSection
-                codexServerSection
-                codexAuthSection
-                codexWorkingDirectoryPresetsSection
             case .apiKey:
                 apiKeyField
             case .serviceAccountJSON:

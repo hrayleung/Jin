@@ -3,7 +3,6 @@ import XCTest
 
 final class ProviderFormSupportTests: XCTestCase {
     func testCredentialKindClassifiesProviderAuthenticationRequirements() {
-        XCTAssertEqual(ProviderFormSupport.credentialKind(for: .codexAppServer), .optionalAPIKey)
         XCTAssertEqual(ProviderFormSupport.credentialKind(for: .openai), .apiKey)
         XCTAssertEqual(ProviderFormSupport.credentialKind(for: .githubCopilot), .apiKey)
         XCTAssertEqual(ProviderFormSupport.credentialKind(for: .claudeManagedAgents), .apiKey)
@@ -23,11 +22,7 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertEqual(ProviderFormSupport.apiKeyConcealHelp(for: nil), "Hide API key")
     }
 
-    func testProviderSetupCalloutUsesCodexAppServerCopyOnly() {
-        XCTAssertEqual(
-            ProviderFormSupport.providerSetupCallout(for: .codexAppServer),
-            "Requires a running `codex app-server` process."
-        )
+    func testProviderSetupCalloutIsNilForAllProviders() {
         XCTAssertNil(ProviderFormSupport.providerSetupCallout(for: .openai))
     }
 
@@ -63,10 +58,6 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertEqual(
             ProviderFormSupport.providerDetailsText(for: .githubCopilot),
             "Uses GitHub Models at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access."
-        )
-        XCTAssertEqual(
-            ProviderFormSupport.providerDetailsText(for: .codexAppServer),
-            "Expected listen address: `ws://127.0.0.1:4500`. Recommended stable runtime: `codex` 0.107.0+."
         )
         XCTAssertNil(ProviderFormSupport.providerDetailsText(for: .openai))
     }
@@ -127,15 +118,6 @@ final class ProviderFormSupportTests: XCTestCase {
                 isSaving: false
             )
         )
-        XCTAssertFalse(
-            ProviderFormSupport.isAddDisabled(
-                providerType: .codexAppServer,
-                name: "Codex",
-                apiKey: "",
-                serviceAccountJSON: "",
-                isSaving: false
-            )
-        )
         XCTAssertTrue(
             ProviderFormSupport.isAddDisabled(
                 providerType: .vertexai,
@@ -157,7 +139,6 @@ final class ProviderFormSupportTests: XCTestCase {
     }
 
     func testCredentialEmptyMatchesProviderRequirements() {
-        XCTAssertFalse(ProviderFormSupport.isCredentialEmpty(providerType: .codexAppServer, apiKey: "", serviceAccountJSON: ""))
         XCTAssertTrue(ProviderFormSupport.isCredentialEmpty(providerType: .openai, apiKey: " ", serviceAccountJSON: ""))
         XCTAssertFalse(ProviderFormSupport.isCredentialEmpty(providerType: .openai, apiKey: "token", serviceAccountJSON: ""))
         XCTAssertTrue(ProviderFormSupport.isCredentialEmpty(providerType: .vertexai, apiKey: "", serviceAccountJSON: " "))
@@ -170,8 +151,6 @@ final class ProviderFormSupportTests: XCTestCase {
             ProviderFormSupport.isFetchModelsDisabled(
                 isFetchingModels: true,
                 providerType: .openai,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
                 apiKey: "token",
                 serviceAccountJSON: "{}"
             )
@@ -183,49 +162,8 @@ final class ProviderFormSupportTests: XCTestCase {
             ProviderFormSupport.isFetchModelsDisabled(
                 isFetchingModels: false,
                 providerType: nil,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
                 apiKey: "token",
                 serviceAccountJSON: "{}"
-            )
-        )
-    }
-
-    func testFetchModelsDisabledForCodexWhenCurrentAuthModeCannotBeUsed() {
-        XCTAssertTrue(
-            ProviderFormSupport.isFetchModelsDisabled(
-                isFetchingModels: false,
-                providerType: .codexAppServer,
-                codexCanUseCurrentAuthenticationMode: false,
-                codexAuthIsWorking: false,
-                apiKey: "",
-                serviceAccountJSON: ""
-            )
-        )
-    }
-
-    func testFetchModelsDisabledForCodexWhileAuthIsWorking() {
-        XCTAssertTrue(
-            ProviderFormSupport.isFetchModelsDisabled(
-                isFetchingModels: false,
-                providerType: .codexAppServer,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: true,
-                apiKey: "",
-                serviceAccountJSON: ""
-            )
-        )
-    }
-
-    func testFetchModelsEnabledForUsableCodexAuthMode() {
-        XCTAssertFalse(
-            ProviderFormSupport.isFetchModelsDisabled(
-                isFetchingModels: false,
-                providerType: .codexAppServer,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
-                apiKey: "",
-                serviceAccountJSON: ""
             )
         )
     }
@@ -235,8 +173,6 @@ final class ProviderFormSupportTests: XCTestCase {
             ProviderFormSupport.isFetchModelsDisabled(
                 isFetchingModels: false,
                 providerType: .openai,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
                 apiKey: " ",
                 serviceAccountJSON: ""
             )
@@ -245,8 +181,6 @@ final class ProviderFormSupportTests: XCTestCase {
             ProviderFormSupport.isFetchModelsDisabled(
                 isFetchingModels: false,
                 providerType: .openai,
-                codexCanUseCurrentAuthenticationMode: false,
-                codexAuthIsWorking: true,
                 apiKey: " token ",
                 serviceAccountJSON: ""
             )
@@ -258,8 +192,6 @@ final class ProviderFormSupportTests: XCTestCase {
             ProviderFormSupport.isFetchModelsDisabled(
                 isFetchingModels: false,
                 providerType: .vertexai,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
                 apiKey: "",
                 serviceAccountJSON: " "
             )
@@ -268,8 +200,6 @@ final class ProviderFormSupportTests: XCTestCase {
             ProviderFormSupport.isFetchModelsDisabled(
                 isFetchingModels: false,
                 providerType: .vertexai,
-                codexCanUseCurrentAuthenticationMode: false,
-                codexAuthIsWorking: true,
                 apiKey: "",
                 serviceAccountJSON: " {} "
             )
@@ -280,60 +210,9 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertTrue(
             ProviderFormSupport.isTestConnectionDisabled(
                 providerType: nil,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
                 isTesting: false,
                 apiKey: "token",
                 serviceAccountJSON: "{}"
-            )
-        )
-    }
-
-    func testTestConnectionDisabledForCodexWhenCurrentAuthModeCannotBeUsed() {
-        XCTAssertTrue(
-            ProviderFormSupport.isTestConnectionDisabled(
-                providerType: .codexAppServer,
-                codexCanUseCurrentAuthenticationMode: false,
-                codexAuthIsWorking: false,
-                isTesting: false,
-                apiKey: "",
-                serviceAccountJSON: ""
-            )
-        )
-    }
-
-    func testTestConnectionDisabledForCodexWhileAuthIsWorkingOrTesting() {
-        XCTAssertTrue(
-            ProviderFormSupport.isTestConnectionDisabled(
-                providerType: .codexAppServer,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: true,
-                isTesting: false,
-                apiKey: "",
-                serviceAccountJSON: ""
-            )
-        )
-        XCTAssertTrue(
-            ProviderFormSupport.isTestConnectionDisabled(
-                providerType: .codexAppServer,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
-                isTesting: true,
-                apiKey: "",
-                serviceAccountJSON: ""
-            )
-        )
-    }
-
-    func testTestConnectionEnabledForUsableCodexAuthMode() {
-        XCTAssertFalse(
-            ProviderFormSupport.isTestConnectionDisabled(
-                providerType: .codexAppServer,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
-                isTesting: false,
-                apiKey: "",
-                serviceAccountJSON: ""
             )
         )
     }
@@ -342,8 +221,6 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertTrue(
             ProviderFormSupport.isTestConnectionDisabled(
                 providerType: .openai,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
                 isTesting: false,
                 apiKey: " ",
                 serviceAccountJSON: ""
@@ -352,8 +229,6 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertTrue(
             ProviderFormSupport.isTestConnectionDisabled(
                 providerType: .openai,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
                 isTesting: true,
                 apiKey: " token ",
                 serviceAccountJSON: ""
@@ -362,8 +237,6 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertFalse(
             ProviderFormSupport.isTestConnectionDisabled(
                 providerType: .openai,
-                codexCanUseCurrentAuthenticationMode: false,
-                codexAuthIsWorking: true,
                 isTesting: false,
                 apiKey: " token ",
                 serviceAccountJSON: ""
@@ -375,8 +248,6 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertTrue(
             ProviderFormSupport.isTestConnectionDisabled(
                 providerType: .vertexai,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
                 isTesting: false,
                 apiKey: "",
                 serviceAccountJSON: " "
@@ -385,8 +256,6 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertTrue(
             ProviderFormSupport.isTestConnectionDisabled(
                 providerType: .vertexai,
-                codexCanUseCurrentAuthenticationMode: true,
-                codexAuthIsWorking: false,
                 isTesting: true,
                 apiKey: "",
                 serviceAccountJSON: " {} "
@@ -395,8 +264,6 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertFalse(
             ProviderFormSupport.isTestConnectionDisabled(
                 providerType: .vertexai,
-                codexCanUseCurrentAuthenticationMode: false,
-                codexAuthIsWorking: true,
                 isTesting: false,
                 apiKey: "",
                 serviceAccountJSON: " {} "
