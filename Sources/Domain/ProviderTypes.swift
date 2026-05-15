@@ -58,7 +58,6 @@ enum ProviderType: String, Codable, CaseIterable {
     case claudeManagedAgents
     case cerebras
     case cloudflareAIGateway
-    case codexAppServer
     case cohere
     case deepinfra
     case deepseek
@@ -91,7 +90,6 @@ enum ProviderType: String, Codable, CaseIterable {
         case .openai: return "OpenAI"
         case .openaiWebSocket: return "OpenAI (WebSocket)"
         case .opencodeGo: return "OpenCode Go"
-        case .codexAppServer: return "Codex App Server (Beta)"
         case .githubCopilot: return "GitHub Copilot"
         case .openaiCompatible: return "OpenAI Compatible"
         case .cloudflareAIGateway: return "Cloudflare AI Gateway"
@@ -155,7 +153,6 @@ enum ProviderType: String, Codable, CaseIterable {
         case .openai: return "https://api.openai.com/v1"
         case .openaiWebSocket: return "wss://api.openai.com/v1"
         case .opencodeGo: return nil
-        case .codexAppServer: return "ws://127.0.0.1:4500"
         case .githubCopilot: return "https://models.github.ai/inference"
         case .openaiCompatible: return "https://api.openai.com/v1"
         case .cloudflareAIGateway: return "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_slug}/compat"

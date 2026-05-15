@@ -231,7 +231,6 @@ extension ChatView {
     }
 
     var supportsPDFProcessingControl: Bool {
-        guard providerType != .codexAppServer else { return false }
         return true
     }
 

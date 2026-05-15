@@ -9,9 +9,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
     @AppStorage(AppPreferenceKeys.codeBlockCollapseLineThreshold) private var codeBlockCollapseLineThreshold = 25
     @AppStorage(AppPreferenceKeys.thinkingBlockDisplayMode) private var thinkingDisplayModeRaw = ThinkingBlockDisplayMode.expanded.rawValue
-    @AppStorage(AppPreferenceKeys.codexToolDisplayMode) private var codexToolDisplayModeRaw = CodexToolDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codeExecutionDisplayMode) private var codeExecutionDisplayModeRaw = CodeExecutionDisplayMode.expanded.rawValue
-    @AppStorage(AppPreferenceKeys.agentToolDisplayMode) private var agentToolDisplayModeRaw = AgentToolDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.useOverlayScrollbars) private var useOverlayScrollbars = true
 
     @State private var showingAppFontPicker = false
@@ -31,24 +29,10 @@ struct AppearanceSettingsView: View {
         )
     }
 
-    private var codexToolDisplayMode: Binding<CodexToolDisplayMode> {
-        Binding(
-            get: { CodexToolDisplayMode(rawValue: codexToolDisplayModeRaw) ?? .expanded },
-            set: { codexToolDisplayModeRaw = $0.rawValue }
-        )
-    }
-
     private var codeExecutionDisplayMode: Binding<CodeExecutionDisplayMode> {
         Binding(
             get: { CodeExecutionDisplayMode(rawValue: codeExecutionDisplayModeRaw) ?? .expanded },
             set: { codeExecutionDisplayModeRaw = $0.rawValue }
-        )
-    }
-
-    private var agentToolDisplayMode: Binding<AgentToolDisplayMode> {
-        Binding(
-            get: { AgentToolDisplayMode(rawValue: agentToolDisplayModeRaw) ?? .expanded },
-            set: { agentToolDisplayModeRaw = $0.rawValue }
         )
     }
 
@@ -135,30 +119,6 @@ struct AppearanceSettingsView: View {
                     selection: codeExecutionDisplayMode
                 ) {
                     ForEach(CodeExecutionDisplayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-            }
-
-            JinSettingsSection("Codex Tool Activities") {
-                JinSettingsPickerRow(
-                    "Display Mode",
-                    supportingText: codexToolDisplayMode.wrappedValue.description,
-                    selection: codexToolDisplayMode
-                ) {
-                    ForEach(CodexToolDisplayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-            }
-
-            JinSettingsSection("Agent Tool Activities") {
-                JinSettingsPickerRow(
-                    "Display Mode",
-                    supportingText: agentToolDisplayMode.wrappedValue.description,
-                    selection: agentToolDisplayMode
-                ) {
-                    ForEach(AgentToolDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }

@@ -58,7 +58,6 @@ enum ChatModelSelectionSupport {
         activeThread: ConversationModelThreadEntity?,
         providers: [ProviderConfigEntity],
         modelContext: ModelContext,
-        clearCodexThreadPersistence: (ConversationModelThreadEntity) -> Void,
         clearClaudeManagedAgentSessionPersistence: (ConversationModelThreadEntity) -> Void,
         setActiveThread: (ConversationModelThreadEntity) -> Void,
         normalizeControlsForCurrentSelection: () -> Void,
@@ -70,7 +69,6 @@ enum ChatModelSelectionSupport {
         guard let provider = providers.first(where: { $0.id == providerID }) else { return }
         let models = provider.selectableModels
 
-        clearCodexThreadPersistence(activeThread)
         clearClaudeManagedAgentSessionPersistence(activeThread)
         activeThread.providerID = providerID
 
@@ -129,7 +127,6 @@ enum ChatModelSelectionSupport {
         modelID: String,
         activeThread: ConversationModelThreadEntity?,
         sortedThreads: [ConversationModelThreadEntity],
-        clearCodexThreadPersistence: (ConversationModelThreadEntity) -> Void,
         clearClaudeManagedAgentSessionPersistence: (ConversationModelThreadEntity) -> Void,
         canonicalModelID: (String, String) -> String,
         addOrActivateThread: (String, String) -> Void,
@@ -153,7 +150,6 @@ enum ChatModelSelectionSupport {
         }
 
         if providerID != activeThread.providerID {
-            clearCodexThreadPersistence(activeThread)
             clearClaudeManagedAgentSessionPersistence(activeThread)
         }
         activeThread.providerID = providerID
@@ -239,7 +235,7 @@ enum ChatModelSelectionSupport {
             return models.first(where: { $0.id == "zyphra/ZAYA1-8B" })?.id
                 ?? models.first(where: { $0.id == "moonshotai/Kimi-K2.6" })?.id
                 ?? models.first(where: { $0.id == "deepseek-ai/DeepSeek-V3.2" })?.id
-        case .codexAppServer, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq, .cohere, .mistral, .xai, .vertexai:
+        case .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq, .cohere, .mistral, .xai, .vertexai:
             return nil
         }
     }

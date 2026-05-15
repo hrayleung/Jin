@@ -88,8 +88,6 @@ extension ContentView {
             return try? JSONDecoder().decode(GenerationControls.self, from: configData)
         }
         var controls = inheritedControls ?? GenerationControls()
-        controls.codexResumeThreadID = nil
-        controls.codexPendingRollbackTurns = 0
         controls.clearClaudeManagedAgentSessionState()
         if let provider = providers.first(where: { $0.id == providerID }),
            ProviderType(rawValue: provider.typeRaw) == .claudeManagedAgents {

@@ -38,22 +38,6 @@ extension ChatAuxiliaryControlSupport {
         return controls.anthropicSpeed?.badgeText
     }
 
-    static func codexSessionBadgeText(controls: GenerationControls) -> String? {
-        guard controls.codexActiveOverrideCount > 0 else { return nil }
-        return controls.codexSandboxMode.badgeText
-    }
-
-    static func codexSessionHelpText(
-        supportsCodexSessionControl: Bool,
-        controls: GenerationControls
-    ) -> String {
-        guard supportsCodexSessionControl else { return "Codex Session: Not supported" }
-        return helpText(
-            title: "Codex Session",
-            segments: codexSessionHelpSegments(controls: controls)
-        )
-    }
-
     static func claudeManagedAgentSessionBadgeText(controls: GenerationControls) -> String? {
         guard controls.claudeManagedSessionOverrideCount > 0 else { return nil }
         if controls.claudeManagedAgentID != nil, controls.claudeManagedEnvironmentID != nil {
@@ -80,26 +64,6 @@ extension ChatAuxiliaryControlSupport {
                 environmentDisplayName: environmentDisplayName
             )
         )
-    }
-
-    private static func codexSessionHelpSegments(controls: GenerationControls) -> [String] {
-        var segments = [
-            "Sandbox: \(controls.codexSandboxMode.displayName)",
-            codexWorkingDirectorySegment(controls.codexWorkingDirectory)
-        ]
-
-        if let personality = controls.codexPersonality {
-            segments.append("Personality: \(personality.displayName)")
-        }
-
-        return segments
-    }
-
-    private static func codexWorkingDirectorySegment(_ workingDirectory: String?) -> String {
-        if let workingDirectory {
-            return "Working Directory: \(workingDirectory)"
-        }
-        return "Working Directory: app-server default"
     }
 
     private static func claudeManagedAgentSessionHelpSegments(

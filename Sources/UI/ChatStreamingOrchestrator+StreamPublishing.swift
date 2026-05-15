@@ -137,15 +137,4 @@ extension ChatStreamingOrchestrator {
             streamingState.upsertCodeExecutionActivity(activity)
         }
     }
-
-    static func applyStreamCodexToolActivity(
-        _ activity: CodexToolActivity,
-        accumulator: inout StreamingResponseAccumulator,
-        streamingState: StreamingMessageState
-    ) async {
-        accumulator.upsertCodexToolActivity(activity)
-        await MainActor.run {
-            streamingState.upsertCodexToolActivity(activity)
-        }
-    }
 }

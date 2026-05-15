@@ -65,13 +65,7 @@ extension ChatStreamingOrchestrator {
                 accumulator: &state.accumulator,
                 streamingState: streamingState
             )
-        case .codexToolActivity(let activity):
-            await applyStreamCodexToolActivity(
-                activity,
-                accumulator: &state.accumulator,
-                streamingState: streamingState
-            )
-        case .codexInteractionRequest(let request):
+        case .managedAgentInteractionRequest(let request):
             await flushStreamingUIIfNeeded(
                 buffer: &state.uiFlushBuffer,
                 force: true,
@@ -80,15 +74,8 @@ extension ChatStreamingOrchestrator {
                 context: ctx
             )
             await MainActor.run {
-                callbacks.appendCodexInteraction(request, ctx.threadID)
+                callbacks.appendManagedAgentInteraction(request, ctx.threadID)
             }
-        case .codexThreadState(let threadState):
-            await applyRequestControlStreamUpdate(
-                .codexThread(threadState),
-                requestControls: &requestControls,
-                threadID: ctx.threadID,
-                callbacks: callbacks
-            )
         case .claudeManagedSessionState(let sessionState):
             await applyRequestControlStreamUpdate(
                 .claudeManagedSession(sessionState),

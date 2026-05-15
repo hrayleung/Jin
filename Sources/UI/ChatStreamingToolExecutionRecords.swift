@@ -20,13 +20,6 @@ extension ChatStreamingOrchestrator {
                 content: toolResult.content,
                 isError: result.isError
             ),
-            agentActivity: route == .agent
-                ? completedAgentToolActivity(
-                    for: call,
-                    result: result,
-                    normalizedContent: toolResult.content
-                )
-                : nil,
             searchActivity: toolSearchActivity(
                 route: route,
                 call: call,
@@ -58,7 +51,6 @@ extension ChatStreamingOrchestrator {
                 content: content,
                 isError: true
             ),
-            agentActivity: route == .agent ? failedAgentToolActivity(for: call, content: content) : nil,
             searchActivity: toolSearchActivity(
                 route: route,
                 call: call,

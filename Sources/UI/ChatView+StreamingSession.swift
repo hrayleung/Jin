@@ -107,7 +107,6 @@ extension ChatView {
             assistant: assistant,
             modelSnapshot: modelSnapshot,
             providerType: providerSnapshot.type,
-            isAgentModeActive: isAgentModeActive,
             automaticContextCacheControls: { providerType, modelID, modelCapabilities in
                 automaticContextCacheControls(
                     providerType: providerType,
@@ -116,9 +115,6 @@ extension ChatView {
                 )
             },
             sanitizeProviderSpecific: Self.sanitizeProviderSpecificForProvider,
-            injectCodexThreadPersistence: { controls in
-                injectCodexThreadPersistence(into: &controls, from: thread)
-            },
             injectClaudeManagedAgentSessionPersistence: { controls in
                 injectClaudeManagedAgentSessionPersistence(into: &controls, from: thread)
             }
@@ -229,23 +225,17 @@ extension ChatView {
                     showingError = true
                 }
             },
-            persistCodexThreadState: { [self] state, localThreadID in
-                persistCodexThreadState(state, forLocalThreadID: localThreadID)
-            },
             persistClaudeManagedSessionState: { [self] state, localThreadID in
                 persistClaudeManagedAgentSessionState(state, forLocalThreadID: localThreadID)
             },
             persistClaudeManagedPendingToolResults: { [self] results, localThreadID in
                 persistClaudeManagedPendingCustomToolResults(results, forLocalThreadID: localThreadID)
             },
-            appendCodexInteraction: { [self] request, localThreadID in
-                pendingCodexInteractions.append(PendingCodexInteraction(localThreadID: localThreadID, request: request))
+            appendManagedAgentInteraction: { [self] request, localThreadID in
+                pendingManagedAgentInteractions.append(PendingManagedAgentInteraction(localThreadID: localThreadID, request: request))
             },
             mergeSearchActivities: { [self] messageID, activities in
                 mergeSearchActivitiesIntoAssistantMessage(messageID: messageID, newActivities: activities)
-            },
-            mergeAgentToolActivities: { [self] messageID, activities in
-                mergeAgentToolActivitiesIntoAssistantMessage(messageID: messageID, newActivities: activities)
             },
             maybeAutoRename: { [self] provider, targetModelID, history, assistantMessage in
                 await maybeAutoRenameConversation(
@@ -254,9 +244,6 @@ extension ChatView {
                     history: history,
                     finalAssistantMessage: assistantMessage
                 )
-            },
-            appendAgentApproval: { [self] request, localThreadID in
-                pendingAgentApprovals.append(PendingAgentApproval(localThreadID: localThreadID, request: request))
             },
             showError: { [self] message in
                 errorMessage = message
@@ -274,8 +261,7 @@ extension ChatView {
                     )
                 }
                 streamingStore.endSession(conversationID: conversationID, threadID: threadID)
-                pendingCodexInteractions.removeAll { $0.localThreadID == sessionThreadID }
-                pendingAgentApprovals.removeAll { $0.localThreadID == sessionThreadID }
+                pendingManagedAgentInteractions.removeAll { $0.localThreadID == sessionThreadID }
             }
         )
 

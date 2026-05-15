@@ -2,7 +2,6 @@ import Foundation
 
 extension ProviderFormSupport {
     enum CredentialKind: Equatable {
-        case optionalAPIKey
         case apiKey
         case serviceAccountJSON
     }
@@ -15,8 +14,6 @@ extension ProviderFormSupport {
 
     static func credentialKind(for providerType: ProviderType) -> CredentialKind {
         switch providerType {
-        case .codexAppServer:
-            return .optionalAPIKey
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
@@ -41,8 +38,6 @@ extension ProviderFormSupport {
 
     static func providerSetupCallout(for providerType: ProviderType) -> String? {
         switch providerType {
-        case .codexAppServer:
-            return "Requires a running `codex app-server` process."
         default:
             return nil
         }
@@ -66,8 +61,6 @@ extension ProviderFormSupport {
             return "Use the Anthropic-compatible Token Plan Base URL from the MiMo subscription page. Jin accepts Xiaomi's displayed `/anthropic` URL and sends requests to `/anthropic/v1/messages`; Token Plan keys start with `tp-`."
         case .githubCopilot:
             return "Uses GitHub Models at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access."
-        case .codexAppServer:
-            return "Expected listen address: `ws://127.0.0.1:4500`. Recommended stable runtime: `codex` 0.107.0+."
         default:
             return nil
         }
@@ -121,15 +114,11 @@ extension ProviderFormSupport {
     static func isFetchModelsDisabled(
         isFetchingModels: Bool,
         providerType: ProviderType?,
-        codexCanUseCurrentAuthenticationMode: Bool,
-        codexAuthIsWorking: Bool,
         apiKey: String,
         serviceAccountJSON: String
     ) -> Bool {
         isFetchingModels || isCredentialActionDisabled(
             providerType: providerType,
-            codexCanUseCurrentAuthenticationMode: codexCanUseCurrentAuthenticationMode,
-            codexAuthIsWorking: codexAuthIsWorking,
             apiKey: apiKey,
             serviceAccountJSON: serviceAccountJSON
         )
@@ -137,16 +126,12 @@ extension ProviderFormSupport {
 
     static func isTestConnectionDisabled(
         providerType: ProviderType?,
-        codexCanUseCurrentAuthenticationMode: Bool,
-        codexAuthIsWorking: Bool,
         isTesting: Bool,
         apiKey: String,
         serviceAccountJSON: String
     ) -> Bool {
         isTesting || isCredentialActionDisabled(
             providerType: providerType,
-            codexCanUseCurrentAuthenticationMode: codexCanUseCurrentAuthenticationMode,
-            codexAuthIsWorking: codexAuthIsWorking,
             apiKey: apiKey,
             serviceAccountJSON: serviceAccountJSON
         )
@@ -193,8 +178,6 @@ extension ProviderFormSupport {
         serviceAccountJSON: String
     ) -> Bool {
         switch kind {
-        case .optionalAPIKey:
-            return false
         case .apiKey:
             return normalizedOptionalString(apiKey) == nil
         case .serviceAccountJSON:
@@ -204,23 +187,16 @@ extension ProviderFormSupport {
 
     private static func isCredentialActionDisabled(
         providerType: ProviderType?,
-        codexCanUseCurrentAuthenticationMode: Bool,
-        codexAuthIsWorking: Bool,
         apiKey: String,
         serviceAccountJSON: String
     ) -> Bool {
         guard let providerType else { return true }
 
         let kind = credentialKind(for: providerType)
-        switch kind {
-        case .optionalAPIKey:
-            return !codexCanUseCurrentAuthenticationMode || codexAuthIsWorking
-        case .apiKey, .serviceAccountJSON:
-            return isCredentialMissing(
-                for: kind,
-                apiKey: apiKey,
-                serviceAccountJSON: serviceAccountJSON
-            )
-        }
+        return isCredentialMissing(
+            for: kind,
+            apiKey: apiKey,
+            serviceAccountJSON: serviceAccountJSON
+        )
     }
 }

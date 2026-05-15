@@ -60,12 +60,6 @@ final class SettingsSearchSupportTests: XCTestCase {
                 baseURL: "https://llm.example.com/v1"
             ),
             provider(
-                id: "codex",
-                name: "Local Agent",
-                type: .codexAppServer,
-                baseURL: "ws://127.0.0.1:4500"
-            ),
-            provider(
                 id: "deepseek",
                 name: "Reasoner",
                 type: .deepseek,
@@ -78,12 +72,8 @@ final class SettingsSearchSupportTests: XCTestCase {
             ["custom"]
         )
         XCTAssertEqual(
-            SettingsSearchSupport.filteredProviders(providers, searchText: "codexappserver").map(\.id),
-            ["codex"]
-        )
-        XCTAssertEqual(
-            SettingsSearchSupport.filteredProviders(providers, searchText: "Codex App Server").map(\.id),
-            ["codex"]
+            SettingsSearchSupport.filteredProviders(providers, searchText: "deepseek").map(\.id),
+            ["deepseek"]
         )
         XCTAssertEqual(
             SettingsSearchSupport.filteredProviders(providers, searchText: "LLM.EXAMPLE").map(\.id),

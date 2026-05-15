@@ -28,8 +28,6 @@ enum ChatRenderPayloadHeuristics {
             entity.toolResultsData,
             entity.searchActivitiesData,
             entity.codeExecutionActivitiesData,
-            entity.codexToolActivitiesData,
-            entity.agentToolActivitiesData,
             entity.perMessageMCPServerNamesData,
             entity.responseMetricsData
         ]

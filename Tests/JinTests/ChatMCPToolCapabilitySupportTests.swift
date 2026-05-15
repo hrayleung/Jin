@@ -13,16 +13,10 @@ final class ChatMCPToolCapabilitySupportTests: XCTestCase {
         )
     }
 
-    func testSupportsMCPToolsRejectsInternalAndCodexProviders() {
+    func testSupportsMCPToolsRejectsInternalProviders() {
         XCTAssertFalse(
             supportsMCPTools(
                 providerType: .claudeManagedAgents,
-                capabilities: [.streaming, .toolCalling]
-            )
-        )
-        XCTAssertFalse(
-            supportsMCPTools(
-                providerType: .codexAppServer,
                 capabilities: [.streaming, .toolCalling]
             )
         )

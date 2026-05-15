@@ -15,7 +15,7 @@ extension ChatModelCapabilitySupport {
             return xAIImageGenerationModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return geminiImageGenerationModelIDs.contains(lowerModelID)
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .anthropic, .claudeManagedAgents, .perplexity,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
              .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:
@@ -51,7 +51,7 @@ extension ChatModelCapabilitySupport {
         switch providerType {
         case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .perplexity, .xai, .gemini, .vertexai:
             break
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo,
              .zyphra:
@@ -122,7 +122,7 @@ extension ChatModelCapabilitySupport {
         case .fireworks:
             return fireworksAudioInputModelIDs.contains(lowerModelID)
         case .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .xai, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .cerebras, .sambanova, .codexAppServer, .morphllm, .opencodeGo, .zyphra, .none:
+             .mimoTokenPlanAnthropic, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:
             return false
         }
     }

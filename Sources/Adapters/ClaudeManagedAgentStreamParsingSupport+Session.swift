@@ -19,7 +19,7 @@ extension ClaudeManagedAgentStreamParsingSupport {
         from object: [String: JSONValue],
         state: inout ClaudeManagedAgentsStreamState,
         events: inout [StreamEvent]
-    ) -> CodexInteractionRequest? {
+    ) -> ManagedAgentInteractionRequest? {
         let requiredActionEventIDs = extractRequiredActionEventIDs(from: object)
         state.didReachIdle = false
 
@@ -27,7 +27,7 @@ extension ClaudeManagedAgentStreamParsingSupport {
             matching: requiredActionEventIDs,
             state: &state
         ) {
-            events.append(.codexInteractionRequest(interaction))
+            events.append(.managedAgentInteractionRequest(interaction))
             return interaction
         }
 
@@ -40,7 +40,7 @@ extension ClaudeManagedAgentStreamParsingSupport {
     static func dequeuePendingApprovalInteraction(
         matching eventIDs: [String],
         state: inout ClaudeManagedAgentsStreamState
-    ) -> CodexInteractionRequest? {
+    ) -> ManagedAgentInteractionRequest? {
         guard let nextApprovalIndex = state.pendingApprovalInteractions.firstIndex(where: { interaction in
             guard let itemID = interaction.itemID else { return false }
             return eventIDs.contains(itemID)

@@ -84,11 +84,7 @@ extension ChatView {
         )
     }
 
-    // MARK: - Codex & Service Tier
-
-    var supportsCodexSessionControl: Bool {
-        ChatAuxiliaryControlSupport.supportsCodexSessionControl(providerType: providerType)
-    }
+    // MARK: - Service Tier
 
     var supportsClaudeManagedAgentSessionControl: Bool {
         ChatAuxiliaryControlSupport.supportsClaudeManagedAgentSessionControl(providerType: providerType)
@@ -106,22 +102,6 @@ extension ChatView {
             providerType: providerType,
             modelID: activeModelID
         )
-    }
-
-    var isAgentModeConfigured: Bool {
-        AppPreferences.isPluginEnabled("agent_mode")
-    }
-
-    var codexWorkingDirectory: String? {
-        controls.codexWorkingDirectory
-    }
-
-    var codexSessionOverrideCount: Int {
-        controls.codexActiveOverrideCount
-    }
-
-    var codexSessionBadgeText: String? {
-        ChatAuxiliaryControlSupport.codexSessionBadgeText(controls: controls)
     }
 
     var claudeManagedAgentSessionOverrideCount: Int {

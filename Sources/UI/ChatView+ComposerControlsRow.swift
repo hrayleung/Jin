@@ -158,16 +158,6 @@ extension ChatView {
                 }
             }
 
-            if supportsCodexSessionControl {
-                composerButtonControl(
-                    systemName: "terminal",
-                    isActive: codexSessionOverrideCount > 0,
-                    badgeText: codexSessionBadgeText,
-                    help: codexSessionHelpText,
-                    action: openCodexSessionSettingsEditor
-                )
-            }
-
             if supportsClaudeManagedAgentSessionControl {
                 composerButtonControl(
                     systemName: "person.crop.square",
@@ -176,20 +166,6 @@ extension ChatView {
                     help: claudeManagedAgentSessionHelpText,
                     action: openClaudeManagedAgentSessionSettingsEditor
                 )
-            }
-
-            if isAgentModeConfigured {
-                composerButtonControl(
-                    systemName: "terminal.fill",
-                    isActive: isAgentModeActive,
-                    badgeText: isAgentModeActive ? "On" : nil,
-                    help: isAgentModeActive ? "Agent Mode: On" : "Agent Mode: Off"
-                ) {
-                    isAgentModePopoverPresented.toggle()
-                }
-                .popover(isPresented: $isAgentModePopoverPresented, arrowEdge: .bottom) {
-                    AgentModePopoverView(isActive: $isAgentModeActive)
-                }
             }
 
             if supportsImageGenerationControl {

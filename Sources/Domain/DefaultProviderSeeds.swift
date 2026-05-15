@@ -11,7 +11,6 @@ enum DefaultProviderSeeds {
         [
             openAI,
             openAIWebSocket,
-            codexAppServer,
             githubCopilot,
             groq,
             openRouter,
@@ -62,17 +61,6 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .openaiWebSocket),
             baseURL: ProviderType.openaiWebSocket.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .openaiWebSocket)
-        )
-    }
-
-    static var codexAppServer: ProviderConfig {
-        ProviderConfig(
-            id: "codex-app-server",
-            name: "Codex App Server (Beta)",
-            type: .codexAppServer,
-            iconID: LobeProviderIconCatalog.defaultIconID(for: .codexAppServer),
-            baseURL: ProviderType.codexAppServer.defaultBaseURL,
-            models: ModelCatalog.seededModels(for: .codexAppServer)
         )
     }
 

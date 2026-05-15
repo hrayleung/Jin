@@ -72,18 +72,6 @@ extension ProviderConfigFormView {
             guard let loadedProviderType = providerType else { return }
 
             switch ProviderFormSupport.credentialKind(for: loadedProviderType) {
-            case .optionalAPIKey:
-                let storedKey = provider.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                apiKey = storedKey
-                if provider.apiKeyKeychainID == CodexLocalAuthStore.authModeHint {
-                    codexAuthMode = .localCodex
-                } else {
-                    codexAuthMode = storedKey.isEmpty ? .chatGPT : .apiKey
-                }
-                codexAuthStatus = .idle
-                codexAccount = nil
-                codexRateLimit = nil
-                codexPendingLoginID = nil
             case .apiKey:
                 apiKey = provider.apiKey ?? ""
             case .serviceAccountJSON:
@@ -136,15 +124,6 @@ extension ProviderConfigFormView {
         guard let persistedProviderType = providerType else { return }
 
         switch ProviderFormSupport.credentialKind(for: persistedProviderType) {
-        case .optionalAPIKey:
-            let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            await MainActor.run {
-                provider.apiKeyKeychainID = codexAuthMode == .localCodex ? CodexLocalAuthStore.authModeHint : nil
-                provider.apiKey = codexAuthMode == .apiKey ? ProviderFormSupport.normalizedOptionalString(key) : nil
-                provider.serviceAccountJSON = nil
-                try? modelContext.save()
-            }
-
         case .apiKey:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
@@ -177,8 +156,6 @@ extension ProviderConfigFormView {
     var isTestDisabled: Bool {
         ProviderFormSupport.isTestConnectionDisabled(
             providerType: providerType,
-            codexCanUseCurrentAuthenticationMode: codexCanUseCurrentAuthenticationMode,
-            codexAuthIsWorking: codexAuthStatus == .working,
             isTesting: testStatus == .testing,
             apiKey: apiKey,
             serviceAccountJSON: serviceAccountJSON

@@ -41,8 +41,8 @@ extension ClaudeManagedAgentsAdapter {
 
     func buildApprovalRequest(
         sessionID: String,
-        interaction: CodexInteractionRequest,
-        response: CodexInteractionResponse
+        interaction: ManagedAgentInteractionRequest,
+        response: ManagedAgentInteractionResponse
     ) throws -> URLRequest {
         let event = try ClaudeManagedAgentRequestSupport.approvalEvent(
             from: interaction,

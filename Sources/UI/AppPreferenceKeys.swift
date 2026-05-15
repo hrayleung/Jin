@@ -24,29 +24,11 @@ enum AppPreferenceKeys {
     static let notifyOnBackgroundResponseCompletion = "notifyOnBackgroundResponseCompletion"
     static let keyboardShortcuts = "keyboardShortcuts.v1"
     static let thinkingBlockDisplayMode = "thinkingBlockDisplayMode"
-    static let codexToolDisplayMode = "codexToolDisplayMode"
     static let codeExecutionDisplayMode = "codeExecutionDisplayMode"
     static let codeBlockDisplayMode = "codeBlockDisplayMode"
-    static let codexWorkingDirectoryPresetsJSON = "codexWorkingDirectoryPresetsJSON"
     static let codeBlockShowLineNumbers = "codeBlockShowLineNumbers"
     static let codeBlockCollapseLineThreshold = "codeBlockCollapseLineThreshold"
     static let mainSidebarWidth = "mainSidebarWidth"
-
-    // Agent Mode
-    static let agentModeEnabled = "agentModeEnabled"
-    static let agentModeWorkingDirectory = "agentModeWorkingDirectory"
-    static let agentModeAllowedCommandPrefixesJSON = "agentModeAllowedCommandPrefixesJSON"
-    static let agentModeDefaultSafePrefixesJSON = "agentModeDefaultSafePrefixesJSON"
-    static let agentModeCommandTimeoutSeconds = "agentModeCommandTimeoutSeconds"
-    static let agentModeAutoApproveFileReads = "agentModeAutoApproveFileReads"
-    static let agentModeToolShell = "agentModeToolShell"
-    static let agentModeToolFileRead = "agentModeToolFileRead"
-    static let agentModeToolFileWrite = "agentModeToolFileWrite"
-    static let agentModeToolFileEdit = "agentModeToolFileEdit"
-    static let agentModeToolGlob = "agentModeToolGlob"
-    static let agentModeToolGrep = "agentModeToolGrep"
-    static let agentModeBypassPermissions = "agentModeBypassPermissions"
-    static let agentToolDisplayMode = "agentToolDisplayMode"
 
     // MARK: - Updates
 

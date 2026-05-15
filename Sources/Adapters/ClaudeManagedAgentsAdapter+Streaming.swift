@@ -173,8 +173,8 @@ extension ClaudeManagedAgentsAdapter {
     }
 
     func waitForInteractionResponse(
-        _ interaction: CodexInteractionRequest
-    ) async -> CodexInteractionResponse {
+        _ interaction: ManagedAgentInteractionRequest
+    ) async -> ManagedAgentInteractionResponse {
         await withTaskCancellationHandler(
             operation: {
                 await interaction.waitForResponse()

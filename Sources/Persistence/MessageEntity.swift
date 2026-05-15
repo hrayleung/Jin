@@ -16,8 +16,6 @@ final class MessageEntity {
     var toolResultsData: Data?
     var searchActivitiesData: Data?
     var codeExecutionActivitiesData: Data?
-    var codexToolActivitiesData: Data?
-    var agentToolActivitiesData: Data?
     var responseMetricsData: Data?
     var thinkingVisible: Bool
     // Snapshot of the model used to generate this message (primarily for assistant replies).
@@ -45,8 +43,6 @@ final class MessageEntity {
         toolResultsData: Data? = nil,
         searchActivitiesData: Data? = nil,
         codeExecutionActivitiesData: Data? = nil,
-        codexToolActivitiesData: Data? = nil,
-        agentToolActivitiesData: Data? = nil,
         responseMetricsData: Data? = nil,
         generatedProviderID: String? = nil,
         generatedModelID: String? = nil,
@@ -65,8 +61,6 @@ final class MessageEntity {
         self.toolResultsData = toolResultsData
         self.searchActivitiesData = searchActivitiesData
         self.codeExecutionActivitiesData = codeExecutionActivitiesData
-        self.codexToolActivitiesData = codexToolActivitiesData
-        self.agentToolActivitiesData = agentToolActivitiesData
         self.responseMetricsData = responseMetricsData
         self.generatedProviderID = generatedProviderID
         self.generatedModelID = generatedModelID
@@ -117,8 +111,6 @@ final class MessageEntity {
         let toolResults = try toolResultsData.flatMap { try decoder.decode([ToolResult].self, from: $0) }
         let searchActivities = try searchActivitiesData.flatMap { try decoder.decode([SearchActivity].self, from: $0) }
         let codeExecutionActivities = try codeExecutionActivitiesData.flatMap { try decoder.decode([CodeExecutionActivity].self, from: $0) }
-        let codexToolActivities = try codexToolActivitiesData.flatMap { try decoder.decode([CodexToolActivity].self, from: $0) }
-        let agentToolActivities = try agentToolActivitiesData.flatMap { try decoder.decode([CodexToolActivity].self, from: $0) }
         let perMessageMCPServerNames = try perMessageMCPServerNamesData.flatMap { try decoder.decode([String].self, from: $0) }
 
         return Message(
@@ -129,8 +121,6 @@ final class MessageEntity {
             toolResults: toolResults,
             searchActivities: searchActivities,
             codeExecutionActivities: codeExecutionActivities,
-            codexToolActivities: codexToolActivities,
-            agentToolActivities: agentToolActivities,
             timestamp: timestamp,
             perMessageMCPServerNames: perMessageMCPServerNames
         )
@@ -144,8 +134,6 @@ final class MessageEntity {
         let toolResultsData = try message.toolResults.map { try encoder.encode($0) }
         let searchActivitiesData = try message.searchActivities.map { try encoder.encode($0) }
         let codeExecutionActivitiesData = try message.codeExecutionActivities.map { try encoder.encode($0) }
-        let codexToolActivitiesData = try message.codexToolActivities.map { try encoder.encode($0) }
-        let agentToolActivitiesData = try message.agentToolActivities.map { try encoder.encode($0) }
         let perMessageMCPServerNamesData = try message.perMessageMCPServerNames.map { try encoder.encode($0) }
 
         return MessageEntity(
@@ -157,8 +145,6 @@ final class MessageEntity {
             toolResultsData: toolResultsData,
             searchActivitiesData: searchActivitiesData,
             codeExecutionActivitiesData: codeExecutionActivitiesData,
-            codexToolActivitiesData: codexToolActivitiesData,
-            agentToolActivitiesData: agentToolActivitiesData,
             perMessageMCPServerNamesData: perMessageMCPServerNamesData
         )
     }

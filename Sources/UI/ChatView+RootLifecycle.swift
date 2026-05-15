@@ -33,7 +33,6 @@ extension ChatView {
                     await refreshExtensionCredentialsStatus()
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .codexWorkingDirectoryPresetsDidChange)) { _ in }
             .focusedSceneValue(\.chatActions, chatFocusedActions)
     }
 

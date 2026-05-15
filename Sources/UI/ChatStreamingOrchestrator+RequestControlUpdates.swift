@@ -2,7 +2,6 @@ import Foundation
 
 extension ChatStreamingOrchestrator {
     enum RequestControlStreamUpdate {
-        case codexThread(CodexThreadState)
         case claudeManagedSession(ClaudeManagedAgentSessionState)
         case claudeManagedCustomToolResults([ClaudeManagedAgentPendingToolResult])
     }
@@ -14,8 +13,6 @@ extension ChatStreamingOrchestrator {
     ) async {
         await MainActor.run {
             switch update {
-            case .codexThread(let state):
-                callbacks.persistCodexThreadState(state, threadID)
             case .claudeManagedSession(let state):
                 callbacks.persistClaudeManagedSessionState(state, threadID)
             case .claudeManagedCustomToolResults(let results):
@@ -44,9 +41,6 @@ extension GenerationControls {
         _ update: ChatStreamingOrchestrator.RequestControlStreamUpdate
     ) {
         switch update {
-        case .codexThread(let state):
-            codexResumeThreadID = state.remoteThreadID
-            codexPendingRollbackTurns = 0
         case .claudeManagedSession(let state):
             claudeManagedSessionID = state.remoteSessionID
             claudeManagedSessionModelID = state.remoteModelID

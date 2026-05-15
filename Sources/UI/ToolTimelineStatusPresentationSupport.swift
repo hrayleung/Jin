@@ -16,14 +16,6 @@ extension ToolTimelinePresentationSupport {
             self.init(text: text, icon: icon, color: tone.color)
         }
 
-        init(_ status: AgentToolTimelineSupport.CompactStatus) {
-            self.init(text: status.text, icon: status.icon, tone: status.tone.timelineTone)
-        }
-
-        init(_ status: CodexToolTimelineSupport.CompactStatus) {
-            self.init(text: status.text, icon: status.icon, tone: status.tone.timelineTone)
-        }
-
         init(_ status: CodeExecutionTimelineSupport.CompactStatus) {
             self.init(text: status.text, icon: status.icon, tone: status.kind.timelineTone)
         }
@@ -213,28 +205,6 @@ extension ToolTimelinePresentationSupport {
                     .font(.system(size: 9.5, weight: .semibold))
                     .foregroundStyle(color)
             }
-        }
-    }
-}
-
-private extension AgentToolTimelineSupport.CompactStatus.Tone {
-    var timelineTone: ToolTimelinePresentationSupport.StatusTone {
-        switch self {
-        case .success:
-            return .success
-        case .failure:
-            return .failure
-        }
-    }
-}
-
-private extension CodexToolTimelineSupport.CompactStatus.Tone {
-    var timelineTone: ToolTimelinePresentationSupport.StatusTone {
-        switch self {
-        case .success:
-            return .success
-        case .failure:
-            return .failure
         }
     }
 }

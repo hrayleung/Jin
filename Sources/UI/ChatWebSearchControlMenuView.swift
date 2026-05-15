@@ -167,7 +167,7 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                     Button("Configure…", action: onOpenAnthropicConfiguration)
                 case .claudeManagedAgents:
                     EmptyView()
-                case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
+                case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
                      .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
                      .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
                      .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:

@@ -17,12 +17,8 @@ extension StreamEvent {
             return "searchActivity"
         case .codeExecutionActivity:
             return "codeExecutionActivity"
-        case .codexToolActivity:
-            return "codexToolActivity"
-        case .codexInteractionRequest:
-            return "codexInteractionRequest"
-        case .codexThreadState:
-            return "codexThreadState"
+        case .managedAgentInteractionRequest:
+            return "managedAgentInteractionRequest"
         case .claudeManagedSessionState:
             return "claudeManagedSessionState"
         case .claudeManagedCustomToolResults:

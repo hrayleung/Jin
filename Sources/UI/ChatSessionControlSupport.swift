@@ -1,10 +1,6 @@
 import Foundation
 
 extension ChatAuxiliaryControlSupport {
-    static func supportsCodexSessionControl(providerType: ProviderType?) -> Bool {
-        providerType == .codexAppServer
-    }
-
     static func supportsClaudeManagedAgentSessionControl(providerType: ProviderType?) -> Bool {
         providerType == .claudeManagedAgents
     }

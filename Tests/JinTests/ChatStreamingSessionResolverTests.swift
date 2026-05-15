@@ -61,7 +61,6 @@ final class ChatStreamingSessionResolverTests: XCTestCase {
 
     func testRequestControlsAppliesAutomaticCacheSanitizersAndPersistenceInjectors() {
         var sanitizedProviderType: ProviderType?
-        var didInjectCodex = false
         var didInjectClaudeManaged = false
         let model = makeModel(id: "unit-test-model", name: "GPT")
         let modelSnapshot = ChatStreamingModelSnapshot(
@@ -77,7 +76,6 @@ final class ChatStreamingSessionResolverTests: XCTestCase {
             assistant: nil,
             modelSnapshot: modelSnapshot,
             providerType: .openai,
-            isAgentModeActive: false,
             automaticContextCacheControls: { providerType, modelID, capabilities in
                 XCTAssertEqual(providerType, .openai)
                 XCTAssertEqual(modelID, "unit-test-model")
@@ -88,10 +86,6 @@ final class ChatStreamingSessionResolverTests: XCTestCase {
                 sanitizedProviderType = providerType
                 controls.providerSpecific["removed"] = nil
             },
-            injectCodexThreadPersistence: { controls in
-                didInjectCodex = true
-                controls.codexResumeThreadID = "codex-thread"
-            },
             injectClaudeManagedAgentSessionPersistence: { _ in
                 didInjectClaudeManaged = true
             }
@@ -99,10 +93,7 @@ final class ChatStreamingSessionResolverTests: XCTestCase {
 
         XCTAssertEqual(sanitizedProviderType, .openai)
         XCTAssertEqual(controls.contextCache?.mode, .implicit)
-        XCTAssertEqual(controls.codexResumeThreadID, "codex-thread")
-        XCTAssertTrue(didInjectCodex)
         XCTAssertTrue(didInjectClaudeManaged)
-        XCTAssertNil(controls.agentMode)
     }
 
     private func makeModel(id: String, name: String) -> ModelInfo {

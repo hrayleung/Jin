@@ -45,23 +45,17 @@ extension ChatStreamingOrchestrator {
             _ turnID: UUID?
         ) -> Void
 
-        /// Save Codex remote thread state for a local thread.
-        let persistCodexThreadState: @MainActor (CodexThreadState, _ localThreadID: UUID) -> Void
-
         /// Save Claude Managed Agents remote session state for a local thread.
         let persistClaudeManagedSessionState: @MainActor (ClaudeManagedAgentSessionState, _ localThreadID: UUID) -> Void
 
         /// Save pending Claude Managed Agents custom tool results for the next turn.
         let persistClaudeManagedPendingToolResults: @MainActor (_ results: [ClaudeManagedAgentPendingToolResult], _ localThreadID: UUID) -> Void
 
-        /// Queue a Codex interaction request for the user.
-        let appendCodexInteraction: @MainActor (CodexInteractionRequest, _ localThreadID: UUID) -> Void
+        /// Queue a managed agent interaction request for the user.
+        let appendManagedAgentInteraction: @MainActor (ManagedAgentInteractionRequest, _ localThreadID: UUID) -> Void
 
         /// Merge search activities into a previously persisted assistant message.
         let mergeSearchActivities: @MainActor (_ messageID: UUID, _ activities: [SearchActivity]) -> Void
-
-        /// Merge agent tool activities into a previously persisted assistant message.
-        let mergeAgentToolActivities: @MainActor (_ messageID: UUID, _ activities: [CodexToolActivity]) -> Void
 
         /// Optionally auto-rename the conversation after the first assistant reply.
         let maybeAutoRename: @MainActor (
@@ -71,16 +65,13 @@ extension ChatStreamingOrchestrator {
             _ assistantMessage: Message
         ) async -> Void
 
-        /// Queue an agent approval request for the user.
-        let appendAgentApproval: @MainActor (AgentApprovalRequest, _ localThreadID: UUID) -> Void
-
         /// Display an error to the user.
         let showError: @MainActor (String) -> Void
 
         /// End the streaming session (called when tool calls are empty after persisting assistant message).
         let endStreamingSession: @MainActor () -> Void
 
-        /// Final cleanup: notify completion, end session, and clean up codex interactions.
+        /// Final cleanup: notify completion and end session.
         let onSessionEnd: @MainActor (_ shouldNotify: Bool, _ preview: String?, _ threadID: UUID) -> Void
     }
 
@@ -92,7 +83,6 @@ extension ChatStreamingOrchestrator {
         let allTools: [ToolDefinition]
         let mcpRoutes: ToolRouteSnapshot
         let builtinRoutes: BuiltinToolRouteSnapshot
-        let agentRoutes: AgentToolRouteSnapshot
         let maxToolIterations: Int
     }
 

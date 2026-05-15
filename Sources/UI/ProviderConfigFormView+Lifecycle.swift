@@ -10,9 +10,6 @@ extension ProviderConfigFormView {
             .onChange(of: apiKey) { _, _ in
                 handleAPIKeyChanged()
             }
-            .onChange(of: codexAuthMode) { _, _ in
-                handleCodexAuthModeChanged()
-            }
             .onChange(of: serviceAccountJSON) { _, _ in
                 handleServiceAccountJSONChanged()
             }
@@ -24,21 +21,11 @@ extension ProviderConfigFormView {
     func loadProviderFormData() async {
         await loadCredentials()
         await MainActor.run {
-            if providerType == .codexAppServer {
-                loadCodexWorkingDirectoryPresets()
-                codexServerController.refreshManagedProcesses()
-            } else {
-                codexWorkingDirectoryPresets = []
-            }
             hasLoadedCredentials = true
         }
 
         if providerType == .openrouter {
             await refreshOpenRouterUsage(force: true)
-        }
-
-        if providerType == .codexAppServer, codexAuthMode == .chatGPT {
-            await refreshCodexAccountStatus(forceRefreshToken: false)
         }
 
         if providerType == .claudeManagedAgents {
@@ -62,20 +49,6 @@ extension ProviderConfigFormView {
         }
     }
 
-    func handleCodexAuthModeChanged() {
-        guard hasLoadedCredentials else { return }
-        codexAuthTask?.cancel()
-        codexPendingLoginID = nil
-        codexAccount = nil
-        codexRateLimit = nil
-        codexAuthStatus = .idle
-        scheduleCredentialSave()
-
-        if codexAuthMode == .chatGPT {
-            Task { await refreshCodexAccountStatus(forceRefreshToken: false) }
-        }
-    }
-
     func handleServiceAccountJSONChanged() {
         guard hasLoadedCredentials else { return }
         scheduleCredentialSave()
@@ -84,7 +57,6 @@ extension ProviderConfigFormView {
     func cancelProviderFormTasks() {
         credentialSaveTask?.cancel()
         openRouterUsageTask?.cancel()
-        codexAuthTask?.cancel()
         claudeManagedRefreshTask?.cancel()
     }
 }

@@ -5,19 +5,8 @@ struct ProviderConfigFormView: View {
     @Bindable var provider: ProviderConfigEntity
     @Environment(\.modelContext) var modelContext
     @Environment(\.openURL) var openURL
-    @ObservedObject var codexServerController = CodexAppServerController.shared
     @State var apiKey = ""
     @State var serviceAccountJSON = ""
-    @State var codexAuthMode: CodexAuthMode = .apiKey
-    @State var codexAuthStatus: CodexAuthStatus = .idle
-    @State var codexAccount: CodexAppServerAdapter.AccountStatus?
-    @State var codexRateLimit: CodexAppServerAdapter.RateLimitStatus?
-    @State var codexPendingLoginID: String?
-    @State var codexAuthTask: Task<Void, Never>?
-    @State var codexServerLaunchError: String?
-    @State var codexWorkingDirectoryPresets: [CodexWorkingDirectoryPreset] = []
-    @State var codexWorkingDirectoryPresetsDraft: [CodexWorkingDirectoryPreset] = []
-    @State var showingCodexWorkingDirectoryPresetsSheet = false
     @State var showingAPIKey = false
     @State var hasLoadedCredentials = false
     @State var credentialSaveError: String?
@@ -57,19 +46,6 @@ struct ProviderConfigFormView: View {
         case idle
         case testing
         case success
-        case failure(String)
-    }
-
-    enum CodexAuthMode: String, CaseIterable {
-        case apiKey
-        case chatGPT
-        case localCodex
-    }
-
-    enum CodexAuthStatus: Equatable {
-        case idle
-        case working
-        case connected
         case failure(String)
     }
 }

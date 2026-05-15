@@ -7,9 +7,7 @@ extension ChatStreamingOrchestrator {
         accumulator: inout StreamingResponseAccumulator,
         streamingState: StreamingMessageState,
         callbacks: SessionCallbacks,
-        approvalStore: AgentApprovalSessionStore,
         builtinRoutes: BuiltinToolRouteSnapshot,
-        agentRoutes: AgentToolRouteSnapshot,
         mcpRoutes: ToolRouteSnapshot
     ) async -> ToolExecutionResult {
         var progress = ToolExecutionProgress()
@@ -18,59 +16,12 @@ extension ChatStreamingOrchestrator {
             let callStart = Date()
             let route = toolExecutionRoute(
                 for: call,
-                builtinRoutes: builtinRoutes,
-                agentRoutes: agentRoutes
+                builtinRoutes: builtinRoutes
             )
-            let isAgentTool = route == .agent
-
-            // Track agent tool activity (running state)
-            if isAgentTool {
-                let runningActivity = runningAgentToolActivity(for: call)
-                await applyAgentToolActivity(
-                    runningActivity,
-                    accumulator: &accumulator,
-                    streamingState: streamingState
-                )
-            }
 
             do {
                 let result: MCPToolCallResult
                 switch route {
-                case .agent:
-                    let agentControls = ctx.controlsToUse.agentMode ?? AgentModeControls()
-                    let approvalDecision = try await agentToolApprovalDecision(
-                        for: call,
-                        controls: agentControls,
-                        approvalStore: approvalStore,
-                        callbacks: callbacks,
-                        threadID: ctx.threadID
-                    )
-
-                    switch approvalDecision {
-                    case .approved(let preparation):
-                        result = try await AgentToolHub.shared.executeTool(
-                            functionName: call.name,
-                            arguments: call.arguments,
-                            routes: agentRoutes,
-                            controls: preparation.controls,
-                            preparedShellExecution: preparation.preparedShellExecution
-                        )
-                    case .denied:
-                        let denied = deniedAgentToolExecution(
-                            for: call,
-                            durationSeconds: Date().timeIntervalSince(callStart)
-                        )
-                        await applyAgentToolActivity(
-                            denied.activity,
-                            accumulator: &accumulator,
-                            streamingState: streamingState
-                        )
-                        await applyToolResult(denied.toolResult, streamingState: streamingState)
-                        progress.appendResult(denied.toolResult, outputLine: denied.outputLine)
-                        continue
-                    case .cancelled:
-                        return progress.result(cancelled: true)
-                    }
                 case .builtin:
                     result = try await BuiltinSearchToolHub.shared.executeTool(
                         functionName: call.name,

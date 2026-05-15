@@ -28,14 +28,6 @@ extension ChatView {
         showingImageGenerationSheet = true
     }
 
-    func openCodexSessionSettingsEditor() {
-        codexWorkingDirectoryDraft = codexWorkingDirectory ?? ""
-        codexWorkingDirectoryDraftError = nil
-        codexSandboxModeDraft = controls.codexSandboxMode
-        codexPersonalityDraft = controls.codexPersonality
-        showingCodexSessionSettingsSheet = true
-    }
-
     func openClaudeManagedAgentSessionSettingsEditor() {
         let providerDefaults = claudeManagedProviderDefaults()
         applyClaudeManagedProviderDefaults(providerDefaults)
@@ -155,42 +147,6 @@ extension ChatView {
         persistControlsToConversation()
     }
 
-    func pickCodexWorkingDirectory() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = false
-        panel.prompt = "Select"
-        panel.message = "Choose a working directory to send as Codex `cwd`."
-
-        if let existing = normalizedCodexWorkingDirectoryPath(from: codexWorkingDirectoryDraft) {
-            panel.directoryURL = URL(fileURLWithPath: existing, isDirectory: true)
-        }
-
-        guard panel.runModal() == .OK, let selectedURL = panel.url else { return }
-        codexWorkingDirectoryDraft = selectedURL.path
-        codexWorkingDirectoryDraftError = nil
-    }
-
-    func applyCodexSessionSettingsDraft() {
-        switch ChatEditorDraftSupport.applyCodexSessionSettingsDraft(
-            workingDirectoryDraft: codexWorkingDirectoryDraft,
-            sandboxModeDraft: codexSandboxModeDraft,
-            personalityDraft: codexPersonalityDraft,
-            controls: controls
-        ) {
-        case .success(let result):
-            controls = result.controls
-            persistControlsToConversation()
-            codexWorkingDirectoryDraft = result.normalizedPath ?? ""
-            codexWorkingDirectoryDraftError = nil
-            showingCodexSessionSettingsSheet = false
-        case .failure(let error):
-            codexWorkingDirectoryDraftError = error.localizedDescription
-        }
-    }
-
     func applyClaudeManagedAgentSessionSettingsDraft() {
         switch ChatEditorDraftSupport.applyClaudeManagedAgentSessionSettingsDraft(
             agentIDDraft: claudeManagedAgentIDDraft,
@@ -280,22 +236,11 @@ extension ChatView {
         }
     }
 
-    func resolveCodexInteraction(_ item: PendingCodexInteraction, response: CodexInteractionResponse) {
+    func resolveManagedAgentInteraction(_ item: PendingManagedAgentInteraction, response: ManagedAgentInteractionResponse) {
         Task {
             await item.request.resolve(response)
         }
-        pendingCodexInteractions.removeAll { $0.id == item.id }
-    }
-
-    func resolveAgentApproval(_ item: PendingAgentApproval, choice: AgentApprovalChoice) {
-        Task {
-            await item.request.resolve(choice)
-        }
-        pendingAgentApprovals.removeAll { $0.id == item.id }
-    }
-
-    func normalizedCodexWorkingDirectoryPath(from raw: String) -> String? {
-        ChatEditorDraftSupport.normalizedCodexWorkingDirectoryPath(from: raw)
+        pendingManagedAgentInteractions.removeAll { $0.id == item.id }
     }
 
     var isImageGenerationDraftValid: Bool {

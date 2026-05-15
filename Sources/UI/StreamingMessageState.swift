@@ -10,8 +10,6 @@ final class StreamingMessageState: ObservableObject {
     private(set) var thinkingChunks: [String] = []
     private(set) var searchActivities: [SearchActivity] = []
     private(set) var codeExecutionActivities: [CodeExecutionActivity] = []
-    private(set) var codexToolActivities: [CodexToolActivity] = []
-    private(set) var agentToolActivities: [CodexToolActivity] = []
     private(set) var streamingToolCalls: [ToolCall] = []
     private(set) var toolResultsByCallID: [String: ToolResult] = [:]
     private(set) var renderTick: Int = 0
@@ -25,8 +23,6 @@ final class StreamingMessageState: ObservableObject {
     private var artifactScanState = ArtifactMarkupParser.ScanState.initial
     private var searchActivitiesByID: OrderedDictionary<String, SearchActivity> = [:]
     private var codeExecutionActivitiesByID: OrderedDictionary<String, CodeExecutionActivity> = [:]
-    private var codexToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
-    private var agentToolActivitiesByID: OrderedDictionary<String, CodexToolActivity> = [:]
     private var hasLoggedFirstDeltaApply = false
 
     var textContent: String { textStorage }
@@ -40,14 +36,10 @@ final class StreamingMessageState: ObservableObject {
         thinkingChunks = []
         searchActivities = []
         codeExecutionActivities = []
-        codexToolActivities = []
-        agentToolActivities = []
         streamingToolCalls = []
         toolResultsByCallID = [:]
         searchActivitiesByID = [:]
         codeExecutionActivitiesByID = [:]
-        codexToolActivitiesByID = [:]
-        agentToolActivitiesByID = [:]
         hasLoggedFirstDeltaApply = false
         visibleText = ""
         artifacts = []
@@ -167,28 +159,6 @@ final class StreamingMessageState: ObservableObject {
             codeExecutionActivitiesByID[activity.id] = activity
         }
         codeExecutionActivities = Array(codeExecutionActivitiesByID.values)
-        renderTick &+= 1
-    }
-
-    func upsertCodexToolActivity(_ activity: CodexToolActivity) {
-        objectWillChange.send()
-        if let existing = codexToolActivitiesByID[activity.id] {
-            codexToolActivitiesByID[activity.id] = existing.merged(with: activity)
-        } else {
-            codexToolActivitiesByID[activity.id] = activity
-        }
-        codexToolActivities = Array(codexToolActivitiesByID.values)
-        renderTick &+= 1
-    }
-
-    func upsertAgentToolActivity(_ activity: CodexToolActivity) {
-        objectWillChange.send()
-        if let existing = agentToolActivitiesByID[activity.id] {
-            agentToolActivitiesByID[activity.id] = existing.merged(with: activity)
-        } else {
-            agentToolActivitiesByID[activity.id] = activity
-        }
-        agentToolActivities = Array(agentToolActivitiesByID.values)
         renderTick &+= 1
     }
 

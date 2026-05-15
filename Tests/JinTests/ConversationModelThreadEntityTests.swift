@@ -29,19 +29,4 @@ final class ConversationModelThreadEntityTests: XCTestCase {
         XCTAssertEqual(domain.modelConfig.controls.maxTokens, 222)
     }
 
-    func testConversationModelThreadModelConfigCanCarryInternalCodexPersistence() throws {
-        var controls = GenerationControls()
-        controls.codexResumeThreadID = "remote-thread-123"
-        controls.codexPendingRollbackTurns = 2
-
-        let thread = ConversationModelThreadEntity(
-            providerID: "codex-app-server",
-            modelID: "gpt-5-codex",
-            modelConfigData: try JSONEncoder().encode(controls)
-        )
-
-        let decoded = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
-        XCTAssertEqual(decoded.codexResumeThreadID, "remote-thread-123")
-        XCTAssertEqual(decoded.codexPendingRollbackTurns, 2)
-    }
 }

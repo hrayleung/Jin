@@ -117,7 +117,6 @@ final class AppPreferencesSnapshotStoreTests: PreferencesSandboxedTestCase {
             AppPreferenceKeys.ttsProvider: "groq",
             AppPreferenceKeys.codeBlockDisplayMode: "collapsible",
             AppPreferenceKeys.codeBlockShowLineNumbers: true,
-            AppPreferenceKeys.agentModeEnabled: true,
             AppPreferenceKeys.chatNamingProviderID: "deepseek",
             AppPreferenceKeys.chatNamingModelID: "deepseek-chat"
         ]
@@ -136,8 +135,7 @@ final class AppPreferencesSnapshotStoreTests: PreferencesSandboxedTestCase {
 
         let truncatedPreferences: [String: Any] = [
             "appIconVariant": "E",
-            "mcpTransportSchemaVersion": 2,
-            AppPreferenceKeys.agentModeEnabled: true
+            "mcpTransportSchemaVersion": 2
         ]
         defaults.setPersistentDomain(truncatedPreferences, forName: domainName)
         XCTAssertTrue(AppPreferencesSnapshotStore.persistPreferenceDictionary(truncatedPreferences))

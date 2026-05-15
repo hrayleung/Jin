@@ -91,7 +91,6 @@ extension ChatView {
         showingOpenAIImageCustomSizeSheet = false
         openAIImageCustomSizeTargetThreadID = nil
         openAIImageCustomSizeTargetModelID = ""
-        showingCodexSessionSettingsSheet = false
         showingGoogleMapsSheet = false
         googleMapsDraft = GoogleMapsControls()
         googleMapsLatitudeDraft = ""
@@ -103,8 +102,7 @@ extension ChatView {
     }
 
     private func resetPendingInteractionStateForConversationSwitch() {
-        pendingCodexInteractions = []
-        pendingAgentApprovals = []
+        pendingManagedAgentInteractions = []
     }
 
     private func resetScrollStateForConversationSwitch() {

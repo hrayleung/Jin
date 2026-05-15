@@ -53,14 +53,13 @@ final class MessageRowRenderHeuristicsTests: XCTestCase {
         XCTAssertNil(assistantItem.collapsedPreviewForDisplay(in: .fullWeb))
     }
 
-    func testVisibleToolCallsHidesBuiltinGoogleAndAgentTools() {
+    func testVisibleToolCallsHidesBuiltinAndGoogleTools() {
         let builtinSearchTool = makeToolCall(name: BuiltinSearchToolHub.functionName)
         let googleNativeTool = makeToolCall(name: "google_search")
-        let agentTool = makeToolCall(name: AgentToolHub.shellExecuteFunctionName)
         let visibleTool = makeToolCall(name: "weather_lookup")
         let item = makeItem(
             role: .assistant,
-            toolCalls: [builtinSearchTool, googleNativeTool, agentTool, visibleTool],
+            toolCalls: [builtinSearchTool, googleNativeTool, visibleTool],
             collapsedPreview: nil
         )
 
@@ -82,8 +81,6 @@ final class MessageRowRenderHeuristicsTests: XCTestCase {
             toolCalls: toolCalls,
             searchActivities: [],
             codeExecutionActivities: [],
-            codexToolActivities: [],
-            agentToolActivities: [],
             assistantModelLabel: nil,
             assistantProviderIconID: nil,
             responseMetrics: nil,

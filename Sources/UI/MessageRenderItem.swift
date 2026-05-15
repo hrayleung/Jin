@@ -9,8 +9,6 @@ struct MessageRenderItem: Identifiable, Sendable {
     let toolCalls: [ToolCall]
     let searchActivities: [SearchActivity]
     let codeExecutionActivities: [CodeExecutionActivity]
-    let codexToolActivities: [CodexToolActivity]
-    let agentToolActivities: [CodexToolActivity]
     let assistantModelLabel: String?
     let assistantModelID: String?
     let assistantProviderIconID: String?
@@ -33,8 +31,6 @@ struct MessageRenderItem: Identifiable, Sendable {
         toolCalls: [ToolCall],
         searchActivities: [SearchActivity],
         codeExecutionActivities: [CodeExecutionActivity],
-        codexToolActivities: [CodexToolActivity],
-        agentToolActivities: [CodexToolActivity],
         assistantModelLabel: String?,
         assistantModelID: String? = nil,
         assistantProviderIconID: String?,
@@ -56,8 +52,6 @@ struct MessageRenderItem: Identifiable, Sendable {
         self.toolCalls = toolCalls
         self.searchActivities = searchActivities
         self.codeExecutionActivities = codeExecutionActivities
-        self.codexToolActivities = codexToolActivities
-        self.agentToolActivities = agentToolActivities
         self.assistantModelLabel = assistantModelLabel
         self.assistantModelID = assistantModelID
         self.assistantProviderIconID = assistantProviderIconID
@@ -80,7 +74,6 @@ struct MessageRenderItem: Identifiable, Sendable {
         toolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
                 && !isGoogleProviderNativeToolName(call.name)
-                && !AgentToolHub.isAgentFunctionName(call.name)
         }
     }
 

@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct CodexInteractionSectionCardView<Content: View>: View {
+struct ManagedAgentInteractionSectionCardView<Content: View>: View {
     private let content: Content
 
     init(@ViewBuilder content: () -> Content) {
@@ -14,14 +14,14 @@ struct CodexInteractionSectionCardView<Content: View>: View {
     }
 }
 
-struct CodexInteractionHeaderCardView: View {
+struct ManagedAgentInteractionHeaderCardView: View {
     let subtitle: String?
     let description: String
     let threadID: String?
     let turnID: String?
 
     var body: some View {
-        CodexInteractionSectionCardView {
+        ManagedAgentInteractionSectionCardView {
             VStack(alignment: .leading, spacing: JinSpacing.small) {
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
@@ -34,10 +34,10 @@ struct CodexInteractionHeaderCardView: View {
 
                 HStack(spacing: JinSpacing.small) {
                     if let threadID, !threadID.isEmpty {
-                        CodexInteractionMetaPillView(title: "Thread", value: threadID)
+                        ManagedAgentInteractionMetaPillView(title: "Thread", value: threadID)
                     }
                     if let turnID, !turnID.isEmpty {
-                        CodexInteractionMetaPillView(title: "Turn", value: turnID)
+                        ManagedAgentInteractionMetaPillView(title: "Turn", value: turnID)
                     }
                 }
             }
@@ -45,69 +45,69 @@ struct CodexInteractionHeaderCardView: View {
     }
 }
 
-struct CodexCommandApprovalContentView: View {
-    let approval: CodexCommandApprovalRequest
-    let onResolve: (CodexApprovalChoice) -> Void
+struct ManagedAgentCommandApprovalContentView: View {
+    let approval: ManagedAgentCommandApprovalRequest
+    let onResolve: (ManagedAgentApprovalChoice) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: JinSpacing.large) {
             if let command = approval.command, !command.isEmpty {
-                CodexInteractionCodeCardView(title: "Command", content: command)
+                ManagedAgentInteractionCodeCardView(title: "Command", content: command)
             }
 
             if let cwd = approval.cwd, !cwd.isEmpty {
-                CodexInteractionCodeCardView(title: "Working Directory", content: cwd)
+                ManagedAgentInteractionCodeCardView(title: "Working Directory", content: cwd)
             }
 
             if !approval.actionSummaries.isEmpty {
-                CodexCommandActionSummaryCardView(actions: approval.actionSummaries)
+                ManagedAgentCommandActionSummaryCardView(actions: approval.actionSummaries)
             }
 
-            CodexInteractionApprovalButtonRow(onResolve: onResolve)
+            ManagedAgentInteractionApprovalButtonRow(onResolve: onResolve)
         }
     }
 }
 
-struct CodexFileChangeApprovalContentView: View {
-    let approval: CodexFileChangeApprovalRequest
-    let onResolve: (CodexApprovalChoice) -> Void
+struct ManagedAgentFileChangeApprovalContentView: View {
+    let approval: ManagedAgentFileChangeApprovalRequest
+    let onResolve: (ManagedAgentApprovalChoice) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: JinSpacing.large) {
             if let grantRoot = approval.grantRoot, !grantRoot.isEmpty {
-                CodexInteractionCodeCardView(title: "Requested Write Root", content: grantRoot)
+                ManagedAgentInteractionCodeCardView(title: "Requested Write Root", content: grantRoot)
             }
 
-            CodexFileChangeSummaryCardView(fileChanges: approval.fileChanges)
+            ManagedAgentFileChangeSummaryCardView(fileChanges: approval.fileChanges)
 
-            CodexInteractionApprovalButtonRow(onResolve: onResolve)
+            ManagedAgentInteractionApprovalButtonRow(onResolve: onResolve)
         }
     }
 }
 
-struct CodexInteractionApprovalButtonRow: View {
-    let onResolve: (CodexApprovalChoice) -> Void
+struct ManagedAgentInteractionApprovalButtonRow: View {
+    let onResolve: (ManagedAgentApprovalChoice) -> Void
 
     var body: some View {
         HStack(spacing: JinSpacing.medium) {
-            Button(CodexApprovalChoice.decline.displayName) {
+            Button(ManagedAgentApprovalChoice.decline.displayName) {
                 onResolve(.decline)
             }
             .buttonStyle(.bordered)
 
-            Button(CodexApprovalChoice.cancel.displayName, role: .destructive) {
+            Button(ManagedAgentApprovalChoice.cancel.displayName, role: .destructive) {
                 onResolve(.cancel)
             }
             .buttonStyle(.borderless)
 
             Spacer(minLength: 0)
 
-            Button(CodexApprovalChoice.acceptForSession.displayName) {
+            Button(ManagedAgentApprovalChoice.acceptForSession.displayName) {
                 onResolve(.acceptForSession)
             }
             .buttonStyle(.bordered)
 
-            Button(CodexApprovalChoice.accept.displayName) {
+            Button(ManagedAgentApprovalChoice.accept.displayName) {
                 onResolve(.accept)
             }
             .buttonStyle(.borderedProminent)
@@ -115,7 +115,7 @@ struct CodexInteractionApprovalButtonRow: View {
     }
 }
 
-private struct CodexInteractionMetaPillView: View {
+private struct ManagedAgentInteractionMetaPillView: View {
     let title: String
     let value: String
 
@@ -133,12 +133,12 @@ private struct CodexInteractionMetaPillView: View {
     }
 }
 
-private struct CodexInteractionCodeCardView: View {
+private struct ManagedAgentInteractionCodeCardView: View {
     let title: String
     let content: String
 
     var body: some View {
-        CodexInteractionSectionCardView {
+        ManagedAgentInteractionSectionCardView {
             VStack(alignment: .leading, spacing: JinSpacing.small) {
                 Text(title)
                     .font(.headline)
@@ -153,25 +153,25 @@ private struct CodexInteractionCodeCardView: View {
     }
 }
 
-private struct CodexCommandActionSummaryCardView: View {
-    let actions: [CodexCommandActionSummary]
+private struct ManagedAgentCommandActionSummaryCardView: View {
+    let actions: [ManagedAgentCommandActionSummary]
 
     var body: some View {
-        CodexInteractionSectionCardView {
+        ManagedAgentInteractionSectionCardView {
             VStack(alignment: .leading, spacing: JinSpacing.small) {
                 Text("Detected Actions")
                     .font(.headline)
 
                 ForEach(actions) { action in
-                    CodexCommandActionSummaryRowView(action: action)
+                    ManagedAgentCommandActionSummaryRowView(action: action)
                 }
             }
         }
     }
 }
 
-private struct CodexCommandActionSummaryRowView: View {
-    let action: CodexCommandActionSummary
+private struct ManagedAgentCommandActionSummaryRowView: View {
+    let action: ManagedAgentCommandActionSummary
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -190,22 +190,22 @@ private struct CodexCommandActionSummaryRowView: View {
     }
 }
 
-private struct CodexFileChangeSummaryCardView: View {
-    let fileChanges: [CodexFileChangeSummary]
+private struct ManagedAgentFileChangeSummaryCardView: View {
+    let fileChanges: [ManagedAgentFileChangeSummary]
 
     var body: some View {
-        CodexInteractionSectionCardView {
+        ManagedAgentInteractionSectionCardView {
             VStack(alignment: .leading, spacing: JinSpacing.small) {
                 Text("Changed Files")
                     .font(.headline)
 
                 if fileChanges.isEmpty {
-                    Text("Codex did not provide a file list, but it is asking for write approval.")
+                    Text("The agent did not provide a file list, but is asking for write approval.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(fileChanges) { change in
-                        CodexFileChangeSummaryRowView(change: change)
+                        ManagedAgentFileChangeSummaryRowView(change: change)
                     }
                 }
             }
@@ -213,8 +213,8 @@ private struct CodexFileChangeSummaryCardView: View {
     }
 }
 
-private struct CodexFileChangeSummaryRowView: View {
-    let change: CodexFileChangeSummary
+private struct ManagedAgentFileChangeSummaryRowView: View {
+    let change: ManagedAgentFileChangeSummary
 
     var body: some View {
         HStack(alignment: .top, spacing: JinSpacing.small) {

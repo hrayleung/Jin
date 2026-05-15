@@ -2,8 +2,8 @@ import Foundation
 
 extension ClaudeManagedAgentRequestSupport {
     static func approvalEvent(
-        from interaction: CodexInteractionRequest,
-        response: CodexInteractionResponse
+        from interaction: ManagedAgentInteractionRequest,
+        response: ManagedAgentInteractionResponse
     ) throws -> [String: Any] {
         guard let toolUseID = interaction.itemID else {
             throw LLMError.invalidRequest(
@@ -28,7 +28,7 @@ extension ClaudeManagedAgentRequestSupport {
         let denyMessage: String?
     }
 
-    private static func toolConfirmationPayload(from response: CodexInteractionResponse) throws -> ToolConfirmationPayload {
+    private static func toolConfirmationPayload(from response: ManagedAgentInteractionResponse) throws -> ToolConfirmationPayload {
         switch response {
         case .approval(let choice):
             switch choice {

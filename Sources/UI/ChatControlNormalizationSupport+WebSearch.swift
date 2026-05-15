@@ -31,7 +31,7 @@ extension ChatControlNormalizationSupport {
             return WebSearchControls(enabled: true, maxUses: 3)
         case .anthropic, .claudeManagedAgents:
             return WebSearchControls(enabled: true)
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
              .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:
@@ -71,7 +71,7 @@ extension ChatControlNormalizationSupport {
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
             normalizeAnthropicDomainFilters(controls: &controls)
-        case .codexAppServer, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
              .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .none:

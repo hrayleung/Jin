@@ -19,10 +19,7 @@ struct StreamingMessageView: View {
         let visibleToolCalls = hidesManagedAgentInternalUI ? [] : state.streamingToolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
             && !isGoogleProviderNativeToolName(call.name)
-            && !AgentToolHub.isAgentFunctionName(call.name)
         }
-        let visibleCodexToolActivities = hidesManagedAgentInternalUI ? [] : state.codexToolActivities
-        let visibleAgentToolActivities = hidesManagedAgentInternalUI ? [] : state.agentToolActivities
         let visibleCodeExecutionActivities = hidesManagedAgentInternalUI ? [] : state.codeExecutionActivities
         let visibleThinkingChunks = hidesManagedAgentInternalUI ? [] : state.thinkingChunks
 
@@ -54,20 +51,6 @@ struct StreamingMessageView: View {
                                 isStreaming: true,
                                 providerLabel: assistantDisplayName == "Assistant" ? nil : assistantDisplayName,
                                 modelLabel: modelLabel
-                            )
-                        }
-
-                        if !visibleCodexToolActivities.isEmpty {
-                            CodexToolTimelineView(
-                                activities: visibleCodexToolActivities,
-                                isStreaming: true
-                            )
-                        }
-
-                        if !visibleAgentToolActivities.isEmpty {
-                            AgentToolTimelineView(
-                                activities: visibleAgentToolActivities,
-                                isStreaming: true
                             )
                         }
 
@@ -107,8 +90,6 @@ struct StreamingMessageView: View {
                             }
                         } else if visibleThinkingChunks.isEmpty
                                     && state.searchActivities.isEmpty
-                                    && visibleCodexToolActivities.isEmpty
-                                    && visibleAgentToolActivities.isEmpty
                                     && visibleCodeExecutionActivities.isEmpty
                                     && visibleToolCalls.isEmpty {
                             HStack(spacing: 6) {

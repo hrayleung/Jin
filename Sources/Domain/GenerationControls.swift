@@ -35,7 +35,6 @@ struct GenerationControls: Codable {
     var openRouterVideoGeneration: OpenRouterVideoGenerationControls?
     var googleMaps: GoogleMapsControls?
     var codeExecution: CodeExecutionControls?
-    var agentMode: AgentModeControls?
     var providerSpecific: [String: AnyCodable] = [:]
 
     init(
@@ -59,7 +58,6 @@ struct GenerationControls: Codable {
         openRouterVideoGeneration: OpenRouterVideoGenerationControls? = nil,
         googleMaps: GoogleMapsControls? = nil,
         codeExecution: CodeExecutionControls? = nil,
-        agentMode: AgentModeControls? = nil,
         providerSpecific: [String: AnyCodable] = [:]
     ) {
         self.temperature = temperature
@@ -82,7 +80,6 @@ struct GenerationControls: Codable {
         self.openRouterVideoGeneration = openRouterVideoGeneration
         self.googleMaps = googleMaps
         self.codeExecution = codeExecution
-        self.agentMode = agentMode
         self.providerSpecific = providerSpecific
     }
 }

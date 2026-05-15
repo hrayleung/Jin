@@ -1,6 +1,6 @@
 import Foundation
 
-enum CodexApprovalChoice: String, CaseIterable, Sendable {
+enum ManagedAgentApprovalChoice: String, CaseIterable, Sendable {
     case accept
     case acceptForSession
     case decline
@@ -20,7 +20,7 @@ enum CodexApprovalChoice: String, CaseIterable, Sendable {
     }
 }
 
-struct CodexCommandActionSummary: Identifiable, Hashable, Sendable {
+struct ManagedAgentCommandActionSummary: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let subtitle: String?
@@ -32,7 +32,7 @@ struct CodexCommandActionSummary: Identifiable, Hashable, Sendable {
     }
 }
 
-struct CodexFileChangeSummary: Identifiable, Hashable, Sendable {
+struct ManagedAgentFileChangeSummary: Identifiable, Hashable, Sendable {
     let id: String
     let path: String
     let changeType: String
@@ -44,54 +44,54 @@ struct CodexFileChangeSummary: Identifiable, Hashable, Sendable {
     }
 }
 
-struct CodexCommandApprovalRequest: Sendable {
+struct ManagedAgentCommandApprovalRequest: Sendable {
     let command: String?
     let cwd: String?
     let reason: String?
-    let actionSummaries: [CodexCommandActionSummary]
+    let actionSummaries: [ManagedAgentCommandActionSummary]
 }
 
-struct CodexFileChangeApprovalRequest: Sendable {
+struct ManagedAgentFileChangeApprovalRequest: Sendable {
     let reason: String?
     let grantRoot: String?
-    let fileChanges: [CodexFileChangeSummary]
+    let fileChanges: [ManagedAgentFileChangeSummary]
 }
 
-struct CodexUserInputOption: Hashable, Sendable {
+struct ManagedAgentUserInputOption: Hashable, Sendable {
     let label: String
     let detail: String
 }
 
-struct CodexUserInputQuestion: Identifiable, Hashable, Sendable {
+struct ManagedAgentUserInputQuestion: Identifiable, Hashable, Sendable {
     let id: String
     let header: String
     let prompt: String
     let isOtherAllowed: Bool
     let isSecret: Bool
-    let options: [CodexUserInputOption]
+    let options: [ManagedAgentUserInputOption]
 }
 
-struct CodexUserInputRequest: Sendable {
-    let questions: [CodexUserInputQuestion]
+struct ManagedAgentUserInputRequest: Sendable {
+    let questions: [ManagedAgentUserInputQuestion]
 }
 
-enum CodexInteractionKind: Sendable {
-    case commandApproval(CodexCommandApprovalRequest)
-    case fileChangeApproval(CodexFileChangeApprovalRequest)
-    case userInput(CodexUserInputRequest)
+enum ManagedAgentInteractionKind: Sendable {
+    case commandApproval(ManagedAgentCommandApprovalRequest)
+    case fileChangeApproval(ManagedAgentFileChangeApprovalRequest)
+    case userInput(ManagedAgentUserInputRequest)
 }
 
-enum CodexInteractionResponse: Sendable {
-    case approval(CodexApprovalChoice)
+enum ManagedAgentInteractionResponse: Sendable {
+    case approval(ManagedAgentApprovalChoice)
     case userInput([String: [String]])
     case cancelled(message: String?)
 }
 
-actor CodexInteractionResponseChannel {
-    private var continuation: CheckedContinuation<CodexInteractionResponse, Never>?
-    private var buffered: CodexInteractionResponse?
+actor ManagedAgentInteractionResponseChannel {
+    private var continuation: CheckedContinuation<ManagedAgentInteractionResponse, Never>?
+    private var buffered: ManagedAgentInteractionResponse?
 
-    func wait() async -> CodexInteractionResponse {
+    func wait() async -> ManagedAgentInteractionResponse {
         if let buffered {
             self.buffered = nil
             return buffered
@@ -102,7 +102,7 @@ actor CodexInteractionResponseChannel {
         }
     }
 
-    func resolve(_ response: CodexInteractionResponse) {
+    func resolve(_ response: ManagedAgentInteractionResponse) {
         if let continuation {
             self.continuation = nil
             continuation.resume(returning: response)
@@ -112,23 +112,23 @@ actor CodexInteractionResponseChannel {
     }
 }
 
-final class CodexInteractionRequest: Identifiable, @unchecked Sendable {
+final class ManagedAgentInteractionRequest: Identifiable, @unchecked Sendable {
     let id = UUID()
     let method: String
     let threadID: String?
     let turnID: String?
     let itemID: String?
-    let kind: CodexInteractionKind
+    let kind: ManagedAgentInteractionKind
     let providerContext: [String: String]
 
-    private let channel = CodexInteractionResponseChannel()
+    private let channel = ManagedAgentInteractionResponseChannel()
 
     init(
         method: String,
         threadID: String?,
         turnID: String?,
         itemID: String?,
-        kind: CodexInteractionKind,
+        kind: ManagedAgentInteractionKind,
         providerContext: [String: String] = [:]
     ) {
         self.method = method
@@ -140,14 +140,13 @@ final class CodexInteractionRequest: Identifiable, @unchecked Sendable {
     }
 
     var title: String {
-        let isClaudeManaged = method.hasPrefix("claude_managed_agents/")
         switch kind {
         case .commandApproval:
-            return isClaudeManaged ? "Claude Agent Wants to Use a Tool" : "Codex Wants to Run a Command"
+            return "Claude Agent Wants to Use a Tool"
         case .fileChangeApproval:
-            return isClaudeManaged ? "Claude Agent Wants to Change Files" : "Codex Wants to Change Files"
+            return "Claude Agent Wants to Change Files"
         case .userInput:
-            return isClaudeManaged ? "Claude Agent Needs Your Input" : "Codex Needs Your Input"
+            return "Claude Agent Needs Your Input"
         }
     }
 
@@ -166,11 +165,11 @@ final class CodexInteractionRequest: Identifiable, @unchecked Sendable {
         providerContext[key]
     }
 
-    func waitForResponse() async -> CodexInteractionResponse {
+    func waitForResponse() async -> ManagedAgentInteractionResponse {
         await channel.wait()
     }
 
-    func resolve(_ response: CodexInteractionResponse) async {
+    func resolve(_ response: ManagedAgentInteractionResponse) async {
         await channel.resolve(response)
     }
 }
