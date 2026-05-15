@@ -3,10 +3,6 @@ import AppKit
 
 // MARK: - Compact Composer Overlay
 
-enum CompactComposerOverlayMetrics {
-    static let topTrailingOverlayInset: CGFloat = 52
-}
-
 struct CompactComposerOverlayView<ControlsRow: View>: View {
     @Environment(\.accessibilityReduceMotion) var reduceMotion
 
@@ -156,14 +152,6 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                 shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: JinStrokeWidth.emphasized)
             )
             .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
-            .overlay(alignment: .topTrailing) {
-                HStack(spacing: 2) {
-                    hideButton
-                    expandButton
-                }
-                .padding(.top, JinSpacing.medium)
-                .padding(.trailing, JinSpacing.medium)
-            }
     }
 }
 

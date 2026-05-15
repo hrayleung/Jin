@@ -14,8 +14,6 @@ extension CompactComposerOverlayView {
             prepareStatusRow
             speechStatusRow
         }
-        // Reserve space for the top-right hide/expand overlay so accessory rows and the editor stay clear of it.
-        .padding(.trailing, CompactComposerOverlayMetrics.topTrailingOverlayInset)
     }
 
     @ViewBuilder
@@ -32,6 +30,8 @@ extension CompactComposerOverlayView {
                 .padding(.bottom, 2)
             }
 
+            hideButton
+            expandButton
             sendButton
         }
     }

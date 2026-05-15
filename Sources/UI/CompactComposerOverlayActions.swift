@@ -4,9 +4,10 @@ extension CompactComposerOverlayView {
     var hideButton: some View {
         Button(action: onHide) {
             Image(systemName: "chevron.down")
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 13, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.tertiary)
-                .frame(width: 22, height: 22)
+                .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -16,9 +17,10 @@ extension CompactComposerOverlayView {
     var expandButton: some View {
         Button(action: onExpand) {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 10, weight: .medium))
+                .font(.system(size: 13, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.tertiary)
-                .frame(width: 22, height: 22)
+                .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
