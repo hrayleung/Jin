@@ -13,14 +13,11 @@ struct ThinkingBlockHeaderButton: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(spacing: JinSpacing.xSmall) {
-            disclosureRegion
-            copyAffordance
-        }
-        .frame(minHeight: ThinkingHeaderCopyButton.hitSize)
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small)
-        .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+        disclosureRegion
+            .frame(minHeight: ThinkingHeaderCopyButton.hitSize)
+            .padding(.horizontal, JinSpacing.medium)
+            .padding(.vertical, JinSpacing.small)
+            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
     }
 
     private var disclosureRegion: some View {
@@ -30,6 +27,7 @@ struct ThinkingBlockHeaderButton: View {
                 titleText
                 streamingIndicator
                 Spacer(minLength: JinSpacing.small)
+                copyAffordance
                 disclosureIndicator
             }
             .frame(maxWidth: .infinity)
@@ -127,45 +125,26 @@ struct ThinkingHeaderCopyButton: View {
     let text: String
 
     @State private var didCopy = false
-    @State private var isHovering = false
     @State private var resetTask: Task<Void, Never>?
 
-    private static let glyphSize: CGFloat = 11
-    fileprivate static let hitSize: CGFloat = 22
+    private static let glyphSize: CGFloat = JinControlMetrics.iconButtonGlyphSize
+    fileprivate static let hitSize: CGFloat = 20
 
     var body: some View {
         Button(action: copy) {
-            ZStack {
-                RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                    .fill(backgroundFill)
-                Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: Self.glyphSize, weight: .semibold))
-                    .foregroundStyle(glyphColor)
-                    .symbolRenderingMode(.monochrome)
-                    .contentTransition(.symbolEffect(.replace.downUp))
-            }
-            .frame(width: Self.hitSize, height: Self.hitSize)
-            .contentShape(Rectangle())
+            Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+                .font(.system(size: Self.glyphSize, weight: .semibold))
+                .foregroundStyle(glyphColor)
+                .symbolRenderingMode(.monochrome)
+                .contentTransition(.symbolEffect(.replace.downUp))
+                .frame(width: Self.hitSize, height: Self.hitSize)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(didCopy ? "Copied" : "Copy thinking")
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
-                isHovering = hovering
-            }
-        }
         .onDisappear {
             resetTask?.cancel()
         }
-    }
-
-    private var backgroundFill: Color {
-        if didCopy {
-            return Color.accentColor.opacity(0.18)
-        }
-        return isHovering
-            ? JinSemanticColor.subtleSurfaceStrong
-            : Color.clear
     }
 
     private var glyphColor: Color {
