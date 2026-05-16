@@ -4,6 +4,19 @@ import SwiftData
 import AppKit
 #endif
 
+/// macOS 26+ wrapper for `backgroundExtensionEffect()`. On older OSes
+/// the modifier is a no-op so the detail view's background does not extend
+/// into the safe-area region behind the floating sidebar.
+private struct JinDetailBackgroundExtension: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.backgroundExtensionEffect()
+        } else {
+            content
+        }
+    }
+}
+
 struct ContentView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var streamingStore: ConversationStreamingStore
@@ -17,13 +30,15 @@ struct ContentView: View {
 
     @State var selectedAssistant: AssistantEntity?
     @State var selectedConversation: ConversationEntity?
-    @State private var isSidebarPresented = MainSidebarVisibility.defaultIsVisible
+    /// NavigationSplitView-driven sidebar visibility. On macOS 26 (Tahoe) the
+    /// system handles the floating Liquid Glass sidebar + slide animation
+    /// natively when this binding changes.
+    @State private var columnVisibility: NavigationSplitViewVisibility =
+        MainSidebarVisibility.defaultIsVisible ? .all : .detailOnly
     @State var didBootstrapDefaults = false
     @State var didBootstrapAssistants = false
     @State var searchText = ""
     @State var isAssistantInspectorPresented = false
-    @State private var sidebarResizeStartWidth: CGFloat?
-    @State private var sidebarLiveResizeWidth: CGFloat?
     @State var assistantContextMenuTargetID: String?
     @State var assistantPendingDeletion: AssistantEntity?
     @State var showingDeleteAssistantConfirmation = false
@@ -53,72 +68,39 @@ struct ContentView: View {
     @FocusState var isSidebarSearchFieldFocused: Bool
     let conversationTitleGenerator = ConversationTitleGenerator()
 
-    private var resolvedSidebarWidth: CGFloat {
-        if let sidebarLiveResizeWidth {
-            return SidebarWidthPersistence.clamped(sidebarLiveResizeWidth)
-        }
-
-        return SidebarWidthPersistence.resolvedWidth(from: persistedSidebarWidth)
-    }
-
-    private var sidebarWidthForDetailLayout: CGFloat {
-        isSidebarVisible ? resolvedSidebarWidth : 0
-    }
-
     var body: some View {
-        contentPresentations(
-            rootSplitView
-                .mainWindowToolbarChromeCompat(chromeLayout: $mainWindowChromeLayout)
-        )
+        contentPresentations(rootSplitView)
     }
 
+    /// macOS 26 (Tahoe) renders this as a floating Liquid Glass sidebar
+    /// automatically. macOS 14/15 fall back to the system's standard sidebar
+    /// material. We deliberately do NOT use `.toolbar { ... }` here — adding
+    /// one creates a unified titlebar strip across the whole window that
+    /// reserves space above the floating sidebar and looks orphaned. The
+    /// chat action buttons (star / inspector / trash) live inside
+    /// `ChatHeaderBarView` so they sit *inside* the detail pane, where they
+    /// belong visually.
     private var rootSplitView: some View {
-        ZStack(alignment: .leading) {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            sidebarContent
+                .navigationSplitViewColumnWidth(
+                    min: CGFloat(SidebarWidthPersistence.minimumWidth),
+                    ideal: SidebarWidthPersistence.resolvedWidth(from: persistedSidebarWidth),
+                    max: CGFloat(SidebarWidthPersistence.maximumWidth)
+                )
+        } detail: {
             detailContent
-                .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
-
-            sidebarOverlayPane
+                // Tahoe-only: lets the detail's bg colors mirror into the safe
+                // area under the floating sidebar, so the sidebar glass has
+                // colour to refract instead of sitting on grey nothing.
+                .modifier(JinDetailBackgroundExtension())
         }
-        .clipped()
-        .animation(.easeInOut(duration: 0.24), value: isSidebarVisible)
-        .ignoresSafeArea(
-            .container,
-            edges: mainWindowChromeLayout.extendsContentIntoTitlebar ? .top : []
-        )
+        // No .navigationSplitViewStyle — let the system pick. On Tahoe
+        // .balanced explicitly biases toward inset-floating sidebar; omitting
+        // it gives the OS the option to render whichever style fits the OS.
     }
 
     // MARK: - Sidebar
-
-    private var sidebarPane: some View {
-        sidebarContent
-    }
-
-    private var sidebarOverlayPane: some View {
-        ContentViewSidebarOverlayPane(
-            width: resolvedSidebarWidth,
-            isVisible: isSidebarVisible,
-            onResizeChanged: updateSidebarResize,
-            onResizeEnded: persistSidebarResize
-        ) {
-            sidebarPane
-        }
-    }
-
-    private func updateSidebarResize(translationWidth: CGFloat) {
-        let startWidth = sidebarResizeStartWidth ?? resolvedSidebarWidth
-        sidebarResizeStartWidth = startWidth
-        let nextWidth = SidebarWidthPersistence.clamped(startWidth + translationWidth)
-        guard abs(nextWidth - resolvedSidebarWidth) > 0.5 else { return }
-        sidebarLiveResizeWidth = nextWidth
-    }
-
-    private func persistSidebarResize() {
-        if let sidebarLiveResizeWidth {
-            persistedSidebarWidth = Double(sidebarLiveResizeWidth)
-        }
-        sidebarResizeStartWidth = nil
-        sidebarLiveResizeWidth = nil
-    }
 
     private var sidebarContent: some View {
         VStack(spacing: 0) {
@@ -141,9 +123,8 @@ struct ContentView: View {
                 onDeleteAtOffsets: deleteConversations
             )
         }
-        .background {
-            JinSemanticColor.sidebarSurface.ignoresSafeArea()
-        }
+        // No background — NavigationSplitView gives the sidebar its native
+        // chrome (Liquid Glass on macOS 26, sidebar material on 14/15).
     }
 
     private var sidebarPinnedChrome: some View {
@@ -171,7 +152,7 @@ struct ContentView: View {
                     isAssistantInspectorPresented: $isAssistantInspectorPresented,
                     onPersistConversationIfNeeded: { persistConversationIfNeeded(conversation) },
                     isSidebarHidden: !isSidebarVisible,
-                    mainSidebarWidth: sidebarWidthForDetailLayout,
+                    mainSidebarWidth: 0,
                     onToggleSidebar: toggleSidebarVisibility,
                     onNewChat: createNewConversation,
                     titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset,
@@ -191,7 +172,7 @@ struct ContentView: View {
                         onOpenAssistantSettings: openAssistantSettings
                     )
                     ContentViewEmptyDetailView(
-                        sidebarWidth: sidebarWidthForDetailLayout,
+                        sidebarWidth: 0,
                         isSidebarHidden: !isSidebarVisible,
                         compensationRatio: sidebarCompensationRatio,
                         onNewChat: createNewConversation
@@ -201,19 +182,6 @@ struct ContentView: View {
             }
         }
         .background { JinSemanticColor.detailSurface.ignoresSafeArea() }
-        .overlay(alignment: .leading) {
-            LinearGradient(
-                stops: [
-                    .init(color: .black.opacity(0.1), location: 0),
-                    .init(color: .black.opacity(0.04), location: 0.35),
-                    .init(color: .clear, location: 1)
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: 20)
-            .allowsHitTesting(false)
-        }
         .overlay(alignment: .top) {
             ContentViewTTSMiniPlayerOverlay(
                 manager: ttsPlaybackManager,
@@ -234,17 +202,20 @@ struct ContentView: View {
     // MARK: - Navigation
 
     var isSidebarVisible: Bool {
-        isSidebarPresented
+        columnVisibility != .detailOnly
     }
 
     func toggleSidebarVisibility() {
-        isSidebarPresented = MainSidebarVisibility.toggled(isSidebarPresented)
+        // No withAnimation — NavigationSplitView owns the animation curve and
+        // duration. Overriding with our own causes a double-animation that
+        // feels laggy. The system animation on macOS 26 is Liquid Glass-aware.
+        columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
     }
 
     func focusChatSearch() {
         let shouldDelayFocus = !isSidebarVisible
         if shouldDelayFocus {
-            isSidebarPresented = true
+            columnVisibility = .all
         }
         Task { @MainActor in
             if shouldDelayFocus {

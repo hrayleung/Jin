@@ -327,7 +327,9 @@ struct ChatView: View {
 
     var chatRootContent: some View {
         VStack(spacing: 0) {
-            detailHeaderBar
+            // detailHeaderBar removed — model picker + star/sliders/trash
+            // moved into the window titlebar via .toolbar below so the
+            // previously empty "Jin" titlebar row isn't wasted.
             conversationStage
         }
         .environment(\.dropForwarderRef, dropForwarderRef)
@@ -336,6 +338,64 @@ struct ChatView: View {
         }
         .overlay {
             fullPageDropOverlay
+        }
+        .toolbar {
+            chatToolbarItems
+        }
+    }
+
+    @ToolbarContentBuilder
+    var chatToolbarItems: some ToolbarContent {
+        // All chat-related items live in the trailing area. "Jin" stays as the
+        // window title at the center; model picker sits to its right (start
+        // of trailing group), followed by action icons. macOS doesn't expose
+        // a placement between `.principal` and `.primaryAction` — this is the
+        // closest "right of title, before actions" the API allows.
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button {
+                isModelPickerPresented = true
+            } label: {
+                HStack(spacing: 6) {
+                    ProviderIconView(iconID: currentProviderIconID, size: 14)
+                        .frame(width: 16, height: 16)
+                    Text(currentModelName)
+                        .font(.callout)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.bordered)
+            .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
+                modelPickerPopoverContent(includeManagedAgentSelection: true) { providerID, modelID in
+                    setProviderAndModel(providerID: providerID, modelID: modelID)
+                    isModelPickerPresented = false
+                }
+            }
+
+            let isStarred = conversationEntity.isStarred == true
+            Button {
+                conversationEntity.isStarred = !isStarred
+                try? modelContext.save()
+            } label: {
+                Image(systemName: isStarred ? "star.fill" : "star")
+                    .foregroundStyle(isStarred ? Color.orange : Color.primary)
+            }
+            .help(isStarred ? "Unstar chat" : "Star chat")
+
+            Button {
+                isAssistantInspectorPresented = true
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+            }
+            .help("Assistant Settings")
+
+            Button(role: .destructive, action: onRequestDeleteConversation) {
+                Image(systemName: "trash")
+            }
+            .help("Delete chat")
         }
     }
 }

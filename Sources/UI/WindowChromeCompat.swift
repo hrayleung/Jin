@@ -198,7 +198,13 @@ private struct WindowChromeObserverModifier: ViewModifier {
             window.standardWindowButton(.closeButton)?.isHidden = false
             window.standardWindowButton(.miniaturizeButton)?.isHidden = false
             window.standardWindowButton(.zoomButton)?.isHidden = false
-            // Remove toolbar so AppKit does not reserve an extra top strip.
+            // Kill any toolbar AppKit injects. With NavigationSplitView the
+            // system tries to insert a unified titlebar strip; we don't use
+            // it (chat actions live inside ChatHeaderBarView, sidebar toggle
+            // lives inside SidebarHeaderView / ChatHeaderBarView). Killing
+            // it reclaims the top strip so the sidebar can extend to the very
+            // top of the window — matching Tahoe's "floating sidebar with
+            // traffic-lights inside" layout.
             if window.toolbar != nil {
                 window.toolbar = nil
             }

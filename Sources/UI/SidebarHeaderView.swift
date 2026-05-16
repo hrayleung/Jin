@@ -28,13 +28,10 @@ struct SidebarHeaderView: View {
 
             Spacer(minLength: JinSpacing.small)
 
-            Button(action: onHideSidebar) {
-                Image(systemName: "sidebar.leading")
-                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
-            }
-            .buttonStyle(JinIconButtonStyle(showBackground: false))
-            .help("Hide Sidebar")
-
+            // Sidebar-toggle is now provided by NavigationSplitView's system
+            // chrome (auto Liquid Glass on macOS 26). New Chat + Settings stay
+            // inline here because they're frequently used and a dedicated
+            // sidebar location keeps the chat-side toolbar lean.
             Button(action: onNewChat) {
                 Image(systemName: "square.and.pencil")
                     .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
@@ -63,7 +60,10 @@ struct SidebarHeaderView: View {
     }
 
     private var topPadding: CGFloat {
-        guard extendsContentIntoTitlebar else { return JinSpacing.large }
-        return max(JinSpacing.large, titlebarTopInset)
+        // Natural small padding. The system titlebar lives above this view
+        // now (no more .fullSizeContentView / .windowStyle(.hiddenTitleBar)),
+        // so the sidebar content starts below the titlebar automatically and
+        // doesn't need to reserve space for traffic lights.
+        JinSpacing.small
     }
 }
