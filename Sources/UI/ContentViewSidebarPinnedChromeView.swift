@@ -33,19 +33,8 @@ struct ContentViewSidebarPinnedChromeView: View {
             searchField
         }
         .padding(.bottom, JinSpacing.small)
-        .background(JinSemanticColor.sidebarSurface)
-        .overlay(alignment: .bottom) {
-            LinearGradient(
-                colors: [
-                    JinSemanticColor.separator.opacity(0.08),
-                    .clear
-                ],
-                startPoint: .bottom,
-                endPoint: .top
-            )
-            .frame(height: 10)
-            .allowsHitTesting(false)
-        }
+        // No background — sidebar chrome inherits NavigationSplitView's
+        // native sidebar material (Liquid Glass on macOS 26).
     }
 
     private var searchField: some View {
@@ -64,20 +53,17 @@ struct ContentViewSidebarPinnedChromeView: View {
         }
         .padding(.horizontal, JinSpacing.medium)
         .padding(.vertical, JinSpacing.small + 2)
+        // Soft tinted surface (no pure-white pill). A bright white pill inside
+        // a translucent sidebar reads visually as an inner-card border and
+        // amplifies the "box-in-box" feel. Use subtleSurface even when active.
         .background(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(
-                    searchFieldIsActive
-                        ? JinSemanticColor.surface
-                        : JinSemanticColor.surface.opacity(0.9)
-                )
+                .fill(JinSemanticColor.subtleSurface)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .stroke(
-                    searchFieldIsActive
-                        ? JinSemanticColor.separator.opacity(0.28)
-                        : JinSemanticColor.separator.opacity(0.16),
+                    searchFieldIsActive ? JinSemanticColor.borderEmphasized : JinSemanticColor.borderSubtle,
                     lineWidth: JinStrokeWidth.hairline
                 )
         }

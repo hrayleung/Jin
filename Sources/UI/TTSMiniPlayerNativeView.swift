@@ -250,10 +250,15 @@ final class TTSMiniPlayerNativeView: NSView {
     }
 
     private func applyAppearance() {
-        layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.96).cgColor
+        // Resolve token colors against this view's appearance so the cached
+        // CGColors stay correct when the user toggles light/dark or when the
+        // host window uses an overridden appearance.
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = NSColor(JinSemanticColor.raisedSurface).cgColor
+            layer?.borderColor = NSColor(JinSemanticColor.borderSubtle).cgColor
+            layer?.shadowColor = NSColor(JinSemanticColor.shadowElevated).cgColor
+        }
         layer?.borderWidth = JinStrokeWidth.hairline
-        layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.32).cgColor
-        layer?.shadowColor = NSColor.black.withAlphaComponent(0.10).cgColor
         layer?.shadowOpacity = 1
         layer?.shadowRadius = 16
         layer?.shadowOffset = CGSize(width: 0, height: -6)

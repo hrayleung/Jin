@@ -9,9 +9,8 @@ extension SettingsView {
             List(filteredProviders, selection: animatedSelectedProviderID) { provider in
                 NavigationLink(value: provider.id) {
                     HStack(spacing: JinSpacing.small + 2) {
-                        ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 14)
+                        ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 16)
                             .frame(width: 20, height: 20)
-                            .jinSurface(.outlined, cornerRadius: JinRadius.small)
                             .opacity(provider.isEnabled ? 1 : 0.4)
 
                         VStack(alignment: .leading, spacing: 2) {
@@ -63,10 +62,9 @@ extension SettingsView {
                 NavigationLink(value: category) {
                     HStack(spacing: JinSpacing.small + 2) {
                         Image(systemName: category.systemImage)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .frame(width: 20, height: 20)
-                            .jinSurface(.outlined, cornerRadius: JinRadius.small)
 
                         Text(category.label)
                             .font(.system(.body, design: .default))
@@ -89,7 +87,6 @@ extension SettingsView {
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(.secondary)
                         .frame(width: 20, height: 20)
-                        .jinSurface(.outlined, cornerRadius: JinRadius.small)
 
                     Text(plugin.name)
                         .font(.system(.body, design: .default))
@@ -255,19 +252,22 @@ extension SettingsView {
             content()
         }
         .padding(JinSpacing.medium)
-        .background(JinSemanticColor.panelSurface)
+        .background(JinSemanticColor.surface)
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.45))
+                .fill(JinSemanticColor.borderSubtle)
                 .frame(height: JinStrokeWidth.hairline)
         }
     }
 
     private func settingsInsetList<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        // The list inherits the sheet surface — no inset tint. The previous
+        // panelSurface fill created a visibly different middle column, which
+        // read as arbitrary against the white sidebar / detail pane.
         content()
             .listStyle(.inset)
             .scrollContentBackground(.hidden)
-            .background(JinSemanticColor.panelSurface)
+            .background(JinSemanticColor.surface)
     }
 
     @ViewBuilder

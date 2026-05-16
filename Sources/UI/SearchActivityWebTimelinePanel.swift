@@ -29,8 +29,6 @@ struct SearchActivityWebTimelinePanel: View {
                         .transition(.opacity)
                 }
             }
-            .padding(JinSpacing.small)
-            .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
             .clipped()
             .animation(.easeInOut(duration: 0.2), value: isExpanded)
             .task(id: SearchSourceEnrichmentState.taskKey(for: content.presentation.sources)) {

@@ -28,13 +28,13 @@ struct SlashCommandMCPPopover: View {
         }
         .padding(JinSpacing.medium)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial)
+        .jinAdaptiveBackground(RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+                .stroke(JinSemanticColor.borderEmphasized, lineWidth: JinStrokeWidth.hairline)
         )
-        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .shadow(color: JinSemanticColor.shadowElevated, radius: 12, x: 0, y: 4)
     }
 
     private static let scrollThreshold = 6
@@ -54,13 +54,13 @@ struct SlashCommandMCPPopover: View {
                     listContent(items)
                 }
             }
-            .background(.regularMaterial)
+            .jinAdaptiveBackground(RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous))
             .clipShape(RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                    .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+                    .stroke(JinSemanticColor.borderEmphasized, lineWidth: JinStrokeWidth.hairline)
             )
-            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+            .shadow(color: JinSemanticColor.shadowElevated, radius: 12, x: 0, y: 4)
             .onChange(of: highlightedIndex) { _, _ in
                 guard needsScroll else { return }
                 let clamped = clampedIndex(for: items)

@@ -6,7 +6,7 @@ extension CompactComposerOverlayView {
             Image(systemName: "chevron.down")
                 .font(.system(size: 13, weight: .semibold))
                 .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(JinSemanticColor.textTertiary)
                 .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
                 .contentShape(Rectangle())
         }
@@ -19,7 +19,7 @@ extension CompactComposerOverlayView {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: 13, weight: .semibold))
                 .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(JinSemanticColor.textTertiary)
                 .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
                 .contentShape(Rectangle())
         }

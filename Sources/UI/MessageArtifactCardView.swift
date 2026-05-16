@@ -48,7 +48,7 @@ struct MessageArtifactCardView: View {
 
                         Text("Artifact")
                             .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(JinSemanticColor.textTertiary)
                     }
                 }
 

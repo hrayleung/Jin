@@ -32,8 +32,6 @@ struct MCPToolTimelineView: View {
                 }
                 .clipped()
             }
-            .padding(JinSpacing.small)
-            .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
             .clipped()
             .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
             .animation(.easeInOut(duration: 0.2), value: entryAnimationSignature)

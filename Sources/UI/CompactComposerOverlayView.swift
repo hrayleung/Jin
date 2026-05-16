@@ -140,18 +140,26 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         let shape = RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous)
 
         leftColumn
-            .padding(JinSpacing.medium)
+            .padding(.horizontal, JinSpacing.medium)
+            .padding(.vertical, JinSpacing.medium + 2)
             .frame(maxWidth: ChatConversationLayoutMetrics.composerMaxWidth)
+            // Claude-style defined card. White fill + 1pt borderEmphasized
+            // gives the composer real definition without going gray. The
+            // ambient shadow lifts it off the page — referenced ChatGPT /
+            // Linear / iMessage all use this micro-shadow pattern in light.
             .background {
-                shape.fill(.regularMaterial)
+                shape.fill(JinSemanticColor.raisedSurface)
             }
             .overlay(
-                shape.stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+                shape.stroke(JinSemanticColor.borderEmphasized, lineWidth: JinStrokeWidth.regular)
             )
             .overlay(
-                shape.stroke(isComposerDropTargeted ? Color.accentColor : Color.clear, lineWidth: JinStrokeWidth.emphasized)
+                shape.stroke(
+                    isComposerDropTargeted ? Color.accentColor : Color.clear,
+                    lineWidth: JinStrokeWidth.emphasized
+                )
             )
-            .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
+            .shadow(color: JinSemanticColor.shadowSubtle, radius: 6, x: 0, y: 1)
     }
 }
 

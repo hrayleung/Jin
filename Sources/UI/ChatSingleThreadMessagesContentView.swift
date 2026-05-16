@@ -45,6 +45,15 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
     @Binding var shouldMaintainPinnedBottomAnchor: Bool
     @Binding var isUserScrollInProgress: Bool
 
+    /// Set while we are driving `proxy.scrollTo(...)` ourselves. During a
+    /// programmatic scroll the scroll-geometry stream emits transient
+    /// off-pin offsets that must not be treated as a user-initiated unpin.
+    /// We do NOT key on `isUserScrollInProgress` because SwiftUI fires
+    /// `onScrollGeometryChange` *before* `onScrollPhaseChange` flips to
+    /// `.tracking` for the first user gesture — that race left the pin stuck
+    /// true and immediately snapped the user's scroll back to bottom.
+    @State private var isExecutingProgrammaticScroll = false
+
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.key == rhs.key
     }
@@ -104,8 +113,8 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .frame(width: 32, height: 32)
-                            .background(.regularMaterial, in: Circle())
-                            .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+                            .jinAdaptiveBackground(Circle())
+                            .shadow(color: JinSemanticColor.shadowElevated, radius: 6, y: 2)
                     }
                     .buttonStyle(.plain)
                     .padding(.trailing, 20)
@@ -123,10 +132,26 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             )
             .onUserScrollIntentChange { isUserDrivenScroll in
                 isUserScrollInProgress = isUserDrivenScroll
+                // Any user-initiated scroll — even 1 pt, even within
+                // `pinnedBottomTolerance` — is an explicit signal that the
+                // user does NOT want the chat to snap them back to bottom.
+                // Without this, a tiny trackpad nudge keeps `isPinnedToBottom`
+                // true (the 36 pt tolerance window) which keeps anchor true,
+                // and the next content-height change (e.g. tapping to expand
+                // a Web Search / MCP / code-exec card) immediately snaps the
+                // scroll position to the new bottom.
+                if isUserDrivenScroll {
+                    cancelPendingPinnedBottomRefresh()
+                    shouldMaintainPinnedBottomAnchor = false
+                    pinnedBottomRefreshGeneration = ChatTimelineScrollCoordinator.invalidatedRefreshGeneration(
+                        current: pinnedBottomRefreshGeneration
+                    )
+                }
             }
             .onChange(of: messageRenderLimit) { _, _ in
                 guard let restoreID = pendingRestoreScrollMessageID else { return }
                 DispatchQueue.main.async {
+                    beginProgrammaticScroll()
                     proxy.scrollTo(restoreID, anchor: .top)
                     pendingRestoreScrollMessageID = nil
                 }
@@ -261,7 +286,19 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
         ) else {
             return
         }
+        beginProgrammaticScroll()
         proxy.scrollTo("bottom", anchor: .bottom)
+    }
+
+    /// Mark the next ~400 ms as "programmatic scroll territory" so that the
+    /// mid-flight off-pin geometry samples emitted by SwiftUI during the
+    /// snap-down animation don't get interpreted as a user unpin.
+    private func beginProgrammaticScroll() {
+        isExecutingProgrammaticScroll = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            isExecutingProgrammaticScroll = false
+        }
     }
 
     private func handleContentHeightChange(_ newHeight: CGFloat, proxy: ScrollViewProxy) {
@@ -274,6 +311,13 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
         }
         lastMeasuredContentHeight = action.measuredHeight
         guard action.shouldScheduleRefresh else { return }
+        // We're already mid-flight of a programmatic scroll-to-bottom; the
+        // animation itself is what's causing this height change to fire over
+        // and over. Letting each frame re-arm a 120 ms task creates a stacked
+        // chain of refresh attempts that fight the user when they try to do
+        // anything during the spring window. Skip until the programmatic
+        // window clears.
+        guard !isExecutingProgrammaticScroll else { return }
         schedulePinnedBottomRefresh(
             proxy: proxy,
             debounceNanoseconds: 120_000_000
@@ -288,7 +332,14 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             return
         }
 
-        guard isUserScrollInProgress else { return }
+        // Trust the geometry: when the scroll view is no longer near the
+        // bottom, the pin is broken. The only legitimate reason to *ignore*
+        // an off-pin geometry sample is that we, the code, are mid-flight
+        // of a programmatic scroll-to-bottom animation. We do NOT gate on
+        // `isUserScrollInProgress` because SwiftUI fires the geometry
+        // change before the `.tracking` phase, so the first user gesture
+        // would otherwise be silently dropped.
+        guard !isExecutingProgrammaticScroll else { return }
         cancelPendingPinnedBottomRefresh()
         shouldMaintainPinnedBottomAnchor = false
         pinnedBottomRefreshGeneration = ChatTimelineScrollCoordinator.invalidatedRefreshGeneration(

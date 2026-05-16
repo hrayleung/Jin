@@ -71,8 +71,14 @@ struct JinApp: App {
             .onAppear {
                 launchCoordinator.startIfNeeded()
             }
+            // No window customization. Reference Tahoe-native apps (Chops,
+            // Apple's own) use plain WindowGroup + NavigationSplitView and
+            // let the system handle title bar, sidebar Liquid Glass, traffic
+            // lights, fullscreen transitions. Every customization we tried
+            // (.windowStyle hiddenTitleBar, containerBackground thinMaterial,
+            // WindowChromeCompat NSWindow hacks) fought Tahoe and produced
+            // either double-bordered glass or jumping layouts.
         }
-        .windowStyle(.hiddenTitleBar)
         .commands {
             ChatCommands(shortcutsStore: shortcutsStore)
         }
@@ -115,3 +121,4 @@ struct JinApp: App {
         AppPostLaunchMaintenance.mergeRefreshedModels(latestModels: latestModels, existingModels: existingModels)
     }
 }
+

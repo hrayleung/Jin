@@ -22,8 +22,7 @@ struct ToolCallHeaderRow: View {
                 .foregroundStyle(.primary)
                 .lineLimit(1)
 
-            Spacer(minLength: 0)
-
+            // Status sits next to the tool label, not pushed right.
             ToolTimelinePresentationSupport.InlineStatusLabel(
                 status: status,
                 label: statusLabel,
@@ -31,6 +30,8 @@ struct ToolCallHeaderRow: View {
                 textColor: statusStyle.text,
                 accentColor: statusStyle.accent
             )
+
+            Spacer(minLength: 0)
 
             Button {
                 withAnimation(.spring(duration: 0.25, bounce: 0)) {
@@ -118,32 +119,18 @@ struct ToolCallCodeBlockView: View {
     var showsCopyButton: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            codeBlockHeader
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            sectionHeader
             codeContent
         }
-        .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
-        .overlay(codeBlockBorder)
     }
 
-    private var codeBlockHeader: some View {
-        HStack {
-            headerTitle
-            Spacer(minLength: 0)
+    private var sectionHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
+            Text(title).jinSectionHeader()
             copyButton
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, JinSpacing.medium - 2)
-        .padding(.vertical, JinSpacing.xSmall)
-        .background(JinSemanticColor.subtleSurfaceStrong)
-        .overlay(alignment: .bottom) {
-            headerSeparator
-        }
-    }
-
-    private var headerTitle: some View {
-        Text(title)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.secondary)
     }
 
     @ViewBuilder
@@ -158,28 +145,19 @@ struct ToolCallCodeBlockView: View {
         }
     }
 
-    private var headerSeparator: some View {
-        Rectangle()
-            .fill(JinSemanticColor.separator.opacity(0.55))
-            .frame(height: JinStrokeWidth.hairline)
-    }
-
     private var codeContent: some View {
         ScrollView {
             Text(text)
                 .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(JinSemanticColor.textSecondary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(JinSpacing.small)
         }
         .frame(maxHeight: 168)
-        .padding(.horizontal, JinSpacing.medium - 2)
-        .padding(.vertical, JinSpacing.small)
-        .background(JinSemanticColor.raisedSurface)
-    }
-
-    private var codeBlockBorder: some View {
-        RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-            .stroke(JinSemanticColor.separator.opacity(0.75), lineWidth: JinStrokeWidth.hairline)
+        .background(
+            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                .fill(JinSemanticColor.subtleSurface)
+        )
     }
 }

@@ -52,13 +52,13 @@ struct ModelPickerPopover: View {
         }
         .padding(12)
         .frame(width: 360, height: 520)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
+        .jinAdaptiveBackground(
+            RoundedRectangle(cornerRadius: 14, style: .continuous),
+            material: .ultraThinMaterial
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
+                .stroke(JinSemanticColor.borderEmphasized, lineWidth: JinStrokeWidth.hairline)
         )
     }
 

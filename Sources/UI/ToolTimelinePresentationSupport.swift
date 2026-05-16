@@ -38,8 +38,8 @@ enum ToolTimelinePresentationSupport {
             return StatusVisualStyle(
                 accent: .secondary,
                 text: .secondary,
-                nodeBackground: Color.primary.opacity(0.08),
-                nodeBorder: JinSemanticColor.separator.opacity(0.72),
+                nodeBackground: JinSemanticColor.subtleSurfaceStrong,
+                nodeBorder: JinSemanticColor.borderSubtle,
                 glowColor: .clear
             )
         case .success:
@@ -80,8 +80,8 @@ enum ToolTimelinePresentationSupport {
         StatusVisualStyle(
             accent: Color.secondary.opacity(0.85),
             text: Color.secondary.opacity(0.85),
-            nodeBackground: Color.primary.opacity(0.05),
-            nodeBorder: JinSemanticColor.separator.opacity(0.6),
+            nodeBackground: JinSemanticColor.subtleSurface,
+            nodeBorder: JinSemanticColor.borderSubtle,
             glowColor: .clear
         )
     }

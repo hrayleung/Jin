@@ -20,14 +20,14 @@ struct CodeExecutionTimelineHeaderRow: View {
 
     private var headerContent: some View {
         HStack(spacing: JinSpacing.small) {
+            disclosureIndicator
             timelineIcon
             titleText
 
-            Spacer(minLength: 0)
-
             streamingIndicator
             compactStatusBadge
-            disclosureIndicator
+
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, JinSpacing.small)
         .padding(.vertical, 6)
@@ -66,9 +66,9 @@ struct CodeExecutionTimelineHeaderRow: View {
     }
 
     private var disclosureIndicator: some View {
-        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(JinSemanticColor.textTertiary)
     }
 }
 

@@ -12,27 +12,46 @@ struct ThinkingBlockHeaderButton: View {
     let copyText: String
     let action: () -> Void
 
+    @State private var isHovering = false
+
     var body: some View {
-        HStack(spacing: JinSpacing.xSmall) {
-            titleDisclosureButton
-            copyAffordance
+        // Resolved merge: keep this branch's flat-no-surface design and
+        // hover-revealed copy button next to the title (the left-cluster
+        // UX the user explicitly asked for), while adopting master's
+        // `titleDisclosureButton` / `chevronDisclosureButton` helper split
+        // for readability. streaming indicator stays outside the title
+        // button so the hover-reveal-copy and streaming dots sit adjacent
+        // to the title rather than wrapped inside the disclosure tap area.
+        HStack(spacing: JinSpacing.small) {
+            // Disclosure chevron leftmost, hugging the title cluster —
+            // matches macOS native DisclosureGroup / Finder folder pattern.
             chevronDisclosureButton
+
+            titleDisclosureButton
+
+            // Copy fades in on hover but reserves layout space so the row
+            // doesn't jump. Matches Claude/ChatGPT message-action pattern.
+            copyAffordance
+                .opacity(isHovering ? 1 : 0)
+                .allowsHitTesting(isHovering)
+                .animation(.easeOut(duration: 0.12), value: isHovering)
+
+            streamingIndicator
+
+            Spacer(minLength: 0)
         }
         .frame(minHeight: ThinkingHeaderCopyButton.hitSize)
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small)
-        .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+        // No surface — Thinking lives inline in the message like MCP/tool blocks.
     }
 
     private var titleDisclosureButton: some View {
         Button(action: action) {
-            HStack(spacing: JinSpacing.small) {
+            HStack(spacing: JinSpacing.xSmall) {
                 headerIcon
                 titleText
-                streamingIndicator
-                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -86,7 +105,7 @@ struct ThinkingBlockHeaderButton: View {
     private var disclosureIndicator: some View {
         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(JinSemanticColor.textTertiary)
     }
 }
 
@@ -94,21 +113,21 @@ struct ThinkingBlockExpandedTextContent: View {
     let text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            textContent
-        }
-        .jinSurface(.subtle, cornerRadius: JinRadius.small)
-        .padding(.top, JinSpacing.xSmall)
-        .transition(.move(edge: .top).combined(with: .opacity))
-    }
-
-    private var textContent: some View {
         Text(text)
             .font(.subheadline)
-            .foregroundStyle(.primary)
+            .foregroundStyle(JinSemanticColor.textSecondary)
             .textSelection(.enabled)
-            .padding(.horizontal, JinSpacing.medium)
-            .padding(.vertical, JinSpacing.small)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, JinSpacing.medium)
+            .padding(.top, JinSpacing.xSmall)
+            .overlay(alignment: .leading) {
+                // Subtle left accent line, marker for "this is reasoning content"
+                // without dropping a full-bleed background.
+                Rectangle()
+                    .fill(JinSemanticColor.borderEmphasized)
+                    .frame(width: 2)
+            }
+            .transition(.move(edge: .top).combined(with: .opacity))
     }
 }
 
@@ -118,10 +137,15 @@ struct StreamingThinkingBlockExpandedContent: View {
 
     var body: some View {
         chunkedText
-            .foregroundStyle(.secondary)
-            .padding(JinSpacing.small)
-            .jinSurface(.subtle, cornerRadius: JinRadius.small)
+            .foregroundStyle(JinSemanticColor.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, JinSpacing.medium)
             .padding(.top, JinSpacing.xSmall)
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(JinSemanticColor.borderEmphasized)
+                    .frame(width: 2)
+            }
             .transition(.move(edge: .top).combined(with: .opacity))
     }
 

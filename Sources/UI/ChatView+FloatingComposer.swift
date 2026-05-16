@@ -43,13 +43,13 @@ extension ChatView {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .padding(.horizontal, ChatConversationLayoutMetrics.compactHorizontalInset)
+        .padding(.bottom, 16)
         .opacity(isExpandedComposerPresented ? 0 : 1)
         .animation(.easeInOut(duration: 0.24), value: mainSidebarWidth)
         .animation(.spring(response: 0.35, dampingFraction: 0.86), value: isComposerHidden)
         .animation(.easeOut(duration: 0.15), value: isSlashMCPPopoverVisible)
         .animation(.easeOut(duration: 0.18), value: isExpandedComposerPresented)
-        .padding(.horizontal, ChatConversationLayoutMetrics.compactHorizontalInset)
-        .padding(.bottom, 16)
         .background {
             GeometryReader { geo in
                 Color.clear.preference(key: ComposerHeightPreferenceKey.self, value: geo.size.height)

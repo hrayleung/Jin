@@ -24,7 +24,7 @@ extension ChatView {
                     .foregroundStyle(.secondary)
             }
             .padding(24)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous))
+            .jinAdaptiveBackground(RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous))
         }
         .allowsHitTesting(false)
         .opacity(isFullPageDropTargeted ? 1 : 0)

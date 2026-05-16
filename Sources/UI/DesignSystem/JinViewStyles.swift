@@ -37,10 +37,8 @@ enum JinSurfaceVariant {
             return JinSemanticColor.selectedStroke
         case .neutral, .accent, .tool:
             return Color.clear
-        case .outlined:
-            return JinSemanticColor.separator.opacity(0.7)
-        default:
-            return JinSemanticColor.separator.opacity(0.7)
+        case .raised, .subtle, .subtleStrong, .outlined:
+            return JinSemanticColor.borderSubtle
         }
     }
 
@@ -50,49 +48,67 @@ enum JinSurfaceVariant {
             return JinStrokeWidth.regular
         case .neutral, .accent, .tool:
             return 0
-        case .outlined:
+        case .raised, .subtle, .subtleStrong, .outlined:
             return JinStrokeWidth.hairline
+        }
+    }
+
+    fileprivate var shadowColor: Color {
+        switch self {
+        case .raised:
+            return JinSemanticColor.shadowSubtle
         default:
-            return JinStrokeWidth.hairline
+            return Color.clear
+        }
+    }
+
+    fileprivate var shadowRadius: CGFloat {
+        switch self {
+        case .raised:
+            return 8
+        default:
+            return 0
+        }
+    }
+
+    fileprivate var shadowYOffset: CGFloat {
+        switch self {
+        case .raised:
+            return 1
+        default:
+            return 0
         }
     }
 }
 
 extension View {
     func jinSurface(_ variant: JinSurfaceVariant, cornerRadius: CGFloat = JinRadius.medium) -> some View {
-        self
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return self
             .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                shape
                     .fill(variant.fill)
+                    .shadow(
+                        color: variant.shadowColor,
+                        radius: variant.shadowRadius,
+                        x: 0,
+                        y: variant.shadowYOffset
+                    )
             )
             .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(variant.stroke, lineWidth: variant.lineWidth)
+                shape.stroke(variant.stroke, lineWidth: variant.lineWidth)
             )
     }
 
     func jinTagStyle(foreground: Color = .secondary) -> some View {
-        self
-            .font(.caption2)
-            .foregroundStyle(foreground)
-            .lineLimit(1)
-            .padding(.horizontal, JinSpacing.small)
-            .padding(.vertical, 3)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(JinSemanticColor.subtleSurface)
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(JinSemanticColor.separator.opacity(0.8), lineWidth: JinStrokeWidth.hairline)
-            )
+        modifier(JinTagStyleModifier(foreground: foreground))
     }
 
     func jinInfoCallout() -> some View {
         HStack(alignment: .top, spacing: JinSpacing.small) {
             Image(systemName: "info.circle")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(JinSemanticColor.textTertiary)
                 .padding(.top, 1)
 
             self
@@ -108,17 +124,7 @@ extension View {
     }
 
     func jinTextEditorField(cornerRadius: CGFloat = JinRadius.small) -> some View {
-        self
-            .scrollContentBackground(.hidden)
-            .padding(JinSpacing.small)
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(JinSemanticColor.textSurface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(JinSemanticColor.separator.opacity(0.55), lineWidth: JinStrokeWidth.hairline)
-            )
+        modifier(JinTextEditorFieldModifier(cornerRadius: cornerRadius))
     }
 
     func jinInlineErrorText() -> some View {
@@ -139,5 +145,68 @@ extension View {
 
     func jinCardPadding() -> some View {
         self.padding(JinSpacing.medium)
+    }
+
+    /// Small-caps section header used to flatten card-in-card nesting. Pairs
+    /// with a single 0.5pt divider underneath; replaces "header bg + body bg
+    /// + border" code-block chrome.
+    func jinSectionHeader() -> some View {
+        self
+            .font(.system(size: 11, weight: .semibold, design: .default))
+            .tracking(0.6)
+            .textCase(.uppercase)
+            .foregroundStyle(JinSemanticColor.textSecondary)
+    }
+}
+
+private struct JinTagStyleModifier: ViewModifier {
+    @Environment(\.colorSchemeContrast) private var contrast
+    let foreground: Color
+
+    func body(content: Content) -> some View {
+        content
+            .font(.caption2)
+            .foregroundStyle(foreground)
+            .lineLimit(1)
+            .padding(.horizontal, JinSpacing.small)
+            .padding(.vertical, 3)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(JinSemanticColor.subtleSurface)
+            )
+            // Tags are interior elements — no stroke. Restored only under
+            // increased-contrast a11y mode where fill alone isn't enough.
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(
+                        contrast == .increased ? JinSemanticColor.borderEmphasized : Color.clear,
+                        lineWidth: JinStrokeWidth.hairline
+                    )
+            )
+    }
+}
+
+private struct JinTextEditorFieldModifier: ViewModifier {
+    @Environment(\.colorSchemeContrast) private var contrast
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(.hidden)
+            .padding(JinSpacing.small)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(JinSemanticColor.textSurface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(borderColor, lineWidth: JinStrokeWidth.hairline)
+            )
+    }
+
+    private var borderColor: Color {
+        contrast == .increased
+            ? JinSemanticColor.borderEmphasized
+            : JinSemanticColor.borderSubtle
     }
 }

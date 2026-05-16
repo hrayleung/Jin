@@ -22,6 +22,10 @@ struct MCPToolTimelineCollapsedSummaryRow: View {
 
     private var summaryRowContent: some View {
         HStack(spacing: JinSpacing.small) {
+            // Disclosure chevron leftmost, hugging the title cluster —
+            // matches macOS native DisclosureGroup / Finder folder pattern.
+            disclosureIndicator
+
             MCPToolTimelineSummaryIconStack(
                 serverIDs: serverIDs,
                 iconIDByServerID: iconIDByServerID
@@ -29,15 +33,14 @@ struct MCPToolTimelineCollapsedSummaryRow: View {
 
             titleText
 
-            Spacer(minLength: 0)
+            // Status badges + streaming live next to the title so the eye
+            // doesn't have to traverse to the right margin to read state.
+            MCPToolTimelineCompactStatusView(badges: compactStatusBadges)
 
             streamingIndicator
 
-            MCPToolTimelineCompactStatusView(badges: compactStatusBadges)
-
-            disclosureIndicator
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, JinSpacing.small)
         .padding(.vertical, 6)
         .contentShape(Rectangle())
     }
@@ -58,9 +61,9 @@ struct MCPToolTimelineCollapsedSummaryRow: View {
     }
 
     private var disclosureIndicator: some View {
-        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(JinSemanticColor.textTertiary)
     }
 }
 
@@ -163,7 +166,6 @@ struct MCPToolTimelineExpandedPanelView: View {
             serverSummaryRow
             entriesList
         }
-        .padding(.horizontal, JinSpacing.small)
         .padding(.top, JinSpacing.xSmall)
         .padding(.bottom, JinSpacing.xSmall)
     }

@@ -18,13 +18,10 @@ struct ModelPickerSearchField: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.regularMaterial)
-        )
+        .jinAdaptiveBackground(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 0.5)
+                .stroke(JinSemanticColor.borderEmphasized, lineWidth: JinStrokeWidth.hairline)
         )
         .task {
             // Popover's window needs a tick to become key before
@@ -302,13 +299,13 @@ struct ModelPickerRow: View {
 
 extension View {
     func modelPickerListSurface() -> some View {
-        background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.thinMaterial)
+        jinAdaptiveBackground(
+            RoundedRectangle(cornerRadius: 12, style: .continuous),
+            material: .thinMaterial
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.35), lineWidth: 0.5)
+                .stroke(JinSemanticColor.borderSubtle, lineWidth: JinStrokeWidth.hairline)
         )
     }
 
