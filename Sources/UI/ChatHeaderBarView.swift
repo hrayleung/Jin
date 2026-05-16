@@ -122,10 +122,13 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
         .padding(.top, JinSpacing.small)
         .padding(.bottom, JinSpacing.small)
         .frame(minHeight: 38)
-        .background(JinSemanticColor.detailSurface)
+        // Header shares the chat content surface — one continuous canvas,
+        // not a separate "toolbar band". The bottom hairline is the only
+        // separator. (See JinDesignTokens — single content surface principle.)
+        .background(JinSemanticColor.surface)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.45))
+                .fill(JinSemanticColor.borderSubtle)
                 .frame(height: JinStrokeWidth.hairline)
         }
     }
@@ -260,13 +263,13 @@ struct ChatHeaderBarView<ModelPickerContent: View, AddModelPickerContent: View>:
             .padding(.vertical, 3)
             .background(
                 Capsule(style: .circular)
-                    .fill(thread.isSelected ? Color.accentColor.opacity(0.2) : JinSemanticColor.surface)
+                    .fill(thread.isSelected ? JinSemanticColor.selectedSurface : JinSemanticColor.raisedSurface)
             )
             .overlay(
                 Capsule(style: .circular)
                     .stroke(
-                        thread.isActive ? Color.accentColor.opacity(0.75) : JinSemanticColor.separator.opacity(0.45),
-                        lineWidth: thread.isActive ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline
+                        thread.isActive ? Color.accentColor.opacity(0.75) : Color.clear,
+                        lineWidth: JinStrokeWidth.emphasized
                     )
             )
         }

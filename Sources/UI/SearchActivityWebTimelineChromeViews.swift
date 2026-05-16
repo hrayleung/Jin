@@ -26,12 +26,12 @@ struct SearchActivityWebTimelineCollapsedSummaryRow: View {
             summaryIcon
             summaryTitleContent
 
+            streamingIndicator
+
             Spacer(minLength: 0)
 
-            streamingIndicator
             disclosureIndicator
         }
-        .padding(.horizontal, JinSpacing.small)
         .padding(.vertical, 6)
         .contentShape(Rectangle())
     }

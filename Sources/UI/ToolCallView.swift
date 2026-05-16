@@ -66,7 +66,7 @@ struct ToolCallView: View {
             }
             .padding(.horizontal, JinSpacing.medium)
             .padding(.vertical, JinSpacing.small)
-            .jinSurface(.neutral, cornerRadius: JinRadius.small)
+            .jinSurface(.subtle, cornerRadius: JinRadius.small)
         }
         .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
         .animation(.spring(duration: 0.24, bounce: 0), value: resolvedStatus)

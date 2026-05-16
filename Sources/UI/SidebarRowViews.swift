@@ -212,7 +212,7 @@ struct AssistantTileView: View {
             if isSelected || isHovered {
                 RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
                     .stroke(
-                        isSelected ? JinSemanticColor.selectedStroke : JinSemanticColor.separator.opacity(0.32),
+                        isSelected ? JinSemanticColor.selectedStroke : JinSemanticColor.borderSubtle,
                         lineWidth: JinStrokeWidth.hairline
                     )
             }

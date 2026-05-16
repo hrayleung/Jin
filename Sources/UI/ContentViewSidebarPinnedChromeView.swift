@@ -33,19 +33,7 @@ struct ContentViewSidebarPinnedChromeView: View {
             searchField
         }
         .padding(.bottom, JinSpacing.small)
-        .background(JinSemanticColor.sidebarSurface)
-        .overlay(alignment: .bottom) {
-            LinearGradient(
-                colors: [
-                    JinSemanticColor.separator.opacity(0.08),
-                    .clear
-                ],
-                startPoint: .bottom,
-                endPoint: .top
-            )
-            .frame(height: 10)
-            .allowsHitTesting(false)
-        }
+        .background(JinSemanticColor.canvas)
     }
 
     private var searchField: some View {
@@ -66,18 +54,12 @@ struct ContentViewSidebarPinnedChromeView: View {
         .padding(.vertical, JinSpacing.small + 2)
         .background(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(
-                    searchFieldIsActive
-                        ? JinSemanticColor.surface
-                        : JinSemanticColor.surface.opacity(0.9)
-                )
+                .fill(searchFieldIsActive ? JinSemanticColor.raisedSurface : JinSemanticColor.panelSurface)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .stroke(
-                    searchFieldIsActive
-                        ? JinSemanticColor.separator.opacity(0.28)
-                        : JinSemanticColor.separator.opacity(0.16),
+                    searchFieldIsActive ? JinSemanticColor.borderEmphasized : JinSemanticColor.borderSubtle,
                     lineWidth: JinStrokeWidth.hairline
                 )
         }

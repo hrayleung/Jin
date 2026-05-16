@@ -27,12 +27,12 @@ struct SearchSourceCardView: View {
         .overlay(
             RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
                 .stroke(
-                    isHovered ? JinSemanticColor.selectedStroke : JinSemanticColor.separator.opacity(0.42),
+                    isHovered ? JinSemanticColor.selectedStroke : JinSemanticColor.borderSubtle,
                     lineWidth: isHovered ? JinStrokeWidth.regular : JinStrokeWidth.hairline
                 )
         )
         .scaleEffect(isHovered ? 1.01 : 1)
-        .shadow(color: Color.black.opacity(isHovered ? 0.1 : 0), radius: 10, x: 0, y: 5)
+        .shadow(color: isHovered ? JinSemanticColor.shadowElevated : Color.clear, radius: 12, x: 0, y: 4)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hovering

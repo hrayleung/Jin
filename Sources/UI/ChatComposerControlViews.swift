@@ -63,7 +63,7 @@ struct ComposerControlIconLabel: View {
                 )
                 .overlay(
                     Circle()
-                        .stroke(isActive ? JinSemanticColor.separator.opacity(0.45) : Color.clear, lineWidth: JinStrokeWidth.hairline)
+                        .stroke(Color.clear, lineWidth: JinStrokeWidth.hairline)
                 )
                 .shadow(color: isActive ? activeColor.opacity(0.35) : Color.clear, radius: 6, x: 0, y: 0)
 
@@ -75,11 +75,7 @@ struct ComposerControlIconLabel: View {
                     .foregroundStyle(.primary)
                     .background(
                         Capsule()
-                            .fill(JinSemanticColor.surface)
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(JinSemanticColor.separator.opacity(0.7), lineWidth: JinStrokeWidth.hairline)
+                            .fill(JinSemanticColor.subtleSurface)
                     )
                     .offset(x: JinSpacing.xSmall, y: JinSpacing.xSmall)
             }
@@ -99,7 +95,7 @@ struct ComposerEditorSurface<Content: View>: View {
         if isFocused {
             return Color.accentColor.opacity(0.34)
         }
-        return JinSemanticColor.separator.opacity(0.5)
+        return JinSemanticColor.borderEmphasized
     }
 
     private var shadowColor: Color {
@@ -109,7 +105,7 @@ struct ComposerEditorSurface<Content: View>: View {
         if isFocused {
             return Color.accentColor.opacity(0.10)
         }
-        return Color.black.opacity(0.04)
+        return JinSemanticColor.shadowSubtle
     }
 
     var body: some View {
@@ -200,7 +196,7 @@ struct CollapsedComposerBar: View {
             HStack(spacing: JinSpacing.medium) {
                 Image(systemName: "chevron.up")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(JinSemanticColor.textTertiary)
 
                 Text(hasContent ? "Continue typing\u{2026}" : "Type a message\u{2026}")
                     .font(.callout)
@@ -212,12 +208,12 @@ struct CollapsedComposerBar: View {
             .padding(.vertical, 10)
             .frame(maxWidth: 800)
             .background {
-                shape.fill(.regularMaterial)
+                shape.fill(JinSemanticColor.raisedSurface)
             }
             .overlay(
-                shape.stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
+                shape.stroke(JinSemanticColor.borderEmphasized, lineWidth: JinStrokeWidth.hairline)
             )
-            .shadow(color: Color.black.opacity(0.06), radius: 10, x: 0, y: 4)
+            .shadow(color: JinSemanticColor.shadowElevated, radius: 16, x: 0, y: 4)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Show message composer")

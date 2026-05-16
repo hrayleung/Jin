@@ -244,11 +244,11 @@ struct SettingsView: View {
         }
         .animation(settingsMotionAnimation, value: selectedSection)
         .background {
-            JinSemanticColor.panelSurface.ignoresSafeArea()
+            JinSemanticColor.surface.ignoresSafeArea()
         }
         .overlay(alignment: .trailing) {
             Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.4))
+                .fill(JinSemanticColor.borderSubtle)
                 .frame(width: JinStrokeWidth.hairline)
         }
         .navigationSplitViewColumnWidth(min: 220, ideal: 230, max: 230)

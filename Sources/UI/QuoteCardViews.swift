@@ -191,11 +191,11 @@ private struct QuoteCardContainer<Accessory: View>: View {
         )
         .background(
             RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                .fill(JinSemanticColor.subtleSurface.opacity(0.65))
+                .fill(JinSemanticColor.subtleSurface)
         )
         .overlay(
             RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                .stroke(JinSemanticColor.separator.opacity(0.4), lineWidth: JinStrokeWidth.hairline)
+                .stroke(JinSemanticColor.borderSubtle, lineWidth: JinStrokeWidth.hairline)
         )
         .overlay(alignment: .topTrailing) {
             accessory
@@ -283,10 +283,8 @@ private struct QuoteDismissButton: View {
                 .overlay(
                     Circle()
                         .stroke(
-                            isButtonFocused
-                                ? Color.accentColor.opacity(0.7)
-                                : JinSemanticColor.separator.opacity(0.4),
-                            lineWidth: isButtonFocused ? JinStrokeWidth.regular : JinStrokeWidth.hairline
+                            isButtonFocused ? Color.accentColor.opacity(0.7) : Color.clear,
+                            lineWidth: JinStrokeWidth.regular
                         )
                 )
                 .contentShape(Rectangle())

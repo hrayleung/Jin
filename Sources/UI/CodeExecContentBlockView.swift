@@ -37,69 +37,27 @@ struct CodeExecContentBlockView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: JinSpacing.small) {
-                Image(systemName: style.iconName)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(style.iconColor)
-
-                Text(title)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(style.titleColor)
-
-                if let badgeText, !badgeText.isEmpty {
-                    Text(badgeText)
-                        .jinTagStyle(foreground: style.badgeColor)
-                }
-
-                Spacer(minLength: 0)
-
-                if showsExpandControl {
-                    Button(isExpanded ? "Show Less" : "Show More") {
-                        withAnimation(.spring(duration: 0.25, bounce: 0)) {
-                            isExpanded.toggle()
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-                }
-
-                CopyToPasteboardButton(
-                    text: text,
-                    helpText: "Copy \(title.lowercased())",
-                    copiedHelpText: "\(title) copied",
-                    useProminentStyle: false
-                )
-            }
-            .padding(.horizontal, JinSpacing.medium - 2)
-            .padding(.vertical, JinSpacing.xSmall)
-            .background(style.headerBackground)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(JinSemanticColor.separator.opacity(0.55))
-                    .frame(height: JinStrokeWidth.hairline)
-            }
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            sectionHeader
 
             ScrollView([.vertical, .horizontal], showsIndicators: true) {
                 HStack(alignment: .top, spacing: JinSpacing.medium) {
                     if style.showsLineNumbers, let lineNumberText {
                         Text(lineNumberText)
                             .font(Self.contentFont)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(JinSemanticColor.textTertiary)
                             .multilineTextAlignment(.trailing)
                             .padding(.trailing, JinSpacing.small)
                             .overlay(alignment: .trailing) {
                                 Rectangle()
-                                    .fill(JinSemanticColor.separator.opacity(0.45))
+                                    .fill(JinSemanticColor.borderSubtle)
                                     .frame(width: JinStrokeWidth.hairline)
                             }
                     }
 
                     renderedTextBody
                 }
-                .padding(.horizontal, JinSpacing.medium - 2)
-                .padding(.vertical, JinSpacing.small)
+                .padding(JinSpacing.small)
                 .frame(minWidth: scrollViewWidth, alignment: .leading)
             }
             .defaultScrollAnchor(.topLeading)
@@ -111,13 +69,49 @@ struct CodeExecContentBlockView: View {
                 }
             )
             .frame(maxHeight: currentMaxHeight, alignment: .top)
-            .background(style.bodyBackground)
+            .background(
+                RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                    .fill(JinSemanticColor.subtleSurface)
+            )
         }
-        .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                .stroke(style.borderColor, lineWidth: JinStrokeWidth.hairline)
-        )
+    }
+
+    private var sectionHeader: some View {
+        HStack(spacing: JinSpacing.small) {
+            Image(systemName: style.iconName)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(style.iconColor)
+
+            Text(title)
+                .jinSectionHeader()
+                .foregroundStyle(style.titleColor)
+
+            if let badgeText, !badgeText.isEmpty {
+                Text(badgeText)
+                    .jinTagStyle(foreground: style.badgeColor)
+            }
+
+            // Copy + Show More sit next to the title cluster, not on the right margin.
+            CopyToPasteboardButton(
+                text: text,
+                helpText: "Copy \(title.lowercased())",
+                copiedHelpText: "\(title) copied",
+                useProminentStyle: false
+            )
+
+            if showsExpandControl {
+                Button(isExpanded ? "Show Less" : "Show More") {
+                    withAnimation(.spring(duration: 0.25, bounce: 0)) {
+                        isExpanded.toggle()
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
     }
 
     @ViewBuilder

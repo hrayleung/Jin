@@ -110,7 +110,7 @@ private struct HistoricalMessageImageView: View {
                 .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: JinStrokeWidth.hairline)
+                        .stroke(JinSemanticColor.borderSubtle, lineWidth: JinStrokeWidth.hairline)
                 )
                 .onTapGesture(perform: openImage)
                 .onDrag(dragProvider)

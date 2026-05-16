@@ -97,9 +97,13 @@ struct MessageRowFooterView: View {
 
             Text(MessageRowPresentationSupport.timestampText(for: timestamp))
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(JinSemanticColor.textTertiary)
                 .lineLimit(1)
         }
+        // Align footer leading with the bubble's inner content rail
+        // (bubble has .padding(JinSpacing.medium); footer lives outside, so
+        // we mirror that padding here for a single-rail layout).
+        .padding(.horizontal, JinSpacing.medium)
     }
 
     private var userFooter: some View {
@@ -153,6 +157,7 @@ struct MessageRowFooterView: View {
                 .help("More actions")
             }
         }
+        .padding(.horizontal, JinSpacing.medium)
     }
 
     @ViewBuilder

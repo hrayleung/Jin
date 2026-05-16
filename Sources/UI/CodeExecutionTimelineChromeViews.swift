@@ -68,7 +68,7 @@ struct CodeExecutionTimelineHeaderRow: View {
     private var disclosureIndicator: some View {
         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(JinSemanticColor.textTertiary)
     }
 }
 

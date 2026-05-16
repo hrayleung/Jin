@@ -26,7 +26,7 @@ struct RemoteMessageImageView: View {
                     .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                            .stroke(Color.primary.opacity(0.08), lineWidth: JinStrokeWidth.hairline)
+                            .stroke(JinSemanticColor.borderSubtle, lineWidth: JinStrokeWidth.hairline)
                     )
                     .onTapGesture {
                         NSWorkspace.shared.open(url)

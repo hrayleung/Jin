@@ -33,7 +33,7 @@ struct UserMessageMCPBadgeRow: View {
             .padding(.vertical, 2)
             .background(
                 Capsule()
-                    .fill(Color.primary.opacity(0.08))
+                    .fill(JinSemanticColor.subtleSurface)
             )
     }
 }
@@ -163,7 +163,7 @@ struct CollapsedAssistantPreviewView: View {
             if preview.lineCount > 1 {
                 Text("\(preview.lineCount) lines")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(JinSemanticColor.textTertiary)
             }
 
             Spacer(minLength: 0)

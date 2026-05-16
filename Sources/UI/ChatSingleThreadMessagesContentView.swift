@@ -104,8 +104,8 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .frame(width: 32, height: 32)
-                            .background(.regularMaterial, in: Circle())
-                            .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+                            .jinAdaptiveBackground(Circle())
+                            .shadow(color: JinSemanticColor.shadowElevated, radius: 6, y: 2)
                     }
                     .buttonStyle(.plain)
                     .padding(.trailing, 20)
