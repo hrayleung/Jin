@@ -15,18 +15,15 @@ struct ThinkingBlockHeaderButton: View {
     @State private var isHovering = false
 
     var body: some View {
+        // Resolved merge: keep this branch's flat-no-surface design and
+        // hover-revealed copy button next to the title (the left-cluster
+        // UX the user explicitly asked for), while adopting master's
+        // `titleDisclosureButton` / `chevronDisclosureButton` helper split
+        // for readability. streaming indicator stays outside the title
+        // button so the hover-reveal-copy and streaming dots sit adjacent
+        // to the title rather than wrapped inside the disclosure tap area.
         HStack(spacing: JinSpacing.small) {
-            // Left cluster: title is the disclosure target. Copy + streaming
-            // sit *next to* the title (not pushed to the right margin) so the
-            // user doesn't have to traverse the row to find them.
-            Button(action: action) {
-                HStack(spacing: JinSpacing.xSmall) {
-                    headerIcon
-                    titleText
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+            titleDisclosureButton
 
             // Copy fades in on hover but reserves layout space so the row
             // doesn't jump. Matches Claude/ChatGPT message-action pattern.
@@ -39,19 +36,34 @@ struct ThinkingBlockHeaderButton: View {
 
             Spacer(minLength: 0)
 
-            // Chevron stays on the right as the conventional disclosure cue;
-            // both left cluster and chevron toggle expanded state.
-            Button(action: action) {
-                disclosureIndicator
-                    .frame(width: 18, height: 18)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+            chevronDisclosureButton
         }
         .frame(minHeight: ThinkingHeaderCopyButton.hitSize)
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
         // No surface — Thinking lives inline in the message like MCP/tool blocks.
+    }
+
+    private var titleDisclosureButton: some View {
+        Button(action: action) {
+            HStack(spacing: JinSpacing.xSmall) {
+                headerIcon
+                titleText
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var chevronDisclosureButton: some View {
+        Button(action: action) {
+            disclosureIndicator
+                .padding(.leading, JinSpacing.xSmall)
+                .padding(.vertical, JinSpacing.xSmall)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -148,45 +160,26 @@ struct ThinkingHeaderCopyButton: View {
     let text: String
 
     @State private var didCopy = false
-    @State private var isHovering = false
     @State private var resetTask: Task<Void, Never>?
 
-    private static let glyphSize: CGFloat = 11
-    fileprivate static let hitSize: CGFloat = 22
+    private static let glyphSize: CGFloat = JinControlMetrics.iconButtonGlyphSize
+    fileprivate static let hitSize: CGFloat = 20
 
     var body: some View {
         Button(action: copy) {
-            ZStack {
-                RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                    .fill(backgroundFill)
-                Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: Self.glyphSize, weight: .semibold))
-                    .foregroundStyle(glyphColor)
-                    .symbolRenderingMode(.monochrome)
-                    .contentTransition(.symbolEffect(.replace.downUp))
-            }
-            .frame(width: Self.hitSize, height: Self.hitSize)
-            .contentShape(Rectangle())
+            Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+                .font(.system(size: Self.glyphSize, weight: .semibold))
+                .foregroundStyle(glyphColor)
+                .symbolRenderingMode(.monochrome)
+                .contentTransition(.symbolEffect(.replace.downUp))
+                .frame(width: Self.hitSize, height: Self.hitSize)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(didCopy ? "Copied" : "Copy thinking")
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) {
-                isHovering = hovering
-            }
-        }
         .onDisappear {
             resetTask?.cancel()
         }
-    }
-
-    private var backgroundFill: Color {
-        if didCopy {
-            return Color.accentColor.opacity(0.18)
-        }
-        return isHovering
-            ? JinSemanticColor.subtleSurfaceStrong
-            : Color.clear
     }
 
     private var glyphColor: Color {
