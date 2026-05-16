@@ -13,27 +13,40 @@ struct ThinkingBlockHeaderButton: View {
     let action: () -> Void
 
     var body: some View {
-        disclosureRegion
-            .frame(minHeight: ThinkingHeaderCopyButton.hitSize)
-            .padding(.horizontal, JinSpacing.medium)
-            .padding(.vertical, JinSpacing.small)
-            .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
+        HStack(spacing: JinSpacing.xSmall) {
+            titleDisclosureButton
+            copyAffordance
+            chevronDisclosureButton
+        }
+        .frame(minHeight: ThinkingHeaderCopyButton.hitSize)
+        .padding(.horizontal, JinSpacing.medium)
+        .padding(.vertical, JinSpacing.small)
+        .jinSurface(.subtleStrong, cornerRadius: JinRadius.small)
     }
 
-    private var disclosureRegion: some View {
+    private var titleDisclosureButton: some View {
         Button(action: action) {
             HStack(spacing: JinSpacing.small) {
                 headerIcon
                 titleText
                 streamingIndicator
-                Spacer(minLength: JinSpacing.small)
-                copyAffordance
-                disclosureIndicator
+                Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private var chevronDisclosureButton: some View {
+        Button(action: action) {
+            disclosureIndicator
+                .padding(.leading, JinSpacing.xSmall)
+                .padding(.vertical, JinSpacing.xSmall)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHidden(true)
     }
 
     @ViewBuilder
