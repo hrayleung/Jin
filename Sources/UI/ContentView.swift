@@ -4,19 +4,6 @@ import SwiftData
 import AppKit
 #endif
 
-/// macOS 26+ wrapper for `backgroundExtensionEffect()`. On older OSes
-/// the modifier is a no-op so the detail view's background does not extend
-/// into the safe-area region behind the floating sidebar.
-private struct JinDetailBackgroundExtension: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            content.backgroundExtensionEffect()
-        } else {
-            content
-        }
-    }
-}
-
 struct ContentView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var streamingStore: ConversationStreamingStore

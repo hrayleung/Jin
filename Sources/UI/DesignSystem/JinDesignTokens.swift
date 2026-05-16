@@ -85,8 +85,11 @@ enum JinSemanticColor {
     /// for dedicated text input fields. New code can use `raisedSurface`.
     static let textSurface = raisedSurface
 
-    /// Deprecated — kept only for the dark-mode strong variant of subtle.
-    /// In light, identical to `subtleSurface`.
+    /// Deprecated alias. Currently resolves to the same value as
+    /// `subtleSurface` in both light and dark modes — no differentiation.
+    /// Kept only so legacy call sites don't break; prefer `subtleSurface`
+    /// in new code. If a genuinely darker "strong subtle" is ever needed,
+    /// give this its own `Color(light:dark:)` value rather than aliasing.
     static let subtleSurfaceStrong = subtleSurface
 
     // MARK: - Borders (opacity-on-axis so they adapt to any surface)

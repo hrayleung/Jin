@@ -54,7 +54,7 @@ struct SlashCommandMCPPopover: View {
                     listContent(items)
                 }
             }
-            .background(.regularMaterial)
+            .jinAdaptiveBackground(RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous))
             .clipShape(RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
