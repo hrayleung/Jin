@@ -60,6 +60,7 @@ struct ChatSingleThreadMessagesView: View {
             layoutCenterOffsetBucket: Int(layoutCenterOffset.rounded(.toNearestOrAwayFromZero)),
             allMessageCount: allMessages.count,
             lastMessageID: allMessages.last?.id,
+            messageRenderLimit: messageRenderLimit,
             toolResultCount: toolResultsByCallID.count,
             entityCount: messageEntitiesByID.count,
             assistantDisplayName: assistantDisplayName,

@@ -48,6 +48,7 @@ enum ChatMessageStageEquatableKeyBuilder {
         layoutCenterOffsetBucket: Int,
         allMessageCount: Int,
         lastMessageID: UUID?,
+        messageRenderLimit: Int,
         toolResultCount: Int,
         entityCount: Int,
         assistantDisplayName: String,
@@ -71,6 +72,7 @@ enum ChatMessageStageEquatableKeyBuilder {
             layoutCenterOffsetBucket: layoutCenterOffsetBucket,
             allMessageCount: allMessageCount,
             lastMessageID: lastMessageID,
+            messageRenderLimit: messageRenderLimit,
             toolResultCount: toolResultCount,
             entityCount: entityCount,
             assistantDisplayName: assistantDisplayName,
@@ -99,6 +101,10 @@ struct ChatStageEquatableKey: Equatable {
     let layoutCenterOffsetBucket: Int
     let allMessageCount: Int
     let lastMessageID: UUID?
+    // Visible-window size for the single-thread stage. Without this, clicking
+    // "Load N earlier messages" updates the upstream binding but the EquatableView
+    // wrapper short-circuits the re-render because every other field is unchanged.
+    let messageRenderLimit: Int
     let toolResultCount: Int
     let entityCount: Int
     let assistantDisplayName: String

@@ -16,6 +16,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             layoutCenterOffsetBucket: 0,
             allMessageCount: 1,
             lastMessageID: messageID,
+            messageRenderLimit: 50,
             toolResultCount: 1,
             entityCount: 1,
             assistantDisplayName: "Assistant",
@@ -38,6 +39,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             layoutCenterOffsetBucket: 0,
             allMessageCount: 1,
             lastMessageID: messageID,
+            messageRenderLimit: 50,
             toolResultCount: 1,
             entityCount: 1,
             assistantDisplayName: "Assistant",
@@ -68,6 +70,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
                 layoutCenterOffsetBucket: 0,
                 allMessageCount: 1,
                 lastMessageID: messageID,
+                messageRenderLimit: 50,
                 toolResultCount: 0,
                 entityCount: 0,
                 assistantDisplayName: "Assistant",
@@ -106,6 +109,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
                 layoutCenterOffsetBucket: layoutCenterOffsetBucket,
                 allMessageCount: 1,
                 lastMessageID: messageID,
+                messageRenderLimit: 50,
                 toolResultCount: 0,
                 entityCount: 0,
                 assistantDisplayName: "Assistant",
@@ -136,6 +140,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             layoutCenterOffsetBucket: 0,
             allMessageCount: 1,
             lastMessageID: messageID,
+            messageRenderLimit: 50,
             toolResultCount: 0,
             entityCount: 0,
             assistantDisplayName: "Assistant",
@@ -158,6 +163,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             layoutCenterOffsetBucket: 0,
             allMessageCount: 2,
             lastMessageID: UUID(),
+            messageRenderLimit: 50,
             toolResultCount: 0,
             entityCount: 0,
             assistantDisplayName: "Assistant",
@@ -180,6 +186,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             layoutCenterOffsetBucket: 0,
             allMessageCount: 1,
             lastMessageID: messageID,
+            messageRenderLimit: 50,
             toolResultCount: 0,
             entityCount: 0,
             assistantDisplayName: "Assistant",
@@ -195,6 +202,43 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
 
         XCTAssertNotEqual(base, withNewMessage)
         XCTAssertNotEqual(base, withComposerHeightChange)
+    }
+
+    func testSingleThreadKeyChangesForMessageRenderLimit() {
+        let conversationID = UUID()
+        let messageID = UUID()
+
+        func makeKey(messageRenderLimit: Int) -> ChatStageEquatableKey {
+            ChatMessageStageEquatableKeyBuilder.singleThreadKey(
+                conversationID: conversationID,
+                conversationMessageCount: 1,
+                renderRevision: 1,
+                viewportHeight: 600,
+                layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200),
+                layoutCenterOffsetBucket: 0,
+                allMessageCount: 1,
+                lastMessageID: messageID,
+                messageRenderLimit: messageRenderLimit,
+                toolResultCount: 0,
+                entityCount: 0,
+                assistantDisplayName: "Assistant",
+                providerType: nil,
+                providerIconID: nil,
+                composerHeight: 80,
+                isStreaming: false,
+                streamingObjectID: nil,
+                streamingModelLabel: nil,
+                streamingModelID: nil,
+                expandedCollapsedMessageIDs: []
+            )
+        }
+
+        // Guards the "Load N earlier messages" button: when the user paginates
+        // older history in, only `messageRenderLimit` changes — every other
+        // input the key tracks (allMessageCount, lastMessageID, etc.) stays
+        // identical. Without this field, EquatableView short-circuits and the
+        // button looks dead.
+        XCTAssertNotEqual(makeKey(messageRenderLimit: 50), makeKey(messageRenderLimit: 100))
     }
 
     func testSingleThreadKeyChangesForUserMessageEditingState() {
@@ -217,6 +261,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
                 layoutCenterOffsetBucket: 0,
                 allMessageCount: 1,
                 lastMessageID: messageID,
+                messageRenderLimit: 50,
                 toolResultCount: 0,
                 entityCount: 1,
                 assistantDisplayName: "Assistant",
