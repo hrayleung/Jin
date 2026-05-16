@@ -23,6 +23,10 @@ struct ThinkingBlockHeaderButton: View {
         // button so the hover-reveal-copy and streaming dots sit adjacent
         // to the title rather than wrapped inside the disclosure tap area.
         HStack(spacing: JinSpacing.small) {
+            // Disclosure chevron leftmost, hugging the title cluster —
+            // matches macOS native DisclosureGroup / Finder folder pattern.
+            chevronDisclosureButton
+
             titleDisclosureButton
 
             // Copy fades in on hover but reserves layout space so the row
@@ -35,8 +39,6 @@ struct ThinkingBlockHeaderButton: View {
             streamingIndicator
 
             Spacer(minLength: 0)
-
-            chevronDisclosureButton
         }
         .frame(minHeight: ThinkingHeaderCopyButton.hitSize)
         .contentShape(Rectangle())

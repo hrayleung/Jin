@@ -110,8 +110,15 @@ struct ContentView: View {
                 onDeleteAtOffsets: deleteConversations
             )
         }
-        // No background — NavigationSplitView gives the sidebar its native
-        // chrome (Liquid Glass on macOS 26, sidebar material on 14/15).
+        // Sidebar paints the same `surface` color as the chat detail pane
+        // (and the Settings window). On Tahoe, leaving this fully transparent
+        // lets the system Liquid Glass material show through with a slightly
+        // lighter tint than the detail pane — when the user opens the
+        // Settings window and the main window loses focus, the resulting
+        // light-sidebar / dark-detail contrast reads as "ugly". One unified
+        // surface tone removes that disparity at the cost of dropping the
+        // automatic Liquid Glass refraction.
+        .background(JinSemanticColor.surface)
     }
 
     private var sidebarPinnedChrome: some View {

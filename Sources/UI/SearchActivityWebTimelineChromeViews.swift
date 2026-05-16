@@ -23,14 +23,14 @@ struct SearchActivityWebTimelineCollapsedSummaryRow: View {
 
     private var summaryRowContent: some View {
         HStack(spacing: JinSpacing.small) {
+            disclosureIndicator
+
             summaryIcon
             summaryTitleContent
 
             streamingIndicator
 
             Spacer(minLength: 0)
-
-            disclosureIndicator
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())
@@ -66,7 +66,7 @@ struct SearchActivityWebTimelineCollapsedSummaryRow: View {
     }
 
     private var disclosureIndicator: some View {
-        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
     }
