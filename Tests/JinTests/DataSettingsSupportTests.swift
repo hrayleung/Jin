@@ -42,6 +42,10 @@ final class DataSettingsSupportTests: XCTestCase {
             "This will delete all MCP server isolation directories (0 bytes). They will be recreated as needed."
         )
         XCTAssertEqual(
+            DataSettingsSupport.clearConfirmationMessage(for: .legacySpeechModels, byteCount: 0),
+            "This will delete all leftover on-device speech model files (0 bytes). These are unused now that WhisperKit and TTSKit have been removed."
+        )
+        XCTAssertEqual(
             DataSettingsSupport.clearConfirmationMessage(for: .database, byteCount: 0),
             ""
         )

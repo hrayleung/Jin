@@ -59,11 +59,10 @@ extension TextToSpeechPluginSettingsView {
     }
 
     func persistAPIKeyIfNeeded(forProviderRaw rawValue: String, showSavedStatus: Bool) {
-        guard let preferenceKey = apiKeyPreferenceKey(for: rawValue) else {
-            statusMessage = providerErrorMessage(for: rawValue)
-            statusIsError = true
-            return
-        }
+        // Silent no-op for unrecognized provider raws (e.g. a legacy "whisperKit"
+        // value remembered from a prior install) so flipping to a valid provider
+        // doesn't flash an "invalid provider" error in the settings UI.
+        guard let preferenceKey = apiKeyPreferenceKey(for: rawValue) else { return }
         let key = trimmedAPIKey
         persistAPIKey(key, forPreferenceKey: preferenceKey, showSavedStatus: showSavedStatus)
     }
