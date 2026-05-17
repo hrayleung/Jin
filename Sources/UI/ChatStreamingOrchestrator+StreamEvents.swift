@@ -48,6 +48,16 @@ extension ChatStreamingOrchestrator {
         case .toolCallDelta:
             break
         case .toolCallEnd(let call):
+            if let searchActivity = toolSearchStartActivity(
+                for: call,
+                builtinRoutes: builtinRoutes
+            ) {
+                await applyStreamSearchActivity(
+                    searchActivity,
+                    accumulator: &state.accumulator,
+                    streamingState: streamingState
+                )
+            }
             await applyStreamToolCall(
                 call,
                 accumulator: &state.accumulator,
