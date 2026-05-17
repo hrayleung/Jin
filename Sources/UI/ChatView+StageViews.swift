@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // MARK: - Stage Views
@@ -11,6 +12,21 @@ enum ChatStageBottomFadeMetrics {
     static func normalizedComposerHeight(_ height: CGFloat) -> CGFloat {
         guard height.isFinite else { return 0 }
         return max(0, height.rounded(.toNearestOrAwayFromZero))
+    }
+
+    static func composerHeightUpdate(
+        currentHeight: CGFloat,
+        measuredHeight: CGFloat,
+        isComposerHidden: Bool
+    ) -> CGFloat? {
+        let normalizedHeight = normalizedComposerHeight(measuredHeight)
+
+        if !isComposerHidden, currentHeight > 0, normalizedHeight == 0 {
+            return nil
+        }
+
+        guard currentHeight != normalizedHeight else { return nil }
+        return normalizedHeight
     }
 
     static func fadeHeight(composerHeight: CGFloat, isComposerHidden: Bool) -> CGFloat {
@@ -36,32 +52,96 @@ private struct ChatStageBottomFadeView: View {
     }
 
     var body: some View {
-        Canvas(opaque: false, rendersAsynchronously: true) { context, size in
-            guard size.width > 0, size.height > 0 else { return }
-
-            let rect = CGRect(origin: .zero, size: size)
-            let gradient = Gradient(stops: [
-                .init(color: surfaceColor.opacity(0), location: 0),
-                .init(color: surfaceColor.opacity(0.10), location: 0.24),
-                .init(color: surfaceColor.opacity(0.34), location: 0.58),
-                .init(color: surfaceColor.opacity(0.72), location: 0.84),
-                .init(color: surfaceColor, location: 1)
-            ])
-
-            context.fill(
-                Path(rect),
-                with: .linearGradient(
-                    gradient,
-                    startPoint: CGPoint(x: rect.midX, y: rect.minY),
-                    endPoint: CGPoint(x: rect.midX, y: rect.maxY)
-                )
-            )
-        }
+        StableBottomFadeGradientView(surfaceColor: surfaceColor)
         .frame(height: fadeHeight)
         .frame(maxWidth: .infinity)
         .opacity(isExpandedComposerPresented ? 0 : 1)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+private struct StableBottomFadeGradientView: NSViewRepresentable {
+    let surfaceColor: Color
+
+    func makeNSView(context: Context) -> StableBottomFadeGradientNSView {
+        let view = StableBottomFadeGradientNSView()
+        view.surfaceColor = NSColor(surfaceColor)
+        return view
+    }
+
+    func updateNSView(_ nsView: StableBottomFadeGradientNSView, context: Context) {
+        nsView.surfaceColor = NSColor(surfaceColor)
+    }
+}
+
+private final class StableBottomFadeGradientNSView: NSView {
+    var surfaceColor: NSColor = .windowBackgroundColor {
+        didSet {
+            updateGradientColors()
+        }
+    }
+
+    override var isFlipped: Bool { true }
+
+    private var gradientLayer: CAGradientLayer {
+        guard let layer = layer as? CAGradientLayer else {
+            let gradientLayer = CAGradientLayer()
+            self.layer = gradientLayer
+            return gradientLayer
+        }
+        return layer
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer = CAGradientLayer()
+        updateGradientConfiguration()
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateGradientColors()
+    }
+
+    private func updateGradientConfiguration() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        let gradientLayer = gradientLayer
+        gradientLayer.startPoint = CGPoint(x: 0.5, y: 0)
+        gradientLayer.endPoint = CGPoint(x: 0.5, y: 1)
+        gradientLayer.locations = [0, 0.24, 0.58, 0.84, 1]
+        updateGradientColorsInsideCurrentTransaction()
+
+        CATransaction.commit()
+    }
+
+    private func updateGradientColors() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        updateGradientColorsInsideCurrentTransaction()
+        CATransaction.commit()
+    }
+
+    private func updateGradientColorsInsideCurrentTransaction() {
+        var resolvedColor = surfaceColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            resolvedColor = surfaceColor.usingColorSpace(.sRGB) ?? surfaceColor
+        }
+        gradientLayer.colors = [
+            resolvedColor.withAlphaComponent(0).cgColor,
+            resolvedColor.withAlphaComponent(0.10).cgColor,
+            resolvedColor.withAlphaComponent(0.34).cgColor,
+            resolvedColor.withAlphaComponent(0.72).cgColor,
+            resolvedColor.cgColor
+        ]
     }
 }
 
@@ -81,9 +161,18 @@ extension ChatView {
             syncArtifactSelectionForActiveThread()
         }
         .onPreferenceChange(ComposerHeightPreferenceKey.self) { newValue in
-            let normalizedHeight = ChatStageBottomFadeMetrics.normalizedComposerHeight(newValue)
-            if composerHeight != normalizedHeight {
-                composerHeight = normalizedHeight
+            guard let nextHeight = ChatStageBottomFadeMetrics.composerHeightUpdate(
+                currentHeight: composerHeight,
+                measuredHeight: newValue,
+                isComposerHidden: isComposerHidden
+            ) else {
+                return
+            }
+
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                composerHeight = nextHeight
             }
         }
         .background(JinSemanticColor.surface)

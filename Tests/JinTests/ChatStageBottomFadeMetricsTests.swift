@@ -38,4 +38,46 @@ final class ChatStageBottomFadeMetricsTests: XCTestCase {
         XCTAssertEqual(ChatStageBottomFadeMetrics.normalizedComposerHeight(-.infinity), 0)
         XCTAssertEqual(ChatStageBottomFadeMetrics.normalizedComposerHeight(.nan), 0)
     }
+
+    func testComposerHeightUpdateIgnoresTransientZeroWhileVisibleAfterMeasurement() {
+        XCTAssertNil(
+            ChatStageBottomFadeMetrics.composerHeightUpdate(
+                currentHeight: 118,
+                measuredHeight: 0,
+                isComposerHidden: false
+            )
+        )
+    }
+
+    func testComposerHeightUpdateAllowsResetWhenComposerIsHidden() {
+        XCTAssertEqual(
+            ChatStageBottomFadeMetrics.composerHeightUpdate(
+                currentHeight: 118,
+                measuredHeight: 0,
+                isComposerHidden: true
+            ),
+            0
+        )
+    }
+
+    func testComposerHeightUpdateRoundsMeaningfulVisibleMeasurements() {
+        XCTAssertEqual(
+            ChatStageBottomFadeMetrics.composerHeightUpdate(
+                currentHeight: 118,
+                measuredHeight: 122.5,
+                isComposerHidden: false
+            ),
+            123
+        )
+    }
+
+    func testComposerHeightUpdateSkipsUnchangedMeasurement() {
+        XCTAssertNil(
+            ChatStageBottomFadeMetrics.composerHeightUpdate(
+                currentHeight: 118,
+                measuredHeight: 118.2,
+                isComposerHidden: false
+            )
+        )
+    }
 }
