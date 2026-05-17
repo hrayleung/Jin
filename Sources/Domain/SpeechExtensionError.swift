@@ -14,10 +14,6 @@ enum SpeechExtensionError: Error, LocalizedError {
     case invalidBaseURL(String)
     case microphonePermissionDenied
     case speechRecordingFailed
-    case whisperKitModelNotLoaded
-    case whisperKitTranscriptionFailed(String)
-    case ttsKitModelNotLoaded
-    case ttsKitGenerationFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -47,14 +43,6 @@ enum SpeechExtensionError: Error, LocalizedError {
             return "Microphone access is denied. Enable it in System Settings → Privacy & Security → Microphone for Jin."
         case .speechRecordingFailed:
             return "Failed to record audio."
-        case .whisperKitModelNotLoaded:
-            return "WhisperKit model is not loaded. Load a model in Settings → Plugins → Speech to Text."
-        case .whisperKitTranscriptionFailed(let detail):
-            return "WhisperKit transcription failed: \(detail)"
-        case .ttsKitModelNotLoaded:
-            return "TTSKit model is not loaded. Load a model in Settings → Plugins → Text to Speech."
-        case .ttsKitGenerationFailed(let detail):
-            return "TTSKit speech generation failed: \(detail)"
         }
     }
 }

@@ -34,7 +34,7 @@ Conversation-first, tool-aware, and built for macOS instead of Electron.
 - **Artifacts workspace** — Inline HTML, React, and ECharts artifacts with split-pane preview, version history, source export, and reusable artifact IDs
 - **Image and video generation** — Image generation/editing across OpenAI (GPT Image / DALL·E) and xAI; video generation across xAI, Google Veo (Gemini & Vertex), and OpenRouter SeedDance, including source-image and source-URL edit workflows where available
 - **PDF and OCR handling** — Native PDF upload where supported, with Mistral OCR / MinerU / DeepSeek / OpenRouter / Firecrawl as cloud OCR fallbacks plus local macOS extraction
-- **Voice workflows** — Speech-to-text and text-to-speech via cloud providers or on-device WhisperKit / TTSKit models, with a floating mini-player for chat playback
+- **Voice workflows** — Speech-to-text and text-to-speech via cloud providers, with a floating mini-player for chat playback
 - **Assistants and defaults** — Named assistants with custom prompts, language preference, model defaults, temperature/output settings, and optional history truncation
 - **Quoted reply blocks** — Pin a snippet from any message into the composer as a structured quote so the next turn keeps the reference highlighted in the thread
 - **macOS polish** — Configurable shortcuts, drag-and-drop attachments, storage breakdown with chat diagnostics, recovery pack export/import, and in-app Sparkle update controls
@@ -104,8 +104,8 @@ All plugins are optional and configured in **Settings > Plugins**.
 | Plugin | Services |
 |--------|----------|
 | Web Search | Exa, Brave Search, Jina Search, Firecrawl, Tavily, Perplexity Search |
-| Text-to-Speech | OpenAI, OpenRouter, Groq, ElevenLabs, Xiaomi MiMo, TTSKit (on-device) |
-| Speech-to-Text | OpenAI, OpenRouter, Groq, Mistral, ElevenLabs, WhisperKit (on-device) |
+| Text-to-Speech | OpenAI, OpenRouter, Groq, ElevenLabs, Xiaomi MiMo |
+| Speech-to-Text | OpenAI, OpenRouter, Groq, Mistral, ElevenLabs |
 | PDF OCR | Mistral OCR, MinerU, DeepSeek (via DeepInfra), OpenRouter OCR, Firecrawl OCR — used as fallback when the active model can't natively ingest PDFs |
 | Chat Naming | Automatic conversation naming with a selected model |
 | Cloudflare R2 Upload | Upload local videos to R2 and use public URLs in video workflows |
@@ -196,7 +196,6 @@ Contributions are welcome. Unless explicitly stated otherwise, contributions are
 - [MCP Swift SDK](https://github.com/modelcontextprotocol/swift-sdk) — Model Context Protocol client library
 - [Sparkle](https://github.com/sparkle-project/Sparkle) — In-app update framework for macOS
 - [Alamofire](https://github.com/Alamofire/Alamofire) — Networking primitives
-- [WhisperKit](https://github.com/argmaxinc/WhisperKit) — On-device speech-to-text
 - [Kingfisher](https://github.com/onevcat/Kingfisher) — Image loading and caching
 - [swift-collections](https://github.com/apple/swift-collections) — Ordered/persistent collection types
 - [Lobe Icons](https://github.com/lobehub/lobe-icons) — Provider icon assets

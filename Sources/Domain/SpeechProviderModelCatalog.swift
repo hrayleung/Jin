@@ -43,7 +43,7 @@ enum SpeechProviderModelCatalog {
             return filteredChoices(availableModels, matches: matchesGroqTextToSpeechModelID)
         case .xiaomiMiMo:
             return filteredChoices(availableModels, matches: matchesMiMoTextToSpeechModelID)
-        case .elevenlabs, .whisperKit:
+        case .elevenlabs:
             return []
         }
     }
@@ -63,8 +63,6 @@ enum SpeechProviderModelCatalog {
             return filteredChoices(availableModels, matches: matchesMistralSpeechToTextModelID)
         case .elevenlabs:
             return filteredChoices(availableModels, matches: matchesElevenLabsSpeechToTextModelID)
-        case .whisperKit:
-            return []
         }
     }
 
@@ -119,8 +117,6 @@ enum SpeechProviderModelCatalog {
                 SpeechProviderModelChoice(id: "eleven_turbo_v2", name: "Eleven Turbo v2"),
                 SpeechProviderModelChoice(id: "eleven_v3", name: "Eleven v3")
             ]
-        case .whisperKit:
-            return []
         }
     }
 
@@ -157,8 +153,6 @@ enum SpeechProviderModelCatalog {
                 SpeechProviderModelChoice(id: "scribe_v2", name: "Scribe v2"),
                 SpeechProviderModelChoice(id: "scribe_v1", name: "Scribe v1")
             ]
-        case .whisperKit:
-            return []
         }
     }
 

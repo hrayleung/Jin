@@ -182,7 +182,7 @@ extension TextToSpeechPluginSettingsView {
             isPlayingVoicePreview = false
             voicePreviewPlayer?.stop()
             voicePreviewPlayer = nil
-        case .whisperKit, .none:
+        case .none:
             openAIModels = []
             openRouterModels = []
             groqModels = []
@@ -206,7 +206,7 @@ extension TextToSpeechPluginSettingsView {
             groqModels = models
         case .xiaomiMiMo:
             miMoModels = models
-        case .elevenlabs, .whisperKit:
+        case .elevenlabs:
             break
         }
     }
@@ -249,7 +249,7 @@ extension TextToSpeechPluginSettingsView {
                 miMoModel = models.first?.id ?? miMoModel
             }
             normalizeMiMoVoiceIfNeeded()
-        case .elevenlabs, .whisperKit:
+        case .elevenlabs:
             break
         }
     }

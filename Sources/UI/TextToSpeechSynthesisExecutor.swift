@@ -7,20 +7,13 @@ struct TextToSpeechQueuedClip: Sendable {
     let waveformPeaks: [CGFloat]
 }
 
-enum TextToSpeechPlaybackBackend {
-    case queuedClips
-    case nativeTTSKit
-}
-
 enum TextToSpeechSynthesisExecutor {
     static let waveformSecondsPerPeak = TextToSpeechQueuedClipFactory.waveformSecondsPerPeak
 
     static func synthesize(
         text: String,
         config: TextToSpeechPlaybackManager.SynthesisConfig,
-        onQueuedClip: @escaping @MainActor (TextToSpeechQueuedClip) -> Void,
-        onTTSKitSamples: @escaping @MainActor ([Float], Int) -> Void,
-        onTTSKitFinished: @escaping @MainActor () -> Void
+        onQueuedClip: @escaping @MainActor (TextToSpeechQueuedClip) -> Void
     ) async throws {
         switch config {
         case .openai(let openAI):
@@ -33,18 +26,7 @@ enum TextToSpeechSynthesisExecutor {
             try await synthesizeElevenLabs(text: text, config: eleven, onQueuedClip: onQueuedClip)
         case .mimo(let mimo):
             try await synthesizeMiMo(text: text, config: mimo, onQueuedClip: onQueuedClip)
-        case .ttsKit(let ttsKit):
-            try await synthesizeTTSKit(
-                text: text,
-                config: ttsKit,
-                onSamples: onTTSKitSamples,
-                onFinished: onTTSKitFinished
-            )
         }
-    }
-
-    static func queuedClip(fromFloatSamples samples: [Float], sampleRate: Int) -> TextToSpeechQueuedClip {
-        TextToSpeechQueuedClipFactory.clip(fromFloatSamples: samples, sampleRate: sampleRate)
     }
 
     private static func synthesizeOpenAI(
@@ -185,25 +167,5 @@ enum TextToSpeechSynthesisExecutor {
             let clip = await TextToSpeechQueuedClipFactory.clip(fromAudioData: clipData)
             await onQueuedClip(clip)
         }
-    }
-
-    private static func synthesizeTTSKit(
-        text: String,
-        config: TextToSpeechPlaybackManager.TTSKitConfig,
-        onSamples: @escaping @MainActor ([Float], Int) -> Void,
-        onFinished: @escaping @MainActor () -> Void
-    ) async throws {
-        try await TTSKitService.shared.loadModel(config.model)
-        try Task.checkCancellation()
-        try await TTSKitService.shared.generateSpeech(
-            text: text,
-            voice: config.voice,
-            language: config.language,
-            styleInstruction: config.styleInstruction,
-            onProgress: { chunk in
-                await onSamples(chunk.samples, chunk.sampleRate)
-            }
-        )
-        await onFinished()
     }
 }

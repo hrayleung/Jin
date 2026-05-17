@@ -66,25 +66,12 @@ extension TextToSpeechPlaybackManager {
         let voiceCloneSampleURL: URL?
     }
 
-    struct TTSKitConfig: Sendable {
-        let model: String
-        let voice: String?
-        let language: String?
-        let styleInstruction: String?
-        let playbackMode: TTSKitPlaybackMode
-    }
-
     enum SynthesisConfig: Sendable {
         case openai(OpenAIConfig)
         case openRouter(OpenRouterConfig)
         case groq(GroqConfig)
         case elevenlabs(ElevenLabsConfig)
         case mimo(MiMoConfig)
-        case ttsKit(TTSKitConfig)
-
-        var usesNativeStreamingPlayback: Bool {
-            return false
-        }
     }
 
     struct PlaybackContext: Equatable {

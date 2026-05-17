@@ -22,15 +22,6 @@ extension TextToSpeechPluginSettingsView {
 
             case .elevenlabs:
                 elevenLabsSettingsSection
-
-            case .whisperKit:
-                TTSKitTextToSpeechSettingsSection(
-                    modelSelection: $ttsKitModel,
-                    voiceSelection: $ttsKitVoice,
-                    languageSelection: $ttsKitLanguage,
-                    styleInstruction: $ttsKitStyleInstruction,
-                    playbackModeRaw: $ttsKitPlaybackMode
-                )
             }
         } else {
             providerErrorSection

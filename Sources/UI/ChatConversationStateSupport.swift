@@ -140,7 +140,6 @@ enum ChatConversationStateSupport {
 
         let ttsKeyConfigured = {
             guard let ttsProvider else { return false }
-            if !ttsProvider.requiresAPIKey { return true }
             let key: String
             switch ttsProvider {
             case .elevenlabs:
@@ -153,15 +152,12 @@ enum ChatConversationStateSupport {
                 key = AppPreferenceKeys.ttsGroqAPIKey
             case .xiaomiMiMo:
                 key = AppPreferenceKeys.ttsMiMoAPIKey
-            case .whisperKit:
-                return true
             }
             return hasStoredKey(key)
         }()
 
         let sttKeyConfigured = {
             guard let sttProvider else { return false }
-            if !sttProvider.requiresAPIKey { return true }
             let key: String
             switch sttProvider {
             case .openai:
@@ -174,8 +170,6 @@ enum ChatConversationStateSupport {
                 key = AppPreferenceKeys.sttMistralAPIKey
             case .elevenlabs:
                 key = AppPreferenceKeys.sttElevenLabsAPIKey
-            case .whisperKit:
-                return true
             }
             return hasStoredKey(key)
         }()

@@ -52,13 +52,6 @@ extension SpeechToTextPluginSettingsView {
                     timestampProvider: .mistral
                 )
 
-            case .whisperKit:
-                WhisperKitSpeechToTextSettingsSection(
-                    modelSelection: $whisperKitModel,
-                    language: $whisperKitLanguage,
-                    translateToEnglish: $whisperKitTranslateToEnglish
-                )
-
             case .elevenlabs:
                 elevenLabsSettingsSection
             }
@@ -255,7 +248,7 @@ extension SpeechToTextPluginSettingsView {
             return groqTimestampGranularitiesJSON
         case .mistral:
             return mistralTimestampGranularitiesJSON
-        case .openRouter, .elevenlabs, .whisperKit:
+        case .openRouter, .elevenlabs:
             return "[]"
         }
     }
@@ -268,7 +261,7 @@ extension SpeechToTextPluginSettingsView {
             groqTimestampGranularitiesJSON = value
         case .mistral:
             mistralTimestampGranularitiesJSON = value
-        case .openRouter, .elevenlabs, .whisperKit:
+        case .openRouter, .elevenlabs:
             break
         }
     }

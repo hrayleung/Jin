@@ -11,11 +11,6 @@ struct TextToSpeechConfigBuilder {
 
     func build() throws -> TextToSpeechPlaybackManager.SynthesisConfig {
         let provider = try Preferences.resolvedTextToSpeechProvider(defaults: defaults)
-
-        if case .whisperKit = provider {
-            return ttsKitConfig()
-        }
-
         let apiKey = try configuredAPIKey(for: provider)
 
         switch provider {
@@ -29,8 +24,6 @@ struct TextToSpeechConfigBuilder {
             return try miMoConfig(apiKey: apiKey)
         case .elevenlabs:
             return try elevenLabsConfig(apiKey: apiKey)
-        case .whisperKit:
-            fatalError("TTSKit config should be handled before this switch")
         }
     }
 
@@ -39,30 +32,6 @@ struct TextToSpeechConfigBuilder {
         let apiKey = Preferences.trimmed(defaults.string(forKey: apiKeyPreferenceKey))
         guard !apiKey.isEmpty else { throw SpeechExtensionError.textToSpeechNotConfigured }
         return apiKey
-    }
-
-    private func ttsKitConfig() -> TextToSpeechPlaybackManager.SynthesisConfig {
-        let model = TTSKitModelCatalog.normalizedModelID(
-            defaults.string(forKey: AppPreferenceKeys.ttsTTSKitModel)
-        )
-        let voice = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.ttsTTSKitVoice))
-        let language = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.ttsTTSKitLanguage))
-        let styleInstruction = TTSKitModelCatalog.preset(for: model)?.supportsStyleInstruction == true
-            ? Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.ttsTTSKitStyleInstruction))
-            : nil
-        let playbackMode = TTSKitPlaybackMode.resolved(
-            defaults.string(forKey: AppPreferenceKeys.ttsTTSKitPlaybackMode)
-        )
-
-        return .ttsKit(
-            TextToSpeechPlaybackManager.TTSKitConfig(
-                model: model,
-                voice: voice,
-                language: language,
-                styleInstruction: styleInstruction,
-                playbackMode: playbackMode
-            )
-        )
     }
 
     private func openAIConfig(apiKey: String) throws -> TextToSpeechPlaybackManager.SynthesisConfig {

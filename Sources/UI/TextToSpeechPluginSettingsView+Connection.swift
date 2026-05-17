@@ -6,7 +6,7 @@ extension TextToSpeechPluginSettingsView {
 
     func testConnection() {
         guard !trimmedAPIKey.isEmpty else { return }
-        guard let provider, provider.requiresAPIKey else {
+        guard let provider else {
             statusMessage = providerErrorMessage(for: providerRaw)
             statusIsError = true
             return
@@ -26,8 +26,6 @@ extension TextToSpeechPluginSettingsView {
                     )
                 case .elevenlabs:
                     try await validateElevenLabsTextToSpeechConnection(apiKey: trimmedAPIKey)
-                case .whisperKit:
-                    return
                 }
 
                 await MainActor.run {
@@ -41,8 +39,6 @@ extension TextToSpeechPluginSettingsView {
                     await loadRemoteTextToSpeechModels(updateStatus: false)
                 case .elevenlabs:
                     await loadElevenLabsVoicesAndModels(updateStatus: false)
-                case .whisperKit:
-                    break
                 }
             } catch {
                 await MainActor.run {

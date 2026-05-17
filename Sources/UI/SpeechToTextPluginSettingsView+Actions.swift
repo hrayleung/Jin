@@ -24,32 +24,10 @@ extension SpeechToTextPluginSettingsView {
             return
         }
 
-        switch load.provider {
-        case .openai, .openRouter, .groq, .mistral, .elevenlabs:
-            await loadRemoteSpeechToTextModels()
-        case .whisperKit:
-            await MainActor.run {
-                guard isCurrentSpeechToTextLoad(
-                    provider: load.provider,
-                    providerRaw: load.providerRaw,
-                    apiKey: load.apiKey
-                ) else { return }
-                clearFetchedSpeechToTextModels()
-            }
-        }
+        await loadRemoteSpeechToTextModels()
     }
 
     func loadExistingKey() async {
-        if provider?.requiresAPIKey == false {
-            await MainActor.run {
-                apiKey = ""
-                lastPersistedAPIKey = ""
-                statusMessage = nil
-                statusIsError = false
-            }
-            return
-        }
-
         guard let preferenceKey = currentAPIKeyPreferenceKey else {
             await MainActor.run {
                 apiKey = ""
@@ -72,10 +50,7 @@ extension SpeechToTextPluginSettingsView {
         statusMessage = nil
         statusIsError = false
 
-        guard provider?.requiresAPIKey != false,
-              let preferenceKey = currentAPIKeyPreferenceKey else {
-            return
-        }
+        guard let preferenceKey = currentAPIKeyPreferenceKey else { return }
 
         UserDefaults.standard.removeObject(forKey: preferenceKey)
         lastPersistedAPIKey = ""
@@ -88,8 +63,6 @@ extension SpeechToTextPluginSettingsView {
 
     func scheduleAutoSave() {
         autoSaveTask?.cancel()
-
-        guard provider?.requiresAPIKey != false else { return }
 
         let key = trimmedAPIKey
         guard let preferenceKey = currentAPIKeyPreferenceKey else {
@@ -162,7 +135,7 @@ extension SpeechToTextPluginSettingsView {
 
     func testConnection() {
         guard !trimmedAPIKey.isEmpty else { return }
-        guard let provider, provider.requiresAPIKey else {
+        guard let provider else {
             statusMessage = providerErrorMessage(for: providerRaw)
             statusIsError = true
             return
@@ -185,12 +158,7 @@ extension SpeechToTextPluginSettingsView {
                     statusIsError = false
                 }
 
-                switch provider {
-                case .openai, .openRouter, .groq, .mistral, .elevenlabs:
-                    await loadRemoteSpeechToTextModels(updateStatus: false)
-                case .whisperKit:
-                    break
-                }
+                await loadRemoteSpeechToTextModels(updateStatus: false)
             } catch {
                 await MainActor.run {
                     isTesting = false
@@ -204,7 +172,6 @@ extension SpeechToTextPluginSettingsView {
     func loadRemoteSpeechToTextModels(updateStatus: Bool = true) async {
         guard let load = await MainActor.run(body: { speechToTextLoadSnapshot() }) else { return }
         guard !load.apiKey.isEmpty else { return }
-        guard load.provider != .whisperKit else { return }
 
         await MainActor.run {
             guard isCurrentSpeechToTextLoad(
@@ -294,8 +261,6 @@ extension SpeechToTextPluginSettingsView {
             let base = URL(string: elevenLabsBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                 ?? ElevenLabsSTTClient.Constants.defaultBaseURL
             return .elevenLabs(ElevenLabsSTTClient(apiKey: apiKey, baseURL: base))
-        case .whisperKit:
-            return nil
         }
     }
 
@@ -336,7 +301,7 @@ extension SpeechToTextPluginSettingsView {
             mistralModels = []
         case .elevenlabs:
             elevenLabsModels = []
-        case .whisperKit, .none:
+        case .none:
             openAIModels = []
             openRouterModels = []
             groqModels = []
@@ -358,8 +323,6 @@ extension SpeechToTextPluginSettingsView {
             mistralModels = models
         case .elevenlabs:
             elevenLabsModels = models
-        case .whisperKit:
-            break
         }
     }
 
@@ -396,8 +359,6 @@ extension SpeechToTextPluginSettingsView {
             if currentModel.isEmpty {
                 elevenLabsModel = models.first?.id ?? elevenLabsModel
             }
-        case .whisperKit:
-            break
         }
     }
 }

@@ -7,8 +7,6 @@ import CoreGraphics
 final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
     static let waveformDisplaySampleCount = 56
     private static let playbackRefreshInterval: TimeInterval = 1.0 / 15.0
-    private static let ttsKitInitialBatchDuration: TimeInterval = 0.12
-    private static let ttsKitClipBatchDuration: TimeInterval = 0.9
 
     @Published private(set) var state: State = .idle
     @Published private(set) var playbackContext: PlaybackContext?
@@ -21,10 +19,8 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
     private var currentMessageID: UUID?
     private var currentErrorHandler: ((Error) -> Void)?
     private var didFinishSynthesis = true
-    private var currentPlaybackBackend: TextToSpeechPlaybackBackend?
     private var meteringTimer: Timer?
     private var progressTracker = TextToSpeechPlaybackProgressTracker()
-    private var ttsKitSampleBuffer = TextToSpeechTTSKitSampleBuffer()
 
     func toggleSpeak(
         messageID: UUID,
@@ -36,8 +32,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         switch TextToSpeechPlaybackIntentSupport.toggleIntent(
             state: state,
             messageID: messageID,
-            text: text,
-            usesNativeStreamingPlayback: currentPlaybackBackend == .nativeTTSKit
+            text: text
         ) {
         case .pauseCurrent:
             pause(messageID: messageID)
@@ -70,7 +65,6 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         currentMessageID = messageID
         currentErrorHandler = onError
         playbackContext = context
-        currentPlaybackBackend = config.usesNativeStreamingPlayback ? .nativeTTSKit : .queuedClips
         state = .generating(messageID: messageID)
 
         synthesisTask = Task { [weak self] in
@@ -138,15 +132,8 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
     }
 
     func stop() {
-        let playbackBackend = currentPlaybackBackend
         synthesisTask?.cancel()
         synthesisTask = nil
-
-        if playbackBackend == .nativeTTSKit {
-            Task {
-                await TTSKitService.shared.stopPlayback()
-            }
-        }
 
         stopMeteringTimer()
         player?.stop()
@@ -157,9 +144,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         currentErrorHandler = nil
         didFinishSynthesis = true
         playbackContext = nil
-        currentPlaybackBackend = nil
         progressTracker.reset()
-        ttsKitSampleBuffer.reset()
         miniPlayerState.reset(sampleCount: Self.waveformDisplaySampleCount)
         state = .idle
     }
@@ -174,16 +159,6 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
             config: config,
             onQueuedClip: { [weak self] clip in
                 self?.enqueueClipIfCurrent(clip, messageID: messageID)
-            },
-            onTTSKitSamples: { [weak self] samples, sampleRate in
-                self?.appendTTSKitGeneratedSamples(
-                    samples,
-                    sampleRate: sampleRate,
-                    messageID: messageID
-                )
-            },
-            onTTSKitFinished: { [weak self] in
-                self?.flushPendingTTSKitSamplesIfNeeded(messageID: messageID, force: true)
             }
         )
     }
@@ -273,7 +248,7 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         stopMeteringTimer()
         meteringTimer = Timer.scheduledTimer(withTimeInterval: Self.playbackRefreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.pollMeteringData()
+                self?.updateQueuedPlaybackMetrics()
             }
         }
     }
@@ -281,65 +256,6 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
     private func stopMeteringTimer() {
         meteringTimer?.invalidate()
         meteringTimer = nil
-    }
-
-    private func pollMeteringData() {
-        switch currentPlaybackBackend {
-        case .queuedClips:
-            updateQueuedPlaybackMetrics()
-        case .nativeTTSKit:
-            Task { [weak self] in
-                guard let self else { return }
-                let currentTime = await TTSKitService.shared.currentPlaybackTime()
-                await MainActor.run {
-                    guard self.currentPlaybackBackend == .nativeTTSKit else { return }
-                    self.updatePublishedPlaybackMetrics(currentTime: currentTime)
-                }
-            }
-        case .none:
-            break
-        }
-    }
-
-    private func appendTTSKitGeneratedSamples(
-        _ samples: [Float],
-        sampleRate: Int,
-        messageID: UUID
-    ) {
-        guard currentMessageID == messageID else { return }
-        guard let appendResult = ttsKitSampleBuffer.append(
-            samples,
-            sampleRate: sampleRate,
-            secondsPerPeak: TextToSpeechSynthesisExecutor.waveformSecondsPerPeak
-        ) else {
-            return
-        }
-
-        if progressTracker.recordGeneratedAudio(
-            duration: appendResult.duration,
-            waveformPeaks: appendResult.waveformPeaks
-        ) {
-            refreshDisplayedWaveform()
-        }
-        updatePublishedPlaybackMetrics(currentTime: miniPlayerState.clipCurrentTime)
-        flushPendingTTSKitSamplesIfNeeded(messageID: messageID, force: false)
-    }
-
-    private func flushPendingTTSKitSamplesIfNeeded(messageID: UUID, force: Bool) {
-        guard currentMessageID == messageID else { return }
-
-        let shouldPrimePlayback = player == nil && queue.isEmpty
-        guard ttsKitSampleBuffer.shouldFlush(
-            force: force,
-            shouldPrimePlayback: shouldPrimePlayback,
-            initialBatchDuration: Self.ttsKitInitialBatchDuration,
-            clipBatchDuration: Self.ttsKitClipBatchDuration
-        ) else {
-            return
-        }
-
-        guard let clip = ttsKitSampleBuffer.drainQueuedClip() else { return }
-        enqueueClipIfCurrent(clip, messageID: messageID, updateMetrics: false)
     }
 
     private func updateQueuedPlaybackMetrics() {

@@ -6,7 +6,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
     case networkLogs
     case chatDiagnostics
     case mcpData
-    case speechModels
+    case legacySpeechModels
 
     var id: String { rawValue }
 
@@ -17,7 +17,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .networkLogs: return "Network Logs"
         case .chatDiagnostics: return "Chat Diagnostics"
         case .mcpData: return "MCP Server Data"
-        case .speechModels: return "Speech Models"
+        case .legacySpeechModels: return "Legacy Speech Models"
         }
     }
 
@@ -28,7 +28,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .networkLogs: return "doc.text"
         case .chatDiagnostics: return "waveform.path.ecg"
         case .mcpData: return "server.rack"
-        case .speechModels: return "waveform"
+        case .legacySpeechModels: return "waveform"
         }
     }
 
@@ -39,7 +39,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .networkLogs: return "HTTP/WebSocket debug trace files."
         case .chatDiagnostics: return "Chat send and stream pipeline timing logs."
         case .mcpData: return "Node isolation directories for MCP servers."
-        case .speechModels: return "On-device WhisperKit and TTSKit models."
+        case .legacySpeechModels: return "Leftover on-device WhisperKit / TTSKit model files from earlier Jin builds. Safe to remove."
         }
     }
 
@@ -64,9 +64,12 @@ actor StorageSizeCalculator {
     private let fileManager = FileManager.default
 
     func calculateAll() -> [StorageCategorySnapshot] {
-        StorageCategory.allCases.map { category in
+        StorageCategory.allCases.compactMap { category in
             let url = directoryURL(for: category)
             let (bytes, count) = directorySize(at: url)
+            // Hide the legacy speech-models row entirely once the directory is empty
+            // so it doesn't clutter Storage for users who never had on-device models.
+            if category == .legacySpeechModels, bytes == 0 { return nil }
             return StorageCategorySnapshot(
                 category: category,
                 byteCount: bytes,
@@ -105,7 +108,7 @@ actor StorageSizeCalculator {
         switch category {
         case .attachments, .mcpData:
             try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
-        case .speechModels, .database, .networkLogs, .chatDiagnostics:
+        case .database, .networkLogs, .chatDiagnostics, .legacySpeechModels:
             break
         }
     }
@@ -124,12 +127,12 @@ actor StorageSizeCalculator {
             return try? AppDataLocations.chatDiagnosticsDirectoryURL(fileManager: fileManager)
         case .mcpData:
             return try? AppDataLocations.mcpRuntimeDirectoryURL(fileManager: fileManager)
-        case .speechModels:
-            return speechModelsURL()
+        case .legacySpeechModels:
+            return legacySpeechModelsURL()
         }
     }
 
-    private func speechModelsURL() -> URL? {
+    private func legacySpeechModelsURL() -> URL? {
         fileManager.urls(for: .documentDirectory, in: .userDomainMask)
             .first?
             .appendingPathComponent("huggingface", isDirectory: true)
