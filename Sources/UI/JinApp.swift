@@ -46,6 +46,7 @@ struct JinApp: App {
         OverlayScrollerStyleController.shared.installIfNeeded()
 
         preferencesSyncController = AppPreferencesSyncController()
+        SpeechPluginPreferenceSupport.migrateLegacyOnDeviceProviderSelections()
         _updateManager = StateObject(wrappedValue: SparkleUpdateManager())
         _launchCoordinator = StateObject(wrappedValue: AppLaunchCoordinator())
     }

@@ -60,6 +60,19 @@ enum SpeechPluginPreferenceSupport {
         }
     }
 
+    /// Rewrites legacy on-device provider raws so users upgrading from a build that still had
+    /// WhisperKit / TTSKit don't land on an "unknown provider" state. Defaults match the
+    /// `@AppStorage` fallbacks in the settings views (Groq for STT, OpenAI for TTS).
+    static func migrateLegacyOnDeviceProviderSelections(defaults: UserDefaults = .standard) {
+        let legacyRaw = "whisperKit"
+        if defaults.string(forKey: AppPreferenceKeys.sttProvider) == legacyRaw {
+            defaults.set(SpeechToTextProvider.groq.rawValue, forKey: AppPreferenceKeys.sttProvider)
+        }
+        if defaults.string(forKey: AppPreferenceKeys.ttsProvider) == legacyRaw {
+            defaults.set(TextToSpeechProvider.openai.rawValue, forKey: AppPreferenceKeys.ttsProvider)
+        }
+    }
+
     private static func resolvedProvider<Provider: RawRepresentable>(
         defaults: UserDefaults,
         preferenceKey: String,

@@ -151,4 +151,36 @@ final class SpeechPluginPreferenceSupportTests: XCTestCase {
             AppPreferenceKeys.ttsMiMoAPIKey
         )
     }
+
+    func testMigrateLegacyOnDeviceProviderSelectionsRewritesLegacyWhisperKitRaws() {
+        defaults.set("whisperKit", forKey: AppPreferenceKeys.sttProvider)
+        defaults.set("whisperKit", forKey: AppPreferenceKeys.ttsProvider)
+
+        SpeechPluginPreferenceSupport.migrateLegacyOnDeviceProviderSelections(defaults: defaults)
+
+        XCTAssertEqual(
+            defaults.string(forKey: AppPreferenceKeys.sttProvider),
+            SpeechToTextProvider.groq.rawValue
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: AppPreferenceKeys.ttsProvider),
+            TextToSpeechProvider.openai.rawValue
+        )
+    }
+
+    func testMigrateLegacyOnDeviceProviderSelectionsLeavesValidProvidersUntouched() {
+        defaults.set(SpeechToTextProvider.elevenlabs.rawValue, forKey: AppPreferenceKeys.sttProvider)
+        defaults.set(TextToSpeechProvider.xiaomiMiMo.rawValue, forKey: AppPreferenceKeys.ttsProvider)
+
+        SpeechPluginPreferenceSupport.migrateLegacyOnDeviceProviderSelections(defaults: defaults)
+
+        XCTAssertEqual(
+            defaults.string(forKey: AppPreferenceKeys.sttProvider),
+            SpeechToTextProvider.elevenlabs.rawValue
+        )
+        XCTAssertEqual(
+            defaults.string(forKey: AppPreferenceKeys.ttsProvider),
+            TextToSpeechProvider.xiaomiMiMo.rawValue
+        )
+    }
 }
