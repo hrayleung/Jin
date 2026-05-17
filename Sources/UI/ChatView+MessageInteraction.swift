@@ -5,6 +5,7 @@ extension ChatView {
         ChatMessageInteractionContext(
             textToSpeechEnabled: textToSpeechPluginEnabled,
             textToSpeechConfigured: textToSpeechConfigured,
+            textToSpeechPlaybackState: ttsPlaybackManager.state,
             editingUserMessageID: editingUserMessageID,
             editingUserMessageText: $editingUserMessageText,
             editingUserMessageFocused: $isEditingUserMessageFocused,

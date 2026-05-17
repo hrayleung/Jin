@@ -241,6 +241,103 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
         XCTAssertNotEqual(makeKey(messageRenderLimit: 50), makeKey(messageRenderLimit: 100))
     }
 
+    func testSingleThreadKeyChangesForTextToSpeechStateChanges() {
+        let conversationID = UUID()
+        let messageID = UUID()
+
+        func makeKey(textToSpeechEnabled: Bool, textToSpeechConfigured: Bool) -> ChatStageEquatableKey {
+            ChatMessageStageEquatableKeyBuilder.singleThreadKey(
+                conversationID: conversationID,
+                conversationMessageCount: 1,
+                renderRevision: 1,
+                viewportHeight: 600,
+                layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200),
+                layoutCenterOffsetBucket: 0,
+                allMessageCount: 1,
+                lastMessageID: messageID,
+                messageRenderLimit: 50,
+                toolResultCount: 0,
+                entityCount: 0,
+                assistantDisplayName: "Assistant",
+                providerType: nil,
+                providerIconID: nil,
+                composerHeight: 80,
+                isStreaming: false,
+                streamingObjectID: nil,
+                streamingModelLabel: nil,
+                streamingModelID: nil,
+                textToSpeechEnabled: textToSpeechEnabled,
+                textToSpeechConfigured: textToSpeechConfigured,
+                expandedCollapsedMessageIDs: []
+            )
+        }
+
+        // Guards the TTS speaker button: configuring TTS (or toggling the plugin)
+        // updates ChatView's @State but every other field the key tracks stays
+        // identical. Without these fields, EquatableView short-circuits and the
+        // footer keeps rendering with the stale disabled state.
+        XCTAssertNotEqual(
+            makeKey(textToSpeechEnabled: true, textToSpeechConfigured: false),
+            makeKey(textToSpeechEnabled: true, textToSpeechConfigured: true)
+        )
+        XCTAssertNotEqual(
+            makeKey(textToSpeechEnabled: false, textToSpeechConfigured: true),
+            makeKey(textToSpeechEnabled: true, textToSpeechConfigured: true)
+        )
+    }
+
+    func testSingleThreadKeyChangesForTextToSpeechPlaybackState() {
+        let conversationID = UUID()
+        let messageID = UUID()
+        let speakingMessageID = UUID()
+
+        func makeKey(textToSpeechPlaybackState: TextToSpeechPlaybackManager.State) -> ChatStageEquatableKey {
+            ChatMessageStageEquatableKeyBuilder.singleThreadKey(
+                conversationID: conversationID,
+                conversationMessageCount: 1,
+                renderRevision: 1,
+                viewportHeight: 600,
+                layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200),
+                layoutCenterOffsetBucket: 0,
+                allMessageCount: 1,
+                lastMessageID: messageID,
+                messageRenderLimit: 50,
+                toolResultCount: 0,
+                entityCount: 0,
+                assistantDisplayName: "Assistant",
+                providerType: nil,
+                providerIconID: nil,
+                composerHeight: 80,
+                isStreaming: false,
+                streamingObjectID: nil,
+                streamingModelLabel: nil,
+                streamingModelID: nil,
+                textToSpeechEnabled: true,
+                textToSpeechConfigured: true,
+                textToSpeechPlaybackState: textToSpeechPlaybackState,
+                expandedCollapsedMessageIDs: []
+            )
+        }
+
+        // Guards the speaker-icon refresh when the mini player's close button
+        // calls manager.stop(): playback state flips .playing -> .idle, but
+        // every other field the key tracks stays identical. Without this field,
+        // EquatableView short-circuits and the footer keeps showing the
+        // "pause" glyph even though audio has stopped.
+        XCTAssertNotEqual(
+            makeKey(textToSpeechPlaybackState: .playing(messageID: speakingMessageID)),
+            makeKey(textToSpeechPlaybackState: .idle)
+        )
+        XCTAssertNotEqual(
+            makeKey(textToSpeechPlaybackState: .playing(messageID: speakingMessageID)),
+            makeKey(textToSpeechPlaybackState: .paused(messageID: speakingMessageID))
+        )
+        XCTAssertNotEqual(
+            makeKey(textToSpeechPlaybackState: .generating(messageID: speakingMessageID)),
+            makeKey(textToSpeechPlaybackState: .playing(messageID: speakingMessageID))
+        )
+    }
+
     func testSingleThreadKeyChangesForUserMessageEditingState() {
         let conversationID = UUID()
         let messageID = UUID()

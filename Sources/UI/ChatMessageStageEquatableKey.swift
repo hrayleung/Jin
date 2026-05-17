@@ -61,6 +61,9 @@ enum ChatMessageStageEquatableKeyBuilder {
         streamingModelID: String?,
         editingUserMessageID: UUID? = nil,
         editSlashCommandKey: ChatEditSlashCommandEquatableKey = .inactive,
+        textToSpeechEnabled: Bool = false,
+        textToSpeechConfigured: Bool = false,
+        textToSpeechPlaybackState: TextToSpeechPlaybackManager.State = .idle,
         expandedCollapsedMessageIDs: Set<UUID>
     ) -> ChatStageEquatableKey {
         ChatStageEquatableKey(
@@ -85,6 +88,9 @@ enum ChatMessageStageEquatableKeyBuilder {
             streamingModelID: streamingModelID,
             editingUserMessageID: editingUserMessageID,
             editSlashCommandKey: editSlashCommandKey,
+            textToSpeechEnabled: textToSpeechEnabled,
+            textToSpeechConfigured: textToSpeechConfigured,
+            textToSpeechPlaybackState: textToSpeechPlaybackState,
             activeThreadID: nil,
             threadIDs: [],
             contextKeysByThreadID: [:],
@@ -117,6 +123,16 @@ struct ChatStageEquatableKey: Equatable {
     let streamingModelID: String?
     let editingUserMessageID: UUID?
     let editSlashCommandKey: ChatEditSlashCommandEquatableKey
+    // EquatableView in the stage skips re-renders when the key is unchanged.
+    // Without these, toggling/configuring the TTS plugin updates ChatView's
+    // @State but the footer stays disabled because the cached subtree never
+    // re-evaluates with the new interaction values. The playback state is
+    // also required so the speaker icon flips back to idle when the mini
+    // player's close button stops playback — `interaction`'s closures read
+    // the new value, but EquatableView won't call them without a key change.
+    let textToSpeechEnabled: Bool
+    let textToSpeechConfigured: Bool
+    let textToSpeechPlaybackState: TextToSpeechPlaybackManager.State
     let activeThreadID: UUID?
     let threadIDs: [UUID]
     let contextKeysByThreadID: [UUID: ChatThreadContextEquatableKey]

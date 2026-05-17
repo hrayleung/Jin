@@ -176,12 +176,12 @@ struct MessageRowFooterView: View {
             if textToSpeechIsGenerating {
                 ProgressView()
                     .controlSize(.small)
-                    .frame(width: 14, height: 14)
+                    .frame(width: 20, height: 20)
             } else {
                 Image(systemName: speechPresentation.primarySystemName)
-                    .font(.caption)
+                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 14, height: 14)
+                    .frame(width: 20, height: 20)
             }
         }
         .buttonStyle(.plain)

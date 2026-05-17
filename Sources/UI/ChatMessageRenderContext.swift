@@ -52,6 +52,7 @@ struct EditSlashCommandContext {
 struct ChatMessageInteractionContext {
     let textToSpeechEnabled: Bool
     let textToSpeechConfigured: Bool
+    let textToSpeechPlaybackState: TextToSpeechPlaybackManager.State
     let editingUserMessageID: UUID?
     let editingUserMessageText: Binding<String>
     let editingUserMessageFocused: Binding<Bool>
