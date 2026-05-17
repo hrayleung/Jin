@@ -12,14 +12,9 @@ enum TextToSpeechPlaybackIntentSupport {
     static func toggleIntent(
         state: TextToSpeechPlaybackManager.State,
         messageID: UUID,
-        text: String,
-        usesNativeStreamingPlayback: Bool
+        text: String
     ) -> ToggleIntent {
-        if let activeIntent = activeMessageToggleIntent(
-            state: state,
-            messageID: messageID,
-            usesNativeStreamingPlayback: usesNativeStreamingPlayback
-        ) {
+        if let activeIntent = activeMessageToggleIntent(state: state, messageID: messageID) {
             return activeIntent
         }
 
@@ -48,11 +43,10 @@ enum TextToSpeechPlaybackIntentSupport {
 
     private static func activeMessageToggleIntent(
         state: TextToSpeechPlaybackManager.State,
-        messageID: UUID,
-        usesNativeStreamingPlayback: Bool
+        messageID: UUID
     ) -> ToggleIntent? {
         if isPlaying(state, messageID: messageID) {
-            return usesNativeStreamingPlayback ? .stopCurrent : .pauseCurrent
+            return .pauseCurrent
         }
         if isPaused(state, messageID: messageID) {
             return .resumeCurrent

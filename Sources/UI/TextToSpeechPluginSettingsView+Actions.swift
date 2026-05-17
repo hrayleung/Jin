@@ -35,15 +35,6 @@ extension TextToSpeechPluginSettingsView {
             }
         case .elevenlabs:
             await loadElevenLabsVoicesAndModels()
-        case .whisperKit:
-            await MainActor.run {
-                guard isCurrentTextToSpeechLoad(
-                    provider: load.provider,
-                    providerRaw: load.providerRaw,
-                    apiKey: load.apiKey
-                ) else { return }
-                clearFetchedTextToSpeechModels()
-            }
         }
     }
 }

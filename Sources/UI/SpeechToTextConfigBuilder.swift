@@ -11,11 +11,6 @@ struct SpeechToTextConfigBuilder {
 
     func build() throws -> SpeechToTextManager.TranscriptionConfig {
         let provider = try Preferences.resolvedSpeechToTextProvider(defaults: defaults)
-
-        if case .whisperKit = provider {
-            return whisperKitConfig()
-        }
-
         let apiKey = try configuredAPIKey(for: provider)
 
         switch provider {
@@ -29,8 +24,6 @@ struct SpeechToTextConfigBuilder {
             return try mistralConfig(apiKey: apiKey)
         case .elevenlabs:
             return try elevenLabsConfig(apiKey: apiKey)
-        case .whisperKit:
-            fatalError("WhisperKit config should be handled before this switch")
         }
     }
 
@@ -39,20 +32,6 @@ struct SpeechToTextConfigBuilder {
         let apiKey = Preferences.trimmed(defaults.string(forKey: apiKeyPreferenceKey))
         guard !apiKey.isEmpty else { throw SpeechExtensionError.speechToTextNotConfigured }
         return apiKey
-    }
-
-    private func whisperKitConfig() -> SpeechToTextManager.TranscriptionConfig {
-        let model = defaults.string(forKey: AppPreferenceKeys.sttWhisperKitModel) ?? "base"
-        let language = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttWhisperKitLanguage))
-        let translateToEnglish = defaults.bool(forKey: AppPreferenceKeys.sttWhisperKitTranslateToEnglish)
-
-        return .whisperKit(
-            SpeechToTextManager.WhisperKitConfig(
-                model: model,
-                language: language,
-                translateToEnglish: translateToEnglish
-            )
-        )
     }
 
     private func openAIConfig(apiKey: String) throws -> SpeechToTextManager.TranscriptionConfig {

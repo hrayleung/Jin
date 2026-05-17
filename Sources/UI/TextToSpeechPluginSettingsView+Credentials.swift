@@ -5,16 +5,6 @@ import Foundation
 extension TextToSpeechPluginSettingsView {
 
     func loadExistingKey() async {
-        if provider?.requiresAPIKey == false {
-            await MainActor.run {
-                apiKey = ""
-                lastPersistedAPIKey = ""
-                statusMessage = nil
-                statusIsError = false
-            }
-            return
-        }
-
         guard let preferenceKey = currentAPIKeyPreferenceKey else {
             await MainActor.run {
                 apiKey = ""
@@ -37,10 +27,7 @@ extension TextToSpeechPluginSettingsView {
         statusMessage = nil
         statusIsError = false
 
-        guard provider?.requiresAPIKey != false,
-              let preferenceKey = currentAPIKeyPreferenceKey else {
-            return
-        }
+        guard let preferenceKey = currentAPIKeyPreferenceKey else { return }
 
         UserDefaults.standard.removeObject(forKey: preferenceKey)
         lastPersistedAPIKey = ""
@@ -53,8 +40,6 @@ extension TextToSpeechPluginSettingsView {
 
     func scheduleAutoSave() {
         autoSaveTask?.cancel()
-
-        guard provider?.requiresAPIKey != false else { return }
 
         let key = trimmedAPIKey
         guard let preferenceKey = currentAPIKeyPreferenceKey else {

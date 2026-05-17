@@ -47,7 +47,6 @@ enum SpeechPluginPreferenceSupport {
         case .groq: return AppPreferenceKeys.sttGroqAPIKey
         case .mistral: return AppPreferenceKeys.sttMistralAPIKey
         case .elevenlabs: return AppPreferenceKeys.sttElevenLabsAPIKey
-        case .whisperKit: return ""
         }
     }
 
@@ -58,7 +57,6 @@ enum SpeechPluginPreferenceSupport {
         case .openRouter: return AppPreferenceKeys.ttsOpenRouterAPIKey
         case .groq: return AppPreferenceKeys.ttsGroqAPIKey
         case .xiaomiMiMo: return AppPreferenceKeys.ttsMiMoAPIKey
-        case .whisperKit: return ""
         }
     }
 

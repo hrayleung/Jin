@@ -131,10 +131,6 @@ final class SpeechPluginPreferenceSupportTests: XCTestCase {
             SpeechPluginPreferenceSupport.speechToTextAPIKeyPreferenceKey(for: .elevenlabs),
             AppPreferenceKeys.sttElevenLabsAPIKey
         )
-        XCTAssertEqual(
-            SpeechPluginPreferenceSupport.speechToTextAPIKeyPreferenceKey(for: .whisperKit),
-            ""
-        )
     }
 
     func testTextToSpeechAPIKeyPreferenceKeys() {
@@ -153,10 +149,6 @@ final class SpeechPluginPreferenceSupportTests: XCTestCase {
         XCTAssertEqual(
             SpeechPluginPreferenceSupport.textToSpeechAPIKeyPreferenceKey(for: .xiaomiMiMo),
             AppPreferenceKeys.ttsMiMoAPIKey
-        )
-        XCTAssertEqual(
-            SpeechPluginPreferenceSupport.textToSpeechAPIKeyPreferenceKey(for: .whisperKit),
-            ""
         )
     }
 }

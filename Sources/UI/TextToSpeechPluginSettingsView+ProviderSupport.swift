@@ -26,7 +26,7 @@ extension TextToSpeechPluginSettingsView {
             let base = URL(string: miMoBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                 ?? MiMoAudioClient.Constants.defaultBaseURL
             return .miMo(MiMoAudioClient(apiKey: apiKey, baseURL: base))
-        case .elevenlabs, .whisperKit:
+        case .elevenlabs:
             return nil
         }
     }

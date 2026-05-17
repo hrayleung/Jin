@@ -6,7 +6,7 @@ final class DataSettingsSupportTests: XCTestCase {
         let snapshots = [
             StorageCategorySnapshot(category: .attachments, byteCount: 120, fileCount: 2, url: nil),
             StorageCategorySnapshot(category: .networkLogs, byteCount: 80, fileCount: 1, url: nil),
-            StorageCategorySnapshot(category: .speechModels, byteCount: 0, fileCount: 0, url: nil)
+            StorageCategorySnapshot(category: .mcpData, byteCount: 0, fileCount: 0, url: nil)
         ]
 
         XCTAssertEqual(DataSettingsSupport.totalBytes(in: snapshots), 200)
@@ -40,10 +40,6 @@ final class DataSettingsSupportTests: XCTestCase {
         XCTAssertEqual(
             DataSettingsSupport.clearConfirmationMessage(for: .mcpData, byteCount: 0),
             "This will delete all MCP server isolation directories (0 bytes). They will be recreated as needed."
-        )
-        XCTAssertEqual(
-            DataSettingsSupport.clearConfirmationMessage(for: .speechModels, byteCount: 0),
-            "This will delete all downloaded on-device speech models (0 bytes). They will need to be re-downloaded to use again."
         )
         XCTAssertEqual(
             DataSettingsSupport.clearConfirmationMessage(for: .database, byteCount: 0),

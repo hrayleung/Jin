@@ -34,25 +34,4 @@ enum TextToSpeechPlaybackMetricsSupport {
             )
         )
     }
-
-    static func ttsKitSampleDuration(sampleCount: Int, sampleRate: Int) -> TimeInterval? {
-        guard sampleCount > 0, sampleRate > 0 else { return nil }
-        return Double(sampleCount) / Double(sampleRate)
-    }
-
-    static func shouldFlushTTSKitSamples(
-        sampleCount: Int,
-        sampleRate: Int,
-        force: Bool,
-        shouldPrimePlayback: Bool,
-        initialBatchDuration: TimeInterval,
-        clipBatchDuration: TimeInterval
-    ) -> Bool {
-        guard let duration = ttsKitSampleDuration(sampleCount: sampleCount, sampleRate: sampleRate) else {
-            return false
-        }
-
-        let requiredDuration = shouldPrimePlayback ? initialBatchDuration : clipBatchDuration
-        return force || duration >= requiredDuration
-    }
 }

@@ -10,22 +10,9 @@ final class TextToSpeechPlaybackIntentSupportTests: XCTestCase {
             TextToSpeechPlaybackIntentSupport.toggleIntent(
                 state: .playing(messageID: messageID),
                 messageID: messageID,
-                text: "hello",
-                usesNativeStreamingPlayback: false
+                text: "hello"
             ),
             .pauseCurrent
-        )
-    }
-
-    func testToggleIntentStopsNativePlaybackForCurrentPlayingMessage() {
-        XCTAssertEqual(
-            TextToSpeechPlaybackIntentSupport.toggleIntent(
-                state: .playing(messageID: messageID),
-                messageID: messageID,
-                text: "hello",
-                usesNativeStreamingPlayback: true
-            ),
-            .stopCurrent
         )
     }
 
@@ -34,8 +21,7 @@ final class TextToSpeechPlaybackIntentSupportTests: XCTestCase {
             TextToSpeechPlaybackIntentSupport.toggleIntent(
                 state: .paused(messageID: messageID),
                 messageID: messageID,
-                text: "hello",
-                usesNativeStreamingPlayback: false
+                text: "hello"
             ),
             .resumeCurrent
         )
@@ -46,8 +32,7 @@ final class TextToSpeechPlaybackIntentSupportTests: XCTestCase {
             TextToSpeechPlaybackIntentSupport.toggleIntent(
                 state: .generating(messageID: messageID),
                 messageID: messageID,
-                text: "hello",
-                usesNativeStreamingPlayback: false
+                text: "hello"
             ),
             .stopCurrent
         )
@@ -58,8 +43,7 @@ final class TextToSpeechPlaybackIntentSupportTests: XCTestCase {
             TextToSpeechPlaybackIntentSupport.toggleIntent(
                 state: .idle,
                 messageID: messageID,
-                text: "  hello\n",
-                usesNativeStreamingPlayback: false
+                text: "  hello\n"
             ),
             .stopCurrentThenStart(trimmedText: "hello")
         )
@@ -70,8 +54,7 @@ final class TextToSpeechPlaybackIntentSupportTests: XCTestCase {
             TextToSpeechPlaybackIntentSupport.toggleIntent(
                 state: .playing(messageID: otherMessageID),
                 messageID: messageID,
-                text: "hello",
-                usesNativeStreamingPlayback: false
+                text: "hello"
             ),
             .stopCurrentThenStart(trimmedText: "hello")
         )
@@ -82,8 +65,7 @@ final class TextToSpeechPlaybackIntentSupportTests: XCTestCase {
             TextToSpeechPlaybackIntentSupport.toggleIntent(
                 state: .playing(messageID: otherMessageID),
                 messageID: messageID,
-                text: " \n\t ",
-                usesNativeStreamingPlayback: false
+                text: " \n\t "
             ),
             .stopCurrentAndIgnoreEmptyInput
         )

@@ -42,12 +42,6 @@ struct TextToSpeechPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.ttsElevenLabsStyle) var elevenLabsStyle = 0.0
     @AppStorage(AppPreferenceKeys.ttsElevenLabsUseSpeakerBoost) var elevenLabsUseSpeakerBoost = true
 
-    @AppStorage(AppPreferenceKeys.ttsTTSKitModel) var ttsKitModel = TTSKitModelCatalog.defaultModelID
-    @AppStorage(AppPreferenceKeys.ttsTTSKitVoice) var ttsKitVoice = ""
-    @AppStorage(AppPreferenceKeys.ttsTTSKitLanguage) var ttsKitLanguage = ""
-    @AppStorage(AppPreferenceKeys.ttsTTSKitPlaybackMode) var ttsKitPlaybackMode = TTSKitPlaybackMode.auto.rawValue
-    @AppStorage(AppPreferenceKeys.ttsTTSKitStyleInstruction) var ttsKitStyleInstruction = ""
-
     @State var apiKey = ""
     @State var isKeyVisible = false
     @State var isTesting = false
@@ -96,36 +90,32 @@ struct TextToSpeechPluginSettingsView: View {
                 }
                 .onChange(of: providerRaw) { oldProviderRaw, _ in
                     autoSaveTask?.cancel()
-                    if TextToSpeechProvider(rawValue: oldProviderRaw)?.requiresAPIKey == true {
-                        persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
-                    }
+                    persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
                     Task { await loadExistingKeyAndMaybeProviderResources() }
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
             }
 
-            if provider?.requiresAPIKey != false {
-                JinSettingsSection("API Key") {
-                    JinSettingsSecureFieldRow(
-                        "API Key",
-                        text: $apiKey,
-                        isRevealed: $isKeyVisible,
-                        revealHelp: "Show API key",
-                        concealHelp: "Hide API key"
-                    )
+            JinSettingsSection("API Key") {
+                JinSettingsSecureFieldRow(
+                    "API Key",
+                    text: $apiKey,
+                    isRevealed: $isKeyVisible,
+                    revealHelp: "Show API key",
+                    concealHelp: "Hide API key"
+                )
 
-                    PluginCredentialActionsView(
-                        canTestConnection: !trimmedAPIKey.isEmpty,
-                        canClear: true,
-                        isTesting: isTesting,
-                        showsProgress: isTesting || isLoadingModels || isLoadingVoices,
-                        statusMessage: statusMessage,
-                        statusIsError: statusIsError,
-                        spacing: 12,
-                        onTestConnection: testConnection,
-                        onClear: clearKey
-                    )
-                }
+                PluginCredentialActionsView(
+                    canTestConnection: !trimmedAPIKey.isEmpty,
+                    canClear: true,
+                    isTesting: isTesting,
+                    showsProgress: isTesting || isLoadingModels || isLoadingVoices,
+                    statusMessage: statusMessage,
+                    statusIsError: statusIsError,
+                    spacing: 12,
+                    onTestConnection: testConnection,
+                    onClear: clearKey
+                )
             }
 
             providerSpecificSettings

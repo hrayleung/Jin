@@ -30,10 +30,6 @@ struct SpeechToTextPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.sttMistralTemperature) var mistralTemperature = 0.0
     @AppStorage(AppPreferenceKeys.sttMistralTimestampGranularitiesJSON) var mistralTimestampGranularitiesJSON = "[]"
 
-    @AppStorage(AppPreferenceKeys.sttWhisperKitModel) var whisperKitModel = "base"
-    @AppStorage(AppPreferenceKeys.sttWhisperKitLanguage) var whisperKitLanguage = ""
-    @AppStorage(AppPreferenceKeys.sttWhisperKitTranslateToEnglish) var whisperKitTranslateToEnglish = false
-
     @AppStorage(AppPreferenceKeys.sttOpenRouterBaseURL) var openRouterBaseURL = OpenRouterAudioClient.Constants.defaultBaseURL.absoluteString
     @AppStorage(AppPreferenceKeys.sttOpenRouterModel) var openRouterModel = "openai/whisper-1"
     @AppStorage(AppPreferenceKeys.sttOpenRouterLanguage) var openRouterLanguage = ""
@@ -89,9 +85,7 @@ struct SpeechToTextPluginSettingsView: View {
                 }
                 .onChange(of: providerRaw) { oldProviderRaw, _ in
                     autoSaveTask?.cancel()
-                    if SpeechToTextProvider(rawValue: oldProviderRaw)?.requiresAPIKey == true {
-                        persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
-                    }
+                    persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
                     Task { await loadExistingKeyAndMaybeModels() }
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
@@ -103,28 +97,26 @@ struct SpeechToTextPluginSettingsView: View {
                 )
             }
 
-            if provider?.requiresAPIKey != false {
-                JinSettingsSection("API Key") {
-                    JinSettingsSecureFieldRow(
-                        "API Key",
-                        text: $apiKey,
-                        isRevealed: $isKeyVisible,
-                        revealHelp: "Show API key",
-                        concealHelp: "Hide API key"
-                    )
+            JinSettingsSection("API Key") {
+                JinSettingsSecureFieldRow(
+                    "API Key",
+                    text: $apiKey,
+                    isRevealed: $isKeyVisible,
+                    revealHelp: "Show API key",
+                    concealHelp: "Hide API key"
+                )
 
-                    PluginCredentialActionsView(
-                        canTestConnection: !trimmedAPIKey.isEmpty,
-                        canClear: true,
-                        isTesting: isTesting,
-                        showsProgress: isTesting || isLoadingModels,
-                        statusMessage: statusMessage,
-                        statusIsError: statusIsError,
-                        spacing: 12,
-                        onTestConnection: testConnection,
-                        onClear: clearKey
-                    )
-                }
+                PluginCredentialActionsView(
+                    canTestConnection: !trimmedAPIKey.isEmpty,
+                    canClear: true,
+                    isTesting: isTesting,
+                    showsProgress: isTesting || isLoadingModels,
+                    statusMessage: statusMessage,
+                    statusIsError: statusIsError,
+                    spacing: 12,
+                    onTestConnection: testConnection,
+                    onClear: clearKey
+                )
             }
 
             providerSpecificSettings

@@ -22,8 +22,6 @@ enum DataSettingsSupport {
             return deleteAllMessage("chat diagnostic timing logs", byteCount: byteCount)
         case .mcpData:
             return "\(deleteAllMessage("MCP server isolation directories", byteCount: byteCount)) They will be recreated as needed."
-        case .speechModels:
-            return "\(deleteAllMessage("downloaded on-device speech models", byteCount: byteCount)) They will need to be re-downloaded to use again."
         case .database:
             return ""
         }
