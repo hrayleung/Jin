@@ -3,6 +3,16 @@
     <channel>
         <title>Jin</title>
         <item>
+            <title>0.94.5</title>
+            <pubDate>Sun, 17 May 2026 21:13:23 +0800</pubDate>
+            <link>https://github.com/hrayleung/Jin/releases</link>
+            <sparkle:version>535</sparkle:version>
+            <sparkle:shortVersionString>0.94.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.94.5/Jin-0.94.5.zip" length="22150177" type="application/octet-stream" sparkle:edSignature="S2IYVj3KUOeLb1vgcDoVmOxkLnixhjjyG1YsKG2y9wuaSFjwFXZDDCQ8/An59Mk/SCcclKckAo0GkaLRDBIeDQ=="/>
+        </item>
+        <item>
             <title>0.94.4</title>
             <pubDate>Sun, 17 May 2026 15:59:16 +0800</pubDate>
             <link>https://github.com/hrayleung/Jin/releases</link>
@@ -91,16 +101,6 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.6/Jin-0.93.6.zip" length="27823161" type="application/octet-stream" sparkle:edSignature="Nj/BMDKsjuQLRbvsWJFvxlSB+oLtqpBgt3VfzKMFxXotminF2yxLtkD4LQ/D7x6oG7MGdm9CZjoHWOHZMQEnDg=="/>
-        </item>
-        <item>
-            <title>0.93.5</title>
-            <pubDate>Thu, 07 May 2026 20:56:41 +0800</pubDate>
-            <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>489</sparkle:version>
-            <sparkle:shortVersionString>0.93.5</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v0.93.5/Jin-0.93.5.zip" length="27723122" type="application/octet-stream" sparkle:edSignature="d8e8xHcxGgoo4gJ4R2cd2jKZQpdwFUySXsfvXQ8SB7xDwsurrNZlYOylMyFi4DxvUoeO6WJfXdoMzbW02VjnDw=="/>
         </item>
         <item>
             <title>0.70</title>
