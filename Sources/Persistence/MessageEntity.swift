@@ -7,10 +7,6 @@ final class MessageEntity {
     @Attribute(.unique) var id: UUID
     var role: String // MessageRole.rawValue
     var timestamp: Date
-    /// Conversation model thread this message belongs to.
-    var contextThreadID: UUID?
-    /// Optional cross-thread turn fan-out identifier.
-    var turnID: UUID?
     var contentData: Data // Codable [ContentPart]
     var toolCallsData: Data?
     var toolResultsData: Data?
@@ -36,8 +32,6 @@ final class MessageEntity {
         id: UUID = UUID(),
         role: String,
         timestamp: Date = Date(),
-        contextThreadID: UUID? = nil,
-        turnID: UUID? = nil,
         contentData: Data,
         toolCallsData: Data? = nil,
         toolResultsData: Data? = nil,
@@ -54,8 +48,6 @@ final class MessageEntity {
         self.id = id
         self.role = role
         self.timestamp = timestamp
-        self.contextThreadID = contextThreadID
-        self.turnID = turnID
         self.contentData = contentData
         self.toolCallsData = toolCallsData
         self.toolResultsData = toolResultsData

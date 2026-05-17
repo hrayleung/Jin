@@ -55,7 +55,7 @@ extension ChatMessagePreparationSupport {
     }
 
     static func messagePreparationProfile(
-        for thread: ConversationModelThreadEntity,
+        for conversation: ConversationEntity,
         providers: [ProviderConfigEntity],
         controls: GenerationControls,
         mistralOCRPluginEnabled: Bool,
@@ -65,11 +65,11 @@ extension ChatMessagePreparationSupport {
         firecrawlOCRPluginEnabled: Bool,
         defaultPDFProcessingFallbackMode: PDFProcessingMode
     ) throws -> MessagePreparationProfile {
-        let providerTypeSnapshot = providerType(forProviderID: thread.providerID, providers: providers)
-        let providerEntity = providers.first(where: { $0.id == thread.providerID })
+        let providerTypeSnapshot = providerType(forProviderID: conversation.providerID, providers: providers)
+        let providerEntity = providers.first(where: { $0.id == conversation.providerID })
         let threadControls: GenerationControls
         do {
-            threadControls = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
+            threadControls = try JSONDecoder().decode(GenerationControls.self, from: conversation.modelConfigData)
         } catch {
             throw LLMError.decodingError(message: "Failed to load conversation settings: \(error.localizedDescription)")
         }
@@ -82,12 +82,12 @@ extension ChatMessagePreparationSupport {
         let resolvedModelID: String
         if providerTypeSnapshot == .claudeManagedAgents {
             resolvedModelID = ClaudeManagedAgentRuntime.resolvedRuntimeModelID(
-                threadModelID: thread.modelID,
+                threadModelID: conversation.modelID,
                 controls: resolvedManagedControls
             )
         } else {
             resolvedModelID = ChatModelCapabilitySupport.effectiveModelID(
-                modelID: thread.modelID,
+                modelID: conversation.modelID,
                 providerEntity: providerEntity,
                 providerType: providerTypeSnapshot
             )
@@ -96,13 +96,13 @@ extension ChatMessagePreparationSupport {
         let modelInfo: ModelInfo? = {
             if providerTypeSnapshot == .claudeManagedAgents {
                 return ChatModelCapabilitySupport.resolvedClaudeManagedAgentModelInfo(
-                    threadModelID: thread.modelID,
+                    threadModelID: conversation.modelID,
                     providerEntity: providerEntity,
                     threadControls: threadControls
                 )
             }
             return ChatModelCapabilitySupport.resolvedModelInfo(
-                modelID: thread.modelID,
+                modelID: conversation.modelID,
                 providerEntity: providerEntity,
                 providerType: providerTypeSnapshot
             )
@@ -142,11 +142,10 @@ extension ChatMessagePreparationSupport {
         let firecrawlPDFParserMode = resolvedManagedControls.firecrawlPDFParserMode ?? .ocr
         let modelName = modelInfo?.name
             ?? (providerTypeSnapshot == .claudeManagedAgents
-                ? ClaudeManagedAgentRuntime.resolvedDisplayName(threadModelID: thread.modelID, controls: resolvedManagedControls)
+                ? ClaudeManagedAgentRuntime.resolvedDisplayName(threadModelID: conversation.modelID, controls: resolvedManagedControls)
                 : resolvedModelID)
 
         return MessagePreparationProfile(
-            threadID: thread.id,
             modelName: modelName,
             supportsVideoGenerationControl: supportsVideoGen,
             supportsVideoInput: supportsVideoInput,

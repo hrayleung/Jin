@@ -106,51 +106,30 @@ struct ChatsSidebarSectionView: View {
     }
 
     private func activeProviderID(for conversation: ConversationEntity) -> String {
-        let sortedThreads = ChatThreadSupport.sortedThreads(in: conversation.modelThreads)
-        if let active = ChatThreadSupport.activeThread(
-            in: sortedThreads,
-            preferredID: conversation.activeThreadID
-        ) {
-            return active.providerID
-        }
-        return conversation.providerID
+        conversation.providerID
     }
 
     private func activeModelID(for conversation: ConversationEntity) -> String {
-        let sortedThreads = ChatThreadSupport.sortedThreads(in: conversation.modelThreads)
-        if let active = ChatThreadSupport.activeThread(
-            in: sortedThreads,
-            preferredID: conversation.activeThreadID
-        ) {
-            return active.modelID
-        }
-        return conversation.modelID
+        conversation.modelID
     }
 
     private func providerName(for conversation: ConversationEntity) -> String {
-        providerName(for: activeProviderID(for: conversation))
+        providerName(for: conversation.providerID)
     }
 
     private func providerIconID(for conversation: ConversationEntity) -> String? {
-        providerIconID(for: activeProviderID(for: conversation))
+        providerIconID(for: conversation.providerID)
     }
 
     private func modelName(for conversation: ConversationEntity) -> String {
-        let providerID = activeProviderID(for: conversation)
-        let modelID = activeModelID(for: conversation)
+        let providerID = conversation.providerID
+        let modelID = conversation.modelID
         guard let provider = providers.first(where: { $0.id == providerID }) else {
             return modelID
         }
 
         if ProviderType(rawValue: provider.typeRaw) == .claudeManagedAgents {
-            let sortedThreads = ChatThreadSupport.sortedThreads(in: conversation.modelThreads)
-            let activeThread = ChatThreadSupport.activeThread(
-                in: sortedThreads,
-                preferredID: conversation.activeThreadID
-            )
-            let configData = activeThread?.modelConfigData
-                ?? conversation.modelConfigData
-            let storedControls = try? JSONDecoder().decode(GenerationControls.self, from: configData)
+            let storedControls = try? JSONDecoder().decode(GenerationControls.self, from: conversation.modelConfigData)
             return ClaudeManagedAgentResolutionSupport.resolvedConversationDisplayName(
                 threadModelID: modelID,
                 storedControls: storedControls,

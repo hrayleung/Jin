@@ -297,11 +297,9 @@ actor NetworkDebugLogger {
     ) -> URL {
         let timeFolder = safePathComponent(timeFolderComponent(for: startedAt))
         let conversation = safePathComponent(context.conversationID ?? "_unscoped_conversation")
-        let turn = safePathComponent(context.turnID ?? "_unscoped_turn")
         return logRootDirectoryURL
             .appendingPathComponent(timeFolder, isDirectory: true)
             .appendingPathComponent(conversation, isDirectory: true)
-            .appendingPathComponent(turn, isDirectory: true)
             .appendingPathComponent("\(requestID.uuidString).json", isDirectory: false)
     }
 

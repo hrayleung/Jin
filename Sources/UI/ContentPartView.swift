@@ -7,7 +7,6 @@ struct ContentPartView: View {
     var forceNativeText: Bool = false
     var payloadResolver: RenderedMessagePayloadResolver = .noop
     var selectionMessageID: UUID? = nil
-    var selectionContextThreadID: UUID? = nil
     var selectionAnchorID: String? = nil
     var persistedHighlights: [MessageHighlightSnapshot] = []
     var selectionActions: MessageTextSelectionActions = .none
@@ -20,7 +19,6 @@ struct ContentPartView: View {
                 mode: (isUser || forceNativeText) ? .plainText : .markdown,
                 deferCodeHighlightUpgrade: (!isUser && deferCodeHighlightUpgrade),
                 selectionMessageID: selectionMessageID,
-                selectionContextThreadID: selectionContextThreadID,
                 selectionAnchorID: selectionAnchorID,
                 persistedHighlights: persistedHighlights,
                 selectionActions: selectionActions

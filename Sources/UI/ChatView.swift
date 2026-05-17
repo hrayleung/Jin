@@ -21,7 +21,6 @@ struct ChatView: View {
     }
 
     struct PendingManagedAgentInteraction: Identifiable {
-        let localThreadID: UUID
         let request: ManagedAgentInteractionRequest
 
         var id: UUID { request.id }
@@ -107,8 +106,8 @@ struct ChatView: View {
     // swiftlint:disable:next private_swiftui_state
     @State var renderCache = ChatRenderCacheController()
     @State var isArtifactPaneVisible = false
-    @State var selectedArtifactIDByThreadID: [UUID: String] = [:]
-    @State var selectedArtifactVersionByThreadID: [UUID: Int] = [:]
+    @State var selectedArtifactID: String?
+    @State var selectedArtifactVersion: Int?
     @ObservedObject var favoriteModelsStore = FavoriteModelsStore.shared
 
     @State var errorMessage: String?
@@ -170,7 +169,6 @@ struct ChatView: View {
     // Accessed from ChatView extensions in separate files.
     // swiftlint:disable private_swiftui_state
     @State var showingOpenAIImageCustomSizeSheet = false
-    @State var openAIImageCustomSizeTargetThreadID: UUID?
     @State var openAIImageCustomSizeTargetModelID = ""
     // swiftlint:enable private_swiftui_state
     @State var imageGenerationDraft = ImageGenerationControls()
@@ -222,93 +220,84 @@ struct ChatView: View {
     }
 
     var streamingMessage: StreamingMessageState? {
-        guard let activeThreadID = activeModelThread?.id else { return nil }
-        return streamingStore.streamingState(conversationID: conversationEntity.id, threadID: activeThreadID)
+        streamingStore.streamingState(conversationID: conversationEntity.id)
     }
 
     var streamingModelLabel: String? {
-        guard let activeThreadID = activeModelThread?.id else { return nil }
-        return streamingStore.streamingModelLabel(conversationID: conversationEntity.id, threadID: activeThreadID)
+        streamingStore.streamingModelLabel(conversationID: conversationEntity.id)
     }
 
-    func streamingMessage(for threadID: UUID) -> StreamingMessageState? {
-        streamingStore.streamingState(conversationID: conversationEntity.id, threadID: threadID)
+    var streamingModelID: String? {
+        streamingStore.streamingModelID(conversationID: conversationEntity.id)
     }
 
-    func streamingModelLabel(for threadID: UUID) -> String? {
-        streamingStore.streamingModelLabel(conversationID: conversationEntity.id, threadID: threadID)
-    }
-
-    func streamingModelID(for threadID: UUID) -> String? {
-        streamingStore.streamingModelID(conversationID: conversationEntity.id, threadID: threadID)
-    }
-
-    var sortedModelThreads: [ConversationModelThreadEntity] {
-        ChatThreadSupport.sortedThreads(in: conversationEntity.modelThreads)
-    }
-
-    var selectedModelThreads: [ConversationModelThreadEntity] {
-        ChatThreadSupport.selectedThreads(
-            from: sortedModelThreads,
-            activeThread: activeModelThread
-        )
-    }
-
-    /// Threads that render as their own panel in the stage. A thread becomes
-    /// a panel only after it has received messages — toggling a tab as a
-    /// next-send recipient no longer summons an empty column.
-    ///
-    /// Reads `renderCache.panelThreadIDs` (populated by `rebuildMessageCaches`)
-    /// rather than `conversationEntity.messages` so streaming-token writes
-    /// don't register a SwiftData observation on `ChatView.body`. Without this,
-    /// every persisted message would invalidate the whole chat tree even
-    /// though panel membership only changes when a thread crosses 0 → ≥1
-    /// messages.
-    var panelThreads: [ConversationModelThreadEntity] {
-        let withMessages = sortedModelThreads.filter { renderCache.panelThreadIDs.contains($0.id) }
-        if !withMessages.isEmpty {
-            return withMessages
-        }
-        if let activeModelThread {
-            return [activeModelThread]
-        }
-        if let firstThread = sortedModelThreads.first {
-            return [firstThread]
-        }
-        return []
-    }
-
-    var secondaryToolbarThreads: [ConversationModelThreadEntity] {
-        ChatThreadSupport.secondaryToolbarThreads(
-            from: sortedModelThreads,
-            activeThread: activeModelThread
-        )
-    }
-
-    var activeModelThread: ConversationModelThreadEntity? {
-        ChatThreadSupport.activeThread(
-            in: sortedModelThreads,
-            preferredID: conversationEntity.activeThreadID
-        )
-    }
-
-    /// Provider ID of the active thread, or "" if no thread is set up yet.
-    /// Replaces the now-deprecated `conversationEntity.providerID` snapshot.
+    /// Provider ID of the chat's model, or "" if not set.
     var activeProviderID: String {
-        activeModelThread?.providerID ?? ""
+        conversationEntity.providerID
     }
 
-    /// Model ID of the active thread, or "" if no thread is set up yet.
-    /// Replaces the now-deprecated `conversationEntity.modelID` snapshot.
+    /// Model ID of the chat's model, or "" if not set.
     var activeModelID: String {
-        activeModelThread?.modelID ?? ""
+        conversationEntity.modelID
     }
 
-    /// Encoded `GenerationControls` of the active thread, or empty data if
-    /// no thread exists. Replaces the now-deprecated
-    /// `conversationEntity.modelConfigData` snapshot.
+    /// Encoded `GenerationControls` of the chat's model.
     var activeModelConfigData: Data {
-        activeModelThread?.modelConfigData ?? Data()
+        conversationEntity.modelConfigData
+    }
+
+    var currentProvider: ProviderConfigEntity? {
+        providers.first(where: { $0.id == activeProviderID })
+    }
+
+    var currentProviderIconID: String? {
+        currentProvider?.resolvedProviderIconID
+    }
+
+    var availableModels: [ModelInfo] {
+        currentProvider?.enabledModels ?? []
+    }
+
+    func providerIconID(for providerID: String) -> String? {
+        providers.first(where: { $0.id == providerID })?.resolvedProviderIconID
+    }
+
+    var currentModelName: String {
+        if providerType == .claudeManagedAgents {
+            return resolvedClaudeManagedAgentDisplayName(
+                for: activeProviderID,
+                modelID: activeModelID,
+                controls: controls
+            )
+        }
+        let providerEntity = currentProvider
+        return resolvedModelInfo(
+            for: activeModelID,
+            providerEntity: providerEntity,
+            providerType: providerType
+        )?.name ?? activeModelID
+    }
+
+    func modelName(id modelID: String, providerID: String) -> String {
+        if providerType(forProviderID: providerID) == .claudeManagedAgents {
+            return resolvedClaudeManagedAgentDisplayName(
+                for: providerID,
+                modelID: modelID,
+                controls: controls
+            )
+        }
+        let providerEntity = providers.first(where: { $0.id == providerID })
+        let pType = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) }
+        return resolvedModelInfo(
+            for: modelID,
+            providerEntity: providerEntity,
+            providerType: pType
+        )?.name ?? modelID
+    }
+
+    func isFullySupportedModel(modelID: String) -> Bool {
+        guard let providerType else { return false }
+        return JinModelSupport.isFullySupported(providerType: providerType, modelID: modelID)
     }
 
     var googleMapsLocationBiasValue: GoogleMapsLocationBias? {

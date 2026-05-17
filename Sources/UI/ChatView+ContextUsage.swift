@@ -13,7 +13,6 @@ struct ContextUsageSettingsSnapshot: Equatable, Sendable {
 
 struct ContextUsageRefreshToken: Equatable {
     let conversationID: UUID
-    let activeThreadID: UUID?
     let cachedMessagesVersion: Int
     let trimmedRemoteVideoURLText: String
     let attachmentIDs: [UUID]
@@ -40,7 +39,6 @@ extension ChatView {
 
         return ContextUsageRefreshToken(
             conversationID: conversationEntity.id,
-            activeThreadID: activeModelThread?.id,
             cachedMessagesVersion: renderCache.version,
             trimmedRemoteVideoURLText: trimmedRemoteVideoInputURLText,
             attachmentIDs: draftAttachments.map(\.id),
@@ -123,7 +121,7 @@ extension ChatView {
     }
 
     private var contextUsageSettingsSnapshot: ContextUsageSettingsSnapshot? {
-        guard activeModelThread != nil || selectedModelInfo != nil else { return nil }
+        guard !conversationEntity.providerID.isEmpty || selectedModelInfo != nil else { return nil }
         guard ModelContextUsageSupport.shouldShowIndicator(for: resolvedModelSettings?.modelType) else {
             return nil
         }

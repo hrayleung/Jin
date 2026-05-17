@@ -110,18 +110,6 @@ extension ContentView {
                 conversation.modelConfigData = migrated
                 didMutate = true
             }
-
-            for thread in conversation.modelThreads {
-                if let migrated = migratedModelConfigDataIfNeeded(
-                    thread.modelConfigData,
-                    providerID: thread.providerID,
-                    modelID: thread.modelID,
-                    assistantMaxOutputTokens: assistantMaxOutputTokens
-                ) {
-                    thread.modelConfigData = migrated
-                    didMutate = true
-                }
-            }
         }
 
         if didMutate {

@@ -18,9 +18,7 @@ struct ChatMessageTimelineView: View {
     let streamingModelID: String?
     let bottomSpacerHeight: CGFloat
     let bottomID: String
-    let onActivateThreadForMessage: (UUID?) -> Void
-    let onActivateTimeline: () -> Void
-    let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
+    let onOpenArtifact: (RenderedArtifactVersion) -> Void
     let effectiveRenderMode: (Int, MessageRenderItem) -> MessageRenderMode
     let onExpandCollapsedContent: (UUID) -> Void
 
@@ -94,14 +92,7 @@ struct ChatMessageTimelineView: View {
                 editSlashCommand: interaction.editSlashCommand,
                 onOpenArtifact: onOpenArtifact,
                 renderMode: effectiveRenderMode(index, message),
-                onExpandCollapsedContent: onExpandCollapsedContent,
-                onActivate: {
-                    if let threadID = message.contextThreadID {
-                        onActivateThreadForMessage(threadID)
-                    } else {
-                        onActivateTimeline()
-                    }
-                }
+                onExpandCollapsedContent: onExpandCollapsedContent
             )
             .id(message.id)
         }

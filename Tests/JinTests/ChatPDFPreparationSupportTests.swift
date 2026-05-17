@@ -140,7 +140,6 @@ private func makeAttachment(filename: String, mimeType: String, url: URL) -> Dra
 
 private func makeProfile(pdfProcessingMode: PDFProcessingMode) -> ChatMessagePreparationSupport.MessagePreparationProfile {
     ChatMessagePreparationSupport.MessagePreparationProfile(
-        threadID: UUID(),
         modelName: "Test Model",
         supportsVideoGenerationControl: false,
         supportsVideoInput: false,

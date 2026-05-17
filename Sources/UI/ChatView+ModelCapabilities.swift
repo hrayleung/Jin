@@ -9,11 +9,11 @@ extension ChatView {
 
     var selectedModelInfo: ModelInfo? {
         if providerType == .claudeManagedAgents {
-            let threadControls = activeModelThread.flatMap(storedGenerationControls(for:))
+            let storedControls = storedGenerationControls()
             if let model = ChatModelCapabilitySupport.resolvedClaudeManagedAgentModelInfo(
                 threadModelID: activeModelID,
                 providerEntity: currentProvider,
-                threadControls: threadControls
+                threadControls: storedControls
             ) {
                 return ChatModelCapabilitySupport.normalizedSelectedModelInfo(
                     model,
@@ -66,10 +66,10 @@ extension ChatView {
         availableModels: [ModelInfo]? = nil
     ) -> String {
         if providerType == .claudeManagedAgents {
-            let threadControls = activeModelThread.flatMap(storedGenerationControls(for:))
+            let storedControls = storedGenerationControls()
             let resolvedControls = resolvedClaudeManagedControls(
                 for: providerEntity?.id ?? activeProviderID,
-                threadControls: threadControls
+                threadControls: storedControls
             )
             return ClaudeManagedAgentRuntime.resolvedRuntimeModelID(
                 threadModelID: modelID,
@@ -84,28 +84,18 @@ extension ChatView {
         )
     }
 
-    func migrateThreadModelIDIfNeeded(
-        _ thread: ConversationModelThreadEntity,
-        resolvedModelID: String
-    ) {
-        guard resolvedModelID != thread.modelID else { return }
-        thread.modelID = resolvedModelID
-        conversationEntity.updatedAt = Date()
-        try? modelContext.save()
-    }
-
     func canonicalModelID(for providerID: String, modelID: String) -> String {
         let providerEntity = providers.first(where: { $0.id == providerID })
         let providerType = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) }
         if providerType == .claudeManagedAgents {
-            let threadControls = sortedModelThreads.first(where: {
-                $0.providerID == providerID && $0.modelID == modelID
-            }).flatMap(storedGenerationControls(for:))
+            let storedControls = providerID == conversationEntity.providerID
+                ? storedGenerationControls()
+                : nil
             return ClaudeManagedAgentResolutionSupport.canonicalManagedThreadModelID(
                 providerID: providerID,
                 requestedModelID: modelID,
                 fallbackControls: controls,
-                storedThreadControls: threadControls,
+                storedThreadControls: storedControls,
                 applyProviderDefaults: { candidateControls in
                     providers.first(where: { $0.id == providerID })?.applyClaudeManagedDefaults(into: &candidateControls)
                 }
@@ -119,9 +109,12 @@ extension ChatView {
         )
     }
 
-    func canonicalizeThreadModelIDIfNeeded(_ thread: ConversationModelThreadEntity) {
-        let resolved = canonicalModelID(for: thread.providerID, modelID: thread.modelID)
-        migrateThreadModelIDIfNeeded(thread, resolvedModelID: resolved)
+    func canonicalizeConversationModelIDIfNeeded() {
+        let resolved = canonicalModelID(for: conversationEntity.providerID, modelID: conversationEntity.modelID)
+        guard resolved != conversationEntity.modelID else { return }
+        conversationEntity.modelID = resolved
+        conversationEntity.updatedAt = Date()
+        try? modelContext.save()
     }
 
     func normalizedSelectedModelInfo(_ model: ModelInfo) -> ModelInfo {

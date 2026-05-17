@@ -111,7 +111,6 @@ final class StreamingMessageState: ObservableObject {
                 message: "chat_first_delta_apply_complete",
                 data: [
                     "conversationID": debugContext?.conversationID.uuidString ?? "",
-                    "threadID": debugContext?.threadID.uuidString ?? "",
                     "textDeltaCount": String(textDelta.count),
                     "thinkingDeltaCount": String(thinkingDelta.count),
                     "parseDurationMs": String(parseDurationMs),
@@ -201,6 +200,5 @@ final class StreamingMessageState: ObservableObject {
 
 struct StreamingDebugContext {
     let conversationID: UUID
-    let threadID: UUID
     let diagnosticRunID: String
 }

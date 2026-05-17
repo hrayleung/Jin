@@ -1425,7 +1425,6 @@ private func requestBodyData(_ request: URLRequest) -> Data? {
 
 private func makeOpenRouterProfile(supportsVision: Bool) -> ChatMessagePreparationSupport.MessagePreparationProfile {
     ChatMessagePreparationSupport.MessagePreparationProfile(
-        threadID: UUID(),
         modelName: "Test Model",
         supportsVideoGenerationControl: false,
         supportsVideoInput: false,

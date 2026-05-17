@@ -66,8 +66,6 @@ extension ChatStreamingOrchestrator {
                 ctx.providerID,
                 ctx.modelID,
                 ctx.modelNameSnapshot,
-                ctx.threadID,
-                ctx.turnID,
                 responseMetrics
             )
         }

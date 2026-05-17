@@ -125,24 +125,20 @@ extension ChatView {
     }
 
     func presentOpenAIImageCustomSizeSheet() {
-        openAIImageCustomSizeTargetThreadID = activeModelThread?.id
         openAIImageCustomSizeTargetModelID = lowerModelID
         showingOpenAIImageCustomSizeSheet = true
     }
 
     func dismissOpenAIImageCustomSizeSheet() {
         showingOpenAIImageCustomSizeSheet = false
-        openAIImageCustomSizeTargetThreadID = nil
         openAIImageCustomSizeTargetModelID = ""
     }
 
     func handleOpenAIImageCustomSizeSave(_ size: OpenAIImageSize) {
-        let targetThreadID = openAIImageCustomSizeTargetThreadID
         let targetModelID = openAIImageCustomSizeTargetModelID
         dismissOpenAIImageCustomSizeSheet()
 
-        guard targetThreadID == activeModelThread?.id,
-              targetModelID == lowerModelID else {
+        guard targetModelID == lowerModelID else {
             errorMessage = "The selected OpenAI image model changed while the custom size sheet was open. Reopen the sheet and try again."
             showingError = true
             return

@@ -12,12 +12,9 @@ extension ChatView {
             isComposerFocused = true
         }
         installWKWebViewDropForwarder()
-        // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
-        // and syncActiveThreadSelection, so calling them separately is redundant and causes
-        // extra render cycles that make the header flicker.
         loadControlsFromConversation()
         rebuildMessageCaches()
-        syncArtifactSelectionForActiveThread()
+        syncArtifactSelection()
         refreshContextUsageEstimate(debounced: false)
     }
 
@@ -44,8 +41,6 @@ extension ChatView {
         // load controls (lightweight) so the header reflects the new chat.
         renderCache.clearForConversationSwitch()
 
-        // loadControlsFromConversation internally calls ensureModelThreadsInitializedIfNeeded
-        // and syncActiveThreadSelection, so calling them separately is redundant.
         loadControlsFromConversation()
 
         // For small conversations the rebuild is cheap (no JSON decode async
@@ -53,18 +48,18 @@ extension ChatView {
         // empty flash. For large conversations defer it so SwiftUI can commit
         // the cleared state first; the user perceives an instant response with
         // content streaming in.
-        let orderedMessages = orderedConversationMessages(threadID: activeModelThread?.id)
+        let orderedMessages = orderedConversationMessages()
         if ChatMessageRenderPipeline.shouldBuildRenderContextAsynchronously(from: orderedMessages) {
             let targetConversationID = conversationEntity.id
             Task { @MainActor in
                 guard conversationEntity.id == targetConversationID else { return }
                 rebuildMessageCaches()
-                syncArtifactSelectionForActiveThread()
+                syncArtifactSelection()
                 refreshContextUsageEstimate(debounced: false)
             }
         } else {
             rebuildMessageCaches()
-            syncArtifactSelectionForActiveThread()
+            syncArtifactSelection()
             refreshContextUsageEstimate(debounced: false)
         }
     }
@@ -103,7 +98,6 @@ extension ChatView {
         showingAnthropicWebSearchSheet = false
         showingImageGenerationSheet = false
         showingOpenAIImageCustomSizeSheet = false
-        openAIImageCustomSizeTargetThreadID = nil
         openAIImageCustomSizeTargetModelID = ""
         showingGoogleMapsSheet = false
         googleMapsDraft = GoogleMapsControls()
@@ -129,8 +123,8 @@ extension ChatView {
 
     private func resetArtifactStateForConversationSwitch() {
         isArtifactPaneVisible = false
-        selectedArtifactIDByThreadID = [:]
-        selectedArtifactVersionByThreadID = [:]
+        selectedArtifactID = nil
+        selectedArtifactVersion = nil
     }
 
     func handleAttachmentImport(_ result: Result<[URL], Error>) {

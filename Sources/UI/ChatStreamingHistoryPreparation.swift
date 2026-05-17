@@ -4,7 +4,6 @@ extension ChatStreamingOrchestrator {
     static func prepareHistory(from ctx: SessionContext) -> [Message] {
         let decoder = JSONDecoder()
         var history = ctx.messageSnapshots
-            .filter { $0.contextThreadID == ctx.threadID }
             .sorted { lhs, rhs in
                 if lhs.timestamp != rhs.timestamp {
                     return lhs.timestamp < rhs.timestamp

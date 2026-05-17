@@ -78,68 +78,7 @@ enum ChatMessageStagePresentationSupport {
         }
     }
 
-    struct MultiModelLayout {
-        static let horizontalPadding: CGFloat = 20
-        static let columnSpacing: CGFloat = 12
-        static let minimumColumnWidth: CGFloat = 320
-        static let horizontalContentInset: CGFloat = 34
-        static let minimumBubbleMaxWidth: CGFloat = 220
-
-        let horizontalPadding: CGFloat
-        let columnSpacing: CGFloat
-        let columnWidth: CGFloat
-        let bubbleMaxWidth: CGFloat
-        let threadCount: Int
-
-        init(containerWidth: CGFloat, threadCount: Int) {
-            horizontalPadding = Self.horizontalPadding
-            columnSpacing = Self.columnSpacing
-            self.threadCount = max(threadCount, 0)
-
-            let availableWidth = Self.availableColumnSpace(
-                containerWidth: containerWidth,
-                threadCount: threadCount
-            )
-            columnWidth = max(Self.minimumColumnWidth, availableWidth / CGFloat(max(threadCount, 1)))
-            bubbleMaxWidth = Self.bubbleMaxWidth(for: columnWidth)
-        }
-
-        init(columnWidth: CGFloat) {
-            horizontalPadding = Self.horizontalPadding
-            columnSpacing = Self.columnSpacing
-            self.columnWidth = columnWidth
-            self.threadCount = 0
-            bubbleMaxWidth = Self.bubbleMaxWidth(for: columnWidth)
-        }
-
-        /// Total width occupied by all columns + their padding + spacing.
-        /// Used to size the multi-model HStack so it can be centered within
-        /// the available chat region (mirrors the single-thread centering pattern).
-        var totalColumnsWidth: CGFloat {
-            guard threadCount > 0 else { return 0 }
-            let spacingCount = max(threadCount - 1, 0)
-            return (horizontalPadding * 2)
-                + (columnWidth * CGFloat(threadCount))
-                + (columnSpacing * CGFloat(spacingCount))
-        }
-
-        private static func availableColumnSpace(containerWidth: CGFloat, threadCount: Int) -> CGFloat {
-            let spacingCount = max(threadCount - 1, 0)
-            return max(
-                0,
-                containerWidth
-                    - (horizontalPadding * 2)
-                    - (columnSpacing * CGFloat(spacingCount))
-            )
-        }
-
-        private static func bubbleMaxWidth(for columnWidth: CGFloat) -> CGFloat {
-            max(minimumBubbleMaxWidth, columnWidth - horizontalContentInset)
-        }
-    }
-
-    static func bottomAnchorID(threadID: UUID? = nil) -> String {
-        guard let threadID else { return "bottom" }
-        return "bottom-\(threadID.uuidString)"
+    static func bottomAnchorID() -> String {
+        "bottom"
     }
 }

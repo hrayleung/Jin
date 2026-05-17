@@ -17,7 +17,6 @@ extension ChatStreamingOrchestrator {
             message: "chat_prepare_history_complete",
             data: [
                 "conversationID": ctx.conversationID.uuidString,
-                "threadID": ctx.threadID.uuidString,
                 "snapshotCount": String(ctx.messageSnapshots.count),
                 "historyCount": String(history.count),
                 "shouldTruncateMessages": String(ctx.shouldTruncateMessages),

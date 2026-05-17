@@ -7,7 +7,6 @@ struct MarkdownWebRenderer: View {
     var deferCodeHighlightUpgrade: Bool = false
     var renderPlainText: Bool = false
     var selectionMessageID: UUID? = nil
-    var selectionContextThreadID: UUID? = nil
     var selectionAnchorID: String? = nil
     var persistedHighlights: [MessageHighlightSnapshot] = []
     var selectionActions: MessageTextSelectionActions = .none
@@ -26,7 +25,6 @@ struct MarkdownWebRenderer: View {
         deferCodeHighlightUpgrade: Bool = false,
         renderPlainText: Bool = false,
         selectionMessageID: UUID? = nil,
-        selectionContextThreadID: UUID? = nil,
         selectionAnchorID: String? = nil,
         persistedHighlights: [MessageHighlightSnapshot] = [],
         selectionActions: MessageTextSelectionActions = .none
@@ -36,7 +34,6 @@ struct MarkdownWebRenderer: View {
         self.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
         self.renderPlainText = renderPlainText
         self.selectionMessageID = selectionMessageID
-        self.selectionContextThreadID = selectionContextThreadID
         self.selectionAnchorID = selectionAnchorID
         self.persistedHighlights = persistedHighlights
         self.selectionActions = selectionActions
@@ -57,7 +54,6 @@ struct MarkdownWebRenderer: View {
             codeBlockDisplayMode: codeBlockDisplayMode,
             renderPlainText: renderPlainText,
             selectionMessageID: selectionMessageID,
-            selectionContextThreadID: selectionContextThreadID,
             selectionAnchorID: selectionAnchorID,
             persistedHighlights: persistedHighlights,
             selectionActions: selectionActions
@@ -121,7 +117,6 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
     let codeBlockDisplayMode: String
     let renderPlainText: Bool
     let selectionMessageID: UUID?
-    let selectionContextThreadID: UUID?
     let selectionAnchorID: String?
     let persistedHighlights: [MessageHighlightSnapshot]
     let selectionActions: MessageTextSelectionActions
@@ -169,7 +164,6 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.codeBlockDisplayMode = codeBlockDisplayMode
         context.coordinator.renderPlainText = renderPlainText
         context.coordinator.selectionMessageID = selectionMessageID
-        context.coordinator.selectionContextThreadID = selectionContextThreadID
         context.coordinator.selectionAnchorID = selectionAnchorID
         context.coordinator.persistedHighlights = persistedHighlights
         context.coordinator.startObservingPreferences()
@@ -220,7 +214,6 @@ private struct MarkdownWebRendererRepresentable: NSViewRepresentable {
         context.coordinator.codeBlockCollapseLineThreshold = codeBlockCollapseLineThreshold
         context.coordinator.renderPlainText = renderPlainText
         context.coordinator.selectionMessageID = selectionMessageID
-        context.coordinator.selectionContextThreadID = selectionContextThreadID
         context.coordinator.selectionAnchorID = selectionAnchorID
         context.coordinator.persistedHighlights = persistedHighlights
         webView.onQuoteSelection = selectionActions.onQuote

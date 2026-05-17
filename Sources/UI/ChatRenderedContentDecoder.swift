@@ -110,14 +110,12 @@ enum ChatRenderedContentDecoder {
         }
 
         let sourceMessageID = (quote["sourceMessageID"] as? String).flatMap(UUID.init(uuidString:))
-        let sourceThreadID = (quote["sourceThreadID"] as? String).flatMap(UUID.init(uuidString:))
         let sourceRole = (quote["sourceRole"] as? String).flatMap(MessageRole.init(rawValue:))
 
         let createdAt = decodeDate(quote["createdAt"]) ?? .distantPast
         return .quote(
             QuoteContent(
                 sourceMessageID: sourceMessageID,
-                sourceThreadID: sourceThreadID,
                 sourceRole: sourceRole,
                 sourceModelName: quote["sourceModelName"] as? String,
                 quotedText: quotedText,

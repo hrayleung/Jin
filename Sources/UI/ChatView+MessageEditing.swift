@@ -63,8 +63,8 @@ extension ChatView {
             return
         }
 
-        if let threadID = messageEntity.contextThreadID ?? activeModelThread?.id {
-            invalidateClaudeManagedAgentSessionPersistence(forThreadID: threadID)
+        if providerType == .claudeManagedAgents {
+            clearClaudeManagedAgentSessionPersistence(for: conversationEntity)
         }
 
         let selectedServers = eligibleMCPServers.filter { perMessageMCPServerIDs.contains($0.id) }
@@ -98,8 +98,7 @@ extension ChatView {
     }
 
     func regenerateFromUserMessage(_ messageEntity: MessageEntity) {
-        guard let threadID = messageEntity.contextThreadID ?? activeModelThread?.id else { return }
-        guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity, threadID: threadID) else { return }
+        guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity) else { return }
         var perMessageMCPSnapshot = perMessageMCPServerIDs
         if perMessageMCPSnapshot.isEmpty,
            let idsData = messageEntity.perMessageMCPServerIDsData,
@@ -108,32 +107,26 @@ extension ChatView {
         }
         perMessageMCPServerIDs = []
         let askedAt = Date()
-        truncateConversation(keepingMessages: keepCount, in: threadID)
+        truncateConversation(keepingMessages: keepCount)
         messageEntity.timestamp = askedAt
         conversationEntity.updatedAt = askedAt
-        activateThread(by: threadID)
         startStreamingResponse(
-            for: threadID,
             triggeredByUserSend: false,
             perMessageMCPServerIDs: perMessageMCPSnapshot
         )
     }
 
     func regenerateFromAssistantMessage(_ messageEntity: MessageEntity) {
-        guard let threadID = messageEntity.contextThreadID ?? activeModelThread?.id else { return }
-        guard let keepCount = keepCountForRegeneratingAssistantMessage(messageEntity, threadID: threadID) else { return }
-        truncateConversation(keepingMessages: keepCount, in: threadID)
-        activateThread(by: threadID)
-        startStreamingResponse(for: threadID, triggeredByUserSend: false)
+        guard let keepCount = keepCountForRegeneratingAssistantMessage(messageEntity) else { return }
+        truncateConversation(keepingMessages: keepCount)
+        startStreamingResponse(triggeredByUserSend: false)
     }
 
     func deleteMessage(_ messageEntity: MessageEntity) {
         guard !isStreaming else { return }
         cancelEditingUserMessage()
 
-        let threadID = messageEntity.contextThreadID ?? activeModelThread?.id
-        guard let threadID else { return }
-        let ordered = orderedConversationMessages(threadID: threadID)
+        let ordered = orderedConversationMessages()
 
         let messagesToDelete: [MessageEntity]?
         switch messageEntity.role {
@@ -146,7 +139,7 @@ extension ChatView {
         }
 
         guard let messagesToDelete, !messagesToDelete.isEmpty else { return }
-        deleteMessages(messagesToDelete, in: threadID)
+        deleteMessages(messagesToDelete)
     }
 
     func deleteResponse(_ messageEntity: MessageEntity) {
@@ -154,21 +147,19 @@ extension ChatView {
         guard messageEntity.role == "user" else { return }
         cancelEditingUserMessage()
 
-        let threadID = messageEntity.contextThreadID ?? activeModelThread?.id
-        guard let threadID else { return }
-        let ordered = orderedConversationMessages(threadID: threadID)
+        let ordered = orderedConversationMessages()
 
         guard let messagesToDelete = ChatMessageEditingSupport.messagesToDeleteForResponse(
             afterUserMessage: messageEntity,
             orderedMessages: ordered
         ) else { return }
 
-        deleteMessages(messagesToDelete, in: threadID)
+        deleteMessages(messagesToDelete)
     }
 
-    func deleteMessages(_ messages: [MessageEntity], in threadID: UUID) {
+    func deleteMessages(_ messages: [MessageEntity]) {
         let idsToDelete = Set(messages.map(\.id))
-        recordClaudeManagedAgentHistoryMutation(forThreadID: threadID, removedMessages: messages)
+        recordClaudeManagedAgentHistoryMutation(removedMessages: messages)
         for message in messages {
             modelContext.delete(message)
         }
@@ -183,20 +174,18 @@ extension ChatView {
         rebuildMessageCaches()
     }
 
-    func truncateConversation(keepingMessages keepCount: Int, in threadID: UUID) {
-        let ordered = orderedConversationMessages(threadID: threadID)
+    func truncateConversation(keepingMessages keepCount: Int) {
+        let ordered = orderedConversationMessages()
         let normalizedKeepCount = max(0, min(keepCount, ordered.count))
         let keepIDs = Set(ordered.prefix(normalizedKeepCount).map(\.id))
         let messagesToDelete = Array(ordered.suffix(from: normalizedKeepCount))
-        recordClaudeManagedAgentHistoryMutation(forThreadID: threadID, removedMessages: messagesToDelete)
+        recordClaudeManagedAgentHistoryMutation(removedMessages: messagesToDelete)
 
         for message in messagesToDelete {
             modelContext.delete(message)
         }
 
-        conversationEntity.messages.removeAll {
-            $0.contextThreadID == threadID && !keepIDs.contains($0.id)
-        }
+        conversationEntity.messages.removeAll { !keepIDs.contains($0.id) }
         refreshConversationActivityTimestampFromLatestUserMessage()
         pendingRestoreScrollMessageID = nil
         isPinnedToBottom = true
@@ -205,12 +194,12 @@ extension ChatView {
 
     // MARK: - Helpers
 
-    func keepCountForRegeneratingUserMessage(_ messageEntity: MessageEntity, threadID: UUID) -> Int? {
-        ChatMessageEditingSupport.keepCountForRegeneratingUserMessage(messageEntity, orderedMessages: orderedConversationMessages(threadID: threadID))
+    func keepCountForRegeneratingUserMessage(_ messageEntity: MessageEntity) -> Int? {
+        ChatMessageEditingSupport.keepCountForRegeneratingUserMessage(messageEntity, orderedMessages: orderedConversationMessages())
     }
 
-    func keepCountForRegeneratingAssistantMessage(_ messageEntity: MessageEntity, threadID: UUID) -> Int? {
-        ChatMessageEditingSupport.keepCountForRegeneratingAssistantMessage(messageEntity, orderedMessages: orderedConversationMessages(threadID: threadID))
+    func keepCountForRegeneratingAssistantMessage(_ messageEntity: MessageEntity) -> Int? {
+        ChatMessageEditingSupport.keepCountForRegeneratingAssistantMessage(messageEntity, orderedMessages: orderedConversationMessages())
     }
 
     func editableUserText(from message: Message) -> String? {

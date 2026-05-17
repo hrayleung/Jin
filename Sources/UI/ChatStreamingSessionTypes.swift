@@ -3,8 +3,6 @@ import Foundation
 extension ChatStreamingOrchestrator {
     struct SessionContext: Sendable {
         let conversationID: UUID
-        let threadID: UUID
-        let turnID: UUID?
         let diagnosticRunID: String
         let providerID: String
         let providerConfig: ProviderConfig?
@@ -33,26 +31,22 @@ extension ChatStreamingOrchestrator {
             _ providerID: String,
             _ modelID: String,
             _ modelName: String,
-            _ threadID: UUID,
-            _ turnID: UUID?,
             _ metrics: ResponseMetrics?
         ) -> UUID?
 
         /// Persist a tool-result message entity.
         let persistToolMessage: @MainActor (
-            _ message: Message,
-            _ threadID: UUID,
-            _ turnID: UUID?
+            _ message: Message
         ) -> Void
 
-        /// Save Claude Managed Agents remote session state for a local thread.
-        let persistClaudeManagedSessionState: @MainActor (ClaudeManagedAgentSessionState, _ localThreadID: UUID) -> Void
+        /// Save Claude Managed Agents remote session state.
+        let persistClaudeManagedSessionState: @MainActor (ClaudeManagedAgentSessionState) -> Void
 
         /// Save pending Claude Managed Agents custom tool results for the next turn.
-        let persistClaudeManagedPendingToolResults: @MainActor (_ results: [ClaudeManagedAgentPendingToolResult], _ localThreadID: UUID) -> Void
+        let persistClaudeManagedPendingToolResults: @MainActor (_ results: [ClaudeManagedAgentPendingToolResult]) -> Void
 
         /// Queue a managed agent interaction request for the user.
-        let appendManagedAgentInteraction: @MainActor (ManagedAgentInteractionRequest, _ localThreadID: UUID) -> Void
+        let appendManagedAgentInteraction: @MainActor (ManagedAgentInteractionRequest) -> Void
 
         /// Merge search activities into a previously persisted assistant message.
         let mergeSearchActivities: @MainActor (_ messageID: UUID, _ activities: [SearchActivity]) -> Void
@@ -72,7 +66,7 @@ extension ChatStreamingOrchestrator {
         let endStreamingSession: @MainActor () -> Void
 
         /// Final cleanup: notify completion and end session.
-        let onSessionEnd: @MainActor (_ shouldNotify: Bool, _ preview: String?, _ threadID: UUID) -> Void
+        let onSessionEnd: @MainActor (_ shouldNotify: Bool, _ preview: String?) -> Void
     }
 
     struct PreparedSession {

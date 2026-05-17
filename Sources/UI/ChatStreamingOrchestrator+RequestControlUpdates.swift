@@ -8,15 +8,14 @@ extension ChatStreamingOrchestrator {
 
     static func persistRequestControlStreamUpdate(
         _ update: RequestControlStreamUpdate,
-        threadID: UUID,
         callbacks: SessionCallbacks
     ) async {
         await MainActor.run {
             switch update {
             case .claudeManagedSession(let state):
-                callbacks.persistClaudeManagedSessionState(state, threadID)
+                callbacks.persistClaudeManagedSessionState(state)
             case .claudeManagedCustomToolResults(let results):
-                callbacks.persistClaudeManagedPendingToolResults(results, threadID)
+                callbacks.persistClaudeManagedPendingToolResults(results)
             }
         }
     }
@@ -24,13 +23,11 @@ extension ChatStreamingOrchestrator {
     static func applyRequestControlStreamUpdate(
         _ update: RequestControlStreamUpdate,
         requestControls: inout GenerationControls,
-        threadID: UUID,
         callbacks: SessionCallbacks
     ) async {
         requestControls.applyChatStreamingUpdate(update)
         await persistRequestControlStreamUpdate(
             update,
-            threadID: threadID,
             callbacks: callbacks
         )
     }

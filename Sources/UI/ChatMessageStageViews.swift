@@ -24,8 +24,7 @@ struct ChatSingleThreadMessagesView: View {
     let pinnedBottomRefreshDelays: [TimeInterval]
     let interaction: ChatMessageInteractionContext
     let onStreamingFinished: () -> Void
-    let onActivateMessageThread: (UUID) -> Void
-    let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
+    let onOpenArtifact: (RenderedArtifactVersion) -> Void
     let expandedCollapsedMessageIDs: Binding<Set<UUID>>
     @Binding var messageRenderLimit: Int
     @Binding var pendingRestoreScrollMessageID: UUID?
@@ -105,7 +104,6 @@ struct ChatSingleThreadMessagesView: View {
             pinnedBottomRefreshDelays: pinnedBottomRefreshDelays,
             interaction: interaction,
             onStreamingFinished: onStreamingFinished,
-            onActivateMessageThread: onActivateMessageThread,
             onOpenArtifact: onOpenArtifact,
             timelineWindow: timelineWindow,
             expandedCollapsedMessageIDs: expandedCollapsedMessageIDs,

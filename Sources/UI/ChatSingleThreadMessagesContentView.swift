@@ -32,8 +32,7 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
     let pinnedBottomRefreshDelays: [TimeInterval]
     let interaction: ChatMessageInteractionContext
     let onStreamingFinished: () -> Void
-    let onActivateMessageThread: (UUID) -> Void
-    let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
+    let onOpenArtifact: (RenderedArtifactVersion) -> Void
     let timelineWindow: ChatMessageStagePresentationSupport.TimelineWindow
     let expandedCollapsedMessageIDs: Binding<Set<UUID>>
     @Binding var messageRenderLimit: Int
@@ -205,11 +204,6 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             streamingModelID: streamingModelID,
             bottomSpacerHeight: composerHeight + 24,
             bottomID: ChatMessageStagePresentationSupport.bottomAnchorID(),
-            onActivateThreadForMessage: { threadID in
-                guard let threadID else { return }
-                onActivateMessageThread(threadID)
-            },
-            onActivateTimeline: { },
             onOpenArtifact: onOpenArtifact,
             effectiveRenderMode: effectiveRenderMode,
             onExpandCollapsedContent: expandCollapsedContent

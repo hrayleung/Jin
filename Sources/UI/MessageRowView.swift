@@ -33,10 +33,9 @@ struct MessageRow: View {
     let onSubmitUserEdit: (UUID) -> Void
     let onCancelUserEdit: () -> Void
     let editSlashCommand: EditSlashCommandContext
-    let onOpenArtifact: (RenderedArtifactVersion, UUID?) -> Void
+    let onOpenArtifact: (RenderedArtifactVersion) -> Void
     let renderMode: MessageRenderMode
     let onExpandCollapsedContent: (UUID) -> Void
-    let onActivate: (() -> Void)?
 
     var body: some View {
         let presentation = MessageRowPresentationSupport.Presentation(
@@ -147,7 +146,6 @@ struct MessageRow: View {
                                                     forceNativeText: renderMode == .nativeText,
                                                     payloadResolver: payloadResolver,
                                                     selectionMessageID: item.id,
-                                                    selectionContextThreadID: item.contextThreadID,
                                                     selectionAnchorID: anchorID,
                                                     persistedHighlights: highlights(for: anchorID),
                                                     selectionActions: selectionActions
@@ -155,7 +153,7 @@ struct MessageRow: View {
 
                                             case .artifact(let artifact):
                                                 MessageArtifactCardView(artifact: artifact) {
-                                                    onOpenArtifact(artifact, item.contextThreadID)
+                                                    onOpenArtifact(artifact)
                                                 }
                                             }
                                         }
@@ -217,9 +215,6 @@ struct MessageRow: View {
                 }
                 .frame(maxWidth: .infinity, alignment: presentation.isUser ? .trailing : .leading)
                 .padding(.vertical, JinSpacing.small)
-                .onTapGesture {
-                    onActivate?()
-                }
                 .contentShape(Rectangle())
             }
         }
@@ -269,7 +264,7 @@ struct MessageRow: View {
                 )
             case .artifact(let artifact):
                 MessageArtifactCardView(artifact: artifact) {
-                    onOpenArtifact(artifact, item.contextThreadID)
+                    onOpenArtifact(artifact)
                 }
             }
         }
