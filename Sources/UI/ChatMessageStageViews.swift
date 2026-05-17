@@ -73,6 +73,9 @@ struct ChatSingleThreadMessagesView: View {
             streamingModelID: streamingModelID,
             editingUserMessageID: interaction.editingUserMessageID,
             editSlashCommandKey: ChatEditSlashCommandEquatableKey(context: interaction.editSlashCommand),
+            textToSpeechEnabled: interaction.textToSpeechEnabled,
+            textToSpeechConfigured: interaction.textToSpeechConfigured,
+            textToSpeechPlaybackState: interaction.textToSpeechPlaybackState,
             expandedCollapsedMessageIDs: expandedCollapsedMessageIDs.wrappedValue
         )
     }
