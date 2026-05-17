@@ -4,10 +4,10 @@ import SwiftData
 enum PersistenceContainerFactory {
     static func makeContainer(storeURL: URL? = nil) throws -> ModelContainer {
         let resolvedStoreURL = try storeURL ?? AppDataLocations.storeURL()
+        try MultiModelChatRemovalStoreMigration.migrateStoreIfNeeded(at: resolvedStoreURL)
         let configuration = ModelConfiguration(url: resolvedStoreURL)
         return try ModelContainer(
             for: ConversationEntity.self,
-            ConversationModelThreadEntity.self,
             AssistantEntity.self,
             MessageEntity.self,
             MessageHighlightEntity.self,

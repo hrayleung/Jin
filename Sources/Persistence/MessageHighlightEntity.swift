@@ -6,7 +6,6 @@ final class MessageHighlightEntity {
     @Attribute(.unique) var id: UUID
     var messageID: UUID
     var conversationID: UUID
-    var contextThreadID: UUID?
     var anchorID: String
     var selectedText: String
     var prefixContext: String?
@@ -24,7 +23,6 @@ final class MessageHighlightEntity {
         id: UUID = UUID(),
         messageID: UUID,
         conversationID: UUID,
-        contextThreadID: UUID? = nil,
         anchorID: String,
         selectedText: String,
         prefixContext: String? = nil,
@@ -38,7 +36,6 @@ final class MessageHighlightEntity {
         self.id = id
         self.messageID = messageID
         self.conversationID = conversationID
-        self.contextThreadID = contextThreadID
         self.anchorID = anchorID
         self.selectedText = selectedText
         self.prefixContext = prefixContext
@@ -68,7 +65,6 @@ final class MessageHighlightEntity {
         return MessageHighlightSnapshot(
             id: id,
             messageID: messageID,
-            contextThreadID: contextThreadID,
             anchorID: anchorID,
             selectedText: selectedText,
             prefixContext: prefixContext,

@@ -53,8 +53,8 @@ extension ChatView {
         let agentDisplayName = resolvedControls.claudeManagedAgentID.map { _ in
             resolvedClaudeManagedAgentDisplayName(
                 for: activeProviderID,
-                threadModelID: activeModelID,
-                threadControls: controls
+                modelID: activeModelID,
+                controls: controls
             )
         }
 

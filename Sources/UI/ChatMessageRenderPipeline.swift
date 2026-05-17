@@ -2,13 +2,8 @@ import Collections
 import Foundation
 
 enum ChatMessageRenderPipeline {
-    static func orderedMessages(from messages: [MessageEntity], threadID: UUID? = nil) -> [MessageEntity] {
-        let filtered = messages.filter { entity in
-            guard let threadID else { return true }
-            return entity.contextThreadID == threadID
-        }
-
-        return filtered.sorted { lhs, rhs in
+    static func orderedMessages(from messages: [MessageEntity]) -> [MessageEntity] {
+        messages.sorted { lhs, rhs in
             if lhs.timestamp != rhs.timestamp {
                 return lhs.timestamp < rhs.timestamp
             }
@@ -68,7 +63,6 @@ enum ChatMessageRenderPipeline {
             )
             let item = makeRenderItem(
                 id: entity.id,
-                contextThreadID: entity.contextThreadID,
                 role: entity.role,
                 timestamp: entity.timestamp,
                 messageRole: messageRole,
@@ -131,7 +125,6 @@ enum ChatMessageRenderPipeline {
 
             let item = makeRenderItem(
                 id: snapshot.id,
-                contextThreadID: snapshot.contextThreadID,
                 role: snapshot.role,
                 timestamp: snapshot.timestamp,
                 messageRole: messageRole,
@@ -195,7 +188,6 @@ enum ChatMessageRenderPipeline {
 
     private static func makeRenderItem(
         id: UUID,
-        contextThreadID: UUID?,
         role: String,
         timestamp: Date,
         messageRole: MessageRole,
@@ -231,7 +223,6 @@ enum ChatMessageRenderPipeline {
 
         return MessageRenderItem(
             id: id,
-            contextThreadID: contextThreadID,
             role: role,
             timestamp: timestamp,
             renderedBlocks: renderedBlocks,

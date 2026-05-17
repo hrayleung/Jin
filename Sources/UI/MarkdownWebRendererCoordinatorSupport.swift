@@ -6,14 +6,12 @@ enum MarkdownWebRendererCoordinatorSupport {
 
     struct SelectionContext: Equatable {
         let messageID: UUID?
-        let contextThreadID: UUID?
         let anchorID: String?
 
         var javascript: String {
             let messageID = escapedJavaScriptSingleQuotedString(messageID?.uuidString ?? "")
-            let threadID = escapedJavaScriptSingleQuotedString(contextThreadID?.uuidString ?? "")
             let anchorID = escapedJavaScriptSingleQuotedString(anchorID ?? "")
-            return "window.setSelectionContext('\(messageID)', '\(threadID)', '\(anchorID)')"
+            return "window.setSelectionContext('\(messageID)', '', '\(anchorID)')"
         }
     }
 
@@ -54,13 +52,11 @@ enum MarkdownWebRendererCoordinatorSupport {
 
         let startOffset = (dict["startOffset"] as? NSNumber)?.intValue ?? 0
         let endOffset = (dict["endOffset"] as? NSNumber)?.intValue ?? 0
-        let threadID = (dict["contextThreadID"] as? String).flatMap(UUID.init(uuidString:))
         let matchingHighlightIDs = (dict["matchingHighlightIDs"] as? [String] ?? [])
             .compactMap(UUID.init(uuidString:))
 
         return MessageSelectionSnapshot(
             messageID: messageID,
-            contextThreadID: threadID,
             anchorID: anchorID,
             selectedText: selectedText,
             prefixContext: dict["prefixContext"] as? String,

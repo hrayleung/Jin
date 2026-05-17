@@ -10,7 +10,6 @@ struct MessageTextView: View {
     let mode: RenderingMode
     let deferCodeHighlightUpgrade: Bool
     let selectionMessageID: UUID?
-    let selectionContextThreadID: UUID?
     let selectionAnchorID: String?
     let persistedHighlights: [MessageHighlightSnapshot]
     let selectionActions: MessageTextSelectionActions
@@ -20,7 +19,6 @@ struct MessageTextView: View {
         mode: RenderingMode = .markdown,
         deferCodeHighlightUpgrade: Bool = false,
         selectionMessageID: UUID? = nil,
-        selectionContextThreadID: UUID? = nil,
         selectionAnchorID: String? = nil,
         persistedHighlights: [MessageHighlightSnapshot] = [],
         selectionActions: MessageTextSelectionActions = .none
@@ -29,7 +27,6 @@ struct MessageTextView: View {
         self.mode = mode
         self.deferCodeHighlightUpgrade = deferCodeHighlightUpgrade
         self.selectionMessageID = selectionMessageID
-        self.selectionContextThreadID = selectionContextThreadID
         self.selectionAnchorID = selectionAnchorID
         self.persistedHighlights = persistedHighlights
         self.selectionActions = selectionActions
@@ -40,7 +37,6 @@ struct MessageTextView: View {
         self.mode = .markdown
         self.deferCodeHighlightUpgrade = false
         self.selectionMessageID = nil
-        self.selectionContextThreadID = nil
         self.selectionAnchorID = nil
         self.persistedHighlights = []
         self.selectionActions = .none
@@ -53,7 +49,6 @@ struct MessageTextView: View {
                 markdownText: text,
                 deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
                 selectionMessageID: selectionMessageID,
-                selectionContextThreadID: selectionContextThreadID,
                 selectionAnchorID: selectionAnchorID,
                 persistedHighlights: persistedHighlights,
                 selectionActions: selectionActions
@@ -65,7 +60,6 @@ struct MessageTextView: View {
                     markdownText: text,
                     renderPlainText: true,
                     selectionMessageID: selectionMessageID,
-                    selectionContextThreadID: selectionContextThreadID,
                     selectionAnchorID: selectionAnchorID,
                     persistedHighlights: persistedHighlights,
                     selectionActions: selectionActions
@@ -80,9 +74,6 @@ struct MessageTextView: View {
     }
 
     private var needsSelectionAwarePlainTextRenderer: Bool {
-        // Quote and highlight actions are implemented by MarkdownWKWebView's
-        // selection snapshot pipeline, so selectable plain-text messages need
-        // the web renderer even before the first highlight exists.
         selectionMessageID != nil || !persistedHighlights.isEmpty
     }
 }

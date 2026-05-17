@@ -40,29 +40,12 @@ extension ChatView {
         guard !isImportingDropAttachments else { return }
         guard canSendDraft else { return }
         endEditingUI()
-        ensureModelThreadsInitializedIfNeeded()
 
-        guard let activeThread = activeModelThread else {
-            errorMessage = "No active model is available for this chat."
+        guard !conversationEntity.providerID.isEmpty, !conversationEntity.modelID.isEmpty else {
+            errorMessage = "Please choose a model before sending."
             showingError = true
             return
         }
-
-        let targetThreadIDs = selectedModelThreads.map(\.id)
-        guard !targetThreadIDs.isEmpty else {
-            errorMessage = "Please add a model before sending."
-            showingError = true
-            return
-        }
-        let targetThreads = targetThreadIDs.compactMap { targetID in
-            sortedModelThreads.first(where: { $0.id == targetID })
-        }
-        guard !targetThreads.isEmpty else {
-            errorMessage = "Please add a model before sending."
-            showingError = true
-            return
-        }
-        let namingThreadID = targetThreadIDs.contains(activeThread.id) ? activeThread.id : targetThreadIDs.first
 
         let selectedPerMessageMCPServers = eligibleMCPServers
             .filter { perMessageMCPServerIDs.contains($0.id) }
@@ -97,8 +80,7 @@ extension ChatView {
         let task = Task {
             do {
                 let prepareStartedAt = ProcessInfo.processInfo.systemUptime
-                let preparedMessages = try await buildUserMessagePartsForThreads(
-                    threads: targetThreads,
+                let parts = try await buildUserMessageParts(
                     quoteContents: draftSnapshot.quoteContents,
                     messageText: draftSnapshot.messageText,
                     attachments: draftSnapshot.attachments,
@@ -113,9 +95,6 @@ extension ChatView {
                     message: "chat_prepare_complete",
                     data: [
                         "conversationID": conversationEntity.id.uuidString,
-                        "turnID": draftSnapshot.turnID.uuidString,
-                        "preparedThreadCount": String(preparedMessages.count),
-                        "targetThreadCount": String(targetThreads.count),
                         "attachmentCount": String(draftSnapshot.attachments.count),
                         "quoteCount": String(draftSnapshot.quotes.count),
                         "textCount": String(draftSnapshot.messageText.count),
@@ -134,19 +113,19 @@ extension ChatView {
                         message: "chat_persist_block_start",
                         data: [
                             "conversationID": conversationEntity.id.uuidString,
-                            "turnID": draftSnapshot.turnID.uuidString,
-                            "messageCountBeforePersist": String(conversationEntity.messages.count),
-                            "preparedMessageCount": String(preparedMessages.count)
+                            "messageCountBeforePersist": String(conversationEntity.messages.count)
                         ]
                     )
                     // #endregion
 
-                    let toolCapableThreadIDs = Set(targetThreads.compactMap { threadSupportsMCPTools(for: $0) ? $0.id : nil })
                     let rebuildStartedAt = ProcessInfo.processInfo.systemUptime
-                    ChatUserTurnPersistence.appendPreparedUserMessages(
-                        preparedMessages,
+                    ChatUserTurnPersistence.appendPreparedUserMessage(
+                        parts: parts,
                         draft: draftSnapshot,
-                        toolCapableThreadIDs: toolCapableThreadIDs,
+                        toolCapable: threadSupportsMCPTools(
+                            providerType: providerType,
+                            resolvedModelSettings: resolvedModelSettings
+                        ),
                         conversationEntity: conversationEntity,
                         isChatNamingPluginEnabled: isChatNamingPluginEnabled,
                         persistConversationIfNeeded: onPersistConversationIfNeeded,
@@ -162,7 +141,6 @@ extension ChatView {
                         message: "chat_persist_rebuild_complete",
                         data: [
                             "conversationID": conversationEntity.id.uuidString,
-                            "turnID": draftSnapshot.turnID.uuidString,
                             "messageCountAfterAppend": String(conversationEntity.messages.count),
                             "cachedVisibleCount": String(renderCache.visibleMessages.count),
                             "cachedHistoryCount": String(renderCache.activeThreadHistory.count),
@@ -184,7 +162,6 @@ extension ChatView {
                         message: "chat_persist_save_complete",
                         data: [
                             "conversationID": conversationEntity.id.uuidString,
-                            "turnID": draftSnapshot.turnID.uuidString,
                             "messageCountAfterSave": String(conversationEntity.messages.count),
                             "saveDurationMs": String(saveDurationMs),
                             "totalPersistDurationMs": String(totalPersistDurationMs)
@@ -199,15 +176,11 @@ extension ChatView {
                     prepareToSendTask = nil
                     prepareToSendCancellationReason = nil
                     perMessageMCPServerIDs = []
-                    for threadID in targetThreadIDs {
-                        startStreamingResponse(
-                            for: threadID,
-                            triggeredByUserSend: threadID == namingThreadID,
-                            turnID: draftSnapshot.turnID,
-                            diagnosticRunID: diagnosticRunID,
-                            perMessageMCPServerIDs: draftSnapshot.perMessageMCPServerIDs
-                        )
-                    }
+                    startStreamingResponse(
+                        triggeredByUserSend: true,
+                        diagnosticRunID: diagnosticRunID,
+                        perMessageMCPServerIDs: draftSnapshot.perMessageMCPServerIDs
+                    )
                 }
             } catch {
                 await MainActor.run {

@@ -3,15 +3,14 @@ import SwiftData
 
 extension ChatView {
 
-    func storedGenerationControls(for thread: ConversationModelThreadEntity) -> GenerationControls? {
-        try? JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
+    func storedGenerationControls() -> GenerationControls? {
+        try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData)
     }
 
     func mutateStoredGenerationControls(
-        for thread: ConversationModelThreadEntity,
         _ mutate: (inout GenerationControls) -> Void
     ) {
-        var controls = storedGenerationControls(for: thread) ?? GenerationControls()
+        var controls = storedGenerationControls() ?? GenerationControls()
         let previousManagedSessionID = controls.claudeManagedSessionID
         let previousManagedSessionModelID = controls.claudeManagedSessionModelID
         let previousManagedPendingResults = controls.claudeManagedPendingCustomToolResults
@@ -23,9 +22,8 @@ extension ChatView {
         }
 
         do {
-            thread.modelConfigData = try JSONEncoder().encode(controls)
-            thread.updatedAt = Date()
-            conversationEntity.updatedAt = max(conversationEntity.updatedAt, thread.updatedAt)
+            conversationEntity.modelConfigData = try JSONEncoder().encode(controls)
+            conversationEntity.updatedAt = Date()
             try modelContext.save()
         } catch {
             errorMessage = error.localizedDescription

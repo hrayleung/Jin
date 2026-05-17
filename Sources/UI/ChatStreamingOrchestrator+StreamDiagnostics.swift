@@ -5,8 +5,7 @@ extension ChatStreamingOrchestrator {
         context ctx: SessionContext
     ) -> [String: String] {
         [
-            "conversationID": ctx.conversationID.uuidString,
-            "threadID": ctx.threadID.uuidString
+            "conversationID": ctx.conversationID.uuidString
         ]
     }
 

@@ -80,7 +80,6 @@ final class ChatLongConversationRenderPolicyTests: XCTestCase {
     ) -> MessageRenderItem {
         MessageRenderItem(
             id: UUID(),
-            contextThreadID: nil,
             role: MessageRole.assistant.rawValue,
             timestamp: Date(timeIntervalSince1970: 1),
             renderedBlocks: [.content(anchorID: "anchor-0", part: .text("ignored"))],

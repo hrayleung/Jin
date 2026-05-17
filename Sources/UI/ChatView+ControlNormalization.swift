@@ -5,51 +5,25 @@ import SwiftUI
 
 extension ChatView {
 
-    func ensureModelThreadsInitializedIfNeeded() {
-        ChatConversationStateSupport.ensureModelThreadsInitializedIfNeeded(
-            conversationEntity: conversationEntity,
-            modelContext: modelContext,
-            activeModelThread: { activeModelThread },
-            sortedModelThreads: { sortedModelThreads }
-        )
-    }
-
-    func syncActiveThreadSelection() {
-        ChatConversationStateSupport.syncActiveThreadSelection(
-            activeModelThread: activeModelThread,
-            sortedModelThreads: sortedModelThreads,
-            setActiveThread: { thread in
-                setActiveThread(thread)
-            }
-        )
-    }
-
     func loadControlsFromConversation() {
-        ensureModelThreadsInitializedIfNeeded()
-        syncActiveThreadSelection()
+        canonicalizeConversationModelIDIfNeeded()
 
-        if let activeThread = activeModelThread {
-            canonicalizeThreadModelIDIfNeeded(activeThread)
-        }
-
-        controls = ChatConversationStateSupport.loadControlsFromConversation(
-            conversationEntity: conversationEntity,
-            activeThread: activeModelThread
-        )
+        controls = (try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData))
+            ?? GenerationControls()
         normalizeControlsForCurrentSelection()
     }
 
     func persistControlsToConversation() {
         do {
-            try ChatConversationStateSupport.persistControlsToConversation(
-                controls: controls,
-                activeThread: activeModelThread,
-                storedGenerationControls: { thread in
-                    storedGenerationControls(for: thread)
-                },
-                conversationEntity: conversationEntity,
-                modelContext: modelContext
-            )
+            let stored = storedGenerationControls()
+            var merged = controls
+            merged.claudeManagedSessionID = stored?.claudeManagedSessionID
+            merged.claudeManagedSessionModelID = stored?.claudeManagedSessionModelID
+            merged.claudeManagedPendingCustomToolResults = stored?.claudeManagedPendingCustomToolResults ?? []
+
+            conversationEntity.modelConfigData = try JSONEncoder().encode(merged)
+            conversationEntity.updatedAt = Date()
+            try modelContext.save()
         } catch {
             errorMessage = error.localizedDescription
             showingError = true

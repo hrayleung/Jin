@@ -1,13 +1,7 @@
 import Foundation
 
 extension ChatMessagePreparationSupport {
-    struct ThreadPreparedUserMessage {
-        let threadID: UUID
-        let parts: [ContentPart]
-    }
-
     struct MessagePreparationProfile {
-        let threadID: UUID
         let modelName: String
         let supportsVideoGenerationControl: Bool
         let supportsVideoInput: Bool

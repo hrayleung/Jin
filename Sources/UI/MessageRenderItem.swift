@@ -2,7 +2,6 @@ import Foundation
 
 struct MessageRenderItem: Identifiable, Sendable {
     let id: UUID
-    let contextThreadID: UUID?
     let role: String
     let timestamp: Date
     let renderedBlocks: [RenderedMessageBlock]
@@ -24,7 +23,6 @@ struct MessageRenderItem: Identifiable, Sendable {
 
     init(
         id: UUID,
-        contextThreadID: UUID?,
         role: String,
         timestamp: Date,
         renderedBlocks: [RenderedMessageBlock],
@@ -45,7 +43,6 @@ struct MessageRenderItem: Identifiable, Sendable {
         perMessageMCPServerNames: [String]
     ) {
         self.id = id
-        self.contextThreadID = contextThreadID
         self.role = role
         self.timestamp = timestamp
         self.renderedBlocks = renderedBlocks

@@ -24,10 +24,10 @@ struct ChatStreamingHistorySettings {
 
 enum ChatStreamingSessionResolver {
     static func providerSnapshot(
-        for thread: ConversationModelThreadEntity,
+        for conversation: ConversationEntity,
         providers: [ProviderConfigEntity]
     ) throws -> ChatStreamingProviderSnapshot {
-        let providerID = thread.providerID
+        let providerID = conversation.providerID
         let providerEntity = providers.first(where: { $0.id == providerID })
         let providerType = providerEntity.flatMap { ProviderType(rawValue: $0.typeRaw) }
             ?? ProviderType(rawValue: providerID)
@@ -42,12 +42,12 @@ enum ChatStreamingSessionResolver {
     }
 
     static func modelSnapshot(
-        for thread: ConversationModelThreadEntity,
+        for conversation: ConversationEntity,
         threadControls: GenerationControls,
         providerSnapshot: ChatStreamingProviderSnapshot,
         managedAgentSyntheticModelID: (String, GenerationControls) -> String,
         effectiveModelID: (String, ProviderConfigEntity?, ProviderType?) -> String,
-        migrateThreadModelIDIfNeeded: (ConversationModelThreadEntity, String) -> Void,
+        migrateConversationModelIDIfNeeded: (ConversationEntity, String) -> Void,
         resolvedModelInfo: (String, ProviderConfigEntity?, ProviderType?) -> ModelInfo?,
         normalizedModelInfo: (ModelInfo, ProviderType?) -> ModelInfo
     ) -> ChatStreamingModelSnapshot {
@@ -58,18 +58,18 @@ enum ChatStreamingSessionResolver {
             var mergedControls = threadControls
             providerSnapshot.entity?.applyClaudeManagedDefaults(into: &mergedControls)
             let syntheticModelID = managedAgentSyntheticModelID(providerSnapshot.providerID, mergedControls)
-            migrateThreadModelIDIfNeeded(thread, syntheticModelID)
+            migrateConversationModelIDIfNeeded(conversation, syntheticModelID)
             modelID = ClaudeManagedAgentRuntime.resolvedRuntimeModelID(
                 threadModelID: syntheticModelID,
                 controls: mergedControls
             )
             modelName = ClaudeManagedAgentRuntime.resolvedDisplayName(
-                threadModelID: thread.modelID,
+                threadModelID: conversation.modelID,
                 controls: threadControls
             )
         } else {
-            modelID = effectiveModelID(thread.modelID, providerSnapshot.entity, providerSnapshot.type)
-            migrateThreadModelIDIfNeeded(thread, modelID)
+            modelID = effectiveModelID(conversation.modelID, providerSnapshot.entity, providerSnapshot.type)
+            migrateConversationModelIDIfNeeded(conversation, modelID)
             modelName = modelID
         }
 

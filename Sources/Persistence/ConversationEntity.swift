@@ -11,26 +11,14 @@ final class ConversationEntity {
     var createdAt: Date
     var updatedAt: Date
     var systemPrompt: String?
-    /// Dead snapshot of the active thread's provider. Production code reads
-    /// the active `ConversationModelThreadEntity` directly via
-    /// `ChatView.activeProviderID` / `ContentView.activeProviderID(for:)`.
-    /// Retained only so the SwiftData column is not dropped without a
-    /// versioned schema migration; remove once `JinSchemaV2` lands.
     var providerID: String
-    /// Dead snapshot — see `providerID` above.
     var modelID: String
-    /// Dead snapshot — see `providerID` above.
     var modelConfigData: Data // Codable GenerationControls
-    /// Currently active model thread for composer/send.
-    var activeThreadID: UUID?
 
     @Relationship var assistant: AssistantEntity?
 
     @Relationship(deleteRule: .cascade, inverse: \MessageEntity.conversation)
     var messages: [MessageEntity] = []
-
-    @Relationship(deleteRule: .cascade, inverse: \ConversationModelThreadEntity.conversation)
-    var modelThreads: [ConversationModelThreadEntity] = []
 
     @Relationship(deleteRule: .cascade, inverse: \MessageHighlightEntity.conversation)
     var messageHighlights: [MessageHighlightEntity] = []
@@ -46,7 +34,6 @@ final class ConversationEntity {
         providerID: String,
         modelID: String,
         modelConfigData: Data,
-        activeThreadID: UUID? = nil,
         assistant: AssistantEntity? = nil
     ) {
         self.id = id
@@ -59,55 +46,13 @@ final class ConversationEntity {
         self.providerID = providerID
         self.modelID = modelID
         self.modelConfigData = modelConfigData
-        self.activeThreadID = activeThreadID
         self.assistant = assistant
     }
 
     /// Convert to domain model
     func toDomain() throws -> Conversation {
         let decoder = JSONDecoder()
-        let sortedThreads = modelThreads.sorted { lhs, rhs in
-            if lhs.displayOrder != rhs.displayOrder {
-                return lhs.displayOrder < rhs.displayOrder
-            }
-            return lhs.createdAt < rhs.createdAt
-        }
-
-        var domainThreads: [ModelThread] = []
-        domainThreads.reserveCapacity(sortedThreads.count)
-        for thread in sortedThreads {
-            let controls = try decoder.decode(GenerationControls.self, from: thread.modelConfigData)
-            domainThreads.append(
-                ModelThread(
-                    id: thread.id,
-                    providerID: thread.providerID,
-                    modelID: thread.modelID,
-                    controls: controls,
-                    displayOrder: thread.displayOrder,
-                    isSelected: thread.isSelected,
-                    isPrimary: thread.isPrimary
-                )
-            )
-        }
-
-        // Migration safety net: a `ConversationEntity` predating multi-model
-        // support has no rows in `modelThreads`. Materialize a primary thread
-        // from the legacy fields so the domain model is always populated.
-        if domainThreads.isEmpty {
-            let controls = try decoder.decode(GenerationControls.self, from: modelConfigData)
-            domainThreads.append(
-                ModelThread(
-                    providerID: providerID,
-                    modelID: modelID,
-                    controls: controls,
-                    isPrimary: true
-                )
-            )
-        }
-
-        let resolvedActiveThreadID = activeThreadID.flatMap { id in
-            domainThreads.contains(where: { $0.id == id }) ? id : nil
-        } ?? domainThreads.first?.id
+        let controls = try decoder.decode(GenerationControls.self, from: modelConfigData)
 
         return Conversation(
             id: id,
@@ -115,8 +60,7 @@ final class ConversationEntity {
             systemPrompt: systemPrompt,
             artifactsEnabled: artifactsEnabled == true,
             messages: try messages.sorted(by: { $0.timestamp < $1.timestamp }).map { try $0.toDomain() },
-            threads: domainThreads,
-            activeThreadID: resolvedActiveThreadID,
+            modelConfig: ModelConfig(providerID: providerID, modelID: modelID, controls: controls),
             createdAt: createdAt,
             updatedAt: updatedAt
         )
@@ -125,8 +69,7 @@ final class ConversationEntity {
     /// Create from domain model
     static func fromDomain(_ conversation: Conversation) throws -> ConversationEntity {
         let encoder = JSONEncoder()
-        let activeThread = conversation.activeThread
-        let modelConfigData = try encoder.encode(activeThread?.controls ?? GenerationControls())
+        let modelConfigData = try encoder.encode(conversation.modelConfig.controls)
 
         return ConversationEntity(
             id: conversation.id,
@@ -135,10 +78,9 @@ final class ConversationEntity {
             createdAt: conversation.createdAt,
             updatedAt: conversation.updatedAt,
             systemPrompt: conversation.systemPrompt,
-            providerID: activeThread?.providerID ?? "",
-            modelID: activeThread?.modelID ?? "",
-            modelConfigData: modelConfigData,
-            activeThreadID: conversation.activeThreadID
+            providerID: conversation.modelConfig.providerID,
+            modelID: conversation.modelConfig.modelID,
+            modelConfigData: modelConfigData
         )
     }
 }

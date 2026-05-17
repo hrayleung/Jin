@@ -4,10 +4,8 @@ import SwiftUI
 
 struct ChatRenderCacheRebuildRequest {
     let conversationID: UUID
-    let activeThreadID: UUID?
     let allMessages: [MessageEntity]
     let orderedMessages: [MessageEntity]
-    let selectedThreads: [ConversationModelThreadEntity]
     let updatedAt: Date
     let fallbackModelLabel: String
     let providerIconsByID: [String: String?]
@@ -27,11 +25,6 @@ final class ChatRenderCacheController {
     private(set) var isHistoryReady = true
     private(set) var toolResultsByCallID: [String: ToolResult] = [:]
     private(set) var artifactCatalog: ArtifactCatalog = .empty
-    private(set) var contextsByThreadID: [UUID: ChatThreadRenderContext] = [:]
-    /// Set of thread IDs that have at least one message. ChatView reads this
-    /// (rather than `conversationEntity.messages`) so streaming-token writes
-    /// to messages don't register an observation on `ChatView.body`.
-    private(set) var panelThreadIDs: Set<UUID> = []
     /// Total message count from the most recent rebuild. Mirror of the
     /// previously-private `lastRebuildMessageCount`, exposed so `ChatView.body`
     /// can drive its EquatableKey without reading `conversationEntity.messages.count`.
@@ -45,17 +38,10 @@ final class ChatRenderCacheController {
     private var historyDecodeTask: Task<Void, Never>?
     private var activeBuildToken = UUID()
 
-    // No `deinit` cancel: a nonisolated deinit can't touch these @MainActor
-    // properties under the Observation macro's stricter isolation. Cancellation
-    // is driven by `cancelPendingWork()` from `handleChatDisappear` /
-    // `handleConversationSwitch`. Tasks that outlive the controller hold their
-    // own captures and complete normally.
-
     func rebuildIfNeeded(
         request: ChatRenderCacheRebuildRequest,
-        modelNameForThread: @escaping @MainActor (ConversationModelThreadEntity) -> String,
         assistantProviderIconID: @escaping @MainActor (String) -> String?,
-        isStillCurrent: @escaping @MainActor (UUID, UUID?, Date) -> Bool,
+        isStillCurrent: @escaping @MainActor (UUID, Date) -> Bool,
         onContextApplied: @escaping @MainActor () -> Void,
         onHistoryReady: @escaping @MainActor () -> Void
     ) {
@@ -66,7 +52,6 @@ final class ChatRenderCacheController {
 
         rebuild(
             request: request,
-            modelNameForThread: modelNameForThread,
             assistantProviderIconID: assistantProviderIconID,
             isStillCurrent: isStillCurrent,
             onContextApplied: onContextApplied,
@@ -76,9 +61,8 @@ final class ChatRenderCacheController {
 
     func rebuild(
         request: ChatRenderCacheRebuildRequest,
-        modelNameForThread: @escaping @MainActor (ConversationModelThreadEntity) -> String,
         assistantProviderIconID: @escaping @MainActor (String) -> String?,
-        isStillCurrent: @escaping @MainActor (UUID, UUID?, Date) -> Bool,
+        isStillCurrent: @escaping @MainActor (UUID, Date) -> Bool,
         onContextApplied: @escaping @MainActor () -> Void,
         onHistoryReady: @escaping @MainActor () -> Void
     ) {
@@ -102,14 +86,9 @@ final class ChatRenderCacheController {
                     artifactCatalog: context.artifactCatalog
                 ),
                 messageEntitiesByID: context.messageEntitiesByID,
-                allMessages: request.allMessages,
-                selectedThreads: request.selectedThreads,
                 activeMessageCount: activeMessageCount,
                 cacheMessageCount: cacheMessageCount,
                 updatedAt: request.updatedAt,
-                activeThreadID: request.activeThreadID,
-                modelNameForThread: modelNameForThread,
-                assistantProviderIconID: assistantProviderIconID,
                 onContextApplied: onContextApplied
             )
             return
@@ -139,7 +118,7 @@ final class ChatRenderCacheController {
             let decoded = await decodeTask.value
             guard !Task.isCancelled else { return }
             guard activeBuildToken == buildToken else { return }
-            guard isStillCurrent(request.conversationID, request.activeThreadID, request.updatedAt) else { return }
+            guard isStillCurrent(request.conversationID, request.updatedAt) else { return }
 
             let contextToApply: ChatDecodedRenderContext
             if ChatMessageRenderPipeline.decodedRenderContextDroppedVisibleMessages(
@@ -164,14 +143,9 @@ final class ChatRenderCacheController {
             applyDecodedRenderContext(
                 contextToApply,
                 messageEntitiesByID: messageEntitiesByID,
-                allMessages: request.allMessages,
-                selectedThreads: request.selectedThreads,
                 activeMessageCount: activeMessageCount,
                 cacheMessageCount: cacheMessageCount,
                 updatedAt: request.updatedAt,
-                activeThreadID: request.activeThreadID,
-                modelNameForThread: modelNameForThread,
-                assistantProviderIconID: assistantProviderIconID,
                 onContextApplied: onContextApplied
             )
 
@@ -184,7 +158,6 @@ final class ChatRenderCacheController {
                 from: snapshots,
                 buildToken: buildToken,
                 targetConversationID: request.conversationID,
-                targetThreadID: request.activeThreadID,
                 updatedAt: request.updatedAt,
                 isStillCurrent: isStillCurrent,
                 onHistoryReady: onHistoryReady
@@ -229,20 +202,14 @@ final class ChatRenderCacheController {
         isHistoryReady = true
         toolResultsByCallID = [:]
         artifactCatalog = .empty
-        contextsByThreadID = [:]
-        panelThreadIDs = []
         cachedTotalMessageCount = 0
         version &+= 1
         lastRebuildMessageCount = 0
         lastRebuildUpdatedAt = .distantPast
     }
 
-    func singleThreadContext(activeThreadID: UUID?) -> ChatThreadRenderContext {
-        if let activeThreadID, let cached = contextsByThreadID[activeThreadID] {
-            return cached
-        }
-
-        return ChatThreadRenderContext(
+    func singleThreadContext() -> ChatThreadRenderContext {
+        ChatThreadRenderContext(
             visibleMessages: visibleMessages,
             historyMessages: activeThreadHistory,
             messageEntitiesByID: messageEntitiesByID,
@@ -251,103 +218,35 @@ final class ChatRenderCacheController {
         )
     }
 
-    func threadContext(
-        threadID: UUID,
-        allMessages: [MessageEntity],
-        sortedThreads: [ConversationModelThreadEntity],
-        currentModelName: String,
-        modelNameForThread: (ConversationModelThreadEntity) -> String,
-        assistantProviderIconID: (String) -> String?
-    ) -> ChatThreadRenderContext {
-        if let cached = contextsByThreadID[threadID] {
-            return cached
-        }
-
-        let fallbackModelLabel = sortedThreads
-            .first(where: { $0.id == threadID })
-            .map(modelNameForThread)
-            ?? currentModelName
-
-        return ChatRenderContextBatchBuilder.makeContext(
-            allMessages: allMessages,
-            threadID: threadID,
-            fallbackModelLabel: fallbackModelLabel,
-            assistantProviderIconID: assistantProviderIconID
-        )
-    }
-
     private func applyDecodedRenderContext(
         _ context: ChatDecodedRenderContext,
         messageEntitiesByID: [UUID: MessageEntity],
-        allMessages: [MessageEntity],
-        selectedThreads: [ConversationModelThreadEntity],
         activeMessageCount: Int,
         cacheMessageCount: Int,
         updatedAt: Date,
-        activeThreadID: UUID?,
-        modelNameForThread: (ConversationModelThreadEntity) -> String,
-        assistantProviderIconID: (String) -> String?,
         onContextApplied: () -> Void
     ) {
-        let activeContext = ChatRenderContextBatchBuilder.makeFallbackContext(
-            visibleMessages: context.visibleMessages,
-            historyMessages: context.historyMessages,
-            messageEntitiesByID: messageEntitiesByID,
-            toolResultsByCallID: context.toolResultsByCallID,
-            artifactCatalog: context.artifactCatalog
-        )
-        let batch = ChatRenderContextBatchBuilder.makeBatch(
-            allMessages: allMessages,
-            activeThreadID: activeThreadID,
-            selectedThreads: selectedThreads,
-            activeContext: activeContext,
-            modelNameForThread: modelNameForThread,
-            assistantProviderIconID: assistantProviderIconID
-        )
-        applyRenderContextBatch(
-            batch,
-            activeMessageCount: activeMessageCount,
-            cacheMessageCount: cacheMessageCount,
-            updatedAt: updatedAt,
-            allMessages: allMessages
-        )
-        onContextApplied()
-    }
-
-    private func applyRenderContextBatch(
-        _ batch: ChatRenderContextBatch,
-        activeMessageCount: Int,
-        cacheMessageCount: Int,
-        updatedAt: Date,
-        allMessages: [MessageEntity]
-    ) {
-        let activeContext = batch.activeContext
-        visibleMessages = activeContext.visibleMessages
-        messageEntitiesByID = activeContext.messageEntitiesByID
-        activeThreadHistory = activeContext.historyMessages
-        isHistoryReady = !activeContext.historyMessages.isEmpty || activeMessageCount == 0
-        toolResultsByCallID = activeContext.toolResultsByCallID
-        artifactCatalog = activeContext.artifactCatalog
-        contextsByThreadID = batch.contextsByThreadID
-        let newPanelThreadIDs = Set(allMessages.compactMap(\.contextThreadID))
-        if panelThreadIDs != newPanelThreadIDs {
-            panelThreadIDs = newPanelThreadIDs
-        }
+        visibleMessages = context.visibleMessages
+        self.messageEntitiesByID = messageEntitiesByID
+        activeThreadHistory = context.historyMessages
+        isHistoryReady = !context.historyMessages.isEmpty || activeMessageCount == 0
+        toolResultsByCallID = context.toolResultsByCallID
+        artifactCatalog = context.artifactCatalog
         if cachedTotalMessageCount != cacheMessageCount {
             cachedTotalMessageCount = cacheMessageCount
         }
         version &+= 1
         lastRebuildMessageCount = cacheMessageCount
         lastRebuildUpdatedAt = updatedAt
+        onContextApplied()
     }
 
     private func scheduleDecodedHistoryMessages(
         from snapshots: [PersistedMessageSnapshot],
         buildToken: UUID,
         targetConversationID: UUID,
-        targetThreadID: UUID?,
         updatedAt: Date,
-        isStillCurrent: @escaping @MainActor (UUID, UUID?, Date) -> Bool,
+        isStillCurrent: @escaping @MainActor (UUID, Date) -> Bool,
         onHistoryReady: @escaping @MainActor () -> Void
     ) {
         historyDecodeTask?.cancel()
@@ -358,27 +257,12 @@ final class ChatRenderCacheController {
 
             guard !Task.isCancelled else { return }
             guard activeBuildToken == buildToken else { return }
-            guard isStillCurrent(targetConversationID, targetThreadID, updatedAt) else { return }
+            guard isStillCurrent(targetConversationID, updatedAt) else { return }
 
-            applyDecodedHistoryMessages(history, activeThreadID: targetThreadID)
+            activeThreadHistory = history
+            isHistoryReady = true
             historyDecodeTask = nil
             onHistoryReady()
-        }
-    }
-
-    private func applyDecodedHistoryMessages(_ historyMessages: [Message], activeThreadID: UUID?) {
-        activeThreadHistory = historyMessages
-        isHistoryReady = true
-        if let activeThreadID {
-            let context = contextsByThreadID[activeThreadID]
-                ?? ChatThreadRenderContext(
-                    visibleMessages: visibleMessages,
-                    historyMessages: activeThreadHistory,
-                    messageEntitiesByID: messageEntitiesByID,
-                    toolResultsByCallID: toolResultsByCallID,
-                    artifactCatalog: artifactCatalog
-                )
-            contextsByThreadID[activeThreadID] = context.replacingHistoryMessages(historyMessages)
         }
     }
 }

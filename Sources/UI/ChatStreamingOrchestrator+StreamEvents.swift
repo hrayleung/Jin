@@ -84,20 +84,18 @@ extension ChatStreamingOrchestrator {
                 context: ctx
             )
             await MainActor.run {
-                callbacks.appendManagedAgentInteraction(request, ctx.threadID)
+                callbacks.appendManagedAgentInteraction(request)
             }
         case .claudeManagedSessionState(let sessionState):
             await applyRequestControlStreamUpdate(
                 .claudeManagedSession(sessionState),
                 requestControls: &requestControls,
-                threadID: ctx.threadID,
                 callbacks: callbacks
             )
         case .claudeManagedCustomToolResults(let results):
             await applyRequestControlStreamUpdate(
                 .claudeManagedCustomToolResults(results),
                 requestControls: &requestControls,
-                threadID: ctx.threadID,
                 callbacks: callbacks
             )
         case .messageEnd:

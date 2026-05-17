@@ -26,7 +26,6 @@ final class MarkdownWebRendererCoordinator: NSObject, WKNavigationDelegate, WKSc
     var renderPlainText = false
     let maximumContentHeight: CGFloat = MarkdownWebRendererCoordinatorSupport.maximumContentHeight
     var selectionMessageID: UUID?
-    var selectionContextThreadID: UUID?
     var selectionAnchorID: String?
     var persistedHighlights: [MessageHighlightSnapshot] = []
     var lastBodyFont: String = ""
@@ -100,7 +99,6 @@ final class MarkdownWebRendererCoordinator: NSObject, WKNavigationDelegate, WKSc
     func applySelectionContextIfNeeded(webView: WKWebView) {
         let context = MarkdownWebRendererCoordinatorSupport.SelectionContext(
             messageID: selectionMessageID,
-            contextThreadID: selectionContextThreadID,
             anchorID: selectionAnchorID
         )
         guard context != lastSelectionContext else { return }

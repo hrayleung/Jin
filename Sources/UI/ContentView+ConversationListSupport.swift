@@ -26,53 +26,31 @@ extension ContentView {
         providers.first(where: { $0.id == providerID })?.resolvedProviderIconID
     }
 
-    /// Resolve the active thread's `providerID` for sidebar rendering. Falls
-    /// back to the conversation's legacy snapshot field when threads haven't
-    /// been seeded yet (very old conversations created before multi-model).
     func activeProviderID(for conversation: ConversationEntity) -> String {
-        let sortedThreads = ChatThreadSupport.sortedThreads(in: conversation.modelThreads)
-        if let active = ChatThreadSupport.activeThread(
-            in: sortedThreads,
-            preferredID: conversation.activeThreadID
-        ) {
-            return active.providerID
-        }
-        return conversation.providerID
+        conversation.providerID
     }
 
-    /// Mirror of `activeProviderID(for:)` returning the active thread's
-    /// `modelID`.
     func activeModelID(for conversation: ConversationEntity) -> String {
-        let sortedThreads = ChatThreadSupport.sortedThreads(in: conversation.modelThreads)
-        if let active = ChatThreadSupport.activeThread(
-            in: sortedThreads,
-            preferredID: conversation.activeThreadID
-        ) {
-            return active.modelID
-        }
-        return conversation.modelID
+        conversation.modelID
     }
 
     func providerName(for conversation: ConversationEntity) -> String {
-        providerName(for: activeProviderID(for: conversation))
+        providerName(for: conversation.providerID)
     }
 
     func providerIconID(for conversation: ConversationEntity) -> String? {
-        providerIconID(for: activeProviderID(for: conversation))
+        providerIconID(for: conversation.providerID)
     }
 
     func modelName(for conversation: ConversationEntity) -> String {
-        let providerID = activeProviderID(for: conversation)
-        let modelID = activeModelID(for: conversation)
+        let providerID = conversation.providerID
+        let modelID = conversation.modelID
         guard let provider = providers.first(where: { $0.id == providerID }) else {
             return modelID
         }
 
         if ProviderType(rawValue: provider.typeRaw) == .claudeManagedAgents {
-            let configData = conversation.modelThreads.first(where: { $0.id == conversation.activeThreadID })?.modelConfigData
-                ?? conversation.modelThreads.first?.modelConfigData
-                ?? conversation.modelConfigData
-            let storedControls = try? JSONDecoder().decode(GenerationControls.self, from: configData)
+            let storedControls = try? JSONDecoder().decode(GenerationControls.self, from: conversation.modelConfigData)
             return ClaudeManagedAgentResolutionSupport.resolvedConversationDisplayName(
                 threadModelID: modelID,
                 storedControls: storedControls,

@@ -16,44 +16,35 @@ extension ChatView {
         )
     }
 
-    func buildUserMessagePartsForThreads(
-        threads: [ConversationModelThreadEntity],
+    func buildUserMessageParts(
         quoteContents: [QuoteContent],
         messageText: String,
         attachments: [DraftAttachment],
         remoteVideoURL: URL?
-    ) async throws -> [ChatMessagePreparationSupport.ThreadPreparedUserMessage] {
-        var preparedMessages: [ChatMessagePreparationSupport.ThreadPreparedUserMessage] = []
-        preparedMessages.reserveCapacity(threads.count)
-
-        for thread in threads {
-            try Task.checkCancellation()
-            let profile = try messagePreparationProfile(for: thread)
-            let hasTextualPrompt = ChatMessagePreparationSupport.hasTextualPrompt(
-                messageText: messageText,
-                quoteContents: quoteContents
-            )
-            if profile.supportsMediaGenerationControl && !hasTextualPrompt {
-                let mediaType = profile.supportsVideoGenerationControl ? "Video" : "Image"
-                throw LLMError.invalidRequest(message: "\(mediaType) generation models require a text prompt. (\(profile.modelName))")
-            }
-
-            let parts = try await buildUserMessageParts(
-                quoteContents: quoteContents,
-                messageText: messageText,
-                attachments: attachments,
-                remoteVideoURL: remoteVideoURL,
-                profile: profile
-            )
-            preparedMessages.append(ChatMessagePreparationSupport.ThreadPreparedUserMessage(threadID: profile.threadID, parts: parts))
+    ) async throws -> [ContentPart] {
+        try Task.checkCancellation()
+        let profile = try messagePreparationProfile()
+        let hasTextualPrompt = ChatMessagePreparationSupport.hasTextualPrompt(
+            messageText: messageText,
+            quoteContents: quoteContents
+        )
+        if profile.supportsMediaGenerationControl && !hasTextualPrompt {
+            let mediaType = profile.supportsVideoGenerationControl ? "Video" : "Image"
+            throw LLMError.invalidRequest(message: "\(mediaType) generation models require a text prompt. (\(profile.modelName))")
         }
 
-        return preparedMessages
+        return try await buildUserMessageParts(
+            quoteContents: quoteContents,
+            messageText: messageText,
+            attachments: attachments,
+            remoteVideoURL: remoteVideoURL,
+            profile: profile
+        )
     }
 
-    func messagePreparationProfile(for thread: ConversationModelThreadEntity) throws -> ChatMessagePreparationSupport.MessagePreparationProfile {
+    func messagePreparationProfile() throws -> ChatMessagePreparationSupport.MessagePreparationProfile {
         try ChatMessagePreparationSupport.messagePreparationProfile(
-            for: thread,
+            for: conversationEntity,
             providers: providers,
             controls: controls,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,

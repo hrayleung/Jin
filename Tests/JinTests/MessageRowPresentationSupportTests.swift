@@ -362,7 +362,6 @@ final class MessageRowPresentationSupportTests: XCTestCase {
     ) -> MessageRenderItem {
         MessageRenderItem(
             id: UUID(),
-            contextThreadID: nil,
             role: role.rawValue,
             timestamp: Date(timeIntervalSince1970: 1),
             renderedBlocks: renderedBlocks,

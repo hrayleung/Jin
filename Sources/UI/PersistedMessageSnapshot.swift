@@ -4,8 +4,6 @@ struct PersistedMessageSnapshot: Sendable {
     let id: UUID
     let role: String
     let timestamp: Date
-    let contextThreadID: UUID?
-    let turnID: UUID?
     let contentData: Data
     let toolCallsData: Data?
     let toolResultsData: Data?
@@ -22,8 +20,6 @@ struct PersistedMessageSnapshot: Sendable {
         self.id = entity.id
         self.role = entity.role
         self.timestamp = entity.timestamp
-        self.contextThreadID = entity.contextThreadID
-        self.turnID = entity.turnID
         self.contentData = entity.contentData
         self.toolCallsData = entity.toolCallsData
         self.toolResultsData = entity.toolResultsData

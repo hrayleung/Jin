@@ -15,7 +15,6 @@ extension ChatView {
         return DraftQuote(
             content: QuoteContent(
                 sourceMessageID: snapshot.messageID,
-                sourceThreadID: snapshot.contextThreadID,
                 // Quotes currently originate from assistant reply selection only.
                 sourceRole: .assistant,
                 sourceModelName: sourceModelName,
@@ -39,7 +38,6 @@ extension ChatView {
         ) else { return }
         let alreadyExists = draftQuotes.contains {
             $0.content.sourceMessageID == quote.content.sourceMessageID
-                && $0.content.sourceThreadID == quote.content.sourceThreadID
                 && $0.content.sourceRole == quote.content.sourceRole
                 && $0.content.sourceModelName == quote.content.sourceModelName
                 && $0.content.quotedText == quote.content.quotedText
@@ -84,7 +82,6 @@ extension ChatView {
         let highlight = MessageHighlightEntity(
             messageID: snapshot.messageID,
             conversationID: conversationEntity.id,
-            contextThreadID: snapshot.contextThreadID,
             anchorID: snapshot.anchorID,
             selectedText: selectedText,
             prefixContext: snapshot.prefixContext,

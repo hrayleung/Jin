@@ -2,7 +2,6 @@ import Foundation
 
 struct QuoteContent: Codable, Sendable, Hashable {
     let sourceMessageID: UUID?
-    let sourceThreadID: UUID?
     let sourceRole: MessageRole?
     let sourceModelName: String?
     let sourceProviderIconID: String?
@@ -13,7 +12,6 @@ struct QuoteContent: Codable, Sendable, Hashable {
 
     init(
         sourceMessageID: UUID? = nil,
-        sourceThreadID: UUID? = nil,
         sourceRole: MessageRole? = nil,
         sourceModelName: String? = nil,
         sourceProviderIconID: String? = nil,
@@ -23,7 +21,6 @@ struct QuoteContent: Codable, Sendable, Hashable {
         createdAt: Date = Date()
     ) {
         self.sourceMessageID = sourceMessageID
-        self.sourceThreadID = sourceThreadID
         self.sourceRole = sourceRole
         self.sourceModelName = sourceModelName
         self.sourceProviderIconID = sourceProviderIconID

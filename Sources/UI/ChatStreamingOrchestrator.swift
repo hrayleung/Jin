@@ -155,7 +155,7 @@ enum ChatStreamingOrchestrator {
             let shouldNotifyNow = completionNotification.shouldNotify
             let previewForNotification = completionNotification.preview
             await MainActor.run {
-                callbacks.onSessionEnd(shouldNotifyNow, previewForNotification, ctx.threadID)
+                callbacks.onSessionEnd(shouldNotifyNow, previewForNotification)
             }
         }
     }

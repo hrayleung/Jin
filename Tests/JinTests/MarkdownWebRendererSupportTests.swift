@@ -122,23 +122,22 @@ final class MarkdownWebRendererSupportTests: XCTestCase {
     }
 
     func testCoordinatorSupportSelectionContextJavaScriptEscapesSingleQuotes() {
+        let messageID = UUID()
         let context = MarkdownWebRendererCoordinatorSupport.SelectionContext(
-            messageID: nil,
-            contextThreadID: nil,
+            messageID: messageID,
             anchorID: "anchor'one"
         )
 
+        XCTAssertTrue(context.javascript.contains("setSelectionContext('\(messageID.uuidString)', '',"))
         XCTAssertTrue(context.javascript.contains("anchor\\'one"))
     }
 
     func testCoordinatorSupportDecodeSelectionSnapshotParsesRequiredAndOptionalFields() throws {
         let messageID = UUID()
-        let contextThreadID = UUID()
         let matchingHighlightID = UUID()
 
         let snapshot = try XCTUnwrap(MarkdownWebRendererCoordinatorSupport.decodeSelectionSnapshot([
             "messageID": messageID.uuidString,
-            "contextThreadID": contextThreadID.uuidString,
             "anchorID": "anchor-1",
             "selectedText": "selected text",
             "prefixContext": "before",
@@ -152,7 +151,6 @@ final class MarkdownWebRendererSupportTests: XCTestCase {
         ]))
 
         XCTAssertEqual(snapshot.messageID, messageID)
-        XCTAssertEqual(snapshot.contextThreadID, contextThreadID)
         XCTAssertEqual(snapshot.anchorID, "anchor-1")
         XCTAssertEqual(snapshot.selectedText, "selected text")
         XCTAssertEqual(snapshot.prefixContext, "before")

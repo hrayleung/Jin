@@ -419,7 +419,6 @@ private func makeDraftAttachment() throws -> DraftAttachment {
 
 private func makeFirecrawlProfile(parserMode: FirecrawlPDFParserMode) -> ChatMessagePreparationSupport.MessagePreparationProfile {
     ChatMessagePreparationSupport.MessagePreparationProfile(
-        threadID: UUID(),
         modelName: "Test Model",
         supportsVideoGenerationControl: false,
         supportsVideoInput: false,

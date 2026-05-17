@@ -9,7 +9,6 @@ final class MessageQuoteAndHighlightTests: XCTestCase {
             .quote(
                 QuoteContent(
                     sourceMessageID: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-                    sourceThreadID: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
                     sourceRole: .assistant,
                     sourceModelName: "gpt-test",
                     quotedText: "Quoted paragraph",
@@ -110,7 +109,6 @@ final class MessageQuoteAndHighlightTests: XCTestCase {
         let highlight = MessageHighlightEntity(
             messageID: message.id,
             conversationID: conversation.id,
-            contextThreadID: UUID(uuidString: "33333333-3333-3333-3333-333333333333"),
             anchorID: "\(message.id.uuidString):block:0",
             selectedText: "Assistant",
             prefixContext: "",

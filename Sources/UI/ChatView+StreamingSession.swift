@@ -6,47 +6,36 @@ extension ChatView {
 
     @MainActor
     func startStreamingResponse(
-        for threadID: UUID,
         triggeredByUserSend: Bool = false,
-        turnID: UUID? = nil,
         diagnosticRunID: String = UUID().uuidString,
         perMessageMCPServerIDs: Set<String> = []
     ) {
         let conversationID = conversationEntity.id
-        guard !streamingStore.isStreaming(conversationID: conversationID, threadID: threadID) else { return }
+        guard !streamingStore.isStreaming(conversationID: conversationID) else { return }
 
-        guard let thread = sortedModelThreads.first(where: { $0.id == threadID }) else { return }
         let threadControls: GenerationControls
         do {
-            threadControls = try JSONDecoder().decode(GenerationControls.self, from: thread.modelConfigData)
+            threadControls = try JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData)
         } catch {
-            streamingStore.recordError(
-                conversationID: conversationID,
-                threadID: threadID,
-                message: "Failed to load conversation settings: \(error.localizedDescription)"
-            )
-            streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+            recordStreamingSetupError("Failed to load conversation settings: \(error.localizedDescription)")
+            streamingStore.endSession(conversationID: conversationID)
             return
         }
 
         let providerSnapshot: ChatStreamingProviderSnapshot
         do {
             providerSnapshot = try ChatStreamingSessionResolver.providerSnapshot(
-                for: thread,
+                for: conversationEntity,
                 providers: providers
             )
         } catch {
-            streamingStore.recordError(
-                conversationID: conversationID,
-                threadID: threadID,
-                message: "Failed to load provider configuration: \(error.localizedDescription)"
-            )
-            streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+            recordStreamingSetupError("Failed to load provider configuration: \(error.localizedDescription)")
+            streamingStore.endSession(conversationID: conversationID)
             return
         }
 
         let modelSnapshot = ChatStreamingSessionResolver.modelSnapshot(
-            for: thread,
+            for: conversationEntity,
             threadControls: threadControls,
             providerSnapshot: providerSnapshot,
             managedAgentSyntheticModelID: { providerID, controls in
@@ -55,8 +44,11 @@ extension ChatView {
             effectiveModelID: { modelID, providerEntity, providerType in
                 effectiveModelID(for: modelID, providerEntity: providerEntity, providerType: providerType)
             },
-            migrateThreadModelIDIfNeeded: { thread, resolvedModelID in
-                migrateThreadModelIDIfNeeded(thread, resolvedModelID: resolvedModelID)
+            migrateConversationModelIDIfNeeded: { conversation, resolvedModelID in
+                guard resolvedModelID != conversation.modelID else { return }
+                conversation.modelID = resolvedModelID
+                conversation.updatedAt = Date()
+                try? modelContext.save()
             },
             resolvedModelInfo: { modelID, providerEntity, providerType in
                 resolvedModelInfo(for: modelID, providerEntity: providerEntity, providerType: providerType)
@@ -68,18 +60,16 @@ extension ChatView {
 
         let streamingState = streamingStore.beginSession(
             conversationID: conversationID,
-            threadID: threadID,
             modelLabel: modelSnapshot.modelName,
             modelID: modelSnapshot.modelID
         )
         streamingState.debugContext = StreamingDebugContext(
             conversationID: conversationID,
-            threadID: threadID,
             diagnosticRunID: diagnosticRunID
         )
         streamingState.reset()
         let snapshotBuildStartedAt = ProcessInfo.processInfo.systemUptime
-        let messageSnapshots = orderedConversationMessages(threadID: threadID).map(PersistedMessageSnapshot.init)
+        let messageSnapshots = orderedConversationMessages().map(PersistedMessageSnapshot.init)
         let snapshotBuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - snapshotBuildStartedAt) * 1000)
 
         // #region agent log
@@ -89,7 +79,6 @@ extension ChatView {
             message: "chat_stream_context_ready",
             data: [
                 "conversationID": conversationID.uuidString,
-                "threadID": threadID.uuidString,
                 "triggeredByUserSend": String(triggeredByUserSend),
                 "snapshotCount": String(messageSnapshots.count),
                 "conversationMessageCount": String(conversationEntity.messages.count),
@@ -116,7 +105,7 @@ extension ChatView {
             },
             sanitizeProviderSpecific: Self.sanitizeProviderSpecificForProvider,
             injectClaudeManagedAgentSessionPersistence: { controls in
-                injectClaudeManagedAgentSessionPersistence(into: &controls, from: thread)
+                injectClaudeManagedAgentSessionPersistence(into: &controls)
             }
         )
         let historySettings = ChatStreamingSessionResolver.historySettings(
@@ -137,12 +126,8 @@ extension ChatView {
                 perMessageOverrideServerIDs: perMessageMCPServerIDs
             )
         } catch {
-            streamingStore.recordError(
-                conversationID: conversationID,
-                threadID: threadID,
-                message: "Failed to load MCP server configs: \(error.localizedDescription)"
-            )
-            streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+            recordStreamingSetupError("Failed to load MCP server configs: \(error.localizedDescription)")
+            streamingStore.endSession(conversationID: conversationID)
             return
         }
         let chatNamingTarget = resolvedChatNamingTarget()
@@ -155,17 +140,13 @@ extension ChatView {
             webSearchPluginConfigured: webSearchPluginConfigured
         )
         let networkLogContext = NetworkDebugLogContext(
-            conversationID: conversationID.uuidString,
-            threadID: threadID.uuidString,
-            turnID: turnID?.uuidString
+            conversationID: conversationID.uuidString
         )
 
         responseCompletionNotifier.prepareAuthorizationIfNeededWhileActive()
 
         let sessionContext = ChatStreamingOrchestrator.SessionContext(
             conversationID: conversationID,
-            threadID: threadID,
-            turnID: turnID,
             diagnosticRunID: diagnosticRunID,
             providerID: providerSnapshot.providerID,
             providerConfig: providerSnapshot.config,
@@ -188,23 +169,18 @@ extension ChatView {
         )
 
         let sessionCallbacks = ChatStreamingOrchestrator.SessionCallbacks(
-            persistAssistantMessage: { [self] message, providerID, modelID, modelName, threadID, turnID, metrics in
+            persistAssistantMessage: { [self] message, providerID, modelID, modelName, metrics in
                 do {
                     let entity = try MessageEntity.fromDomain(message)
                     entity.generatedProviderID = providerID
                     entity.generatedModelID = modelID
                     entity.generatedModelName = modelName
-                    entity.contextThreadID = threadID
-                    entity.turnID = turnID
                     entity.responseMetrics = metrics
                     entity.conversation = conversationEntity
                     conversationEntity.messages.append(entity)
                     conversationEntity.updatedAt = Date()
-                    // Assistant rebuilds must remain synchronous so that
-                    // `autoOpenLatestArtifactIfNeeded` sees the fresh artifact
-                    // catalog before it inspects it.
                     rebuildMessageCaches()
-                    autoOpenLatestArtifactIfNeeded(from: message, threadID: threadID)
+                    autoOpenLatestArtifactIfNeeded(from: message)
                     schedulePersistenceSave()
                     return entity.id
                 } catch {
@@ -213,16 +189,12 @@ extension ChatView {
                     return nil
                 }
             },
-            persistToolMessage: { [self] message, threadID, turnID in
+            persistToolMessage: { [self] message in
                 do {
                     let entity = try MessageEntity.fromDomain(message)
-                    entity.contextThreadID = threadID
-                    entity.turnID = turnID
                     entity.conversation = conversationEntity
                     conversationEntity.messages.append(entity)
                     conversationEntity.updatedAt = Date()
-                    // Tool messages can land many-per-second on heavy turns.
-                    // Coalesce both the rebuild and the SwiftData save.
                     renderCache.scheduleDebouncedRebuild(after: .milliseconds(120)) {
                         rebuildMessageCachesIfNeeded()
                     }
@@ -232,14 +204,14 @@ extension ChatView {
                     showingError = true
                 }
             },
-            persistClaudeManagedSessionState: { [self] state, localThreadID in
-                persistClaudeManagedAgentSessionState(state, forLocalThreadID: localThreadID)
+            persistClaudeManagedSessionState: { [self] state in
+                persistClaudeManagedAgentSessionState(state)
             },
-            persistClaudeManagedPendingToolResults: { [self] results, localThreadID in
-                persistClaudeManagedPendingCustomToolResults(results, forLocalThreadID: localThreadID)
+            persistClaudeManagedPendingToolResults: { [self] results in
+                persistClaudeManagedPendingCustomToolResults(results)
             },
-            appendManagedAgentInteraction: { [self] request, localThreadID in
-                pendingManagedAgentInteractions.append(PendingManagedAgentInteraction(localThreadID: localThreadID, request: request))
+            appendManagedAgentInteraction: { [self] request in
+                pendingManagedAgentInteractions.append(PendingManagedAgentInteraction(request: request))
             },
             mergeSearchActivities: { [self] messageID, activities in
                 mergeSearchActivitiesIntoAssistantMessage(messageID: messageID, newActivities: activities)
@@ -257,9 +229,9 @@ extension ChatView {
                 showingError = true
             },
             endStreamingSession: { [self] in
-                streamingStore.endSession(conversationID: conversationID, threadID: threadID)
+                streamingStore.endSession(conversationID: conversationID)
             },
-            onSessionEnd: { [self] shouldNotify, preview, sessionThreadID in
+            onSessionEnd: { [self] shouldNotify, preview in
                 if shouldNotify {
                     responseCompletionNotifier.notifyCompletionIfNeeded(
                         conversationID: conversationID,
@@ -267,11 +239,8 @@ extension ChatView {
                         replyPreview: preview
                     )
                 }
-                streamingStore.endSession(conversationID: conversationID, threadID: threadID)
-                pendingManagedAgentInteractions.removeAll { $0.localThreadID == sessionThreadID }
-                // Flush the debounced rebuild so the final tool result is
-                // reflected immediately, then commit the SwiftData save so a
-                // crash after this point doesn't lose the finished turn.
+                streamingStore.endSession(conversationID: conversationID)
+                pendingManagedAgentInteractions.removeAll()
                 rebuildMessageCachesIfNeeded()
                 flushPendingPersistenceSave()
             }
@@ -284,7 +253,14 @@ extension ChatView {
                 callbacks: sessionCallbacks
             )
         }
-        streamingStore.attachTask(task, conversationID: conversationID, threadID: threadID)
+        streamingStore.attachTask(task, conversationID: conversationID)
+    }
+
+    @MainActor
+    private func recordStreamingSetupError(_ message: String) {
+        streamingStore.recordError(conversationID: conversationEntity.id, message: message)
+        errorMessage = message
+        showingError = true
     }
 
     // MARK: - Debounced SwiftData persistence

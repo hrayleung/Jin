@@ -60,7 +60,7 @@ extension ChatStreamingOrchestrator {
             )
             claudeManagedToolResultsForNextRequest = pendingResults
             await MainActor.run {
-                callbacks.persistClaudeManagedPendingToolResults(pendingResults, ctx.threadID)
+                callbacks.persistClaudeManagedPendingToolResults(pendingResults)
             }
         } else {
             claudeManagedToolResultsForNextRequest = []
@@ -74,7 +74,7 @@ extension ChatStreamingOrchestrator {
 
         let toolMessage = followUpToolMessage(from: toolExecutionResult)
         await MainActor.run {
-            callbacks.persistToolMessage(toolMessage, ctx.threadID, ctx.turnID)
+            callbacks.persistToolMessage(toolMessage)
         }
 
         return ToolContinuationPersistenceResult(

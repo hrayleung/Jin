@@ -78,15 +78,7 @@ extension ContentView {
         }
 
         let inheritedControls = lastConversation.flatMap { conversation -> GenerationControls? in
-            // Read the active thread's controls when present (the legacy
-            // `modelConfigData` snapshot is no longer kept in sync).
-            let sortedThreads = ChatThreadSupport.sortedThreads(in: conversation.modelThreads)
-            let activeThread = ChatThreadSupport.activeThread(
-                in: sortedThreads,
-                preferredID: conversation.activeThreadID
-            )
-            let configData = activeThread?.modelConfigData ?? conversation.modelConfigData
-            return try? JSONDecoder().decode(GenerationControls.self, from: configData)
+            try? JSONDecoder().decode(GenerationControls.self, from: conversation.modelConfigData)
         }
         var controls = inheritedControls ?? GenerationControls()
         controls.clearClaudeManagedAgentSessionState()
@@ -126,17 +118,6 @@ extension ContentView {
             modelConfigData: controlsData,
             assistant: assistant
         )
-        let initialThread = ConversationModelThreadEntity(
-            providerID: providerID,
-            modelID: modelID,
-            modelConfigData: controlsData,
-            displayOrder: 0,
-            isSelected: true,
-            isPrimary: true
-        )
-        initialThread.conversation = conversation
-        conversation.modelThreads.append(initialThread)
-        conversation.activeThreadID = initialThread.id
 
         selectConversation(conversation)
     }

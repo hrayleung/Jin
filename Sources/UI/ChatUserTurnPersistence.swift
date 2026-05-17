@@ -9,7 +9,6 @@ struct ChatSendDraftSnapshot: Sendable {
     let perMessageMCPServerNames: [String]
     let perMessageMCPServerIDsData: Data?
     let askedAt: Date
-    let turnID: UUID
 
     var quoteContents: [QuoteContent] {
         quotes.map(\.content)
@@ -21,8 +20,7 @@ struct ChatSendDraftSnapshot: Sendable {
         attachments: [DraftAttachment],
         quotes: [DraftQuote],
         selectedPerMessageMCPServers: [(id: String, name: String)],
-        askedAt: Date = Date(),
-        turnID: UUID = UUID()
+        askedAt: Date = Date()
     ) {
         let selectedServers = selectedPerMessageMCPServers.sorted {
             if $0.id == $1.id {
@@ -39,16 +37,15 @@ struct ChatSendDraftSnapshot: Sendable {
         self.perMessageMCPServerNames = selectedServers.map(\.name)
         self.perMessageMCPServerIDsData = selectedIDs.isEmpty ? nil : try? JSONEncoder().encode(selectedIDs)
         self.askedAt = askedAt
-        self.turnID = turnID
     }
 }
 
 @MainActor
 enum ChatUserTurnPersistence {
-    static func appendPreparedUserMessages(
-        _ preparedMessages: [ChatMessagePreparationSupport.ThreadPreparedUserMessage],
+    static func appendPreparedUserMessage(
+        parts: [ContentPart],
         draft: ChatSendDraftSnapshot,
-        toolCapableThreadIDs: Set<UUID>,
+        toolCapable: Bool,
         conversationEntity: ConversationEntity,
         isChatNamingPluginEnabled: Bool,
         persistConversationIfNeeded: () -> Void,
@@ -59,36 +56,28 @@ enum ChatUserTurnPersistence {
             persistConversationIfNeeded()
         }
 
-        for prepared in preparedMessages {
-            let message = Message(
-                role: .user,
-                content: prepared.parts,
-                timestamp: draft.askedAt,
-                perMessageMCPServerNames: toolCapableThreadIDs.contains(prepared.threadID)
-                    ? draft.perMessageMCPServerNames
-                    : nil
+        let message = Message(
+            role: .user,
+            content: parts,
+            timestamp: draft.askedAt,
+            perMessageMCPServerNames: toolCapable ? draft.perMessageMCPServerNames : nil
+        )
+        let messageEntity: MessageEntity
+        do {
+            messageEntity = try MessageEntity.fromDomain(message)
+        } catch {
+            NSLog(
+                "Jin user turn persistence warning: failed to persist prepared user message. conversationID=%@ error=%@",
+                conversationEntity.id.uuidString,
+                error.localizedDescription
             )
-            let messageEntity: MessageEntity
-            do {
-                messageEntity = try MessageEntity.fromDomain(message)
-            } catch {
-                NSLog(
-                    "Jin user turn persistence warning: failed to persist prepared user message. conversationID=%@ threadID=%@ turnID=%@ error=%@",
-                    conversationEntity.id.uuidString,
-                    prepared.threadID.uuidString,
-                    draft.turnID.uuidString,
-                    error.localizedDescription
-                )
-                continue
-            }
-            if toolCapableThreadIDs.contains(prepared.threadID) {
-                messageEntity.perMessageMCPServerIDsData = draft.perMessageMCPServerIDsData
-            }
-            messageEntity.contextThreadID = prepared.threadID
-            messageEntity.turnID = draft.turnID
-            messageEntity.conversation = conversationEntity
-            conversationEntity.messages.append(messageEntity)
+            return
         }
+        if toolCapable {
+            messageEntity.perMessageMCPServerIDsData = draft.perMessageMCPServerIDsData
+        }
+        messageEntity.conversation = conversationEntity
+        conversationEntity.messages.append(messageEntity)
 
         applyFallbackTitleIfNeeded(
             draft: draft,

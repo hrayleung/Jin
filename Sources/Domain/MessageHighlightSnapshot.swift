@@ -3,7 +3,6 @@ import Foundation
 struct MessageHighlightSnapshot: Identifiable, Codable, Sendable, Hashable {
     let id: UUID
     let messageID: UUID
-    let contextThreadID: UUID?
     let anchorID: String
     let selectedText: String
     let prefixContext: String?
@@ -17,7 +16,6 @@ struct MessageHighlightSnapshot: Identifiable, Codable, Sendable, Hashable {
     init(
         id: UUID = UUID(),
         messageID: UUID,
-        contextThreadID: UUID? = nil,
         anchorID: String,
         selectedText: String,
         prefixContext: String? = nil,
@@ -31,7 +29,6 @@ struct MessageHighlightSnapshot: Identifiable, Codable, Sendable, Hashable {
         let initialUpdatedAt = updatedAt ?? createdAt
         self.id = id
         self.messageID = messageID
-        self.contextThreadID = contextThreadID
         self.anchorID = anchorID
         self.selectedText = selectedText
         self.prefixContext = prefixContext

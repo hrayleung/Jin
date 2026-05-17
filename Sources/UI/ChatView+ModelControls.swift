@@ -37,8 +37,8 @@ extension ChatView {
             providerDefaults: providerDefaults,
             resolvedAgentDisplayName: resolvedClaudeManagedAgentDisplayName(
                 for: activeProviderID,
-                threadModelID: activeModelID,
-                threadControls: controls
+                modelID: activeModelID,
+                controls: controls
             ),
             resolvedEnvironmentDisplayName: resolvedClaudeManagedEnvironmentDisplayName(
                 for: activeProviderID,
@@ -127,21 +127,17 @@ extension ChatView {
             }
         )
 
-        if activeModelThread != nil, update.didChangeIdentity {
-            if let activeModelThread {
-                clearClaudeManagedAgentSessionPersistence(for: activeModelThread)
-            }
+        if update.didChangeIdentity {
+            clearClaudeManagedAgentSessionPersistence(for: conversationEntity)
         }
 
         controls = update.controls
 
-        if let activeModelThread,
-           providerType(forProviderID: activeModelThread.providerID) == .claudeManagedAgents {
-            activeModelThread.modelID = managedAgentSyntheticModelID(
-                providerID: activeModelThread.providerID,
+        if providerType == .claudeManagedAgents {
+            conversationEntity.modelID = managedAgentSyntheticModelID(
+                providerID: conversationEntity.providerID,
                 controls: update.resolvedControls
             )
-            setActiveThread(activeModelThread)
         }
 
         persistControlsToConversation()
@@ -166,23 +162,19 @@ extension ChatView {
                     )
                 }
             )
-            if activeModelThread != nil, update.didChangeIdentity {
-                if let activeModelThread {
-                    clearClaudeManagedAgentSessionPersistence(for: activeModelThread)
-                }
+            if update.didChangeIdentity {
+                clearClaudeManagedAgentSessionPersistence(for: conversationEntity)
             }
             controls = update.controls
-            if let activeModelThread,
-               providerType(forProviderID: activeModelThread.providerID) == .claudeManagedAgents {
+            if providerType == .claudeManagedAgents {
                 let syntheticModelID = managedAgentSyntheticModelID(
-                    providerID: activeModelThread.providerID,
+                    providerID: conversationEntity.providerID,
                     controls: resolvedClaudeManagedControls(
-                        for: activeModelThread.providerID,
+                        for: conversationEntity.providerID,
                         threadControls: update.controls
                     )
                 )
-                activeModelThread.modelID = syntheticModelID
-                setActiveThread(activeModelThread)
+                conversationEntity.modelID = syntheticModelID
             }
             persistControlsToConversation()
             claudeManagedAgentSettingsDraftError = nil
