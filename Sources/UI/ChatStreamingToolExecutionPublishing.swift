@@ -12,9 +12,11 @@ extension ChatStreamingOrchestrator {
 
         if let searchActivity = record.searchActivity {
             progress.upsertSearchActivity(searchActivity)
-            await MainActor.run {
-                streamingState.upsertSearchActivity(searchActivity)
-            }
+            // The activity is merged into the round-1 persisted message via
+            // mergeSearchActivities in persistToolContinuation. Writing it here
+            // into streamingState — which after reset represents the next round's
+            // bubble — would briefly show the card at the bottom of the chat and
+            // then "jump" to the top after merge.
         }
     }
 

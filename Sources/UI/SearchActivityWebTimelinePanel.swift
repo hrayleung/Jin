@@ -41,6 +41,8 @@ struct SearchActivityWebTimelinePanel: View {
     }
 
     private var hasRenderableContent: Bool {
-        !content.presentation.sources.isEmpty || !content.presentation.queries.isEmpty
+        !content.presentation.sources.isEmpty
+            || !content.presentation.queries.isEmpty
+            || (isStreaming && content.hasRunningActivity)
     }
 }
