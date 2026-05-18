@@ -7,6 +7,9 @@ import Foundation
 /// step is now guarded against firing inside matched inline emphasis or
 /// inline code, so legitimate `*foo*` and `**bar**` runs survive untouched.
 enum MarkdownStructuralRepair {
+    static let embeddedHeadingAfterWhitespacePattern = #"(?<=\S)\s+(#{3,6})(?!#)(?=[\p{L}\p{N}])"#
+    static let cjkEmbeddedHeadingPattern = #"([\p{Han}。！？，、：；）」』】])(#{3,6})(?!#)(?=[\p{L}\p{N}])"#
+
     static func repairLine(_ line: String) -> String {
         MarkdownRenderPreparation.preserveInlineCode(in: line) { candidate in
             var normalized = candidate
@@ -33,6 +36,7 @@ enum MarkdownStructuralRepair {
         current = insertBreaksBeforeEmbeddedHeadings(current)
         current = insertBreaksBeforeEmbeddedBullets(current)
         current = insertBreaksBeforeEmbeddedOrderedListMarkers(current)
+        current = insertBreaksBeforeEmbeddedOrderedListMarkerInHeading(current)
         current = normalizeInlineTable(current)
         return current
     }
@@ -77,12 +81,29 @@ enum MarkdownStructuralRepair {
     }
 
     static func insertBreaksBeforeEmbeddedHeadings(_ line: String) -> String {
-        MarkdownRenderPreparation.replacingOutsideRanges(
-            pattern: #"(?<=\S)\s+(#{1,6})(?=[#\dA-Za-z\p{Han}])"#,
-            in: line,
-            protectedRanges: protectedRanges(in: line),
-            with: "\n$1"
+        var current = line
+        current = MarkdownRenderPreparation.replacingOutsideRanges(
+            pattern: embeddedHeadingAfterWhitespacePattern,
+            in: current,
+            protectedRanges: protectedRanges(in: current),
+            with: "\n$1 "
         )
+        // CJK-glued embedded heading: `战役###1.早期…` (no whitespace before the
+        // `#`). `\p{Han}` in lookbehind would be variable-width in UTF-16
+        // (Extension B chars are surrogate pairs), so capture the preceding
+        // char instead and re-emit it. Set is restricted to Han + CJK punctuation
+        // so version strings (`C#####foo`) and Latin tail (`Baz##Heading`) are
+        // untouched. Require `###` or deeper because inline `##` tokens are
+        // common in prose (for example C macro token-pasting). Trailing space
+        // ensures the new line parses as a proper ATX heading without re-running
+        // `normalizeHeadingSpacing`.
+        current = MarkdownRenderPreparation.replacingOutsideRanges(
+            pattern: cjkEmbeddedHeadingPattern,
+            in: current,
+            protectedRanges: protectedRanges(in: current),
+            with: "$1\n$2 "
+        )
+        return current
     }
 
     static func insertBreaksBeforeEmbeddedBullets(_ line: String) -> String {
@@ -100,6 +121,38 @@ enum MarkdownStructuralRepair {
             in: line,
             protectedRanges: protectedRanges(in: line),
             with: "\n$1 "
+        )
+    }
+
+    /// Heading-only variant: when the current line is an ATX heading and the
+    /// model glued an ordered-list marker directly to a Han character (e.g.
+    /// `## 三、投资风格与持仓特点1. **极度集中**…`), split before the marker. The
+    /// general-purpose `insertBreaksBeforeEmbeddedOrderedListMarkers` requires
+    /// preceding ASCII/CJK punctuation, which Chinese titles don't have, so
+    /// this fills the gap without loosening the broader paragraph rule.
+    static func insertBreaksBeforeEmbeddedOrderedListMarkerInHeading(_ line: String) -> String {
+        guard let newlineIndex = line.firstIndex(of: "\n") else {
+            return insertBreaksBeforeEmbeddedOrderedListMarkerInSingleHeadingLine(line)
+        }
+
+        let headingLine = String(line[..<newlineIndex])
+        let remainder = String(line[newlineIndex...])
+        return insertBreaksBeforeEmbeddedOrderedListMarkerInSingleHeadingLine(headingLine) + remainder
+    }
+
+    private static func insertBreaksBeforeEmbeddedOrderedListMarkerInSingleHeadingLine(_ line: String) -> String {
+        let trimmedLeading = String(line.drop(while: { $0 == " " }))
+        guard MarkdownRenderPreparation.matches(#"^#{1,6} "#, in: trimmedLeading) else {
+            return line
+        }
+        // Capture the preceding Han char rather than using `(?<=\p{Han})` —
+        // see the comment in `insertBreaksBeforeEmbeddedHeadings` for the
+        // surrogate-pair lookbehind rationale.
+        return MarkdownRenderPreparation.replacingOutsideRanges(
+            pattern: #"(\p{Han})(\d{1,2}[.)])\s+(?=(?:\*\*)?[\p{L}\p{N}])"#,
+            in: line,
+            protectedRanges: protectedRanges(in: line),
+            with: "$1\n$2 "
         )
     }
 
