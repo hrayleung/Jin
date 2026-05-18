@@ -8,12 +8,15 @@ enum ConversationActivitySupport {
     }
 
     static func sortedByActivityDescending(_ conversations: [ConversationEntity]) -> [ConversationEntity] {
-        conversations.sorted { lhs, rhs in
-            let lhsDate = activityDate(for: lhs)
-            let rhsDate = activityDate(for: rhs)
-            if lhsDate != rhsDate { return lhsDate > rhsDate }
-            return lhs.createdAt > rhs.createdAt
-        }
+        conversations
+            .map { conversation in
+                (conversation: conversation, activityDate: activityDate(for: conversation))
+            }
+            .sorted { lhs, rhs in
+                if lhs.activityDate != rhs.activityDate { return lhs.activityDate > rhs.activityDate }
+                return lhs.conversation.createdAt > rhs.conversation.createdAt
+            }
+            .map(\.conversation)
     }
 
     private static func latestUserMessageDate(for conversation: ConversationEntity) -> Date? {
