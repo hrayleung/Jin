@@ -34,6 +34,7 @@ extension ContentView {
                 promptTemplate: promptTemplate
             )
             conversation.title = title
+            try modelContext.save()
         } catch {
             titleRegenerationErrorMessage = error.localizedDescription
             showingTitleRegenerationError = true

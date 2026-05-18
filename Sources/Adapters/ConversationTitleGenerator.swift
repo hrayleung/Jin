@@ -121,7 +121,7 @@ Output the title text and nothing else.
             }
             let merged = content.joined(separator: "\n")
             if !merged.isEmpty {
-                lines.append("<\(role)>\(merged)</\(role)>")
+                lines.append("<\(role)>\(Self.xmlEscapedText(merged))</\(role)>")
             }
         }
 
@@ -130,6 +130,14 @@ Output the title text and nothing else.
         // Only return a wrapped block if at least one role contributed content.
         guard lines.count > 2 else { return "" }
         return lines.joined(separator: "\n")
+    }
+
+    private static func xmlEscapedText(_ text: String) -> String {
+        text.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&apos;")
     }
 
     static func detectLanguageName(from messages: [Message]) -> String {
