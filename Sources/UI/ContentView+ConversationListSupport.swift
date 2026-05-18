@@ -12,10 +12,8 @@ extension ContentView {
         fetchPersistedConversations().first { $0.id == id }
     }
 
-    func fetchPersistedConversationsByUpdatedAtDescending() -> [ConversationEntity] {
-        fetchPersistedConversations().sorted { lhs, rhs in
-            lhs.updatedAt > rhs.updatedAt
-        }
+    func fetchPersistedConversationsByActivityDescending() -> [ConversationEntity] {
+        ConversationActivitySupport.sortedByActivityDescending(fetchPersistedConversations())
     }
 
     func providerName(for providerID: String) -> String {

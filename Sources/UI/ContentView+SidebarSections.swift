@@ -228,7 +228,7 @@ private struct AssistantConversationStatsObserverView<Content: View>: View {
             conversation.assistant?.id ?? "default"
         }
         .mapValues { conversations in
-            conversations.map(\.updatedAt).max() ?? Date.distantPast
+            conversations.map { ConversationActivitySupport.activityDate(for: $0) }.max() ?? Date.distantPast
         }
     }
 }

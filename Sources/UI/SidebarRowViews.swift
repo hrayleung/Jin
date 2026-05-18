@@ -27,7 +27,7 @@ struct SidebarConversationItem: View {
             isStarred: isStarred,
             subtitle: subtitle,
             providerIconID: providerIconID,
-            updatedAt: conversation.updatedAt,
+            activityDate: ConversationActivitySupport.activityDate(for: conversation),
             isStreaming: isStreaming,
             searchSnippet: searchSnippet,
             searchQuery: searchQuery
@@ -70,7 +70,7 @@ struct ConversationRowView: View {
     let isStarred: Bool
     let subtitle: String
     let providerIconID: String?
-    let updatedAt: Date
+    let activityDate: Date
     let isStreaming: Bool
     let searchSnippet: String?
     let searchQuery: String
@@ -110,7 +110,7 @@ struct ConversationRowView: View {
                         .controlSize(.mini)
                         .help("Generating…")
                 }
-                Text(updatedAt, format: .relative(presentation: .named))
+                Text(activityDate, format: .relative(presentation: .named))
             }
             .font(.system(size: 11))
             .foregroundColor(.secondary)

@@ -107,11 +107,6 @@ enum ChatMessageEditingSupport {
     }
 
     static func refreshConversationActivityTimestamp(conversation: ConversationEntity) {
-        let latestUserTimestamp = conversation.messages
-            .filter { $0.role == MessageRole.user.rawValue }
-            .map(\.timestamp)
-            .max()
-
-        conversation.updatedAt = latestUserTimestamp ?? conversation.createdAt
+        conversation.updatedAt = ConversationActivitySupport.activityDate(for: conversation)
     }
 }

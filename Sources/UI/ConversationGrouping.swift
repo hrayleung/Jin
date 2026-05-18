@@ -6,13 +6,17 @@ enum ConversationGrouping {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> [(key: String, value: [ConversationEntity])] {
-        let starred = conversations
-            .filter { $0.isStarred == true }
-            .sorted { $0.updatedAt > $1.updatedAt }
+        let starred = ConversationActivitySupport.sortedByActivityDescending(
+            conversations.filter { $0.isStarred == true }
+        )
 
         let unstarred = conversations.filter { $0.isStarred != true }
         let grouped = Dictionary(grouping: unstarred) { conversation in
-            relativeDateString(for: conversation.updatedAt, now: now, calendar: calendar)
+            relativeDateString(
+                for: ConversationActivitySupport.activityDate(for: conversation),
+                now: now,
+                calendar: calendar
+            )
         }
 
         var result: [(key: String, value: [ConversationEntity])] = []
@@ -22,7 +26,7 @@ enum ConversationGrouping {
 
         for key in ["Today", "Yesterday", "Previous 7 Days", "Older"] {
             guard let values = grouped[key] else { continue }
-            result.append((key: key, value: values.sorted { $0.updatedAt > $1.updatedAt }))
+            result.append((key: key, value: ConversationActivitySupport.sortedByActivityDescending(values)))
         }
 
         return result
