@@ -35,7 +35,7 @@ extension ContentView {
         if let selectedConversation, selectedConversation.id != discardedConversationID {
             lastConversation = selectedConversation
         } else {
-            lastConversation = fetchPersistedConversationsByUpdatedAtDescending().first { conversation in
+            lastConversation = fetchPersistedConversationsByActivityDescending().first { conversation in
                 conversation.id != discardedConversationID && !conversation.messages.isEmpty
             }
         }

@@ -107,6 +107,68 @@ final class ConversationGroupingTests: XCTestCase {
         XCTAssertEqual(grouped.map(\.key), ["Today"])
     }
 
+    func testGroupedConversations_usesLatestUserMessageDateInsteadOfMetadataUpdatedAt() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-02-07T12:00:00Z"))
+        let oldUserMessageDate = try XCTUnwrap(calendar.date(byAdding: .day, value: -10, to: now))
+        let modelConfigData = try JSONEncoder().encode(GenerationControls())
+
+        let oldChatTouchedToday = ConversationEntity(
+            title: "Old Chat Touched Today",
+            createdAt: oldUserMessageDate,
+            updatedAt: now,
+            providerID: "openai",
+            modelID: "gpt-5.2",
+            modelConfigData: modelConfigData
+        )
+        oldChatTouchedToday.messages.append(try message(role: .user, timestamp: oldUserMessageDate))
+
+        let todayChat = ConversationEntity(
+            title: "Today Chat",
+            createdAt: now,
+            updatedAt: now,
+            providerID: "openai",
+            modelID: "gpt-5.2",
+            modelConfigData: modelConfigData
+        )
+        todayChat.messages.append(try message(role: .user, timestamp: now))
+
+        let grouped = ConversationGrouping.groupedConversations(
+            [oldChatTouchedToday, todayChat],
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(grouped.map(\.key), ["Today", "Older"])
+        XCTAssertEqual(grouped[0].value.map(\.title), ["Today Chat"])
+        XCTAssertEqual(grouped[1].value.map(\.title), ["Old Chat Touched Today"])
+    }
+
+    func testActivityDatePrefersLatestUserMessageOverNewerAssistantReply() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-02-07T12:00:00Z"))
+        let userMessageDate = try XCTUnwrap(calendar.date(byAdding: .day, value: -3, to: now))
+        let assistantReplyDate = try XCTUnwrap(calendar.date(byAdding: .minute, value: -1, to: now))
+        let modelConfigData = try JSONEncoder().encode(GenerationControls())
+
+        let conversation = ConversationEntity(
+            title: "Old User Turn",
+            createdAt: userMessageDate,
+            updatedAt: now,
+            providerID: "openai",
+            modelID: "gpt-5.2",
+            modelConfigData: modelConfigData
+        )
+        conversation.messages.append(try message(role: .user, timestamp: userMessageDate))
+        conversation.messages.append(try message(role: .assistant, timestamp: assistantReplyDate))
+
+        XCTAssertEqual(ConversationActivitySupport.activityDate(for: conversation), userMessageDate)
+    }
+
     func testRelativeDateString_classifiesDates() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
@@ -124,5 +186,13 @@ final class ConversationGroupingTests: XCTestCase {
         let older = try XCTUnwrap(calendar.date(byAdding: .day, value: -8, to: now))
         XCTAssertEqual(ConversationGrouping.relativeDateString(for: older, now: now, calendar: calendar), "Older")
     }
-}
 
+    private func message(role: MessageRole, timestamp: Date) throws -> MessageEntity {
+        let contentData = try JSONEncoder().encode([ContentPart.text("Test message")])
+        return MessageEntity(
+            role: role.rawValue,
+            timestamp: timestamp,
+            contentData: contentData
+        )
+    }
+}
