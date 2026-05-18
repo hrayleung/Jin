@@ -424,4 +424,110 @@ final class MarkdownRenderPreparationTests: XCTestCase {
         XCTAssertFalse(result.didChange)
         XCTAssertEqual(result.text, input)
     }
+
+    // MARK: - CJK-glued embedded heading / ordered-list-marker repairs
+
+    func testSplitsCJKGluedEmbeddedHeading() {
+        let input = "##二、著名事件与投资战役###1.早期成名作：麦当劳与加拿大太平洋铁路"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertEqual(result.diagnostics.repairMode, .repaired)
+        XCTAssertLessThan(result.diagnostics.anomalyScoreAfter, result.diagnostics.anomalyScoreBefore)
+        XCTAssertTrue(
+            result.text.contains("## 二、著名事件与投资战役\n### 1.早期成名作：麦当劳与加拿大太平洋铁路"),
+            "expected CJK-glued ### to be split; got: \(result.text.debugDescription)"
+        )
+    }
+
+    func testSplitsWhitespaceSeparatedEmbeddedHeadingConservatively() {
+        let input = "背景说明 ###下一节"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertEqual(result.text, "背景说明\n\n### 下一节")
+    }
+
+    func testDoesNotSplitInlineCJKDoubleHashProse() {
+        let input = "这是普通段落，C语言的##运算符用于宏拼接"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.diagnostics.repairMode, .none)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testDoesNotSplitSpacedInlineCJKDoubleHashProse() {
+        let input = "这是普通段落，C语言的 ##运算符用于宏拼接"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.diagnostics.repairMode, .none)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testSplitsCJKGluedOrderedListMarkerInHeading() {
+        let input = "##三、投资风格与持仓特点1. **极度集中**：通常将资金集中在5–10只高度确信的股票上"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertEqual(result.diagnostics.repairMode, .repaired)
+        XCTAssertLessThan(result.diagnostics.anomalyScoreAfter, result.diagnostics.anomalyScoreBefore)
+        XCTAssertTrue(
+            result.text.contains("## 三、投资风格与持仓特点\n1. **极度集中**："),
+            "expected CJK-glued ordered-list marker to be split out of heading; got: \(result.text.debugDescription)"
+        )
+    }
+
+    func testHeadingOnlyOrderedListRepairDoesNotScanSplitBodyLine() {
+        let input = "## 标题- 项目 中概股1. 是普通句子"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertTrue(result.text.contains("## 标题\n- 项目 中概股1. 是普通句子"))
+        XCTAssertFalse(result.text.contains("\n1. 是普通句子"))
+    }
+
+    func testCJKGluedTransformsApplyDuringStreaming() {
+        let input = "##二、著名事件与投资战役###1.早期成名作：麦当劳与加拿大太平洋铁路"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: true)
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertTrue(
+            result.text.contains("## 二、著名事件与投资战役\n### 1.早期成名作：麦当劳与加拿大太平洋铁路"),
+            "streaming repair should split the same way; got: \(result.text.debugDescription)"
+        )
+    }
+
+    func testDoesNotSplitNonHeadingCJKOrderedListMarker() {
+        // Heading-gated repair must not fire on regular paragraphs that happen
+        // to contain a digit glued to a Han character (`段落1.`). Splitting
+        // those would turn ordinary prose into spurious list items.
+        let input = "这是一段普通段落1. 列举一下"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
+    func testLeavesCleanCJKHeadingUnchanged() {
+        let input = """
+        ## 四、总结
+
+        潘兴广场是华尔街最具戏剧性的对冲基金。
+        """
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
 }

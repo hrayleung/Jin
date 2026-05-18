@@ -10,16 +10,28 @@ extension MarkdownRenderPreparation {
         _ = transformOutsideProtectedBlocks(in: markdown) { line in
             let protectedLine = preserveInlineCode(in: line) { $0 }
 
-            if matches(#"^( {0,3}#{1,6})(?=\S)"#, in: protectedLine) {
+            // Atomic group on `#{1,6}` so the regex can't backtrack to a
+            // shorter prefix. Without it, `## 二、…` (well-formed) would still
+            // match: greedy `##` fails lookahead `\S` (next char is space), but
+            // backtracks to a single `#` and finds the second `#` as `\S`,
+            // generating a false anomaly that breaks the score guard whenever
+            // a repair splits one heading into two heading lines.
+            if matches(#"^( {0,3}(?>#{1,6}))(?=\S)"#, in: protectedLine) {
                 score += 3
             }
-            if matches(#"(?<=\S)\s+(#{1,6})(?=[#\dA-Za-z\p{Han}])"#, in: protectedLine) {
+            if matches(MarkdownStructuralRepair.embeddedHeadingAfterWhitespacePattern, in: protectedLine) {
+                score += 2
+            }
+            if matches(MarkdownStructuralRepair.cjkEmbeddedHeadingPattern, in: protectedLine) {
                 score += 2
             }
             if matches(#"(?<=\S)(?<![*+-])(?:-\s+(?=(?:\*\*)?[\p{L}\p{N}])|\*\s+(?=[\p{L}\p{N}])|\+\s+(?=[\p{L}\p{N}]))"#, in: protectedLine) {
                 score += 2
             }
             if matches(#"(?<=[\.:：;；\)])\s*(\d{1,2}[.)])\s+(?=[\p{L}\p{N}])"#, in: protectedLine) {
+                score += 1
+            }
+            if matches(#"^ {0,3}#{1,6} .*\p{Han}\d{1,2}[.)]\s+(?:\*\*)?[\p{L}\p{N}]"#, in: protectedLine) {
                 score += 1
             }
             if MarkdownStructuralRepair.hasEscapedLeadingEmphasis(in: protectedLine) {
