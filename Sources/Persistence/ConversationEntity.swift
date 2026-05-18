@@ -8,6 +8,7 @@ final class ConversationEntity {
     var title: String
     var isStarred: Bool?
     var artifactsEnabled: Bool?
+    var titleEditedByUser: Bool?
     var createdAt: Date
     var updatedAt: Date
     var systemPrompt: String?
@@ -28,6 +29,7 @@ final class ConversationEntity {
         title: String,
         isStarred: Bool = false,
         artifactsEnabled: Bool? = nil,
+        titleEditedByUser: Bool? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         systemPrompt: String? = nil,
@@ -40,6 +42,7 @@ final class ConversationEntity {
         self.title = title
         self.isStarred = isStarred
         self.artifactsEnabled = artifactsEnabled
+        self.titleEditedByUser = titleEditedByUser
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.systemPrompt = systemPrompt

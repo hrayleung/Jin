@@ -86,29 +86,14 @@ extension ChatStreamingOrchestrator {
 
     static func applyAssistantPersistenceFollowUp(
         _ persistenceResult: AssistantPersistenceResult,
-        responseHasToolCalls: Bool,
-        history: [Message],
-        context ctx: SessionContext,
-        callbacks: SessionCallbacks
-    ) async -> [Message] {
+        history: [Message]
+    ) -> [Message] {
         guard let assistantMessage = persistenceResult.message else {
             return history
         }
 
         var updatedHistory = history
         updatedHistory.append(assistantMessage)
-
-        if ctx.triggeredByUserSend,
-           !responseHasToolCalls,
-           let target = ctx.chatNamingTarget {
-            await callbacks.maybeAutoRename(
-                target.provider,
-                target.modelID,
-                updatedHistory,
-                assistantMessage
-            )
-        }
-
         return updatedHistory
     }
 }

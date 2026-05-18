@@ -7,6 +7,7 @@ struct ChatNamingPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.chatNamingMode) private var chatNamingMode: ChatNamingMode = .firstRoundFixed
     @AppStorage(AppPreferenceKeys.chatNamingProviderID) private var chatNamingProviderID = ""
     @AppStorage(AppPreferenceKeys.chatNamingModelID) private var chatNamingModelID = ""
+    @AppStorage(AppPreferenceKeys.chatNamingPromptTemplate) private var chatNamingPromptTemplate = ""
 
     var body: some View {
         JinSettingsPage {
@@ -40,6 +41,40 @@ struct ChatNamingPluginSettingsView: View {
                         .onChange(of: chatNamingModelID) { _, _ in
                             ensureValidSelection()
                         }
+                    }
+                }
+            }
+
+            JinSettingsSection("Prompt Template") {
+                VStack(alignment: .leading, spacing: JinSpacing.small) {
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $chatNamingPromptTemplate)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 200)
+                            .scrollContentBackground(.hidden)
+                            .padding(JinSpacing.medium)
+                            .jinSurface(.neutral, cornerRadius: JinRadius.small)
+
+                        if chatNamingPromptTemplate.isEmpty {
+                            Text(ConversationTitleGenerator.defaultPromptTemplate)
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                                .padding(JinSpacing.medium + 4)
+                                .allowsHitTesting(false)
+                        }
+                    }
+
+                    HStack(alignment: .center) {
+                        Text("Placeholders: \(ConversationTitleGenerator.maxCharactersPlaceholder) (character limit), \(ConversationTitleGenerator.languagePlaceholder) (detected user language).")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        Button("Reset to Default") {
+                            chatNamingPromptTemplate = ""
+                        }
+                        .disabled(chatNamingPromptTemplate.isEmpty)
                     }
                 }
             }

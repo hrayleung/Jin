@@ -23,6 +23,7 @@ enum ChatStreamingOrchestrator {
                 var history = preparedSession.history
                 var requestControls = preparedSession.requestControls
                 var iteration = 0
+                var lastPersistedAssistantMessage: Message? = nil
 
                 while iteration < preparedSession.maxToolIterations {
                     try Task.checkCancellation()
@@ -96,13 +97,13 @@ enum ChatStreamingOrchestrator {
                     completionNotification.observe(persistenceResult)
                     let persistedAssistantMessageID = persistenceResult.persistedMessageID
                     let hasRenderableAssistantContent = persistenceResult.hasRenderableContent
-                    history = await applyAssistantPersistenceFollowUp(
+                    history = applyAssistantPersistenceFollowUp(
                         persistenceResult,
-                        responseHasToolCalls: !responseSnapshot.toolCalls.isEmpty,
-                        history: history,
-                        context: ctx,
-                        callbacks: callbacks
+                        history: history
                     )
+                    if let assistantMessage = persistenceResult.message {
+                        lastPersistedAssistantMessage = assistantMessage
+                    }
 
                     let executableToolCalls = executableToolCalls(from: responseSnapshot.toolCalls)
 
@@ -145,6 +146,17 @@ enum ChatStreamingOrchestrator {
                         history: history
                     )
                     iteration += 1
+                }
+
+                if ctx.triggeredByUserSend,
+                   let target = ctx.chatNamingTarget,
+                   let lastAssistantMessage = lastPersistedAssistantMessage {
+                    await callbacks.maybeAutoRename(
+                        target.provider,
+                        target.modelID,
+                        history,
+                        lastAssistantMessage
+                    )
                 }
             } catch is CancellationError {
             } catch {
