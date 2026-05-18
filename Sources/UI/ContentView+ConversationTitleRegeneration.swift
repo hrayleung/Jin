@@ -23,23 +23,29 @@ extension ContentView {
         regeneratingConversationID = conversation.id
         defer { regeneratingConversationID = nil }
 
+        let promptTemplate = customChatNamingPromptTemplate()
+
         do {
             let title = try await conversationTitleGenerator.generateTitle(
                 providerConfig: target.provider,
                 modelID: target.modelID,
                 contextMessages: contextMessages,
-                maxCharacters: 40
+                maxCharacters: 24,
+                promptTemplate: promptTemplate
             )
-            let normalized = ConversationTitleGenerator.normalizeTitle(title, maxCharacters: 40)
-            guard !normalized.isEmpty else {
-                throw LLMError.decodingError(message: "Generated empty title.")
-            }
-
-            conversation.title = normalized
+            conversation.title = title
         } catch {
             titleRegenerationErrorMessage = error.localizedDescription
             showingTitleRegenerationError = true
         }
+    }
+
+    func customChatNamingPromptTemplate() -> String? {
+        guard let raw = UserDefaults.standard.string(forKey: AppPreferenceKeys.chatNamingPromptTemplate) else {
+            return nil
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     func resolvedChatNamingTargetForRegeneration() -> (provider: ProviderConfig, modelID: String)? {

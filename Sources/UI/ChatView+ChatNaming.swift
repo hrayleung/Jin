@@ -35,33 +35,43 @@ extension ChatView {
     ) async {
         guard let latestUser = history.last(where: { $0.role == .user }) else { return }
 
-        if chatNamingMode == .firstRoundFixed {
-            let current = conversationEntity.title
-            if current != "New Chat" {
-                return
-            }
+        if conversationEntity.titleEditedByUser == true { return }
+
+        if chatNamingMode == .firstRoundFixed,
+           conversationEntity.title != "New Chat" {
+            return
         }
+
+        let promptTemplate = customChatNamingPromptTemplate()
 
         do {
             let title = try await conversationTitleGenerator.generateTitle(
                 providerConfig: targetProvider,
                 modelID: targetModelID,
                 contextMessages: [latestUser, finalAssistantMessage],
-                maxCharacters: 40
+                maxCharacters: 24,
+                promptTemplate: promptTemplate
             )
-
-            let normalized = ConversationTitleGenerator.normalizeTitle(title, maxCharacters: 40)
-            guard !normalized.isEmpty else { return }
-            conversationEntity.title = normalized
+            conversationEntity.title = title
             try? modelContext.save()
         } catch {
-            if chatNamingMode == .firstRoundFixed {
-                if conversationEntity.title == "New Chat" {
-                    conversationEntity.title = fallbackTitleFromMessage(latestUser)
-                    try? modelContext.save()
-                }
-            }
+            guard conversationEntity.title == "New Chat" else { return }
+            let fallback = ConversationTitleGenerator.normalizeTitle(
+                fallbackTitleFromMessage(latestUser),
+                maxCharacters: 24
+            )
+            guard !fallback.isEmpty else { return }
+            conversationEntity.title = fallback
+            try? modelContext.save()
         }
+    }
+
+    func customChatNamingPromptTemplate() -> String? {
+        guard let raw = UserDefaults.standard.string(forKey: AppPreferenceKeys.chatNamingPromptTemplate) else {
+            return nil
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     func makeConversationTitle(from userText: String) -> String {

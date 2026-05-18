@@ -99,6 +99,7 @@ enum AppPreferenceKeys {
     static let chatNamingMode = "chatNamingMode"
     static let chatNamingProviderID = "chatNamingProviderID"
     static let chatNamingModelID = "chatNamingModelID"
+    static let chatNamingPromptTemplate = "chatNamingPromptTemplate"
 
     // Text to Speech
     static let ttsMiniPlayerEnabled = "ttsMiniPlayerEnabled"

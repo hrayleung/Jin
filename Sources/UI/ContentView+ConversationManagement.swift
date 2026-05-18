@@ -162,6 +162,7 @@ extension ContentView {
         guard let trimmed = ConversationRenameSupport.normalizedTitle(renameConversationDraftTitle) else { return }
 
         conversation.title = trimmed
+        conversation.titleEditedByUser = true
         try? modelContext.save()
         conversationPendingRename = nil
         showingRenameConversationAlert = false
