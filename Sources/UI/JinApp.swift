@@ -106,6 +106,9 @@ struct JinApp: App {
                     .environmentObject(updateManager)
                     .font(JinTypography.appFont(familyPreference: appFontFamily))
                     .preferredColorScheme(preferredColorScheme)
+                    .onChange(of: appAppearanceMode) { _, newValue in
+                        NSApp.appearance = newValue.resolvedNSAppearance()
+                    }
             }
             .onAppear {
                 launchCoordinator.startIfNeeded()
