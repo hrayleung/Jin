@@ -1,3 +1,5 @@
+import AppKit
+
 enum NewChatModelMode: String, CaseIterable, Identifiable {
     case fixed
     case lastUsed
@@ -41,6 +43,20 @@ enum AppAppearanceMode: String, CaseIterable, Identifiable {
             return "Light"
         case .dark:
             return "Dark"
+        }
+    }
+
+    /// AppKit appearance to assign to `NSApp.appearance` so that the
+    /// title bar, `window.backgroundColor`, every `NSVisualEffectView`,
+    /// menus, sheets, and popovers all follow the user's chosen mode.
+    /// `.preferredColorScheme(...)` only tints SwiftUI environment — it
+    /// does NOT propagate to AppKit chrome — so we need this bridge.
+    /// `nil` lets AppKit follow the system (matches `.system` semantics).
+    func resolvedNSAppearance() -> NSAppearance? {
+        switch self {
+        case .system: return nil
+        case .light: return NSAppearance(named: .aqua)
+        case .dark: return NSAppearance(named: .darkAqua)
         }
     }
 }

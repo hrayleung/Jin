@@ -110,15 +110,15 @@ struct ContentView: View {
                 onDeleteAtOffsets: deleteConversations
             )
         }
-        // Sidebar paints the same `surface` color as the chat detail pane
-        // (and the Settings window). On Tahoe, leaving this fully transparent
-        // lets the system Liquid Glass material show through with a slightly
-        // lighter tint than the detail pane — when the user opens the
-        // Settings window and the main window loses focus, the resulting
-        // light-sidebar / dark-detail contrast reads as "ugly". One unified
-        // surface tone removes that disparity at the cost of dropping the
-        // automatic Liquid Glass refraction.
-        .background(JinSemanticColor.surface)
+        // No custom sidebar background. NavigationSplitView renders the
+        // system sidebar material (Liquid Glass on macOS 26, `.sidebar`
+        // material on 14/15) and `NSApp.appearance` (set in JinApp +
+        // JinAppDelegate from `appAppearanceMode`) makes both the sidebar
+        // and the title bar above it render with the user's chosen
+        // appearance — eliminating both the focus-dim discontinuity and
+        // the light-content / dark-title-bar mismatch. Adding any custom
+        // NSVisualEffectView here re-introduces material mismatches with
+        // Tahoe's separate Liquid Glass toolbar layer above the sidebar.
     }
 
     private var sidebarPinnedChrome: some View {
