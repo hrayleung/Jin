@@ -61,9 +61,9 @@ struct SidebarHeaderView: View {
 
     private var topPadding: CGFloat {
         // Natural small padding. The system titlebar lives above this view
-        // now (no more .fullSizeContentView / .windowStyle(.hiddenTitleBar)),
-        // so the sidebar content starts below the titlebar automatically and
-        // doesn't need to reserve space for traffic lights.
+        // (no .fullSizeContentView on the main window), so the sidebar
+        // content starts below the titlebar automatically and doesn't
+        // need to reserve space for traffic lights.
         JinSpacing.small
     }
 }

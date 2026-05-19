@@ -7,6 +7,16 @@ import Kingfisher
 private final class JinAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         AppIconManager.applyDefaultIcon()
+        // Bridge appAppearanceMode → NSApp.appearance so AppKit chrome
+        // (title bar, window.backgroundColor, every NSVisualEffectView,
+        // menus, sheets, popovers, alerts) follows the user's chosen mode.
+        // SwiftUI's .preferredColorScheme(...) only tints the SwiftUI
+        // environment; without this assignment the title bar resolves
+        // against the system appearance, producing the black bar over
+        // light content when system≠app mode. Apple bug FB8383053.
+        let storedMode = UserDefaults.standard.string(forKey: AppPreferenceKeys.appAppearanceMode)
+            .flatMap(AppAppearanceMode.init(rawValue:)) ?? .system
+        NSApp.appearance = storedMode.resolvedNSAppearance()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -62,6 +72,9 @@ struct JinApp: App {
                     .environmentObject(updateManager)
                     .font(JinTypography.appFont(familyPreference: appFontFamily))
                     .preferredColorScheme(preferredColorScheme)
+                    .onChange(of: appAppearanceMode) { _, newValue in
+                        NSApp.appearance = newValue.resolvedNSAppearance()
+                    }
                     .onAppear {
                         performPostLaunchMaintenanceIfNeeded(with: container)
                     }
@@ -93,6 +106,9 @@ struct JinApp: App {
                     .environmentObject(updateManager)
                     .font(JinTypography.appFont(familyPreference: appFontFamily))
                     .preferredColorScheme(preferredColorScheme)
+                    .onChange(of: appAppearanceMode) { _, newValue in
+                        NSApp.appearance = newValue.resolvedNSAppearance()
+                    }
             }
             .onAppear {
                 launchCoordinator.startIfNeeded()
