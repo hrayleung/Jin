@@ -156,23 +156,13 @@ struct ContentView: View {
                 .background(JinSemanticColor.detailSurface)
                 .environmentObject(ttsPlaybackManager)
             } else {
-                VStack(spacing: 0) {
-                    ContentViewEmptyDetailHeaderView(
-                        isSidebarVisible: isSidebarVisible,
-                        leadingPadding: detailHeaderLeadingPadding,
-                        assistantSettingsShortcut: shortcutsStore.keyboardShortcut(for: .openAssistantSettings),
-                        onToggleSidebar: toggleSidebarVisibility,
-                        onNewChat: createNewConversation,
-                        onOpenAssistantSettings: openAssistantSettings
-                    )
-                    ContentViewEmptyDetailView(
-                        sidebarWidth: 0,
-                        isSidebarHidden: !isSidebarVisible,
-                        compensationRatio: sidebarCompensationRatio,
-                        onNewChat: createNewConversation
-                    )
-                }
-                    .background(JinSemanticColor.detailSurface)
+                ContentViewEmptyDetailView(
+                    sidebarWidth: 0,
+                    isSidebarHidden: !isSidebarVisible,
+                    compensationRatio: sidebarCompensationRatio,
+                    onNewChat: createNewConversation
+                )
+                .background(JinSemanticColor.detailSurface)
             }
         }
         .background { JinSemanticColor.detailSurface.ignoresSafeArea() }
@@ -184,13 +174,6 @@ struct ContentView: View {
                 onNavigate: navigateToConversation
             )
         }
-    }
-
-    private var detailHeaderLeadingPadding: CGFloat {
-        mainWindowChromeLayout.leadingPadding(
-            baseline: JinSpacing.medium,
-            avoidsTitlebarControls: !isSidebarVisible
-        )
     }
 
     // MARK: - Navigation
