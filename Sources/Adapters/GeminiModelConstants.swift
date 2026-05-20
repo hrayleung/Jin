@@ -16,6 +16,7 @@ enum GeminiModelConstants {
         "gemini-3.1-flash-lite",
         "gemini-3-flash-preview",
         "gemini-3-pro-image-preview",
+        "gemini-3.5-flash",
         "gemini-2.5",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
@@ -38,6 +39,7 @@ enum GeminiModelConstants {
         "gemini-3.1-flash-lite",
         "gemini-3-flash-preview",
         "gemini-3-pro-image-preview",
+        "gemini-3.5-flash",
     ]
 
     /// Gemini models that support native image generation (lowercased).
@@ -67,6 +69,7 @@ enum GeminiModelConstants {
         "gemini-3.1-flash-image-preview",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.1-flash-lite",
+        "gemini-3.5-flash",
     ]
 
     /// Extended native PDF set for Vertex AI, which also supports Gemini 2.5 family.

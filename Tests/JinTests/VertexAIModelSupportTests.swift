@@ -111,6 +111,34 @@ final class VertexAIModelSupportTests: XCTestCase {
         XCTAssertFalse(support.supportsThinkingLevel("imagen-custom-experiment"))
     }
 
+    func testGemini35FlashIsKnownAndSupportsFullCapabilitySet() {
+        let support = VertexAIModelSupport()
+
+        XCTAssertTrue(support.knownModels.contains { $0.id == "gemini-3.5-flash" })
+
+        XCTAssertFalse(support.supportsImageGeneration("gemini-3.5-flash"))
+        XCTAssertTrue(support.supportsFunctionCalling("gemini-3.5-flash"))
+        XCTAssertTrue(support.supportsThinking("gemini-3.5-flash"))
+        XCTAssertTrue(support.supportsThinkingConfig("gemini-3.5-flash"))
+        XCTAssertTrue(support.supportsThinkingLevel("gemini-3.5-flash"))
+        XCTAssertTrue(support.supportsNativePDF("gemini-3.5-flash"))
+        XCTAssertTrue(support.supportsCodeExecution("gemini-3.5-flash"))
+        XCTAssertTrue(support.supportsGoogleMaps("gemini-3.5-flash"))
+
+        let info = support.makeModelInfo(id: "gemini-3.5-flash", displayName: "Gemini 3.5 Flash", contextWindow: 1_048_576)
+        XCTAssertTrue(info.capabilities.contains(.streaming))
+        XCTAssertTrue(info.capabilities.contains(.toolCalling))
+        XCTAssertTrue(info.capabilities.contains(.vision))
+        XCTAssertTrue(info.capabilities.contains(.audio))
+        XCTAssertTrue(info.capabilities.contains(.reasoning))
+        XCTAssertTrue(info.capabilities.contains(.promptCaching))
+        XCTAssertTrue(info.capabilities.contains(.nativePDF))
+        XCTAssertTrue(info.capabilities.contains(.codeExecution))
+        XCTAssertFalse(info.capabilities.contains(.imageGeneration))
+        XCTAssertEqual(info.reasoningConfig?.type, .effort)
+        XCTAssertEqual(info.reasoningConfig?.defaultEffort, .medium)
+    }
+
     func testStableGemini31FlashLiteIsNotExposedForVertexAI() {
         let support = VertexAIModelSupport()
 

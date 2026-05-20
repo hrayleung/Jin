@@ -12,6 +12,7 @@ struct VertexAIModelSupport {
         ("gemini-3-pro-preview", "Gemini 3 Pro Preview", 1_048_576),
         ("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview", 1_048_576),
         ("gemini-3-flash-preview", "Gemini 3 Flash Preview", 1_048_576),
+        ("gemini-3.5-flash", "Gemini 3.5 Flash", 1_048_576),
         ("gemini-3-pro-image-preview", "Gemini 3 Pro Image Preview", 65_536),
         ("gemini-3.1-flash-image-preview", "Gemini 3.1 Flash Image Preview", 131_072),
         ("gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash-Lite Preview", 1_048_576),
