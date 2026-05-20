@@ -6,50 +6,59 @@ struct SearchActivityWebTimelinePanel: View {
     let contextLabel: String?
 
     @State private var isExpanded = false
+    /// Latched to `true` the first time the user expands. After that the
+    /// expanded panel stays mounted in the view tree forever — see the
+    /// long comment on `body`.
+    @State private var hasEverExpanded = false
     @State private var sourceEnrichmentState = SearchSourceEnrichmentState()
     private let sourceEnrichmentResolver = SearchSourceEnrichmentResolver.live
 
     var body: some View {
         if hasRenderableContent {
-            // **Performance-critical layout structure**. The previous version
-            // had two compounding problems:
+            // **Lazy-mount-then-hide** expand pattern. The earlier
+            // versions of this view all destroyed and rebuilt the
+            // expanded panel on every collapse/expand cycle. That
+            // synchronous reconstruction — 6-10 source cards, each
+            // hosting a `WebsiteFaviconView` whose `.task(id: host)`
+            // fires the moment it mounts — is what users perceived as
+            // "click, pause, then animate": SwiftUI evaluates the new
+            // subtree's body on the same frame the animation transaction
+            // starts, the body work is in the tens of ms, and the
+            // animation can't draw its first frame until that work
+            // completes.
             //
-            // 1. `spacing: isExpanded ? small : 0` made the VStack's spacing
-            //    itself part of the animation, which forces SwiftUI to
-            //    re-measure the entire stack on every animation frame
-            //    instead of just animating one subview's insertion.
-            // 2. `.animation(.easeInOut, value: isExpanded)` on the VStack
-            //    AND `withAnimation` inside the collapsed row's button
-            //    (see `SearchActivityWebTimelineCollapsedSummaryRow`) both
-            //    fire on the same state change — two competing transactions
-            //    for the same `isExpanded` toggle, which SwiftUI resolves
-            //    by waiting for the full new subtree (sources, favicons,
-            //    etc.) to construct before either animation can start.
-            //    That construction wait is what users perceive as "click
-            //    then pause then animate".
+            // Thinking blocks don't have this problem because their
+            // expanded subtree is just a Text view with no .task; their
+            // body work is essentially free.
             //
-            // Now: fixed spacing, no implicit `.animation`, expanded panel
-            // expresses its appear/disappear with a single `.transition`
-            // driven by the explicit `withAnimation` in the toggle button.
-            // `compositingGroup()` wraps the animated subtree so SwiftUI
-            // composites it as one CALayer during the animation instead
-            // of re-blending every descendant per frame.
+            // Fix: latch `hasEverExpanded` on first expand, then keep
+            // the panel mounted permanently and hide it via
+            // `frame(maxHeight: 0).opacity(0).allowsHitTesting(false)`.
+            // SwiftUI animates the opacity/frame on a stable identity —
+            // no destroy/rebuild, the favicon `@State` survives, and
+            // `compositingGroup()` lets the entire subtree fade as one
+            // CALayer.
             VStack(alignment: .leading, spacing: JinSpacing.small) {
                 SearchActivityWebTimelineCollapsedSummaryRow(
                     content: content,
                     isStreaming: isStreaming,
                     sourceEnrichmentState: sourceEnrichmentState,
-                    isExpanded: $isExpanded
+                    isExpanded: $isExpanded,
+                    onWillExpand: { hasEverExpanded = true }
                 )
 
-                if isExpanded {
+                if hasEverExpanded {
                     SearchActivityWebTimelineExpandedPanel(
                         content: content,
                         contextLabel: contextLabel,
                         sourceEnrichmentState: sourceEnrichmentState
                     )
                         .padding(.top, 2)
-                        .transition(.opacity)
+                        .frame(maxHeight: isExpanded ? .infinity : 0, alignment: .top)
+                        .opacity(isExpanded ? 1 : 0)
+                        .clipped()
+                        .allowsHitTesting(isExpanded)
+                        .accessibilityHidden(!isExpanded)
                         .compositingGroup()
                 }
             }

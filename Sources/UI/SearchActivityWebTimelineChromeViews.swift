@@ -9,9 +9,19 @@ struct SearchActivityWebTimelineCollapsedSummaryRow: View {
     let isStreaming: Bool
     let sourceEnrichmentState: SearchSourceEnrichmentState
     @Binding var isExpanded: Bool
+    /// Called *before* the animation fires when the row is about to flip
+    /// from collapsed to expanded. The parent uses it to latch a
+    /// `hasEverExpanded` flag so the expanded subtree mounts on the
+    /// same render pass — without this hook the parent's gating
+    /// `@State` flip would happen one transaction later and we'd lose
+    /// the first-expand benefit of the lazy-mount pattern.
+    var onWillExpand: (() -> Void)?
 
     var body: some View {
         Button {
+            if !isExpanded {
+                onWillExpand?()
+            }
             withAnimation(.easeInOut(duration: 0.18)) {
                 isExpanded.toggle()
             }
