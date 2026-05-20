@@ -60,9 +60,10 @@ enum ModelCapabilityRegistry {
         "gpt-5.3-codex-spark",
     ]
 
-    /// Gemini 3 Flash supports MINIMAL/LOW/MEDIUM/HIGH.
+    /// Gemini 3 Flash / 3.5 Flash supports MINIMAL/LOW/MEDIUM/HIGH.
     private static let gemini3FlashEffortModelIDs: Set<String> = [
         "gemini-3-flash-preview",
+        "gemini-3.5-flash",
     ]
 
     /// Gemini 3.1 Flash Image supports MINIMAL/HIGH.
@@ -93,6 +94,7 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-flash-image-preview",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.1-flash-lite",
+        "gemini-3.5-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -111,6 +113,7 @@ enum ModelCapabilityRegistry {
         "gemini-3-pro-image-preview",
         "gemini-3.1-flash-image-preview",
         "gemini-3.1-flash-lite-preview",
+        "gemini-3.5-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -129,6 +132,7 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-flash-image-preview",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.1-flash-lite",
+        "gemini-3.5-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -144,6 +148,7 @@ enum ModelCapabilityRegistry {
 
     /// Models documented by Google as supporting grounding with Google Maps in Gemini API.
     private static let geminiGoogleMapsSupportedModelIDs: Set<String> = [
+        "gemini-3.5-flash",
         "gemini-3.1-flash-lite",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
@@ -163,6 +168,7 @@ enum ModelCapabilityRegistry {
     ///   (for example `gemini-2.5-flash-preview`) so previously-saved conversations
     ///   do not silently lose the Maps UI toggle.
     private static let vertexGoogleMapsSupportedModelIDs: Set<String> = [
+        "gemini-3.5-flash",
         "gemini-3-flash-preview",
         "gemini-3-pro-preview",
         "gemini-3-pro-image-preview",
@@ -190,6 +196,7 @@ enum ModelCapabilityRegistry {
         "gemini-3-flash-preview",
         "gemini-3.1-flash-lite",
         "gemini-3.1-flash-lite-preview",
+        "gemini-3.5-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -206,6 +213,7 @@ enum ModelCapabilityRegistry {
         "gemini-3-flash",
         "gemini-3-flash-preview",
         "gemini-3.1-flash-lite-preview",
+        "gemini-3.5-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
