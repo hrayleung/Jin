@@ -94,6 +94,7 @@ struct ChatMessageTimelineView: View {
                 renderMode: effectiveRenderMode(index, message),
                 onExpandCollapsedContent: onExpandCollapsedContent
             )
+            .equatable()
             .id(message.id)
         }
 

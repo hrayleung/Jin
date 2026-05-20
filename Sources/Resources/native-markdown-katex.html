@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="markdown-katex-runtime.css">
+<style>
+:root { color-scheme: light dark; }
+html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+  color: light-dark(#1d1d1f, #f5f5f7);
+  padding: 6px 12px;
+}
+#root { font-size: 14px; }
+#root .katex-display { margin: 0; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="markdown-katex-runtime.js"></script>
+<script>
+(function() {
+  const root = document.getElementById('root');
+  let lastReportedHeight = -1;
+
+  function reportHeight() {
+    const h = Math.ceil(document.documentElement.scrollHeight);
+    if (h !== lastReportedHeight) {
+      lastReportedHeight = h;
+      if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.heightChanged) {
+        window.webkit.messageHandlers.heightChanged.postMessage(h);
+      }
+    }
+  }
+
+  window.renderMath = function(latex) {
+    try {
+      katex.render(latex || '', root, { displayMode: true, throwOnError: false, output: 'html' });
+    } catch (e) {
+      root.textContent = String(latex || '');
+    }
+    requestAnimationFrame(reportHeight);
+  };
+
+  // Re-measure when fonts finish loading.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(reportHeight);
+  }
+
+  window.addEventListener('resize', reportHeight);
+  reportHeight();
+})();
+</script>
+</body>
+</html>

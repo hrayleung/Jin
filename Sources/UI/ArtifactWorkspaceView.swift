@@ -24,7 +24,7 @@ struct ArtifactWorkspaceView: View {
                         ArtifactWebRenderer(artifact: artifact)
                     } else {
                         ScrollView {
-                            MarkdownWebRenderer(markdownText: ArtifactWorkspaceSupport.highlightedCodeMarkdown(for: artifact))
+                            NativeMarkdownView(markdownText: ArtifactWorkspaceSupport.highlightedCodeMarkdown(for: artifact))
                                 .padding(14)
                         }
                     }

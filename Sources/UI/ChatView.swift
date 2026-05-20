@@ -9,7 +9,11 @@ struct ChatView: View {
     static let initialMessageRenderLimit = 24
     static let messageRenderPageSize = 40
     static let eagerCodeHighlightTailCount = 6
-    static let nonLazyMessageStackThreshold = 16
+    // Each block costs an NSTextView allocation, so even ~10 messages can
+    // balloon to a hundred-ish live text views if we materialise the whole
+    // stack up front. Always-lazy is the right default; a small eager
+    // threshold avoids scroll-anchor jank for very short conversations.
+    static let nonLazyMessageStackThreshold = 4
     static let pinnedBottomRefreshDelays: [TimeInterval] = [0, 0.04, 0.14]
     static let smartLongChatCollapseThreshold = 48
     static let smartLongChatExpandedTailCount = 8

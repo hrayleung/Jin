@@ -17,7 +17,8 @@ let package = Package(
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
         .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.11.0"),
         .package(url: "https://github.com/onevcat/Kingfisher.git", from: "8.0.0"),
-        .package(url: "https://github.com/apple/swift-collections.git", from: "1.4.0")
+        .package(url: "https://github.com/apple/swift-collections.git", from: "1.4.0"),
+        .package(url: "https://github.com/swiftlang/swift-markdown.git", from: "0.6.0")
     ],
     targets: [
         .executableTarget(
@@ -27,7 +28,8 @@ let package = Package(
                 .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "Alamofire", package: "Alamofire"),
                 .product(name: "Kingfisher", package: "Kingfisher"),
-                .product(name: "Collections", package: "swift-collections")
+                .product(name: "Collections", package: "swift-collections"),
+                .product(name: "Markdown", package: "swift-markdown")
             ],
             path: "Sources",
             resources: [

@@ -5,22 +5,13 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.appAppearanceMode) private var appAppearanceMode: AppAppearanceMode = .system
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
-    @AppStorage(AppPreferenceKeys.codeBlockDisplayMode) private var codeBlockDisplayModeRaw = CodeBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codeBlockShowLineNumbers) private var codeBlockShowLineNumbers = false
-    @AppStorage(AppPreferenceKeys.codeBlockCollapseLineThreshold) private var codeBlockCollapseLineThreshold = 25
     @AppStorage(AppPreferenceKeys.thinkingBlockDisplayMode) private var thinkingDisplayModeRaw = ThinkingBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codeExecutionDisplayMode) private var codeExecutionDisplayModeRaw = CodeExecutionDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.useOverlayScrollbars) private var useOverlayScrollbars = true
 
     @State private var showingAppFontPicker = false
     @State private var showingCodeFontPicker = false
-
-    private var codeBlockDisplayMode: Binding<CodeBlockDisplayMode> {
-        Binding(
-            get: { CodeBlockDisplayMode(rawValue: codeBlockDisplayModeRaw) ?? .expanded },
-            set: { codeBlockDisplayModeRaw = $0.rawValue }
-        )
-    }
 
     private var thinkingDisplayMode: Binding<ThinkingBlockDisplayMode> {
         Binding(
@@ -69,35 +60,7 @@ struct AppearanceSettingsView: View {
             }
 
             JinSettingsSection("Code Blocks") {
-                JinSettingsPickerRow(
-                    "Long Blocks",
-                    supportingText: codeBlockDisplayMode.wrappedValue.description,
-                    selection: codeBlockDisplayMode
-                ) {
-                    ForEach(CodeBlockDisplayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-
                 JinSettingsToggleRow("Show Line Numbers", isOn: $codeBlockShowLineNumbers)
-
-                JinSettingsControlRow("Collapse After") {
-                    HStack {
-                        TextField(
-                            "",
-                            value: $codeBlockCollapseLineThreshold,
-                            format: .number
-                        )
-                        .frame(width: 52)
-                        .textFieldStyle(.roundedBorder)
-                        .multilineTextAlignment(.center)
-                        .onSubmit {
-                            codeBlockCollapseLineThreshold = max(1, codeBlockCollapseLineThreshold)
-                        }
-                        Text("Lines")
-                    }
-                }
-                .disabled(codeBlockDisplayMode.wrappedValue == .expanded)
             }
 
             JinSettingsSection("Thinking Blocks") {

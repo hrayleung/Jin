@@ -78,7 +78,7 @@ struct StreamingMessageView: View {
                         }
 
                         if !visibleText.isEmpty {
-                            MarkdownWebRenderer(
+                            NativeMarkdownView(
                                 markdownText: visibleText,
                                 isStreaming: true
                             )

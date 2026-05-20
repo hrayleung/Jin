@@ -114,29 +114,6 @@ enum ThinkingBlockDisplayMode: String, CaseIterable, Identifiable {
     }
 }
 
-enum CodeBlockDisplayMode: String, CaseIterable, Identifiable {
-    case expanded
-    case collapsible
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .expanded: return "Always Expanded"
-        case .collapsible: return "Smart Fold Long Blocks"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .expanded:
-            return "Code blocks always show their full content."
-        case .collapsible:
-            return "Only long code blocks start condensed, with a fade and a simple Show more control."
-        }
-    }
-}
-
 enum GeneralSettingsCategory: String, CaseIterable, Identifiable {
     case appearance
     case chat

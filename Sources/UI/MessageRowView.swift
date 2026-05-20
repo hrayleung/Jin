@@ -4,7 +4,7 @@ import Foundation
 
 // MARK: - Message Row
 
-struct MessageRow: View {
+struct MessageRow: View, Equatable {
     let item: MessageRenderItem
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
@@ -274,5 +274,46 @@ struct MessageRow: View {
         if isTool { return .tool }
         if isUser { return .accent }
         return .neutral
+    }
+
+    // MARK: - Equatable
+
+    /// SwiftUI's default `View` diff reflects over every stored property,
+    /// which for `MessageRow` includes the entire `MessageRenderItem` (with
+    /// all rendered blocks). For long conversations that diff runs on every
+    /// timeline re-eval and dominates CPU. A targeted `==` lets the parent
+    /// `LazyVStack` skip identical rows. Closures and bindings are
+    /// intentionally excluded — they're behaviorally equivalent across
+    /// re-evaluations as long as the data identity is unchanged. Whenever
+    /// the message is in edit mode we bail out (`return false`) so typing
+    /// always re-renders.
+    static func == (lhs: MessageRow, rhs: MessageRow) -> Bool {
+        let lhsEditing = lhs.editingUserMessageID == lhs.item.id
+        let rhsEditing = rhs.editingUserMessageID == rhs.item.id
+        if lhsEditing || rhsEditing { return false }
+
+        guard lhs.item.id == rhs.item.id,
+              lhs.item.timestamp == rhs.item.timestamp,
+              lhs.item.copyText == rhs.item.copyText,
+              lhs.item.highlights == rhs.item.highlights,
+              lhs.item.renderedBlocks.count == rhs.item.renderedBlocks.count,
+              lhs.item.toolCalls.count == rhs.item.toolCalls.count,
+              lhs.item.searchActivities.count == rhs.item.searchActivities.count,
+              lhs.item.codeExecutionActivities.count == rhs.item.codeExecutionActivities.count,
+              lhs.item.preferredRenderMode == rhs.item.preferredRenderMode,
+              lhs.item.collapsedPreview == rhs.item.collapsedPreview,
+              lhs.renderMode == rhs.renderMode,
+              lhs.maxBubbleWidth == rhs.maxBubbleWidth,
+              lhs.assistantDisplayName == rhs.assistantDisplayName,
+              lhs.providerType == rhs.providerType,
+              lhs.providerIconID == rhs.providerIconID,
+              lhs.deferCodeHighlightUpgrade == rhs.deferCodeHighlightUpgrade,
+              lhs.textToSpeechEnabled == rhs.textToSpeechEnabled,
+              lhs.textToSpeechConfigured == rhs.textToSpeechConfigured,
+              lhs.textToSpeechIsGenerating == rhs.textToSpeechIsGenerating,
+              lhs.textToSpeechIsPlaying == rhs.textToSpeechIsPlaying,
+              lhs.textToSpeechIsPaused == rhs.textToSpeechIsPaused
+        else { return false }
+        return true
     }
 }

@@ -25,9 +25,7 @@ enum AppPreferenceKeys {
     static let keyboardShortcuts = "keyboardShortcuts.v1"
     static let thinkingBlockDisplayMode = "thinkingBlockDisplayMode"
     static let codeExecutionDisplayMode = "codeExecutionDisplayMode"
-    static let codeBlockDisplayMode = "codeBlockDisplayMode"
     static let codeBlockShowLineNumbers = "codeBlockShowLineNumbers"
-    static let codeBlockCollapseLineThreshold = "codeBlockCollapseLineThreshold"
     static let mainSidebarWidth = "mainSidebarWidth"
 
     // MARK: - Updates
