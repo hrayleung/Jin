@@ -11,16 +11,22 @@ struct HeadingView: View {
 
     var body: some View {
         let info = anchor?.layout.headingInfos[NativeAnchorLayout.BlockHash(path: path)]
-        let ascender = theme.headingFont(forLevel: level).ascender
+        // See `MarkdownTheme.firstLineBaselineFromTop` — the formula
+        // includes `lineHeightMultiple`, contrary to one round of
+        // research findings. Heading paragraphs use a different
+        // `lineHeightMultiple` from body, so we route through the
+        // heading-specific helper.
+        let topPadding: CGFloat = level <= 2 ? 12 : 8
+        let baseline = theme.firstLineBaselineFromTop(forHeading: level) + topPadding
         AttributedTextBlock(
             attributedString: applyHeadingFont(to: run.attributedString),
             links: run.linkURLs,
             blockID: info?.id,
             aggregator: anchor?.aggregator
         )
-        .alignmentGuide(.firstTextBaseline) { _ in ascender }
-        .padding(.top, level <= 2 ? 12 : 8)
+        .padding(.top, topPadding)
         .padding(.bottom, 4)
+        .alignmentGuide(.firstTextBaseline) { _ in baseline }
     }
 
     private func applyHeadingFont(to attributed: NSAttributedString) -> NSAttributedString {

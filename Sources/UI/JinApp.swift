@@ -84,6 +84,11 @@ struct JinApp: App {
             }
             .onAppear {
                 launchCoordinator.startIfNeeded()
+                // Warm up the math/mermaid WKWebViews shortly after launch
+                // so the first message containing a math or mermaid block
+                // doesn't pay the 200-500 ms web-content-process spinup
+                // cost in front of the user.
+                MiniWebViewPrewarmer.prewarmIfNeeded()
             }
             // No window customization. Reference Tahoe-native apps (Chops,
             // Apple's own) use plain WindowGroup + NavigationSplitView and

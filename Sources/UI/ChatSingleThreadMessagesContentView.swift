@@ -52,6 +52,12 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
+    /// Background markdown-parse pre-warm. We hold the `Task` returned by
+    /// `NativeMarkdownCache.prewarm(...)` so a new wave can cancel the
+    /// previous one — without this an in-progress prewarm for the prior
+    /// conversation keeps thrashing the CPU after the user switches.
+    @State private var prewarmTask: Task<Void, Never>?
+
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.key == rhs.key
     }
@@ -168,22 +174,50 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             }
             .task(id: PrewarmKey(
                 conversationID: conversationID,
+                // Re-run the prewarm when the visible window grows (load
+                // earlier expands the window, streaming adds the
+                // just-finished message). Without this, newly visible
+                // messages would only parse on first scroll-into-view.
+                messageCount: visibleMessagesForWindow.count,
+                // Identity of the *last* visible message — catches the
+                // streaming-finished case where messageCount is stable
+                // (the previously-streaming placeholder gets replaced by
+                // a non-streaming MessageRenderItem with a fresh UUID).
+                lastMessageID: visibleMessagesForWindow.last?.id,
                 appFontFamily: appFontFamily,
                 codeFontFamily: codeFontFamily
             )) {
-                NativeMarkdownCache.prewarm(
-                    texts: extractMarkdownTexts(from: visibleMessagesForWindow),
-                    appFontFamily: appFontFamily,
-                    codeFontFamily: codeFontFamily
-                )
+                schedulePrewarm()
+            }
+            .onDisappear {
+                prewarmTask?.cancel()
             }
         }
     }
 
     private struct PrewarmKey: Hashable {
         let conversationID: UUID
+        let messageCount: Int
+        let lastMessageID: UUID?
         let appFontFamily: String
         let codeFontFamily: String
+    }
+
+    private func schedulePrewarm() {
+        // Cancel any in-flight prewarm before starting a fresh wave —
+        // the previous wave's queued texts may no longer match what the
+        // user is about to see (e.g., after a conversation switch).
+        prewarmTask?.cancel()
+        // Reverse order so the message closest to the viewport bottom —
+        // where pin-to-bottom puts the user on conversation open — gets
+        // parsed first. The user sees its content come up without the
+        // synchronous parse hitch on first paint.
+        let texts = extractMarkdownTexts(from: visibleMessagesForWindow).reversed()
+        prewarmTask = NativeMarkdownCache.prewarm(
+            texts: Array(texts),
+            appFontFamily: appFontFamily,
+            codeFontFamily: codeFontFamily
+        )
     }
 
     private func extractMarkdownTexts(from messages: [MessageRenderItem]) -> [String] {

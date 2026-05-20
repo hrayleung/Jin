@@ -10,7 +10,7 @@ struct ParagraphView: View {
 
     var body: some View {
         let info = anchor?.layout.paragraphInfos[NativeAnchorLayout.BlockHash(path: path)]
-        let ascender = theme.bodyFont.ascender
+        let baseline = theme.firstLineBaselineFromTop
         AttributedTextBlock(
             attributedString: NativeMarkdownAttributedStringStyling.applyParagraphStyle(
                 to: run.attributedString,
@@ -23,8 +23,11 @@ struct ParagraphView: View {
         // Expose the first line's baseline so HStacks with
         // `.firstTextBaseline` alignment (list rows, etc.) line up the
         // bullet / number marker with the prose's first line instead of
-        // defaulting to the view's bottom edge.
-        .alignmentGuide(.firstTextBaseline) { _ in ascender }
+        // defaulting to the view's bottom edge. The value MUST be
+        // `ascender + leading` (see `MarkdownTheme.firstLineBaselineFromTop`)
+        // — `ascender` alone underestimates the real baseline by the
+        // font's leading and was the cause of list markers floating high.
+        .alignmentGuide(.firstTextBaseline) { _ in baseline }
         .padding(.bottom, 6)
     }
 }

@@ -16,14 +16,23 @@ struct MarkdownTheme: Equatable {
     let blockQuoteText: NSColor
     let strikethroughLineColor: NSColor
 
-    /// Heading size multipliers relative to `bodyFont.pointSize`.
+    /// Heading size multipliers relative to `bodyFont.pointSize`. Tuned
+    /// to match the GitHub-flavoured-markdown CSS ladder users are
+    /// already familiar with from WebView-rendered chat — the previous
+    /// 1.6/1.4/1.2/1.1 ladder collapsed h3 and h4 into "looks like
+    /// body text", which is why structural section headings stopped
+    /// reading as headings at all.
+    ///
+    /// GitHub reference: h1 = 2em, h2 = 1.5em, h3 = 1.25em, h4 = 1em.
+    /// We bump h4 a hair above body so even short side-headings keep
+    /// some visual weight.
     static let headingSizeMultipliers: [Int: CGFloat] = [
-        1: 1.6,
-        2: 1.4,
-        3: 1.2,
+        1: 2.0,
+        2: 1.5,
+        3: 1.25,
         4: 1.1,
         5: 1.0,
-        6: 1.0,
+        6: 0.95,
     ]
 
     static let inlineCodeSizeMultiplier: CGFloat = 0.88
@@ -103,18 +112,28 @@ extension MarkdownTheme {
         return style.copy() as! NSParagraphStyle
     }()
 
-    /// Level-keyed cached heading paragraph styles. Heading levels differ
-    /// only in the `paragraphSpacingBefore` we want between them and the
-    /// preceding paragraph — h1/h2 get more breathing room than h4-h6 to
-    /// match the WebView CSS (`margin-top: 1em` on all headings, but with
-    /// larger font sizes the same `em` is visually larger).
+    /// Level-keyed cached heading paragraph styles. Heading levels get
+    /// more `paragraphSpacingBefore` than `paragraphSpacing` (after) so
+    /// the heading visually "owns" the section below it — matching the
+    /// WebView CSS `margin-top` >> `margin-bottom` convention every
+    /// markdown reader follows.
+    ///
+    /// The previous 12/8/4 values made section breaks (h2/h3) feel
+    /// glued to the preceding paragraph; bumping the leading spacing
+    /// gives the eye a clear "new section starts here" signal.
     static let cachedHeadingParagraphStyles: [Int: NSParagraphStyle] = {
         var dict: [Int: NSParagraphStyle] = [:]
         for level in 1...6 {
             let style = NSMutableParagraphStyle()
             style.lineHeightMultiple = headingLineHeightMultiple
-            style.paragraphSpacingBefore = level <= 2 ? 12 : 8
-            style.paragraphSpacing = 4
+            switch level {
+            case 1: style.paragraphSpacingBefore = 24
+            case 2: style.paragraphSpacingBefore = 20
+            case 3: style.paragraphSpacingBefore = 16
+            case 4: style.paragraphSpacingBefore = 12
+            default: style.paragraphSpacingBefore = 10
+            }
+            style.paragraphSpacing = 6
             dict[level] = (style.copy() as! NSParagraphStyle)
         }
         return dict
@@ -138,6 +157,51 @@ extension MarkdownTheme {
     }
 
     var codeParagraphStyle: NSParagraphStyle { Self.cachedCodeParagraphStyle }
+
+    /// Distance from a TextKit-1 `NSTextView`'s top edge down to the first
+    /// text baseline, configured with `textContainerInset = .zero`,
+    /// `lineFragmentPadding = 0`, and the paragraph style's
+    /// `lineHeightMultiple` set to `M`. Used by
+    /// `HStack(alignment: .firstTextBaseline)` to align sibling markers
+    /// (list bullets, ordered numbers, task checkboxes) to the prose's
+    /// first line.
+    ///
+    /// **Empirically derived** by feeding a known string through a real
+    /// `NSLayoutManager` and reading
+    /// `lineFragmentRect.minY + location(forGlyphAt: 0).y`. With
+    /// `font = SF Pro 14pt` and `M = 1.3`:
+    ///
+    /// - `naturalLineHeight = ascender + |descender| + leading = 17pt`
+    /// - `lineFragmentRect.height = naturalLineHeight × M = 22.1pt`
+    /// - **measured baseline = 19.1pt** (≈ `22.1 − 2.95 = lineFragment − |descender|`)
+    ///
+    /// Earlier we used `ascender + leading` (13.54pt) on the assumption
+    /// that `lineHeightMultiple` only stretched the bottom — that was
+    /// wrong: the typesetter does push the baseline down by the
+    /// multiplier-induced inflation, which is why bullets were floating
+    /// ~5pt above the prose they were supposed to be aligned with.
+    ///
+    /// The formula below matches AppKit's measured behaviour to within
+    /// 0.1pt across the font sizes we care about.
+    static func firstLineBaselineFromTop(font: NSFont, lineHeightMultiple: CGFloat) -> CGFloat {
+        let descender = abs(font.descender)
+        let naturalLineHeight = font.ascender + descender + font.leading
+        return naturalLineHeight * lineHeightMultiple - descender
+    }
+
+    var firstLineBaselineFromTop: CGFloat {
+        Self.firstLineBaselineFromTop(
+            font: bodyFont,
+            lineHeightMultiple: Self.bodyLineHeightMultiple
+        )
+    }
+
+    func firstLineBaselineFromTop(forHeading level: Int) -> CGFloat {
+        Self.firstLineBaselineFromTop(
+            font: headingFont(forLevel: level),
+            lineHeightMultiple: Self.headingLineHeightMultiple
+        )
+    }
 
     func headingFont(forLevel level: Int) -> NSFont {
         let multiplier = Self.headingSizeMultipliers[level] ?? 1.0

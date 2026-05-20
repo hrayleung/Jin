@@ -58,28 +58,26 @@ struct AttributedTextBlock: NSViewRepresentable {
             registerWithAggregator(view: nsView)
         }
 
-        let proposedWidth = proposal.width
-        let isConstrained: Bool
-        let layoutWidth: CGFloat
-
-        if let w = proposedWidth, w.isFinite, w > 0 {
-            isConstrained = true
-            layoutWidth = w
-        } else {
-            // SwiftUI is asking for our natural size — measure at a generous
-            // width and return the actually used width.
-            isConstrained = false
-            layoutWidth = 10_000
+        // Two layout phases:
+        //
+        //  1. SwiftUI ideal-size pass with `proposal.width == nil` — return
+        //     `nil` so SwiftUI treats us as flexible-width (matching the
+        //     behaviour of `SwiftUI.Text`). Returning a concrete
+        //     "unconstrained natural width" here (`naturalWidth(maxWidth:
+        //     10_000)`) is the bug that caused blockquote prose to render
+        //     past the bubble's right edge: SwiftUI honoured the reported
+        //     1000+pt width as the row's ideal and laid out at that
+        //     unwrapped width even when the parent column was 700pt wide.
+        //  2. SwiftUI definite-width pass with `proposal.width == W` — lay
+        //     out at W and report the resulting wrapped height. The text
+        //     container's `widthTracksTextView = true` keeps the
+        //     NSTextView's wrap point in sync once SwiftUI sets our frame.
+        guard let proposedWidth = proposal.width, proposedWidth.isFinite, proposedWidth > 0 else {
+            return nil
         }
 
-        let height = nsView.computeHeight(forWidth: layoutWidth)
-        let returnWidth: CGFloat
-        if isConstrained {
-            returnWidth = layoutWidth
-        } else {
-            returnWidth = nsView.naturalWidth(maxWidth: layoutWidth)
-        }
-        return CGSize(width: max(1, returnWidth), height: max(1, height))
+        let height = nsView.computeHeight(forWidth: proposedWidth)
+        return CGSize(width: max(1, proposedWidth), height: max(1, height))
     }
 
     @MainActor

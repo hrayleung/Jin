@@ -45,33 +45,73 @@ enum NativeMarkdownCache {
     /// background so the LRU is populated before `LazyVStack` lazily
     /// instantiates the corresponding `NativeMarkdownView`. Eliminates the
     /// placeholder → content swap users see when scrolling into a fresh
-    /// message in a long conversation. Skips entries that are already
-    /// cached and bails on cancellation so a fast scroll doesn't waste
-    /// cycles on stale work.
+    /// message in a long conversation.
+    ///
+    /// `texts` is consumed front-to-back; callers that want the user's
+    /// most-likely-visible messages cached first (e.g., the bottom of a
+    /// pin-to-bottom chat timeline) should pre-reverse the input. Already-
+    /// cached entries are skipped without dispatching, so re-invocations
+    /// for a growing message list are cheap.
+    ///
+    /// Runs the per-text parse on a background `TaskGroup` with bounded
+    /// concurrency so all available cores are used without flooding the
+    /// dispatch queue on huge load-earlier expansions. Returns a `Task`
+    /// the caller can cancel — splitting that responsibility onto the
+    /// caller lets the SwiftUI view stop the previous wave the moment a
+    /// new conversation opens, instead of letting orphan parses keep
+    /// thrashing the CPU.
+    @discardableResult
     static func prewarm(
         texts: [String],
         appFontFamily: String,
-        codeFontFamily: String
-    ) {
-        guard !texts.isEmpty else { return }
+        codeFontFamily: String,
+        concurrency: Int = max(2, ProcessInfo.processInfo.activeProcessorCount - 1)
+    ) -> Task<Void, Never> {
+        guard !texts.isEmpty else {
+            return Task {}
+        }
         let theme = MarkdownTheme.resolved(
             appFontFamily: appFontFamily,
             codeFontFamily: codeFontFamily
         )
-        Task.detached(priority: .utility) {
-            for text in texts {
-                if Task.isCancelled { return }
-                guard !text.isEmpty else { continue }
-                let key = Key(
-                    markdownText: text,
-                    isStreaming: false,
-                    renderPlainText: false,
-                    appFontFamily: appFontFamily,
-                    codeFontFamily: codeFontFamily
-                )
-                if tryGet(key: key) != nil { continue }
-                let value = compute(key: key, theme: theme)
-                insert(value, forKey: key)
+        return Task.detached(priority: .utility) {
+            await withTaskGroup(of: Void.self) { group in
+                var inFlight = 0
+                var iterator = texts.makeIterator()
+
+                @Sendable func makeChild(_ text: String) -> (@Sendable () async -> Void) {
+                    {
+                        if Task.isCancelled { return }
+                        guard !text.isEmpty else { return }
+                        let key = Key(
+                            markdownText: text,
+                            isStreaming: false,
+                            renderPlainText: false,
+                            appFontFamily: appFontFamily,
+                            codeFontFamily: codeFontFamily
+                        )
+                        if tryGet(key: key) != nil { return }
+                        let value = compute(key: key, theme: theme)
+                        insert(value, forKey: key)
+                    }
+                }
+
+                // Seed the group up to the concurrency cap.
+                while inFlight < concurrency, let next = iterator.next() {
+                    group.addTask(operation: makeChild(next))
+                    inFlight += 1
+                }
+                // Drain + refill: as each parse finishes we schedule the
+                // next text, keeping `concurrency` parses in flight until
+                // the input is exhausted. This bounds peak memory (we
+                // never queue all N texts at once) and lets cancellation
+                // short-circuit the remaining tail.
+                while await group.next() != nil {
+                    if Task.isCancelled { break }
+                    if let next = iterator.next() {
+                        group.addTask(operation: makeChild(next))
+                    }
+                }
             }
         }
     }

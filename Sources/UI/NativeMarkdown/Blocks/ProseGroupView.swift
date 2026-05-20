@@ -26,10 +26,10 @@ struct ProseGroupView: View {
             aggregator: anchor?.aggregator
         )
         // Align first-text baseline with the first line of the prose group's
-        // first paragraph. This matches the original ParagraphView behavior
-        // so neighbouring widgets (lists rendered as separate views, code
-        // block headers, etc.) stay aligned with the prose's baseline.
-        .alignmentGuide(.firstTextBaseline) { _ in theme.bodyFont.ascender }
+        // first paragraph. Same `ascender + leading` formula as
+        // `ParagraphView` — see `MarkdownTheme.firstLineBaselineFromTop`
+        // for the reason `lineHeightMultiple` is *not* part of this value.
+        .alignmentGuide(.firstTextBaseline) { _ in theme.firstLineBaselineFromTop }
         .padding(.bottom, 4)
     }
 }

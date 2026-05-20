@@ -23,6 +23,13 @@ struct NativeMarkdownView: View {
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
     @StateObject private var aggregatorStore = SelectionAggregatorStore()
+    /// Most recent parse result. **Kept across cache-key changes during
+    /// streaming**: when the markdown text grows every ~100 ms, each new
+    /// key misses the cache and a fresh parse is dispatched. Without this
+    /// retention the view would fall back to the plain-text placeholder
+    /// between parses and the user would see the rendered NSTextView
+    /// swap to raw markdown text every flush — that flicker is what gets
+    /// perceived as "the AI streaming output is particularly laggy".
     @State private var asyncParsed: NativeMarkdownCache.Value?
 
     var body: some View {
@@ -37,7 +44,15 @@ struct NativeMarkdownView: View {
 
         // Synchronous LRU hit — free, common case after first parse.
         let syncHit = NativeMarkdownCache.tryGet(key: key)
-        let parsed = syncHit ?? (asyncParsed?.matches(key: key) == true ? asyncParsed : nil)
+        // During streaming, every flush produces a fresh key (the markdown
+        // grew). Falling back to the plain-text placeholder on every miss
+        // makes the rendered subtree flicker between NSTextView and raw
+        // `Text(markdownText)` at flush rate. Instead, retain whichever
+        // parse result we last computed — even if it's a few flushes
+        // stale, the in-progress streaming visual is dramatically smoother
+        // than swapping the entire subtree out and back in. The next
+        // parse will overwrite `asyncParsed` and the view catches up.
+        let parsed = syncHit ?? asyncParsed
 
         return Group {
             if let parsed {
@@ -48,10 +63,8 @@ struct NativeMarkdownView: View {
         }
         .task(id: key) {
             guard syncHit == nil else { return }
-            let value = await NativeMarkdownParseService.shared.parse(key: key, theme: theme)
-            await MainActor.run {
-                asyncParsed = value
-            }
+            let value = await NativeMarkdownParseService.parse(key: key, theme: theme)
+            asyncParsed = value
         }
     }
 
@@ -197,18 +210,43 @@ final class SelectionAggregatorStore: ObservableObject {
 }
 
 /// Off-main parsing actor. Documents up to ~30 KB parse in 5-30 ms; we keep
-/// SwiftUI responsive by offloading.
-actor NativeMarkdownParseService {
-    static let shared = NativeMarkdownParseService()
-
-    func parse(key: NativeMarkdownCache.Key, theme: MarkdownTheme) async -> NativeMarkdownCache.Value {
-        // The cache is thread-safe (OSAllocatedUnfairLock); on a hit the
-        // parse path is skipped.
+/// SwiftUI responsive by offloading. Use `enum` + `nonisolated static func`
+/// (no actor) so multiple `.task(id:)` callers from different
+/// `NativeMarkdownView`s can all parse in parallel — the cache itself is
+/// already thread-safe (`OSAllocatedUnfairLock`). The previous `actor`
+/// design serialised parse work and showed up as a visible queueing hitch
+/// when several messages crossed into the viewport at once.
+enum NativeMarkdownParseService {
+    /// Run the parse on a background thread. Returns the freshly-computed
+    /// (or cached) value. Cancellation cuts off the work if the caller's
+    /// `.task` was torn down while parsing was in flight.
+    ///
+    /// Streaming keys (`key.isStreaming == true`) are **not written to the
+    /// LRU**: every ~100 ms flush mints a fresh key with the
+    /// growing-prefix markdown, and persisting all of them would fill the
+    /// 256-slot cache within seconds, evicting every other conversation's
+    /// finished-message entries. The streaming caller already retains
+    /// the last parsed value in its own `@State`, so the cache layer
+    /// doesn't need to.
+    static func parse(
+        key: NativeMarkdownCache.Key,
+        theme: MarkdownTheme
+    ) async -> NativeMarkdownCache.Value {
         if let cached = NativeMarkdownCache.tryGet(key: key) {
             return cached
         }
-        let value = NativeMarkdownCache.compute(key: key, theme: theme)
-        NativeMarkdownCache.insert(value, forKey: key)
-        return value
+        return await withCheckedContinuation { continuation in
+            Task.detached(priority: .userInitiated) {
+                if let cached = NativeMarkdownCache.tryGet(key: key) {
+                    continuation.resume(returning: cached)
+                    return
+                }
+                let value = NativeMarkdownCache.compute(key: key, theme: theme)
+                if !key.isStreaming {
+                    NativeMarkdownCache.insert(value, forKey: key)
+                }
+                continuation.resume(returning: value)
+            }
+        }
     }
 }
