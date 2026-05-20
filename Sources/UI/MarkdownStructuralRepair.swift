@@ -17,7 +17,17 @@ enum MarkdownStructuralRepair {
             normalized = applyEmphasisAwareTransforms(normalized)
             normalized = unescapeEscapedLeadingEmphasis(normalized)
             normalized = insertBreakBetweenHeadingAndBody(normalized)
-            normalized = insertBreakBeforeSmushedBoldTitleInHeading(normalized)
+            // `insertBreakBeforeSmushedBoldTitleInHeading` used to run
+            // here. It rewrote `### Heading**Subtitle**` into two
+            // separate blocks (`### Heading` + `**Subtitle**`),
+            // intended for LLM output that glued an unrelated bold
+            // paragraph onto the end of a heading line. But
+            // `swift-markdown` already parses the smushed form
+            // correctly — heading + inline Strong run — so the rewrite
+            // was actively breaking the common "heading with bold
+            // subtitle on the same line" pattern that LLMs love
+            // (`### 第一部分：MaxLinear**—— subtitle**`). Disabling the
+            // step lets the parser do the right thing.
             return normalized
         }
     }
@@ -270,7 +280,9 @@ enum MarkdownStructuralRepair {
                nextCharacter.map(MarkdownRenderPreparation.isLowercaseLetter) == true {
                 let prefixCount = content.distance(from: content.startIndex, to: index)
                 let suffixCount = content.distance(from: index, to: content.endIndex)
-                if prefixCount >= 8, suffixCount >= 8 {
+                if prefixCount >= 8,
+                   suffixCount >= 8,
+                   !looksLikeContinuedNounPhrase(content: content, at: index) {
                     return index
                 }
             }
@@ -280,6 +292,41 @@ enum MarkdownStructuralRepair {
         }
 
         return nil
+    }
+
+    /// Heuristic guard: rejects camelCase-boundary splits that fall inside
+    /// what's clearly an English noun phrase continuation rather than a
+    /// glued-on body sentence.
+    ///
+    /// The original "heading body camelCase split" was designed to recover
+    /// from LLM output like `## HeadingTextBody sentence...` — a real
+    /// heading concatenated with a real body. But the same `lower → Upper
+    /// → lower` pattern is the foundation of every compound English noun
+    /// (`MaxLinear`, `OpenAI`, `JavaScript`, `iPhone`, `MacBook`,
+    /// `YouTube`, `SwiftUI`) and we were splitting all of them in half
+    /// inside headings.
+    ///
+    /// Real glued-on body text reads like a sentence — the first space-
+    /// delimited token after the camelCase boundary contains plain text,
+    /// not `,`/`.`/`(`/`（`. Continued noun phrases like `MaxLinear,
+    /// Inc.` and `MaxLinear (NASDAQ: MXL)` always do.
+    private static func looksLikeContinuedNounPhrase(
+        content: Substring,
+        at boundaryIndex: Substring.Index
+    ) -> Bool {
+        let firstTokenEnd = content[boundaryIndex...].firstIndex { char in
+            char.isWhitespace
+        } ?? content.endIndex
+        let firstToken = content[boundaryIndex..<firstTokenEnd]
+        for char in firstToken {
+            switch char {
+            case ",", ".", "(", "[", "（", "［", "、":
+                return true
+            default:
+                continue
+            }
+        }
+        return false
     }
 
     // MARK: - Smushed `**bold title**` at end of heading line
