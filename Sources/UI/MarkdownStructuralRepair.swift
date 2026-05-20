@@ -16,6 +16,7 @@ enum MarkdownStructuralRepair {
             normalized = normalizeHeadingSpacing(normalized)
             normalized = applyEmphasisAwareTransforms(normalized)
             normalized = unescapeEscapedLeadingEmphasis(normalized)
+            normalized = insertZeroWidthSpaceAtCJKEmphasisBoundary(normalized)
             normalized = insertBreakBetweenHeadingAndBody(normalized)
             // `insertBreakBeforeSmushedBoldTitleInHeading` used to run
             // here. It rewrote `### Heading**Subtitle**` into two
@@ -164,6 +165,66 @@ enum MarkdownStructuralRepair {
             protectedRanges: protectedRanges(in: line),
             with: "$1\n$2 "
         )
+    }
+
+    // MARK: - CJK emphasis boundary fix
+
+    /// Inserts a zero-width space (U+200B) at `**` boundaries that
+    /// CommonMark's flanking rules would otherwise reject, so the LLM-
+    /// common pattern `**...（SIAC）**对` renders as bold instead of
+    /// falling through to literal asterisks.
+    ///
+    /// **Background**: CommonMark §6.2 requires a closing `**` to be
+    /// right-flanking — and when the character immediately before `**`
+    /// is a Unicode punctuation, the rule additionally demands the
+    /// character immediately after `**` be whitespace or punctuation.
+    /// CJK text frequently violates this:
+    /// `**新加坡国际仲裁中心（SIAC）**对` puts the closing `**` between
+    /// `）` (punctuation) and `对` (letter), the spec rejects it, and
+    /// swift-markdown surfaces the whole run as a single literal text
+    /// node with the `**` markers showing through.
+    ///
+    /// A zero-width space placed just before that closing `**` makes
+    /// the run "preceded by a letter" from CommonMark's perspective —
+    /// the visible glyph sequence is unchanged but the parser now
+    /// happily produces a `Strong` node. The symmetric case (opening
+    /// `**` between letter and punctuation, e.g. `他**——副标题**`) is
+    /// handled by inserting the ZWSP after the opening `**` instead.
+    ///
+    /// The ZWSP is invisible when rendered and harmless when copied;
+    /// we picked it over a regular space because a real space would
+    /// change the visible output, which is the very thing this fix
+    /// avoids.
+    static func insertZeroWidthSpaceAtCJKEmphasisBoundary(_ line: String) -> String {
+        let zwsp = "\u{200B}"
+        var result = line
+        // Closing-`**` failure: punctuation + `**` + letter/digit.
+        // Insert ZWSP between the punctuation and the `**`.
+        result = MarkdownRenderPreparation.replacing(
+            pattern: #"(\p{P})(\*\*)(?=[\p{L}\p{N}])"#,
+            in: result,
+            with: "$1\(zwsp)$2"
+        )
+        // Opening-`**` failure: letter/digit + `**` + punctuation.
+        // Insert ZWSP between the `**` and the punctuation.
+        result = MarkdownRenderPreparation.replacing(
+            pattern: #"(?<=[\p{L}\p{N}])(\*\*)(\p{P})"#,
+            in: result,
+            with: "$1\(zwsp)$2"
+        )
+        // Same two patterns for single-`*` (italic) emphasis, but only
+        // when not adjacent to another `*` (i.e., not part of `**`).
+        result = MarkdownRenderPreparation.replacing(
+            pattern: #"(\p{P})(?<!\*)(\*)(?!\*)(?=[\p{L}\p{N}])"#,
+            in: result,
+            with: "$1\(zwsp)$2"
+        )
+        result = MarkdownRenderPreparation.replacing(
+            pattern: #"(?<=[\p{L}\p{N}])(?<!\*)(\*)(?!\*)(\p{P})"#,
+            in: result,
+            with: "$1\(zwsp)$2"
+        )
+        return result
     }
 
     // MARK: - Escaped emphasis (unchanged behavior)
