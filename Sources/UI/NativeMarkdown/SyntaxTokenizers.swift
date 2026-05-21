@@ -166,3 +166,16 @@ struct SQLTokenizer: LanguageTokenizer {
         mk(#"/\*[\s\S]*?\*/"#, .comment),
     ].compactMap { $0 }
 }
+
+struct ZigTokenizer: LanguageTokenizer {
+    let patterns: [SyntaxPattern] = [
+        mk(#"\b(addrspace|align|allowzero|and|anyframe|anytype|asm|async|await|break|callconv|catch|comptime|const|continue|defer|else|enum|errdefer|error|export|extern|fn|for|if|inline|linksection|noalias|noinline|nosuspend|opaque|or|orelse|packed|pub|resume|return|struct|suspend|switch|test|threadlocal|try|union|unreachable|usingnamespace|var|volatile|while)\b"#, .keyword),
+        mk(#"\b(bool|void|noreturn|type|anyerror|comptime_int|comptime_float|isize|usize|c_char|c_short|c_ushort|c_int|c_uint|c_long|c_ulong|c_longlong|c_ulonglong|c_longdouble|f16|f32|f64|f80|f128|i\d+|u\d+)\b"#, .type),
+        mk(#"\b(true|false|null|undefined)\b"#, .literal),
+        mk(#"@[A-Za-z_][A-Za-z0-9_]*"#, .attribute),
+        mk(functionCallPattern, .function, group: 1),
+        mk(numberPattern, .number),
+        mk(stringDoubleQuote, .string),
+        mk(#"(?m)//.*$"#, .comment),
+    ].compactMap { $0 }
+}

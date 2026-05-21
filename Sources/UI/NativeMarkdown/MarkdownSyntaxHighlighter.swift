@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Highlighter
 
 /// Classification produced by `LanguageTokenizer`. Each enum case maps to a
 /// theme color set by `MarkdownTheme.SyntaxPalette`.
@@ -40,28 +41,67 @@ protocol LanguageTokenizer {
     var patterns: [SyntaxPattern] { get }
 }
 
-/// Process-wide tokenizer dispatch. Given a language id (raw fence string),
-/// returns the matching tokenizer or `nil` for unknown languages.
+/// Process-wide code highlighter dispatch. Prefer Highlight.js via
+/// HighlighterSwift for finished, known-language code blocks; fall back to
+/// the local tokenizer for streaming, unsupported languages, and failure
+/// cases where readability matters more than perfect token coverage.
 enum MarkdownSyntaxHighlighter {
-    /// Hard cap to prevent slow regex passes on huge code blocks.
+    /// Hard cap to prevent slow JavaScriptCore/regex passes on huge code blocks.
     private static let maxHighlightLength = 50_000
+    private static let highlightJSRenderer = HighlightJSRenderer()
 
     static func highlight(
         _ source: String,
         language: String?,
-        theme: MarkdownTheme
+        theme: MarkdownTheme,
+        isDarkMode: Bool? = nil,
+        useFastFallback: Bool = false
+    ) -> NSAttributedString {
+        let baseAttrs: [NSAttributedString.Key: Any] = [
+            .font: theme.codeFont,
+            .foregroundColor: theme.baseColor,
+        ]
+        guard !source.isEmpty else { return NSAttributedString(string: "", attributes: baseAttrs) }
+        guard source.count <= maxHighlightLength else {
+            return NSAttributedString(string: source, attributes: baseAttrs)
+        }
+
+        let normalized = LanguageAliases.normalize(language)
+        if !useFastFallback,
+           let normalized,
+           let highlighted = highlightJSRenderer.highlight(
+                source,
+                language: normalized,
+                theme: theme,
+                isDarkMode: resolvedDarkMode(isDarkMode)
+           ) {
+            if tokenizer(for: normalized) != nil {
+                return fallbackHighlight(source, language: normalized, theme: theme, base: highlighted)
+            }
+            return highlighted
+        }
+
+        return fallbackHighlight(source, language: normalized, theme: theme)
+    }
+
+    static func highlightJSThemeName(isDarkMode: Bool) -> String {
+        isDarkMode ? "github-dark" : "github"
+    }
+
+    private static func fallbackHighlight(
+        _ source: String,
+        language: String?,
+        theme: MarkdownTheme,
+        base: NSAttributedString? = nil
     ) -> NSAttributedString {
         let palette = SyntaxPalette.resolved()
         let baseAttrs: [NSAttributedString.Key: Any] = [
             .font: theme.codeFont,
             .foregroundColor: theme.baseColor,
         ]
-        guard !source.isEmpty else { return NSAttributedString(string: "", attributes: baseAttrs) }
-        let attributed = NSMutableAttributedString(string: source, attributes: baseAttrs)
-        guard source.count <= maxHighlightLength else { return attributed }
-
-        let normalized = LanguageAliases.normalize(language)
-        guard let tokenizer = tokenizer(for: normalized) else { return attributed }
+        let attributed = base.map(NSMutableAttributedString.init(attributedString:)) ??
+            NSMutableAttributedString(string: source, attributes: baseAttrs)
+        guard let tokenizer = tokenizer(for: language) else { return attributed }
 
         let fullRange = NSRange(location: 0, length: (source as NSString).length)
         for pattern in tokenizer.patterns {
@@ -80,6 +120,11 @@ enum MarkdownSyntaxHighlighter {
         return attributed
     }
 
+    private static func resolvedDarkMode(_ explicitValue: Bool?) -> Bool {
+        if let explicitValue { return explicitValue }
+        return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+
     private static func tokenizer(for language: String?) -> LanguageTokenizer? {
         guard let language else { return nil }
         switch language {
@@ -95,7 +140,147 @@ enum MarkdownSyntaxHighlighter {
         case "go": return GoTokenizer()
         case "rust": return RustTokenizer()
         case "sql": return SQLTokenizer()
+        case "zig": return ZigTokenizer()
         default: return nil
+        }
+    }
+}
+
+private final class HighlightJSRenderer {
+    private let lock = NSLock()
+    private var highlighter: Highlighter?
+    private var supportedLanguages: Set<String>?
+    private var configuredThemeName: String?
+    private var configuredFontName: String?
+    private var configuredFontSize: CGFloat?
+
+    func highlight(
+        _ source: String,
+        language: String,
+        theme: MarkdownTheme,
+        isDarkMode: Bool
+    ) -> NSAttributedString? {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard let highlighter = highlighterInstance() else { return nil }
+        guard supports(language: language, highlighter: highlighter) else { return nil }
+        guard configure(highlighter: highlighter, theme: theme, isDarkMode: isDarkMode) else {
+            return nil
+        }
+
+        highlighter.ignoreIllegals = true
+        guard let highlighted = highlighter.highlight(source, as: language, doFastRender: true) else {
+            return nil
+        }
+        let normalized = normalize(highlighted, theme: theme)
+        return hasMeaningfulHighlight(in: normalized) ? normalized : nil
+    }
+
+    private func highlighterInstance() -> Highlighter? {
+        if let highlighter { return highlighter }
+        guard let highlighter = Highlighter() else { return nil }
+        self.highlighter = highlighter
+        return highlighter
+    }
+
+    private func supports(language: String, highlighter: Highlighter) -> Bool {
+        if supportedLanguages == nil {
+            supportedLanguages = Set(highlighter.supportedLanguages())
+        }
+        return supportedLanguages?.contains(language) == true
+    }
+
+    private func configure(
+        highlighter: Highlighter,
+        theme: MarkdownTheme,
+        isDarkMode: Bool
+    ) -> Bool {
+        let themeName = MarkdownSyntaxHighlighter.highlightJSThemeName(isDarkMode: isDarkMode)
+        let fontName = theme.codeFont.fontName
+        let fontSize = theme.codeFont.pointSize
+        guard configuredThemeName != themeName ||
+              configuredFontName != fontName ||
+              configuredFontSize != fontSize else {
+            return true
+        }
+
+        guard highlighter.setTheme(themeName, withFont: fontName, ofSize: fontSize) else {
+            return false
+        }
+        configuredThemeName = themeName
+        configuredFontName = fontName
+        configuredFontSize = fontSize
+        return true
+    }
+
+    private func normalize(_ highlighted: NSAttributedString, theme: MarkdownTheme) -> NSAttributedString {
+        let mutable = NSMutableAttributedString(attributedString: highlighted)
+        let fullRange = NSRange(location: 0, length: mutable.length)
+        guard fullRange.length > 0 else { return mutable }
+
+        mutable.addAttribute(.paragraphStyle, value: theme.codeParagraphStyle, range: fullRange)
+        mutable.removeAttribute(.backgroundColor, range: fullRange)
+
+        var fontUpdates: [(NSRange, NSFont)] = []
+        mutable.enumerateAttribute(.font, in: fullRange) { value, range, _ in
+            fontUpdates.append((range, codeFont(matching: value as? NSFont, baseFont: theme.codeFont)))
+        }
+        for (range, font) in fontUpdates {
+            mutable.addAttribute(.font, value: font, range: range)
+        }
+
+        mutable.enumerateAttribute(.foregroundColor, in: fullRange) { value, range, _ in
+            if value == nil {
+                mutable.addAttribute(.foregroundColor, value: theme.baseColor, range: range)
+            }
+        }
+        return mutable
+    }
+
+    private func hasMeaningfulHighlight(in attributed: NSAttributedString) -> Bool {
+        let fullRange = NSRange(location: 0, length: attributed.length)
+        guard fullRange.length > 0 else { return false }
+
+        let baseColor = attributed.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+        let baseFont = attributed.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        let baseTraits = syntaxTraits(baseFont)
+
+        var hasDistinctStyle = false
+        attributed.enumerateAttributes(in: fullRange) { attributes, _, stop in
+            let color = attributes[.foregroundColor] as? NSColor
+            let font = attributes[.font] as? NSFont
+            if !colorsEqual(color, baseColor) || syntaxTraits(font) != baseTraits {
+                hasDistinctStyle = true
+                stop.pointee = true
+            }
+        }
+        return hasDistinctStyle
+    }
+
+    private func codeFont(matching sourceFont: NSFont?, baseFont: NSFont) -> NSFont {
+        guard let sourceFont else { return baseFont }
+        let sourceTraits = sourceFont.fontDescriptor.symbolicTraits
+        let wantedTraits = sourceTraits.intersection([.bold, .italic])
+        guard !wantedTraits.isEmpty else {
+            return baseFont
+        }
+        let descriptor = baseFont.fontDescriptor.withSymbolicTraits(wantedTraits)
+        return NSFont(descriptor: descriptor, size: baseFont.pointSize) ?? baseFont
+    }
+
+    private func syntaxTraits(_ font: NSFont?) -> NSFontDescriptor.SymbolicTraits {
+        font?.fontDescriptor.symbolicTraits.intersection([.bold, .italic]) ?? []
+    }
+
+    private func colorsEqual(_ lhs: NSColor?, _ rhs: NSColor?) -> Bool {
+        switch (lhs, rhs) {
+        case (.none, .none):
+            return true
+        case let (.some(lhs), .some(rhs)):
+            return lhs.isEqual(rhs)
+        default:
+            return false
         }
     }
 }

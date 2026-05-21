@@ -17,6 +17,7 @@ struct CodeBlockView: View {
     @State private var lineNumbersOverride: Bool? = nil
     @State private var isCollapsed: Bool = false
 
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.markdownTheme) private var theme
 
     var body: some View {
@@ -28,8 +29,10 @@ struct CodeBlockView: View {
                 CodeBlockBody(
                     source: source,
                     language: language,
+                    isStreamingTail: isStreamingTail,
                     showLineNumbers: showLineNumbers,
-                    theme: theme
+                    theme: theme,
+                    isDarkMode: colorScheme == .dark
                 )
             }
         }
@@ -151,8 +154,10 @@ struct CodeBlockView: View {
 private struct CodeBlockBody: View {
     let source: String
     let language: String?
+    let isStreamingTail: Bool
     let showLineNumbers: Bool
     let theme: MarkdownTheme
+    let isDarkMode: Bool
 
     private var lines: [String] {
         source.components(separatedBy: "\n")
@@ -174,7 +179,9 @@ private struct CodeBlockBody: View {
                 HighlightedCodeView(
                     source: source,
                     language: language,
-                    theme: theme
+                    isStreamingTail: isStreamingTail,
+                    theme: theme,
+                    isDarkMode: isDarkMode
                 )
             }
         }
@@ -184,7 +191,9 @@ private struct CodeBlockBody: View {
 private struct HighlightedCodeView: NSViewRepresentable {
     let source: String
     let language: String?
+    let isStreamingTail: Bool
     let theme: MarkdownTheme
+    let isDarkMode: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -223,11 +232,23 @@ private struct HighlightedCodeView: NSViewRepresentable {
     }
 
     private func applyAttributedString(to view: JinMessageTextView, coordinator: Coordinator) {
-        let fingerprint = Fingerprint(source: source, language: language, theme: theme)
+        let fingerprint = Fingerprint(
+            source: source,
+            language: language,
+            isStreamingTail: isStreamingTail,
+            theme: theme,
+            isDarkMode: isDarkMode
+        )
         guard coordinator.lastAppliedFingerprint != fingerprint else { return }
 
         let selectedRange = view.selectedRange()
-        let highlighted = MarkdownSyntaxHighlighter.highlight(source, language: language, theme: theme)
+        let highlighted = MarkdownSyntaxHighlighter.highlight(
+            source,
+            language: language,
+            theme: theme,
+            isDarkMode: isDarkMode,
+            useFastFallback: isStreamingTail
+        )
         let withInsets = NSMutableAttributedString(attributedString: highlighted)
         withInsets.addAttribute(
             .paragraphStyle,
@@ -253,7 +274,9 @@ private struct HighlightedCodeView: NSViewRepresentable {
     fileprivate struct Fingerprint: Equatable {
         let source: String
         let language: String?
+        let isStreamingTail: Bool
         let theme: MarkdownTheme
+        let isDarkMode: Bool
     }
 }
 
