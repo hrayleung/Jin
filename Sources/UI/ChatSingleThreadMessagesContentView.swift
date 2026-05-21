@@ -48,6 +48,9 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
     /// programmatic scroll the scroll-geometry stream emits transient
     /// off-pin offsets that must not be treated as a user-initiated unpin.
     @State private var isExecutingProgrammaticScroll = false
+    @State private var programmaticScrollGeneration = 0
+    @State private var pendingInitialBottomScrollConversationID: UUID?
+    @State private var pendingInitialBottomScrollTask: Task<Void, Never>?
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
@@ -64,6 +67,23 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
 
     private var visibleMessages: [MessageRenderItem] {
         visibleMessagesForWindow
+    }
+
+    private var initialBottomScrollContentKey: InitialBottomScrollContentKey {
+        InitialBottomScrollContentKey(
+            conversationID: conversationID,
+            visibleMessageCount: visibleMessagesForWindow.count,
+            lastVisibleMessageID: visibleMessagesForWindow.last?.id,
+            hasStreamingMessage: streamingMessage != nil
+        )
+    }
+
+    private var hasPendingInitialBottomScroll: Bool {
+        pendingInitialBottomScrollConversationID == conversationID
+    }
+
+    private var hasInitialBottomScrollContent: Bool {
+        !visibleMessagesForWindow.isEmpty || streamingMessage != nil
     }
 
     var body: some View {
@@ -105,6 +125,7 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
                 .padding(.top, 24)
             }
             .overlayScrollerStyle()
+            .defaultScrollAnchor(.bottom)
             .overlay(alignment: .bottomTrailing) {
                 if !isPinnedToBottom {
                     Button {
@@ -137,6 +158,7 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             .onUserScrollIntentChange { isUserDrivenScroll in
                 isUserScrollInProgress = isUserDrivenScroll
                 if isUserDrivenScroll {
+                    cancelPendingInitialBottomScroll()
                     cancelPendingPinnedBottomRefresh()
                     shouldMaintainPinnedBottomAnchor = false
                     pinnedBottomRefreshGeneration = ChatTimelineScrollCoordinator.invalidatedRefreshGeneration(
@@ -160,17 +182,18 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
                 onStreamingFinished()
                 refreshPinnedBottomIfNeeded(proxy: proxy)
             }
-            .onChange(of: conversationID) { _, _ in
-                cancelPendingPinnedBottomRefresh()
-                lastMeasuredContentHeight = 0
-                shouldMaintainPinnedBottomAnchor = true
-                isUserScrollInProgress = false
+            .onChange(of: conversationID, initial: true) { _, _ in
+                prepareInitialScrollToBottomAfterConversationSwitch(proxy: proxy)
+            }
+            .onChange(of: initialBottomScrollContentKey) { _, _ in
+                requestInitialScrollToBottomIfReady(proxy: proxy)
             }
             .onPreferenceChange(MessageTimelineContentHeightPreferenceKey.self) { newHeight in
                 handleContentHeightChange(newHeight, proxy: proxy)
             }
             .onDisappear {
                 cancelPendingPinnedBottomRefresh()
+                cancelPendingInitialBottomScroll()
             }
             .task(id: PrewarmKey(
                 conversationID: conversationID,
@@ -201,6 +224,13 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
         let lastMessageID: UUID?
         let appFontFamily: String
         let codeFontFamily: String
+    }
+
+    private struct InitialBottomScrollContentKey: Equatable {
+        let conversationID: UUID
+        let visibleMessageCount: Int
+        let lastVisibleMessageID: UUID?
+        let hasStreamingMessage: Bool
     }
 
     private func schedulePrewarm() {
@@ -337,13 +367,101 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             return
         }
         beginProgrammaticScroll()
-        proxy.scrollTo("bottom", anchor: .bottom)
+        proxy.scrollTo(ChatMessageStagePresentationSupport.bottomAnchorID(), anchor: .bottom)
+    }
+
+    private func prepareInitialScrollToBottomAfterConversationSwitch(proxy: ScrollViewProxy) {
+        cancelPendingPinnedBottomRefresh()
+        cancelPendingInitialBottomScroll()
+        lastMeasuredContentHeight = 0
+        shouldMaintainPinnedBottomAnchor = true
+        isUserScrollInProgress = false
+        pendingInitialBottomScrollConversationID = conversationID
+        requestInitialScrollToBottomIfReady(proxy: proxy)
+    }
+
+    private func requestInitialScrollToBottomIfReady(proxy: ScrollViewProxy) {
+        guard hasPendingInitialBottomScroll else { return }
+        guard !isUserScrollInProgress else {
+            cancelPendingInitialBottomScroll()
+            return
+        }
+        guard hasInitialBottomScrollContent else {
+            pendingInitialBottomScrollTask?.cancel()
+            pendingInitialBottomScrollTask = nil
+            return
+        }
+
+        let contentKey = initialBottomScrollContentKey
+        shouldMaintainPinnedBottomAnchor = true
+        performInitialBottomScroll(proxy: proxy)
+        scheduleInitialBottomScrollSettle(
+            proxy: proxy,
+            targetConversationID: conversationID,
+            contentKey: contentKey
+        )
+    }
+
+    private func performInitialBottomScroll(proxy: ScrollViewProxy) {
+        beginProgrammaticScroll()
+        proxy.scrollTo(ChatMessageStagePresentationSupport.bottomAnchorID(), anchor: .bottom)
+    }
+
+    private func scheduleInitialBottomScrollSettle(
+        proxy: ScrollViewProxy,
+        targetConversationID: UUID,
+        contentKey: InitialBottomScrollContentKey
+    ) {
+        pendingInitialBottomScrollTask?.cancel()
+        pendingInitialBottomScrollTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard !Task.isCancelled else { return }
+            guard pendingInitialBottomScrollConversationID == targetConversationID else { return }
+            guard initialBottomScrollContentKey == contentKey,
+                  hasInitialBottomScrollContent else {
+                pendingInitialBottomScrollTask = nil
+                return
+            }
+            guard !isUserScrollInProgress else {
+                cancelPendingInitialBottomScroll()
+                return
+            }
+
+            shouldMaintainPinnedBottomAnchor = true
+            performInitialBottomScroll(proxy: proxy)
+
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            guard pendingInitialBottomScrollConversationID == targetConversationID else { return }
+            guard initialBottomScrollContentKey == contentKey,
+                  hasInitialBottomScrollContent else {
+                pendingInitialBottomScrollTask = nil
+                return
+            }
+            guard !isUserScrollInProgress else {
+                cancelPendingInitialBottomScroll()
+                return
+            }
+
+            pendingInitialBottomScrollConversationID = nil
+            pendingInitialBottomScrollTask = nil
+            shouldMaintainPinnedBottomAnchor = true
+        }
+    }
+
+    private func cancelPendingInitialBottomScroll() {
+        pendingInitialBottomScrollTask?.cancel()
+        pendingInitialBottomScrollTask = nil
+        pendingInitialBottomScrollConversationID = nil
     }
 
     private func beginProgrammaticScroll() {
+        programmaticScrollGeneration &+= 1
+        let generation = programmaticScrollGeneration
         isExecutingProgrammaticScroll = true
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 400_000_000)
+            guard programmaticScrollGeneration == generation else { return }
             isExecutingProgrammaticScroll = false
         }
     }
@@ -358,6 +476,9 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             return
         }
         lastMeasuredContentHeight = action.measuredHeight
+        if hasPendingInitialBottomScroll {
+            requestInitialScrollToBottomIfReady(proxy: proxy)
+        }
         guard action.shouldScheduleRefresh else { return }
         guard !isExecutingProgrammaticScroll else { return }
         schedulePinnedBottomRefresh(
@@ -374,6 +495,10 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             return
         }
 
+        guard !hasPendingInitialBottomScroll else {
+            shouldMaintainPinnedBottomAnchor = true
+            return
+        }
         guard !isExecutingProgrammaticScroll else { return }
         cancelPendingPinnedBottomRefresh()
         shouldMaintainPinnedBottomAnchor = false
