@@ -1,7 +1,11 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-When searching for code, use the augment MCP tool (`mcp__augment-context-engine__codebase-retrieval`) as the first choice instead of grep/search.
+When searching for code, use the augment MCP tool (`morph`) as the first choice instead of grep/search.
+
+# Multi agents usage
+
+when user gets angry like saying words like fuck and depressed about what you have done. spawn team of opus agents to further investigate the issue with details.
 
 ## Critical Rule: Verify External APIs Before Writing Code
 
@@ -61,6 +65,7 @@ All providers implement the `LLMProviderAdapter` protocol (`sendMessage`, `valid
 **Anthropic-specific**: `AnthropicRequestPreflight.swift` preprocesses requests, `AnthropicToolUseNormalizer.swift` normalizes tool use. `AnthropicModelLimits.swift` tracks model-specific limits.
 
 **Adding a new provider**:
+
 1. Create `Sources/Adapters/NewProviderAdapter.swift` implementing `LLMProviderAdapter`
 2. Add case to `ProviderType` enum in `GenerationControls.swift`
 3. Add factory case in `ProviderManager.createAdapter(for:)`
@@ -79,9 +84,11 @@ All providers implement the `LLMProviderAdapter` protocol (`sendMessage`, `valid
 - `GenerationControlsResolver` - Resolves effective controls from assistant defaults + conversation overrides
 - `ProviderConfig` - Provider metadata, API key references, models
 - `JinModelSupport` - Model capability detection (`.videoGeneration`, `.imageGeneration`, `.promptCaching`, `.reasoning`, etc.)
+
 ### Persistence Layer
 
 SwiftData entities in `SwiftDataModels.swift`:
+
 - `AssistantEntity` - Named assistant configurations with system instructions, temperature, truncation settings
 - `ConversationEntity` - Conversations with messages and model config
 - `MessageEntity` - Persisted messages (use `toDomain()` / `fromDomain()` conversions)
@@ -167,12 +174,12 @@ UI: Map icon button in composer controls bar. Menu with toggle + "Configure Loca
 
 Cross-provider prompt caching with automatic strategy selection:
 
-| Provider | Method | Key Mechanism |
-|----------|--------|---------------|
-| Anthropic | Native cache headers | `cache_control` blocks on content |
-| OpenAI | Prompt cache control | `prompt_cache_control`, `cache_key` |
-| xAI | Conversation-level cache | `x-grok-conv-id` header + `prompt_cache_key`/`prompt_cache_retention` |
-| Gemini/Vertex | Explicit cache resources | `cachedContents/{id}` resource naming |
+| Provider      | Method                   | Key Mechanism                                                         |
+| ------------- | ------------------------ | --------------------------------------------------------------------- |
+| Anthropic     | Native cache headers     | `cache_control` blocks on content                                     |
+| OpenAI        | Prompt cache control     | `prompt_cache_control`, `cache_key`                                   |
+| xAI           | Conversation-level cache | `x-grok-conv-id` header + `prompt_cache_key`/`prompt_cache_retention` |
+| Gemini/Vertex | Explicit cache resources | `cachedContents/{id}` resource naming                                 |
 
 Configuration via `ContextCacheControls` in `GenerationControls.swift`. Strategies: `systemOnly` (cache system prompt), `systemAndTools` (cache system + tool definitions), `prefixWindow` (cache conversation prefix). TTL options: provider default, 5 min, 1 hour, custom seconds.
 
@@ -202,15 +209,15 @@ Configuration via `ContextCacheControls` in `GenerationControls.swift`. Strategi
 
 Optional features configured via Settings, with dedicated app preference keys:
 
-| Plugin | Clients | Preference Keys |
-|--------|---------|-----------------|
-| Web Search | `BuiltinSearchToolHub` (Exa / Brave / Jina / Firecrawl) | `pluginWebSearchExaAPIKey`, `pluginWebSearchBraveAPIKey`, `pluginWebSearchJinaAPIKey`, `pluginWebSearchFirecrawlAPIKey` |
-| Mistral OCR | `MistralOCRClient` | `pluginMistralOCRAPIKey` |
-| DeepSeek OCR | `DeepInfraDeepSeekOCRClient` | `pluginDeepSeekOCRAPIKey` |
-| TTS | `ElevenLabsTTSClient`, `OpenAIAudioClient`, `OpenRouterAudioClient`, `GroqAudioClient`, `MiMoAudioClient` | `ttsElevenLabsAPIKey`, `ttsOpenAIAPIKey`, `ttsOpenRouterAPIKey`, `ttsGroqAPIKey`, `ttsMiMoAPIKey` |
-| STT | `OpenAIAudioClient`, `OpenRouterAudioClient`, `GroqAudioClient`, `ElevenLabsSTTClient` (Mistral STT reuses OpenAI-compatible client) | `sttOpenAIAPIKey`, `sttOpenRouterAPIKey`, `sttGroqAPIKey`, `sttMistralAPIKey`, `sttElevenLabsAPIKey` |
-| Chat Naming | Model-based naming flow (no standalone API key) | `chatNamingProviderID`, `chatNamingModelID` |
-| Cloudflare R2 Upload | R2 upload settings + signed request flow | `cloudflareR2AccessKeyID`, `cloudflareR2SecretAccessKey`, `cloudflareR2AccountID`, `cloudflareR2Bucket` |
+| Plugin               | Clients                                                                                                                              | Preference Keys                                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Web Search           | `BuiltinSearchToolHub` (Exa / Brave / Jina / Firecrawl)                                                                              | `pluginWebSearchExaAPIKey`, `pluginWebSearchBraveAPIKey`, `pluginWebSearchJinaAPIKey`, `pluginWebSearchFirecrawlAPIKey` |
+| Mistral OCR          | `MistralOCRClient`                                                                                                                   | `pluginMistralOCRAPIKey`                                                                                                |
+| DeepSeek OCR         | `DeepInfraDeepSeekOCRClient`                                                                                                         | `pluginDeepSeekOCRAPIKey`                                                                                               |
+| TTS                  | `ElevenLabsTTSClient`, `OpenAIAudioClient`, `OpenRouterAudioClient`, `GroqAudioClient`, `MiMoAudioClient`                            | `ttsElevenLabsAPIKey`, `ttsOpenAIAPIKey`, `ttsOpenRouterAPIKey`, `ttsGroqAPIKey`, `ttsMiMoAPIKey`                       |
+| STT                  | `OpenAIAudioClient`, `OpenRouterAudioClient`, `GroqAudioClient`, `ElevenLabsSTTClient` (Mistral STT reuses OpenAI-compatible client) | `sttOpenAIAPIKey`, `sttOpenRouterAPIKey`, `sttGroqAPIKey`, `sttMistralAPIKey`, `sttElevenLabsAPIKey`                    |
+| Chat Naming          | Model-based naming flow (no standalone API key)                                                                                      | `chatNamingProviderID`, `chatNamingModelID`                                                                             |
+| Cloudflare R2 Upload | R2 upload settings + signed request flow                                                                                             | `cloudflareR2AccessKeyID`, `cloudflareR2SecretAccessKey`, `cloudflareR2AccountID`, `cloudflareR2Bucket`                 |
 
 ## Dependencies
 
@@ -272,6 +279,7 @@ TextField(text: binding, prompt: Text("e.g., Code Assistant")) { EmptyView() }
 ### Testing Checklist for Settings UI
 
 When modifying any SwiftData-backed form:
+
 1. Change value, close and reopen settings, verify it persisted
 2. Test edge cases: empty values, very long text, special characters, emoji
 3. Verify `updatedAt` timestamp changes
