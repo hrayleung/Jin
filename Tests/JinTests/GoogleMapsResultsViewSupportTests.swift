@@ -37,8 +37,22 @@ final class GoogleMapsResultsViewSupportTests: XCTestCase {
                         "url": AnyCodable(" https://maps.example/tea "),
                         "title": AnyCodable(" Tea House "),
                         "mapsPlaceID": AnyCodable("place-tea"),
+                        "mapsReviewSnippets": AnyCodable(["Great tea", "Quiet patio"]),
                     ],
                     outputIndex: 1,
+                    sequenceNumber: 2
+                ),
+                activity(
+                    id: "review-1",
+                    type: "open_page",
+                    status: .completed,
+                    arguments: [
+                        "sourceKind": AnyCodable("google_maps"),
+                        "mapsSourceType": AnyCodable("review"),
+                        "url": AnyCodable("https://maps.example/tea/reviews/1"),
+                        "title": AnyCodable("Great tea"),
+                    ],
+                    outputIndex: 2,
                     sequenceNumber: 2
                 ),
                 activity(
@@ -64,6 +78,7 @@ final class GoogleMapsResultsViewSupportTests: XCTestCase {
         XCTAssertEqual(content.queries, ["Coffee near me", "Tea"])
         XCTAssertEqual(content.places.map(\.name), ["Tea House", "Coffee Bar"])
         XCTAssertEqual(content.places.first?.placeID, "place-tea")
+        XCTAssertEqual(content.places.first?.reviewSnippets, ["Great tea", "Quiet patio"])
         XCTAssertTrue(content.hasRunningActivity)
     }
 

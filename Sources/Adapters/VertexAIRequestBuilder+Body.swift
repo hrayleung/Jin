@@ -14,9 +14,15 @@ extension VertexAIRequestBuilder {
         ]
 
         let explicitCachedContent = explicitCachedContentName(from: controls)
+        let modelSupportsGoogleMaps = modelSupport.supportsGoogleMaps(modelID)
+
         if let cachedContent = explicitCachedContent {
             body["cachedContent"] = cachedContent
-        } else if let systemInstruction = systemInstruction(from: messages) {
+        } else if let systemInstruction = systemInstruction(
+            from: messages,
+            controls: controls,
+            supportsGoogleMaps: modelSupportsGoogleMaps
+        ) {
             body["systemInstruction"] = systemInstruction
         }
 
@@ -42,8 +48,12 @@ extension VertexAIRequestBuilder {
         )
     }
 
-    func systemInstruction(from messages: [Message]) -> [String: Any]? {
-        let parts = messages
+    func systemInstruction(
+        from messages: [Message],
+        controls: GenerationControls? = nil,
+        supportsGoogleMaps: Bool = false
+    ) -> [String: Any]? {
+        var parts = messages
             .filter { $0.role == .system }
             .flatMap(\.content)
             .compactMap { part -> String? in
@@ -51,6 +61,13 @@ extension VertexAIRequestBuilder {
                 return text.trimmedNonEmpty == nil ? nil : text
             }
             .map { ["text": $0] }
+
+        if let mapsInstruction = GeminiRequestSupport.googleMapsLocationInstruction(
+            controls: controls,
+            supportsGoogleMaps: supportsGoogleMaps
+        ) {
+            parts.append(["text": mapsInstruction])
+        }
 
         guard !parts.isEmpty else { return nil }
         return ["parts": parts]

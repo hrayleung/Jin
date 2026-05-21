@@ -12,7 +12,11 @@ enum GeminiRequestSupport {
         return config
     }
 
-    static func systemInstructionText(from messages: [Message]) -> String? {
+    static func systemInstructionText(
+        from messages: [Message],
+        controls: GenerationControls? = nil,
+        supportsGoogleMaps: Bool = false
+    ) -> String? {
         let text = messages
             .filter { $0.role == .system }
             .flatMap(\.content)
@@ -23,7 +27,34 @@ enum GeminiRequestSupport {
             .joined()
             .trimmedNonEmpty
 
-        return text
+        var instructions: [String] = []
+        if let text {
+            instructions.append(text)
+        }
+        if let mapsInstruction = googleMapsLocationInstruction(
+            controls: controls,
+            supportsGoogleMaps: supportsGoogleMaps
+        ) {
+            instructions.append(mapsInstruction)
+        }
+
+        return instructions.joined(separator: "\n\n").trimmedNonEmpty
+    }
+
+    static func googleMapsLocationInstruction(
+        controls: GenerationControls?,
+        supportsGoogleMaps: Bool
+    ) -> String? {
+        guard supportsGoogleMaps,
+              controls?.googleMaps?.enabled == true,
+              let latitude = controls?.googleMaps?.latitude,
+              let longitude = controls?.googleMaps?.longitude else {
+            return nil
+        }
+
+        return """
+        Google Maps grounding is enabled for this request. A current user location bias is already provided through toolConfig.retrievalConfig.latLng as latitude \(formattedCoordinate(latitude)) and longitude \(formattedCoordinate(longitude)). For requests like "near me", "nearby", "here", or equivalent local intent in any language, use Google Maps grounding with that provided location and do not ask the user for their location unless the coordinates are missing.
+        """
     }
 
     static func explicitCachedContentName(from controls: GenerationControls) -> String? {
@@ -149,6 +180,10 @@ enum GeminiRequestSupport {
         if let topP = controls.topP {
             config["topP"] = topP
         }
+    }
+
+    private static func formattedCoordinate(_ value: Double) -> String {
+        String(format: "%.6f", value)
     }
 
     private static func addThinkingConfig(

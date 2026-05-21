@@ -10,9 +10,16 @@ extension GeminiModelConstants {
                 .init(
                     webURI: $0.web?.uri,
                     webTitle: $0.web?.title,
-                    mapsURI: $0.maps?.uri,
+                    mapsURI: $0.maps?.uri ?? $0.maps?.googleMapsUri,
                     mapsTitle: $0.maps?.title,
-                    mapsPlaceId: $0.maps?.placeId
+                    mapsPlaceId: $0.maps?.placeId,
+                    mapsReviewSnippets: $0.maps?.placeAnswerSources?.reviewSnippets?.map {
+                        .init(
+                            reviewID: $0.reviewId,
+                            uri: $0.googleMapsUri,
+                            title: $0.title
+                        )
+                    } ?? []
                 )
             },
             groundingSupports: g.groundingSupports?.map {

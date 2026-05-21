@@ -195,7 +195,11 @@ final class ModelCapabilityRegistryTests: XCTestCase {
     }
 
     func testGoogleMapsSupportUsesExactDocumentedModelIDs() {
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.5-flash"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.1-pro-preview"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.1-flash-lite"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.1-flash-lite-preview"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3-flash-preview"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.5-pro"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.5-flash"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.0-flash-001"))
@@ -204,7 +208,6 @@ final class ModelCapabilityRegistryTests: XCTestCase {
 
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3-pro-preview"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3-pro-image-preview"))
-        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3-flash-preview"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-2.5-flash"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-2.5-flash-preview-09-2025"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-2.5-flash-lite-preview-09-2025"))
@@ -212,6 +215,8 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-live-2.5-flash-preview-native-audio-09-2025"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-2.0-flash-live-preview-04-09"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-2.0-flash-001"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3-flash-preview"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.5-flash"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.1-pro-preview"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .openai, modelID: "gpt-5"))
     }

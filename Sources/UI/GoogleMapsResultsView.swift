@@ -63,6 +63,7 @@ struct MapsPlace: Identifiable {
     let name: String
     let urlString: String
     let placeID: String?
+    let reviewSnippets: [String]
 }
 
 enum MapsDesign {

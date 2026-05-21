@@ -161,8 +161,8 @@ final class GeminiRequestSupportTests: XCTestCase {
             controls: GenerationControls(
                 googleMaps: GoogleMapsControls(
                     enabled: true,
-                    latitude: 37.7749,
-                    longitude: -122.4194
+                    latitude: GoogleMapsCoordinateFixture.latitude,
+                    longitude: GoogleMapsCoordinateFixture.longitude
                 )
             ),
             supportsGoogleMaps: true
@@ -170,17 +170,57 @@ final class GeminiRequestSupportTests: XCTestCase {
 
         let retrievalConfig = try XCTUnwrap(config?["retrievalConfig"] as? [String: Any])
         let latLng = try XCTUnwrap(retrievalConfig["latLng"] as? [String: Any])
-        XCTAssertEqual(latLng["latitude"] as? Double, 37.7749)
-        XCTAssertEqual(latLng["longitude"] as? Double, -122.4194)
+        XCTAssertEqual(latLng["latitude"] as? Double, GoogleMapsCoordinateFixture.latitude)
+        XCTAssertEqual(latLng["longitude"] as? Double, GoogleMapsCoordinateFixture.longitude)
 
         XCTAssertNil(
             GeminiRequestSupport.toolConfig(
                 controls: GenerationControls(
-                    googleMaps: GoogleMapsControls(enabled: true, latitude: 37.7749, longitude: -122.4194)
+                    googleMaps: GoogleMapsControls(
+                        enabled: true,
+                        latitude: GoogleMapsCoordinateFixture.latitude,
+                        longitude: GoogleMapsCoordinateFixture.longitude
+                    )
                 ),
                 supportsGoogleMaps: false
             )
         )
+    }
+
+    func testSystemInstructionAddsGoogleMapsLocationContextWhenSupported() throws {
+        let systemInstruction = try XCTUnwrap(GeminiRequestSupport.systemInstructionText(
+            from: [Message(role: .system, content: [.text("Be concise.")])],
+            controls: GenerationControls(
+                googleMaps: GoogleMapsControls(
+                    enabled: true,
+                    latitude: GoogleMapsCoordinateFixture.latitude,
+                    longitude: GoogleMapsCoordinateFixture.longitude
+                )
+            ),
+            supportsGoogleMaps: true
+        ))
+
+        XCTAssertTrue(systemInstruction.contains("Be concise."))
+        XCTAssertTrue(systemInstruction.contains("Google Maps grounding is enabled"))
+        XCTAssertTrue(systemInstruction.contains(GoogleMapsCoordinateFixture.instructionLatitudeFragment))
+        XCTAssertTrue(systemInstruction.contains(GoogleMapsCoordinateFixture.instructionLongitudeFragment))
+        XCTAssertTrue(systemInstruction.contains("do not ask the user for their location"))
+    }
+
+    func testSystemInstructionOmitsGoogleMapsLocationContextWhenUnsupported() throws {
+        let systemInstruction = try XCTUnwrap(GeminiRequestSupport.systemInstructionText(
+            from: [Message(role: .system, content: [.text("Be concise.")])],
+            controls: GenerationControls(
+                googleMaps: GoogleMapsControls(
+                    enabled: true,
+                    latitude: GoogleMapsCoordinateFixture.latitude,
+                    longitude: GoogleMapsCoordinateFixture.longitude
+                )
+            ),
+            supportsGoogleMaps: false
+        ))
+
+        XCTAssertEqual(systemInstruction, "Be concise.")
     }
 
     func testSystemInstructionAndCachedContentHelpersNormalizeInputs() {
