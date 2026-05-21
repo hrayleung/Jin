@@ -183,9 +183,14 @@ struct ContentView: View {
     }
 
     func toggleSidebarVisibility() {
-        // No withAnimation — NavigationSplitView owns the animation curve and
-        // duration. Overriding with our own causes a double-animation that
-        // feels laggy. The system animation on macOS 26 is Liquid Glass-aware.
+        #if os(macOS)
+        // Match the title-bar sidebar button by routing through AppKit's
+        // native split-view action when it is available.
+        if NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil) {
+            return
+        }
+        #endif
+
         columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
     }
 
