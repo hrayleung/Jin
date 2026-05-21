@@ -381,6 +381,16 @@ final class MarkdownRenderPreparationTests: XCTestCase {
         XCTAssertEqual(result.text, input)
     }
 
+    func testDoesNotSplitPunctuationLedBoldSubtitleInHeading() {
+        let input = "### 第一部分：MaxLinear**—— subtitle here**"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+        XCTAssertFalse(result.text.contains("MaxLinear\n**"))
+    }
+
     func testDoesNotSplitWhenBoldNotAtEndOfLine() {
         let input = "## Section**Bold word here**More text after"
         let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
@@ -482,6 +492,15 @@ final class MarkdownRenderPreparationTests: XCTestCase {
             result.text.contains("## 三、投资风格与持仓特点\n1. **极度集中**："),
             "expected CJK-glued ordered-list marker to be split out of heading; got: \(result.text.debugDescription)"
         )
+    }
+
+    func testCJKEmphasisBoundaryDoesNotInsertZeroWidthSpaceBeforeTrailingPunctuation() {
+        let input = "1. **极度集中**：通常将资金集中在5–10只高度确信的股票上"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.text.contains("**\u{200B}："))
+        XCTAssertTrue(result.text.contains("**极度集中**："))
     }
 
     func testHeadingOnlyOrderedListRepairDoesNotScanSplitBodyLine() {

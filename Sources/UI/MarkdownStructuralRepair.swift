@@ -18,17 +18,7 @@ enum MarkdownStructuralRepair {
             normalized = unescapeEscapedLeadingEmphasis(normalized)
             normalized = insertZeroWidthSpaceAtCJKEmphasisBoundary(normalized)
             normalized = insertBreakBetweenHeadingAndBody(normalized)
-            // `insertBreakBeforeSmushedBoldTitleInHeading` used to run
-            // here. It rewrote `### Heading**Subtitle**` into two
-            // separate blocks (`### Heading` + `**Subtitle**`),
-            // intended for LLM output that glued an unrelated bold
-            // paragraph onto the end of a heading line. But
-            // `swift-markdown` already parses the smushed form
-            // correctly — heading + inline Strong run — so the rewrite
-            // was actively breaking the common "heading with bold
-            // subtitle on the same line" pattern that LLMs love
-            // (`### 第一部分：MaxLinear**—— subtitle**`). Disabling the
-            // step lets the parser do the right thing.
+            normalized = insertBreakBeforeSmushedBoldTitleInHeading(normalized)
             return normalized
         }
     }
@@ -208,7 +198,7 @@ enum MarkdownStructuralRepair {
         // Opening-`**` failure: letter/digit + `**` + punctuation.
         // Insert ZWSP between the `**` and the punctuation.
         result = MarkdownRenderPreparation.replacing(
-            pattern: #"(?<=[\p{L}\p{N}])(\*\*)(\p{P})"#,
+            pattern: #"(?<=[\p{L}\p{N}])(\*\*)(\p{P})(?=[^\n]*\*\*)"#,
             in: result,
             with: "$1\(zwsp)$2"
         )
@@ -220,7 +210,7 @@ enum MarkdownStructuralRepair {
             with: "$1\(zwsp)$2"
         )
         result = MarkdownRenderPreparation.replacing(
-            pattern: #"(?<=[\p{L}\p{N}])(?<!\*)(\*)(?!\*)(\p{P})"#,
+            pattern: #"(?<=[\p{L}\p{N}])(?<!\*)(\*)(?!\*)(\p{P})(?=[^\n]*(?<!\*)\*(?!\*))"#,
             in: result,
             with: "$1\(zwsp)$2"
         )
@@ -480,6 +470,7 @@ enum MarkdownStructuralRepair {
                 guard prefix.count >= 2 else { return nil }
                 guard boldContent.count >= 6,
                       boldContent.contains(where: { $0.isWhitespace }) else { return nil }
+                guard !startsWithPunctuation(boldContent) else { return nil }
 
                 return SmushedBoldTitleHit(
                     leadingWhitespace: leading,
@@ -501,6 +492,16 @@ enum MarkdownStructuralRepair {
         guard let hit = detectSmushedBoldTitleInHeading(line) else { return line }
         return hit.leadingWhitespace + hit.headingMarker + hit.prefix
             + "\n**" + hit.boldContent + "**"
+    }
+
+    private static func startsWithPunctuation(_ string: String) -> Bool {
+        for scalar in string.unicodeScalars {
+            if scalar.value == 0x200B || CharacterSet.whitespacesAndNewlines.contains(scalar) {
+                continue
+            }
+            return CharacterSet.punctuationCharacters.contains(scalar)
+        }
+        return false
     }
 
     private static func isEscaped(in characters: [Character], at index: Int) -> Bool {
