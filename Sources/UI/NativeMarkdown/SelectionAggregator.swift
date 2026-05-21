@@ -68,6 +68,33 @@ final class SelectionAggregator: ObservableObject {
         self.flatText = blocks.map(\.plainText).joined(separator: "\n")
         self.persistedHighlights = persistedHighlights
         applyHighlightsToAllBlocks()
+        refreshSnapshotMatchingHighlights()
+    }
+
+    /// `lastSnapshot.matchingHighlightIDs` is computed inside
+    /// `selectionDidChange`. When the persisted-highlight list mutates
+    /// while a selection is still active (e.g., another window adds or
+    /// removes a highlight), the stored IDs go stale — context-menu
+    /// intents like "remove highlights from current selection" would
+    /// then act on the wrong set until the user re-selects. Re-derive
+    /// them from the current selection bounds against the new list and
+    /// preserve the snapshot's id so observers don't see this as a
+    /// fresh selection event.
+    private func refreshSnapshotMatchingHighlights() {
+        guard let snapshot = lastSnapshot else { return }
+        let refreshed = matchingHighlightIDs(global: (snapshot.startOffset, snapshot.endOffset))
+        guard refreshed != snapshot.matchingHighlightIDs else { return }
+        lastSnapshot = MessageSelectionSnapshot(
+            id: snapshot.id,
+            messageID: snapshot.messageID,
+            anchorID: snapshot.anchorID,
+            selectedText: snapshot.selectedText,
+            prefixContext: snapshot.prefixContext,
+            suffixContext: snapshot.suffixContext,
+            startOffset: snapshot.startOffset,
+            endOffset: snapshot.endOffset,
+            matchingHighlightIDs: refreshed
+        )
     }
 
     func register(blockID: UUID, textView: JinMessageTextView) {

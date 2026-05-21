@@ -70,6 +70,9 @@ enum NativeMarkdownCache {
         guard !texts.isEmpty else {
             return Task {}
         }
+        // Defend against a misconfigured caller passing 0 or a negative
+        // value, which would make the seeding loop skip every text.
+        let workerCount = max(1, concurrency)
         let theme = MarkdownTheme.resolved(
             appFontFamily: appFontFamily,
             codeFontFamily: codeFontFamily
@@ -97,7 +100,7 @@ enum NativeMarkdownCache {
                 }
 
                 // Seed the group up to the concurrency cap.
-                while inFlight < concurrency, let next = iterator.next() {
+                while inFlight < workerCount, let next = iterator.next() {
                     group.addTask(operation: makeChild(next))
                     inFlight += 1
                 }

@@ -168,7 +168,17 @@ private final class URLDetectionCache {
     /// detector pass on the ~80% of prose paragraphs that don't.
     static func mightContainURL(_ string: String) -> Bool {
         guard string.contains(".") else { return false }
-        return string.contains("://") || string.contains("www.") || string.contains("@")
+        if string.contains("://") || string.contains("www.") || string.contains("@") {
+            return true
+        }
+        // Bare domains like `example.com` or `github.com/foo` carry none of
+        // the markers above. Approximate a label.label pattern cheaply to
+        // catch them without paying for the full detector on every prose
+        // paragraph that just ends with a period.
+        return string.range(
+            of: #"[\p{L}\p{N}\-]+\.[\p{L}\p{N}\-]+"#,
+            options: .regularExpression
+        ) != nil
     }
 }
 

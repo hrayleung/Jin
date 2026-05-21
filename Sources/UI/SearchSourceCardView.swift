@@ -157,6 +157,10 @@ struct WebsiteFaviconView: View {
             let image = await FaviconLoader.shared.favicon(for: host)
             guard !Task.isCancelled else { return }
             await MainActor.run {
+                // Re-check after the hop — a newer host change can cancel
+                // this task while we wait for the main actor, in which
+                // case we'd otherwise stomp on the newer task's results.
+                guard !Task.isCancelled else { return }
                 faviconImage = image
                 loadedFaviconHost = host
             }

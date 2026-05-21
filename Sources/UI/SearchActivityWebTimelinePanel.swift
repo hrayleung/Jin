@@ -38,7 +38,13 @@ struct SearchActivityWebTimelinePanel: View {
             // no destroy/rebuild, the favicon `@State` survives, and
             // `compositingGroup()` lets the entire subtree fade as one
             // CALayer.
-            VStack(alignment: .leading, spacing: JinSpacing.small) {
+            // Outer spacing is 0 — once `hasEverExpanded` flips, the
+            // collapsed panel is still a child of this VStack even when
+            // its frame collapses to 0pt, so a non-zero stack spacing
+            // would leave a permanent strip of empty space underneath
+            // the summary row. The gap that the expanded state needs is
+            // applied directly on the panel via animated top padding.
+            VStack(alignment: .leading, spacing: 0) {
                 SearchActivityWebTimelineCollapsedSummaryRow(
                     content: content,
                     isStreaming: isStreaming,
@@ -53,7 +59,7 @@ struct SearchActivityWebTimelinePanel: View {
                         contextLabel: contextLabel,
                         sourceEnrichmentState: sourceEnrichmentState
                     )
-                        .padding(.top, 2)
+                        .padding(.top, isExpanded ? JinSpacing.small + 2 : 0)
                         .frame(maxHeight: isExpanded ? .infinity : 0, alignment: .top)
                         .opacity(isExpanded ? 1 : 0)
                         .clipped()

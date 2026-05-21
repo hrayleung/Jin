@@ -75,13 +75,13 @@ extension NativeMarkdownBlock {
         case .heading(let level, let run):
             hasher.combine("h\(level)")
             hasher.combine(run.plainText)
-        case .bulletList(let items, _):
-            hasher.combine("ul")
+        case .bulletList(let items, let tight):
+            hasher.combine("ul-\(tight)")
             for item in items {
                 hasher.combine(itemSignature(item))
             }
-        case .orderedList(let start, let items, _):
-            hasher.combine("ol-\(start)")
+        case .orderedList(let start, let items, let tight):
+            hasher.combine("ol-\(start)-\(tight)")
             for item in items {
                 hasher.combine(itemSignature(item))
             }
@@ -93,8 +93,11 @@ extension NativeMarkdownBlock {
         case .codeBlock(let language, let source, let streaming):
             hasher.combine("code-\(language ?? "")-\(streaming)")
             hasher.combine(source)
-        case .table(let header, _, let rows):
+        case .table(let header, let alignments, let rows):
             hasher.combine("table")
+            for alignment in alignments {
+                hasher.combine(String(describing: alignment))
+            }
             for cell in header { hasher.combine(cell.plainText) }
             for row in rows {
                 for cell in row { hasher.combine(cell.plainText) }

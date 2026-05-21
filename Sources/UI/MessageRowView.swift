@@ -312,7 +312,13 @@ struct MessageRow: View, Equatable {
               lhs.textToSpeechConfigured == rhs.textToSpeechConfigured,
               lhs.textToSpeechIsGenerating == rhs.textToSpeechIsGenerating,
               lhs.textToSpeechIsPlaying == rhs.textToSpeechIsPlaying,
-              lhs.textToSpeechIsPaused == rhs.textToSpeechIsPaused
+              lhs.textToSpeechIsPaused == rhs.textToSpeechIsPaused,
+              // `MCPToolTimelineView` is keyed off `toolResultsByCallID`;
+              // comparing the sorted key set picks up newly landed results
+              // (which is the common case during streaming) without paying
+              // for a full value-by-value dictionary diff. Matches the
+              // existing pattern in `ChatThreadContextEquatableKey`.
+              lhs.toolResultsByCallID.keys.sorted() == rhs.toolResultsByCallID.keys.sorted()
         else { return false }
         return true
     }

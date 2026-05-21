@@ -52,7 +52,13 @@ struct NativeMarkdownView: View {
         // stale, the in-progress streaming visual is dramatically smoother
         // than swapping the entire subtree out and back in. The next
         // parse will overwrite `asyncParsed` and the view catches up.
-        let parsed = syncHit ?? asyncParsed
+        //
+        // For non-streaming cache misses (first render of static content
+        // or font-prefs change while the @State carries an old parse), we
+        // must NOT show the stale `asyncParsed` — that's content from a
+        // different markdown text and would flash visibly until the new
+        // parse completes. Render the placeholder instead.
+        let parsed = syncHit ?? (isStreaming ? asyncParsed : nil)
 
         return Group {
             if let parsed {

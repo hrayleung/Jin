@@ -151,6 +151,9 @@ enum NativeMarkdownGroupBuilder {
 
         case .table(let header, let alignments, let rows):
             hasher.combine("table")
+            for alignment in alignments {
+                hasher.combine(String(describing: alignment))
+            }
             for cell in header { hasher.combine(cell.plainText) }
             for row in rows {
                 for cell in row { hasher.combine(cell.plainText) }
@@ -182,7 +185,7 @@ enum NativeMarkdownGroupBuilder {
             return .thematicBreak(signature: hasher.value)
 
         case .bulletList(let items, let tight):
-            hasher.combine("ul")
+            hasher.combine("ul-\(tight)")
             for item in items {
                 hasher.combine(itemSignature(item))
             }
@@ -195,7 +198,7 @@ enum NativeMarkdownGroupBuilder {
             )
 
         case .orderedList(let start, let items, let tight):
-            hasher.combine("ol-\(start)")
+            hasher.combine("ol-\(start)-\(tight)")
             for item in items {
                 hasher.combine(itemSignature(item))
             }

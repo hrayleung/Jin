@@ -51,18 +51,28 @@ body {
     return true;
   }
 
+  function setErrorText(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error';
+    errorDiv.textContent = String(message);
+    root.replaceChildren(errorDiv);
+  }
+
   window.renderMermaid = async function(source) {
     if (!initIfNeeded()) {
-      root.innerHTML = '<div class="error">Mermaid runtime not loaded</div>';
+      setErrorText('Mermaid runtime not loaded');
       reportHeight();
       return;
     }
-    const id = 'jin-mermaid-' + (++renderCounter);
+    const token = ++renderCounter;
+    const id = 'jin-mermaid-' + token;
     try {
       const { svg } = await window.mermaid.render(id, source || '');
+      if (token !== renderCounter) return;
       root.innerHTML = svg;
     } catch (err) {
-      root.innerHTML = '<div class="error">' + String(err && err.message || err) + '</div>';
+      if (token !== renderCounter) return;
+      setErrorText((err && err.message) || err);
     }
     requestAnimationFrame(reportHeight);
   };
