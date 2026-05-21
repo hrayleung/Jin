@@ -79,8 +79,8 @@ final class VertexAIRequestBuilderTests: XCTestCase {
                 googleMaps: GoogleMapsControls(
                     enabled: true,
                     enableWidget: true,
-                    latitude: 34.050481,
-                    longitude: -118.248526,
+                    latitude: GoogleMapsCoordinateFixture.latitude,
+                    longitude: GoogleMapsCoordinateFixture.longitude,
                     languageCode: "en_US"
                 ),
                 providerSpecific: [
@@ -100,10 +100,52 @@ final class VertexAIRequestBuilderTests: XCTestCase {
         let toolConfig = try XCTUnwrap(json["toolConfig"] as? [String: Any])
         let retrievalConfig = try XCTUnwrap(toolConfig["retrievalConfig"] as? [String: Any])
         let latLng = try XCTUnwrap(retrievalConfig["latLng"] as? [String: Any])
-        XCTAssertEqual(latLng["latitude"] as? Double, 34.050481)
-        XCTAssertEqual(latLng["longitude"] as? Double, -118.248526)
+        XCTAssertEqual(latLng["latitude"] as? Double, GoogleMapsCoordinateFixture.latitude)
+        XCTAssertEqual(latLng["longitude"] as? Double, GoogleMapsCoordinateFixture.longitude)
         XCTAssertEqual(retrievalConfig["languageCode"] as? String, "en_US")
+        let systemInstruction = try XCTUnwrap(json["systemInstruction"] as? [String: Any])
+        let systemParts = try XCTUnwrap(systemInstruction["parts"] as? [[String: Any]])
+        let systemText = try XCTUnwrap(systemParts.first?["text"] as? String)
+        XCTAssertTrue(systemText.contains("Google Maps grounding is enabled"))
+        XCTAssertTrue(systemText.contains(GoogleMapsCoordinateFixture.instructionLatitudeFragment))
+        XCTAssertTrue(systemText.contains(GoogleMapsCoordinateFixture.instructionLongitudeFragment))
         XCTAssertNotNil(json["safetySettings"])
+    }
+
+    func testBuildRequestOmitsGoogleMapsForRuntimeUnsupportedVertexGemini3FlashPreview() throws {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let request = try builder.buildRequest(
+            messages: [Message(role: .user, content: [.text("Find food nearby")])],
+            modelID: "gemini-3-flash-preview",
+            controls: GenerationControls(
+                webSearch: WebSearchControls(enabled: true),
+                googleMaps: GoogleMapsControls(
+                    enabled: true,
+                    enableWidget: true,
+                    latitude: GoogleMapsCoordinateFixture.latitude,
+                    longitude: GoogleMapsCoordinateFixture.longitude,
+                    languageCode: "en_US"
+                )
+            ),
+            tools: [],
+            streaming: false,
+            accessToken: "vertex-token"
+        )
+
+        let json = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: XCTUnwrap(vertexAIRequestBodyData(request))) as? [String: Any]
+        )
+        let tools = try XCTUnwrap(json["tools"] as? [[String: Any]])
+        XCTAssertEqual(tools.count, 1)
+        XCTAssertNotNil(tools.first?["googleSearch"])
+        XCTAssertNil(tools.first?["googleMaps"])
+        XCTAssertNil(json["toolConfig"])
+        XCTAssertNil(json["systemInstruction"])
     }
 
     func testBuildRequestUsesStandardParametersKeyForFunctionDeclarations() throws {

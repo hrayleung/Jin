@@ -22,7 +22,14 @@ extension GeminiAdapter {
 
         let explicitCachedContent = GeminiRequestSupport.explicitCachedContentName(from: controls)
 
-        if explicitCachedContent == nil, let systemInstruction = GeminiRequestSupport.systemInstructionText(from: messages) {
+        let modelSupportsGoogleMaps = supportsGoogleMaps(modelID)
+
+        if explicitCachedContent == nil,
+           let systemInstruction = GeminiRequestSupport.systemInstructionText(
+               from: messages,
+               controls: controls,
+               supportsGoogleMaps: modelSupportsGoogleMaps
+           ) {
             body["systemInstruction"] = [
                 "parts": [
                     ["text": systemInstruction]
@@ -40,7 +47,7 @@ extension GeminiAdapter {
             functionDeclarations: functionDeclarations,
             supportsWebSearch: supportsWebSearch(modelID),
             supportsCodeExecution: supportsCodeExecution(modelID),
-            supportsGoogleMaps: supportsGoogleMaps(modelID),
+            supportsGoogleMaps: modelSupportsGoogleMaps,
             supportsFunctionCalling: supportsFunctionCalling(modelID)
         )
         if !toolArray.isEmpty {
@@ -49,7 +56,7 @@ extension GeminiAdapter {
 
         if let toolConfig = GeminiRequestSupport.toolConfig(
             controls: controls,
-            supportsGoogleMaps: supportsGoogleMaps(modelID)
+            supportsGoogleMaps: modelSupportsGoogleMaps
         ) {
             body["toolConfig"] = toolConfig
         }

@@ -87,6 +87,45 @@ final class GoogleGroundingSearchActivitiesTests: XCTestCase {
         XCTAssertEqual(activities[0].arguments["mapsPlaceID"]?.value as? String, "place-123")
     }
 
+    func testEventsPreserveGoogleMapsReviewSnippetSources() {
+        let grounding = GoogleGroundingSearchActivities.GroundingMetadata(
+            webSearchQueries: nil,
+            retrievalQueries: nil,
+            groundingChunks: [
+                .init(
+                    mapsURI: "https://maps.google.com/?cid=123",
+                    mapsTitle: "Blue Bottle Coffee",
+                    mapsPlaceId: "place-123",
+                    mapsReviewSnippets: [
+                        .init(
+                            reviewID: "review-1",
+                            uri: "https://maps.google.com/review-1",
+                            title: "Great espresso"
+                        )
+                    ]
+                )
+            ],
+            groundingSupports: nil,
+            searchEntryPoint: nil
+        )
+
+        let activities = sourceActivities(
+            from: GoogleGroundingSearchActivities.events(
+                from: grounding,
+                searchPrefix: "search",
+                openPrefix: "open",
+                searchURLPrefix: "fallback"
+            )
+        )
+
+        XCTAssertEqual(activities.count, 2)
+        XCTAssertEqual(activities[0].arguments["url"]?.value as? String, "https://maps.google.com/?cid=123")
+        XCTAssertEqual(activities[0].arguments["mapsReviewSnippets"]?.value as? [String], ["Great espresso"])
+        XCTAssertEqual(activities[1].arguments["url"]?.value as? String, "https://maps.google.com/review-1")
+        XCTAssertEqual(activities[1].arguments["mapsReviewID"]?.value as? String, "review-1")
+        XCTAssertEqual(activities[1].arguments["mapsSourceType"]?.value as? String, "review")
+    }
+
     func testEventsTrimQueriesURLsAndTitles() {
         let grounding = GoogleGroundingSearchActivities.GroundingMetadata(
             webSearchQueries: ["  Swift  "],

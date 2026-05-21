@@ -123,7 +123,8 @@ final class VertexAIModelSupportTests: XCTestCase {
         XCTAssertTrue(support.supportsThinkingLevel("gemini-3.5-flash"))
         XCTAssertTrue(support.supportsNativePDF("gemini-3.5-flash"))
         XCTAssertTrue(support.supportsCodeExecution("gemini-3.5-flash"))
-        XCTAssertTrue(support.supportsGoogleMaps("gemini-3.5-flash"))
+        XCTAssertFalse(support.supportsGoogleMaps("gemini-3.5-flash"))
+        XCTAssertFalse(support.supportsGoogleMaps("gemini-3-flash-preview"))
 
         let info = support.makeModelInfo(id: "gemini-3.5-flash", displayName: "Gemini 3.5 Flash", contextWindow: 1_048_576)
         XCTAssertTrue(info.capabilities.contains(.streaming))

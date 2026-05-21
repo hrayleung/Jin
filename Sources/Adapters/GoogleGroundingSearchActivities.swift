@@ -23,19 +23,38 @@ enum GoogleGroundingSearchActivities {
             let mapsURI: String?
             let mapsTitle: String?
             let mapsPlaceId: String?
+            let mapsReviewSnippets: [MapsReviewSnippet]
 
             init(
                 webURI: String? = nil,
                 webTitle: String? = nil,
                 mapsURI: String? = nil,
                 mapsTitle: String? = nil,
-                mapsPlaceId: String? = nil
+                mapsPlaceId: String? = nil,
+                mapsReviewSnippets: [MapsReviewSnippet] = []
             ) {
                 self.webURI = webURI
                 self.webTitle = webTitle
                 self.mapsURI = mapsURI
                 self.mapsTitle = mapsTitle
                 self.mapsPlaceId = mapsPlaceId
+                self.mapsReviewSnippets = mapsReviewSnippets
+            }
+        }
+
+        struct MapsReviewSnippet {
+            let reviewID: String?
+            let uri: String?
+            let title: String?
+
+            init(
+                reviewID: String? = nil,
+                uri: String? = nil,
+                title: String? = nil
+            ) {
+                self.reviewID = reviewID
+                self.uri = uri
+                self.title = title
             }
         }
 
@@ -93,11 +112,15 @@ enum GoogleGroundingSearchActivities {
             title rawTitle: String?,
             idPrefix: String,
             sourceKind: String? = nil,
-            mapsPlaceID: String? = nil
+            mapsPlaceID: String? = nil,
+            mapsReviewID: String? = nil,
+            mapsReviewSnippets: [String] = [],
+            mapsSourceType: String? = nil
         ) {
             guard let url = rawURL?.trimmedNonEmpty else { return }
             let dedupeKey = SearchActivityURLDeduplication.key(for: url)
             let title = rawTitle?.trimmedNonEmpty
+            let reviewSnippets = mapsReviewSnippets.compactMap(\.trimmedNonEmpty)
 
             if case .searchActivity(let existing)? = sourceEventsByURLKey[dedupeKey] {
                 var mergedArguments = existing.arguments
@@ -117,6 +140,27 @@ enum GoogleGroundingSearchActivities {
                 if let mapsPlaceID, !mapsPlaceID.isEmpty,
                    mergedArguments["mapsPlaceID"]?.value as? String == nil {
                     mergedArguments["mapsPlaceID"] = AnyCodable(mapsPlaceID)
+                    didChange = true
+                }
+
+                if let mapsReviewID, !mapsReviewID.isEmpty,
+                   mergedArguments["mapsReviewID"]?.value as? String == nil {
+                    mergedArguments["mapsReviewID"] = AnyCodable(mapsReviewID)
+                    didChange = true
+                }
+
+                if !reviewSnippets.isEmpty {
+                    let existingSnippets = stringArrayArgument(mergedArguments["mapsReviewSnippets"])
+                    let mergedSnippets = deduplicated(existingSnippets + reviewSnippets)
+                    if mergedSnippets != existingSnippets {
+                        mergedArguments["mapsReviewSnippets"] = AnyCodable(mergedSnippets)
+                        didChange = true
+                    }
+                }
+
+                if let mapsSourceType, !mapsSourceType.isEmpty,
+                   mergedArguments["mapsSourceType"]?.value as? String == nil {
+                    mergedArguments["mapsSourceType"] = AnyCodable(mapsSourceType)
                     didChange = true
                 }
 
@@ -147,6 +191,15 @@ enum GoogleGroundingSearchActivities {
             if let mapsPlaceID, !mapsPlaceID.isEmpty {
                 args["mapsPlaceID"] = AnyCodable(mapsPlaceID)
             }
+            if let mapsReviewID, !mapsReviewID.isEmpty {
+                args["mapsReviewID"] = AnyCodable(mapsReviewID)
+            }
+            if !reviewSnippets.isEmpty {
+                args["mapsReviewSnippets"] = AnyCodable(deduplicated(reviewSnippets))
+            }
+            if let mapsSourceType, !mapsSourceType.isEmpty {
+                args["mapsSourceType"] = AnyCodable(mapsSourceType)
+            }
 
             sourceEventsByURLKey[dedupeKey] = .searchActivity(
                 SearchActivity(
@@ -168,8 +221,20 @@ enum GoogleGroundingSearchActivities {
                     title: chunk.mapsTitle,
                     idPrefix: openPrefix,
                     sourceKind: "google_maps",
-                    mapsPlaceID: chunk.mapsPlaceId
+                    mapsPlaceID: chunk.mapsPlaceId,
+                    mapsReviewSnippets: chunk.mapsReviewSnippets.compactMap(\.title)
                 )
+                for reviewSnippet in chunk.mapsReviewSnippets {
+                    appendSourceActivity(
+                        url: reviewSnippet.uri,
+                        title: reviewSnippet.title,
+                        idPrefix: openPrefix,
+                        sourceKind: "google_maps",
+                        mapsPlaceID: chunk.mapsPlaceId,
+                        mapsReviewID: reviewSnippet.reviewID,
+                        mapsSourceType: "review"
+                    )
+                }
             } else {
                 appendSourceActivity(
                     url: chunk.webURI,
@@ -212,5 +277,29 @@ enum GoogleGroundingSearchActivities {
             .replacingOccurrences(of: "/", with: "_")
         let suffix = String(normalized.prefix(80))
         return "\(prefix)_\(index)_\(suffix)"
+    }
+
+    private static func stringArrayArgument(_ argument: AnyCodable?) -> [String] {
+        if let values = argument?.value as? [String] {
+            return values.compactMap(\.trimmedNonEmpty)
+        }
+        if let values = argument?.value as? [Any] {
+            return values.compactMap { value in
+                guard let string = value as? String else { return nil }
+                return string.trimmedNonEmpty
+            }
+        }
+        return []
+    }
+
+    private static func deduplicated(_ values: [String]) -> [String] {
+        var seen: Set<String> = []
+        var out: [String] = []
+        for value in values {
+            let key = value.trimmedLowercased
+            guard !key.isEmpty, seen.insert(key).inserted else { continue }
+            out.append(value)
+        }
+        return out
     }
 }

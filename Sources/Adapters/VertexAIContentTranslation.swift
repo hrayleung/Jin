@@ -32,10 +32,10 @@ extension VertexAIAdapter {
     func parseStreamChunk(
         _ data: String,
         codeExecutionState: inout GeminiModelConstants.GoogleCodeExecutionEventState
-    ) throws -> (events: [StreamEvent], usage: Usage?, contentFiltered: Bool) {
+    ) throws -> (events: [StreamEvent], usage: Usage?, contentFiltered: Bool, terminalError: LLMError?) {
         let trimmed = data.trimmed
         guard let jsonData = trimmed.data(using: .utf8) else {
-            return ([], nil, false)
+            return ([], nil, false, nil)
         }
 
         let decoder = JSONDecoder()
@@ -59,20 +59,27 @@ extension VertexAIAdapter {
     private func responsesFromStreamChunk(
         _ responses: [VertexGenerateContentResponse],
         codeExecutionState: inout GeminiModelConstants.GoogleCodeExecutionEventState
-    ) -> (events: [StreamEvent], usage: Usage?, contentFiltered: Bool) {
+    ) -> (events: [StreamEvent], usage: Usage?, contentFiltered: Bool, terminalError: LLMError?) {
         if responses.contains(where: isResponseContentFiltered) {
-            return ([], nil, true)
+            return ([], nil, true, nil)
         }
 
         var events: [StreamEvent] = []
         var usage: Usage?
+        var terminalError: LLMError?
         for response in responses {
             events.append(contentsOf: eventsFromVertexResponse(response, codeExecutionState: &codeExecutionState))
             if let parsedUsage = usageFromVertexResponse(response) {
                 usage = parsedUsage
             }
+            if terminalError == nil {
+                terminalError = GoogleGenerateContentFinishReasonSupport.terminalError(
+                    in: response,
+                    providerName: "Vertex AI"
+                )
+            }
         }
-        return (events, usage, false)
+        return (events, usage, false, terminalError)
     }
 
     func extractJSONObjectStrings(from buffer: inout String) -> [String] {
@@ -170,11 +177,7 @@ extension VertexAIAdapter {
     }
 
     func isCandidateContentFiltered(_ candidate: VertexGenerateContentResponse.Candidate) -> Bool {
-        let reason = (candidate.finishReason ?? "").uppercased()
-        return reason == "SAFETY"
-            || reason == "BLOCKLIST"
-            || reason == "PROHIBITED_CONTENT"
-            || reason == "MODEL_ARMOR"
+        GoogleGenerateContentFinishReasonSupport.isCandidateContentFiltered(candidate)
     }
 
     private func toSharedGrounding(_ g: VertexGenerateContentResponse.GroundingMetadata) -> GoogleGroundingSearchActivities.GroundingMetadata {

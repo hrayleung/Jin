@@ -43,7 +43,8 @@ extension GoogleMapsResultsView {
             }
 
             if activity.type == "open_page",
-               isMapsActivity(activity) {
+               isMapsActivity(activity),
+               stringArg(activity, "mapsSourceType") != "review" {
                 if let place = extractPlace(from: activity),
                    placeKeys.insert(place.id).inserted {
                     places.append(place)
@@ -63,6 +64,7 @@ extension GoogleMapsResultsView {
         guard let urlString = stringArg(activity, "url") else { return nil }
         let name = stringArg(activity, "title") ?? urlString
         let placeID = stringArg(activity, "mapsPlaceID")
+        let reviewSnippets = stringArrayArg(activity, "mapsReviewSnippets")
 
         let id = urlString.lowercased()
             .trimmed
@@ -71,7 +73,8 @@ extension GoogleMapsResultsView {
             id: id,
             name: name,
             urlString: urlString,
-            placeID: placeID
+            placeID: placeID,
+            reviewSnippets: reviewSnippets
         )
     }
 

@@ -8,22 +8,22 @@ import CoreLocation
 final class GoogleMapsSheetSupportTests: XCTestCase {
     func testCoordinateDraftsTrimAndExposePresenceStates() {
         let complete = GoogleMapsSheetSupport.coordinateDrafts(
-            latitudeDraft: " 34.050481 ",
-            longitudeDraft: "\n-118.248526"
+            latitudeDraft: " \(GoogleMapsCoordinateFixture.latitudeDraft) ",
+            longitudeDraft: "\n\(GoogleMapsCoordinateFixture.longitudeDraft)"
         )
 
-        XCTAssertEqual(complete.latitude, "34.050481")
-        XCTAssertEqual(complete.longitude, "-118.248526")
+        XCTAssertEqual(complete.latitude, GoogleMapsCoordinateFixture.latitudeDraft)
+        XCTAssertEqual(complete.longitude, GoogleMapsCoordinateFixture.longitudeDraft)
         XCTAssertTrue(complete.hasAnyValue)
         XCTAssertTrue(complete.hasLiveLocation)
 
         let partial = GoogleMapsSheetSupport.coordinateDrafts(
             latitudeDraft: " ",
-            longitudeDraft: "-118.248526"
+            longitudeDraft: GoogleMapsCoordinateFixture.longitudeDraft
         )
 
         XCTAssertNil(partial.latitude)
-        XCTAssertEqual(partial.longitude, "-118.248526")
+        XCTAssertEqual(partial.longitude, GoogleMapsCoordinateFixture.longitudeDraft)
         XCTAssertTrue(partial.hasAnyValue)
         XCTAssertFalse(partial.hasLiveLocation)
 
@@ -41,14 +41,14 @@ final class GoogleMapsSheetSupportTests: XCTestCase {
     func testHasCoordinateDraftsAllowsPartialDraftsForClearing() {
         XCTAssertTrue(
             GoogleMapsSheetSupport.hasCoordinateDrafts(
-                latitudeDraft: "34.050481",
+                latitudeDraft: GoogleMapsCoordinateFixture.latitudeDraft,
                 longitudeDraft: " "
             )
         )
         XCTAssertTrue(
             GoogleMapsSheetSupport.hasCoordinateDrafts(
                 latitudeDraft: "",
-                longitudeDraft: "-118.248526"
+                longitudeDraft: GoogleMapsCoordinateFixture.longitudeDraft
             )
         )
         XCTAssertFalse(
@@ -62,20 +62,20 @@ final class GoogleMapsSheetSupportTests: XCTestCase {
     func testHasLiveLocationRequiresBothDrafts() {
         XCTAssertTrue(
             GoogleMapsSheetSupport.hasLiveLocation(
-                latitudeDraft: " 34.050481 ",
-                longitudeDraft: "\n-118.248526"
+                latitudeDraft: " \(GoogleMapsCoordinateFixture.latitudeDraft) ",
+                longitudeDraft: "\n\(GoogleMapsCoordinateFixture.longitudeDraft)"
             )
         )
         XCTAssertFalse(
             GoogleMapsSheetSupport.hasLiveLocation(
-                latitudeDraft: "34.050481",
+                latitudeDraft: GoogleMapsCoordinateFixture.latitudeDraft,
                 longitudeDraft: " "
             )
         )
         XCTAssertFalse(
             GoogleMapsSheetSupport.hasLiveLocation(
                 latitudeDraft: "",
-                longitudeDraft: "-118.248526"
+                longitudeDraft: GoogleMapsCoordinateFixture.longitudeDraft
             )
         )
     }
@@ -124,8 +124,11 @@ final class GoogleMapsSheetSupportTests: XCTestCase {
     }
 
     func testFormattedCoordinateValueTrimsTrailingZeros() {
-        XCTAssertEqual(GoogleMapsSheetSupport.formattedCoordinateValue(34.050481), "34.050481")
-        XCTAssertEqual(GoogleMapsSheetSupport.formattedCoordinateValue(-118.2), "-118.2")
+        XCTAssertEqual(
+            GoogleMapsSheetSupport.formattedCoordinateValue(GoogleMapsCoordinateFixture.latitude),
+            GoogleMapsCoordinateFixture.latitudeDraft
+        )
+        XCTAssertEqual(GoogleMapsSheetSupport.formattedCoordinateValue(-Double.pi / 10), "-0.314159")
         XCTAssertEqual(GoogleMapsSheetSupport.formattedCoordinateValue(0), "0")
     }
 
@@ -151,6 +154,19 @@ final class GoogleMapsSheetSupportTests: XCTestCase {
             GoogleMapsSheetSupport.locationErrorMessage(for: StubError(message: " \n")),
             "Current location could not be determined."
         )
+    }
+
+    func testPackagingInfoPlistContainsMacLocationUsageDescription() throws {
+        let plistURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Packaging/Info.plist")
+        let data = try Data(contentsOf: plistURL)
+        let plist = try XCTUnwrap(
+            PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any]
+        )
+        let expected = "Jin uses your location to bias Google Maps grounding around your current area."
+
+        XCTAssertEqual(plist["NSLocationUsageDescription"] as? String, expected)
+        XCTAssertEqual(plist["NSLocationWhenInUseUsageDescription"] as? String, expected)
     }
 
     private struct StubError: LocalizedError {

@@ -23,6 +23,15 @@ extension VertexAIAdapter {
                 continuation.yield(event)
             }
 
+            if let terminalError = GoogleGenerateContentFinishReasonSupport.terminalError(
+                in: response,
+                providerName: "Vertex AI"
+            ) {
+                continuation.yield(.error(terminalError))
+                continuation.finish()
+                return
+            }
+
             continuation.yield(.messageEnd(usage: usage))
             continuation.finish()
         }
@@ -64,6 +73,11 @@ extension VertexAIAdapter {
                             continuation.finish()
                             return
                         }
+                        if let terminalError = outcome.terminalError {
+                            continuation.yield(.error(terminalError))
+                            continuation.finish()
+                            return
+                        }
 
                         if pendingJSON.count > 64_000_000 {
                             pendingJSON = String(pendingJSON.suffix(1_048_576))
@@ -83,6 +97,14 @@ extension VertexAIAdapter {
                             continuation.yield(.messageStart(id: messageID))
                         }
                         continuation.yield(.error(.contentFiltered))
+                        continuation.finish()
+                        return
+                    }
+                    if let terminalError = finalOutcome.terminalError {
+                        if !didStart {
+                            continuation.yield(.messageStart(id: messageID))
+                        }
+                        continuation.yield(.error(terminalError))
                         continuation.finish()
                         return
                     }
@@ -115,16 +137,18 @@ extension VertexAIAdapter {
         pendingUsage: inout Usage?,
         codeExecutionState: inout GeminiModelConstants.GoogleCodeExecutionEventState,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
-    ) throws -> (decodedObjectCount: Int, contentFiltered: Bool) {
-        guard !pendingJSON.isEmpty else { return (0, false) }
+    ) throws -> (decodedObjectCount: Int, contentFiltered: Bool, terminalError: LLMError?) {
+        guard !pendingJSON.isEmpty else { return (0, false, nil) }
 
         let jsonObjects = extractJSONObjectStrings(from: &pendingJSON)
-        guard !jsonObjects.isEmpty else { return (0, false) }
+        guard !jsonObjects.isEmpty else { return (0, false, nil) }
 
+        var decodedObjectCount = 0
         for jsonObject in jsonObjects {
             let parsed = try parseStreamChunk(jsonObject, codeExecutionState: &codeExecutionState)
+            decodedObjectCount += 1
             if parsed.contentFiltered {
-                return (1, true)
+                return (decodedObjectCount, true, nil)
             }
             if let usage = parsed.usage {
                 pendingUsage = usage
@@ -132,8 +156,11 @@ extension VertexAIAdapter {
             for streamEvent in parsed.events {
                 continuation.yield(streamEvent)
             }
+            if let terminalError = parsed.terminalError {
+                return (decodedObjectCount, false, terminalError)
+            }
         }
 
-        return (jsonObjects.count, false)
+        return (decodedObjectCount, false, nil)
     }
 }

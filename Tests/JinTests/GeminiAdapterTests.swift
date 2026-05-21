@@ -423,9 +423,16 @@ final class GeminiAdapterTests: XCTestCase {
             let toolConfig = try XCTUnwrap(json["toolConfig"] as? [String: Any])
             let retrievalConfig = try XCTUnwrap(toolConfig["retrievalConfig"] as? [String: Any])
             let latLng = try XCTUnwrap(retrievalConfig["latLng"] as? [String: Any])
-            XCTAssertEqual(latLng["latitude"] as? Double, 34.050481)
-            XCTAssertEqual(latLng["longitude"] as? Double, -118.248526)
+            XCTAssertEqual(latLng["latitude"] as? Double, GoogleMapsCoordinateFixture.latitude)
+            XCTAssertEqual(latLng["longitude"] as? Double, GoogleMapsCoordinateFixture.longitude)
             XCTAssertNil(retrievalConfig["languageCode"])
+
+            let systemInstruction = try XCTUnwrap(json["systemInstruction"] as? [String: Any])
+            let systemParts = try XCTUnwrap(systemInstruction["parts"] as? [[String: Any]])
+            let systemText = try XCTUnwrap(systemParts.first?["text"] as? String)
+            XCTAssertTrue(systemText.contains("Google Maps grounding is enabled"))
+            XCTAssertTrue(systemText.contains(GoogleMapsCoordinateFixture.instructionLatitudeFragment))
+            XCTAssertTrue(systemText.contains(GoogleMapsCoordinateFixture.instructionLongitudeFragment))
 
             let response: [String: Any] = [
                 "candidates": [
@@ -450,8 +457,8 @@ final class GeminiAdapterTests: XCTestCase {
                 googleMaps: GoogleMapsControls(
                     enabled: true,
                     enableWidget: true,
-                    latitude: 34.050481,
-                    longitude: -118.248526,
+                    latitude: GoogleMapsCoordinateFixture.latitude,
+                    longitude: GoogleMapsCoordinateFixture.longitude,
                     languageCode: "en_US"
                 )
             ),
@@ -1929,6 +1936,76 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(model.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testGeminiAdapterEmitsProviderErrorForMaxTokensFinishReason() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(
+                request.url?.absoluteString,
+                "https://example.com/models/gemini-2.5-flash:generateContent"
+            )
+
+            let response: [String: Any] = [
+                "candidates": [
+                    [
+                        "content": [
+                            "parts": [
+                                [
+                                    "text": "The model spent all output tokens thinking.",
+                                    "thought": true,
+                                ]
+                            ]
+                        ],
+                        "finishReason": "MAX_TOKENS",
+                        "finishMessage": "Token budget exhausted.",
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("nearby food")])],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        var didEmitThinking = false
+        var providerErrorMessage: String?
+        var didEnd = false
+
+        for try await event in stream {
+            switch event {
+            case .thinkingDelta:
+                didEmitThinking = true
+            case .error(.providerError(let code, let message)):
+                XCTAssertEqual(code, "google_finish_reason")
+                providerErrorMessage = message
+            case .messageEnd:
+                didEnd = true
+            default:
+                break
+            }
+        }
+
+        XCTAssertTrue(didEmitThinking)
+        XCTAssertEqual(providerErrorMessage, "Gemini stopped before completing the answer because it reached the configured max output tokens. Increase max output tokens or reduce thinking level, then retry. Token budget exhausted.")
+        XCTAssertFalse(didEnd)
+    }
+
     func testGemini35FlashCatalogEntryAdvertisesFullCapabilities() throws {
         let entry = try XCTUnwrap(ModelCatalog.entry(for: "gemini-3.5-flash", provider: .gemini))
 
@@ -1970,7 +2047,7 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertTrue(ModelCatalog.seededModels(for: .vertexai).contains { $0.id == "gemini-3.5-flash" })
 
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "gemini-3.5-flash"))
-        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.5-flash"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.5-flash"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-3.5-flash"))
     }
 }

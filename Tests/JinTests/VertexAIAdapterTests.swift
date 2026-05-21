@@ -216,8 +216,8 @@ final class VertexAIAdapterTests: XCTestCase {
             let toolConfig = try XCTUnwrap(json["toolConfig"] as? [String: Any])
             let retrievalConfig = try XCTUnwrap(toolConfig["retrievalConfig"] as? [String: Any])
             let latLng = try XCTUnwrap(retrievalConfig["latLng"] as? [String: Any])
-            XCTAssertEqual(latLng["latitude"] as? Double, 34.050481)
-            XCTAssertEqual(latLng["longitude"] as? Double, -118.248526)
+            XCTAssertEqual(latLng["latitude"] as? Double, GoogleMapsCoordinateFixture.latitude)
+            XCTAssertEqual(latLng["longitude"] as? Double, GoogleMapsCoordinateFixture.longitude)
             XCTAssertEqual(retrievalConfig["languageCode"] as? String, "en_US")
 
             let responseLine = """
@@ -244,8 +244,8 @@ final class VertexAIAdapterTests: XCTestCase {
                 googleMaps: GoogleMapsControls(
                     enabled: true,
                     enableWidget: true,
-                    latitude: 34.050481,
-                    longitude: -118.248526,
+                    latitude: GoogleMapsCoordinateFixture.latitude,
+                    longitude: GoogleMapsCoordinateFixture.longitude,
                     languageCode: "en_US"
                 )
             ),
@@ -497,7 +497,7 @@ final class VertexAIAdapterTests: XCTestCase {
 
     func testCandidateContentFilteredRecognizesVertexBlockingFinishReasons() async {
         let adapter = makeVertexAIAdapter()
-        let blockingReasons = ["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "MODEL_ARMOR"]
+        let blockingReasons = ["SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "MODEL_ARMOR", "SPII", "RECITATION"]
 
         for reason in blockingReasons {
             let candidate = GoogleGenerateContentResponse.Candidate(
@@ -508,6 +508,67 @@ final class VertexAIAdapterTests: XCTestCase {
             let isFiltered = await adapter.isCandidateContentFiltered(candidate)
             XCTAssertTrue(isFiltered, "Expected \(reason) to be filtered")
         }
+    }
+
+    func testSendMessageStreamingEmitsProviderErrorForMaxTokensFinishReason() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+
+            if url.absoluteString == "https://oauth2.googleapis.com/token" {
+                let payload = try JSONSerialization.data(withJSONObject: [
+                    "access_token": "vertex-test-token",
+                    "expires_in": 3600,
+                    "token_type": "Bearer",
+                ])
+                return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, payload)
+            }
+
+            let responseLine = """
+            {"candidates":[{"content":{"parts":[{"text":"The model spent all output tokens thinking.","thought":true}]},"finishReason":"MAX_TOKENS","finishMessage":"Token budget exhausted."}]}
+
+            """
+
+            return (
+                HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data(responseLine.utf8)
+            )
+        }
+
+        let adapter = makeVertexAIAdapter(networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("nearby food")])],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var didEmitThinking = false
+        var providerErrorMessage: String?
+        var didEnd = false
+
+        for try await event in stream {
+            switch event {
+            case .thinkingDelta:
+                didEmitThinking = true
+            case .error(.providerError(let code, let message)):
+                XCTAssertEqual(code, "google_finish_reason")
+                providerErrorMessage = message
+            case .messageEnd:
+                didEnd = true
+            default:
+                break
+            }
+        }
+
+        XCTAssertTrue(didEmitThinking)
+        XCTAssertEqual(providerErrorMessage, "Vertex AI stopped before completing the answer because it reached the configured max output tokens. Increase max output tokens or reduce thinking level, then retry. Token budget exhausted.")
+        XCTAssertFalse(didEnd)
     }
 
     func testSendMessageStreamingEmitsDecodingErrorWhenNoUsableJSONChunksAreReturned() async throws {
