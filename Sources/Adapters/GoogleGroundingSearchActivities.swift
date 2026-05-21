@@ -125,6 +125,7 @@ enum GoogleGroundingSearchActivities {
             if case .searchActivity(let existing)? = sourceEventsByURLKey[dedupeKey] {
                 var mergedArguments = existing.arguments
                 var didChange = false
+                let existingWasCanonicalMapsPlace = isCanonicalMapsPlaceActivity(existing.arguments)
 
                 if let title, mergedArguments["title"]?.value as? String == nil {
                     mergedArguments["title"] = AnyCodable(title)
@@ -159,7 +160,11 @@ enum GoogleGroundingSearchActivities {
                 }
 
                 if let mapsSourceType, !mapsSourceType.isEmpty,
-                   mergedArguments["mapsSourceType"]?.value as? String == nil {
+                   mergedArguments["mapsSourceType"]?.value as? String == nil,
+                   shouldSetMapsSourceType(
+                       mapsSourceType,
+                       existingWasCanonicalMapsPlace: existingWasCanonicalMapsPlace
+                   ) {
                     mergedArguments["mapsSourceType"] = AnyCodable(mapsSourceType)
                     didChange = true
                 }
@@ -290,6 +295,47 @@ enum GoogleGroundingSearchActivities {
             }
         }
         return []
+    }
+
+    private static func shouldSetMapsSourceType(
+        _ mapsSourceType: String,
+        existingWasCanonicalMapsPlace: Bool
+    ) -> Bool {
+        if mapsSourceType.trimmedLowercased == "review",
+           existingWasCanonicalMapsPlace {
+            return false
+        }
+        return true
+    }
+
+    private static func isCanonicalMapsPlaceActivity(_ arguments: [String: AnyCodable]) -> Bool {
+        if stringArgument(arguments["mapsSourceType"])?.trimmedLowercased == "place" {
+            return true
+        }
+
+        if stringArgument(arguments["mapsReviewID"]) != nil {
+            return false
+        }
+
+        if stringArgument(arguments["mapsPlaceID"]) != nil
+            || stringArgument(arguments["placeId"]) != nil
+            || stringArgument(arguments["canonicalPlaceId"]) != nil
+            || stringArgument(arguments["placeName"]) != nil {
+            return true
+        }
+
+        guard let url = stringArgument(arguments["url"])?.trimmedLowercased else {
+            return false
+        }
+
+        return url.contains("google.com/maps")
+            || url.contains("maps.google.")
+            || url.contains("maps.app.goo.gl")
+    }
+
+    private static func stringArgument(_ argument: AnyCodable?) -> String? {
+        guard let value = argument?.value as? String else { return nil }
+        return value.trimmedNonEmpty
     }
 
     private static func deduplicated(_ values: [String]) -> [String] {

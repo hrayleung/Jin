@@ -126,6 +126,43 @@ final class GoogleGroundingSearchActivitiesTests: XCTestCase {
         XCTAssertEqual(activities[1].arguments["mapsSourceType"]?.value as? String, "review")
     }
 
+    func testEventsDoNotReclassifyPlaceWhenReviewSnippetURLMatchesPlaceURL() {
+        let grounding = GoogleGroundingSearchActivities.GroundingMetadata(
+            webSearchQueries: nil,
+            retrievalQueries: nil,
+            groundingChunks: [
+                .init(
+                    mapsURI: "https://maps.google.com/?cid=123",
+                    mapsTitle: "Blue Bottle Coffee",
+                    mapsPlaceId: "place-123",
+                    mapsReviewSnippets: [
+                        .init(
+                            reviewID: "review-1",
+                            uri: "https://maps.google.com/?cid=123",
+                            title: "Great espresso"
+                        )
+                    ]
+                )
+            ],
+            groundingSupports: nil,
+            searchEntryPoint: nil
+        )
+
+        let activities = sourceActivities(
+            from: GoogleGroundingSearchActivities.events(
+                from: grounding,
+                searchPrefix: "search",
+                openPrefix: "open",
+                searchURLPrefix: "fallback"
+            )
+        )
+
+        XCTAssertEqual(activities.count, 1)
+        XCTAssertEqual(activities[0].arguments["url"]?.value as? String, "https://maps.google.com/?cid=123")
+        XCTAssertEqual(activities[0].arguments["mapsReviewSnippets"]?.value as? [String], ["Great espresso"])
+        XCTAssertNil(activities[0].arguments["mapsSourceType"])
+    }
+
     func testEventsTrimQueriesURLsAndTitles() {
         let grounding = GoogleGroundingSearchActivities.GroundingMetadata(
             webSearchQueries: ["  Swift  "],

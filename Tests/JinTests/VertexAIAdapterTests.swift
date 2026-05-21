@@ -566,9 +566,55 @@ final class VertexAIAdapterTests: XCTestCase {
             }
         }
 
-        XCTAssertTrue(didEmitThinking)
+        XCTAssertFalse(didEmitThinking)
         XCTAssertEqual(providerErrorMessage, "Vertex AI stopped before completing the answer because it reached the configured max output tokens. Increase max output tokens or reduce thinking level, then retry. Token budget exhausted.")
         XCTAssertFalse(didEnd)
+    }
+
+    func testParseStreamChunkStopsBatchBeforeEventsAfterTerminalError() async throws {
+        let adapter = makeVertexAIAdapter()
+        var codeExecutionState = GeminiModelConstants.GoogleCodeExecutionEventState()
+        let chunk = """
+        [
+          {
+            "usageMetadata": {
+              "promptTokenCount": 12,
+              "candidatesTokenCount": 8,
+              "totalTokenCount": 20
+            },
+            "candidates": [
+              {
+                "finishReason": "MAX_TOKENS",
+                "finishMessage": "Token budget exhausted."
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "content": {
+                  "parts": [
+                    {
+                      "text": "late answer"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+        """
+
+        let parsed = try await adapter.parseStreamChunk(chunk, codeExecutionState: &codeExecutionState)
+
+        XCTAssertTrue(parsed.events.isEmpty)
+        XCTAssertEqual(parsed.usage?.inputTokens, 12)
+        XCTAssertEqual(parsed.usage?.outputTokens, 8)
+        guard case .providerError(let code, let message)? = parsed.terminalError else {
+            return XCTFail("Expected provider error, got \(String(describing: parsed.terminalError))")
+        }
+        XCTAssertEqual(code, "google_finish_reason")
+        XCTAssertEqual(message, "Vertex AI stopped before completing the answer because it reached the configured max output tokens. Increase max output tokens or reduce thinking level, then retry. Token budget exhausted.")
     }
 
     func testSendMessageStreamingEmitsDecodingErrorWhenNoUsableJSONChunksAreReturned() async throws {

@@ -68,16 +68,19 @@ extension VertexAIAdapter {
         var usage: Usage?
         var terminalError: LLMError?
         for response in responses {
-            events.append(contentsOf: eventsFromVertexResponse(response, codeExecutionState: &codeExecutionState))
             if let parsedUsage = usageFromVertexResponse(response) {
                 usage = parsedUsage
             }
-            if terminalError == nil {
-                terminalError = GoogleGenerateContentFinishReasonSupport.terminalError(
-                    in: response,
-                    providerName: "Vertex AI"
-                )
+
+            if let error = GoogleGenerateContentFinishReasonSupport.terminalError(
+                in: response,
+                providerName: "Vertex AI"
+            ) {
+                terminalError = error
+                break
             }
+
+            events.append(contentsOf: eventsFromVertexResponse(response, codeExecutionState: &codeExecutionState))
         }
         return (events, usage, false, terminalError)
     }

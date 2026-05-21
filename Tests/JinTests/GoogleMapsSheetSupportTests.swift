@@ -157,8 +157,12 @@ final class GoogleMapsSheetSupportTests: XCTestCase {
     }
 
     func testPackagingInfoPlistContainsMacLocationUsageDescription() throws {
-        let plistURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-            .appendingPathComponent("Packaging/Info.plist")
+        let testFileURL = URL(fileURLWithPath: #filePath)
+        let repoRootURL = testFileURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let plistURL = repoRootURL.appendingPathComponent("Packaging/Info.plist")
         let data = try Data(contentsOf: plistURL)
         let plist = try XCTUnwrap(
             PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any]
