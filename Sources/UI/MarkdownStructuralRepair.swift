@@ -343,6 +343,7 @@ enum MarkdownStructuralRepair {
                 let suffixCount = content.distance(from: index, to: content.endIndex)
                 if prefixCount >= 8,
                    suffixCount >= 8,
+                   !looksLikeCompactCamelCaseTerm(content: content, at: index),
                    !looksLikeContinuedNounPhrase(content: content, at: index) {
                     return index
                 }
@@ -353,6 +354,34 @@ enum MarkdownStructuralRepair {
         }
 
         return nil
+    }
+
+    /// Rejects splits inside compact camelCase/PascalCase terms such as
+    /// `GitHub`, `YouTube`, `JavaScript`, `MacBook`, and `MaxLinear`.
+    /// Those often appear in headings followed by CJK or English nouns, and
+    /// treating their internal case boundary as "heading ended, body starts"
+    /// renders half the term as a heading and the rest as a paragraph.
+    private static func looksLikeCompactCamelCaseTerm(
+        content: Substring,
+        at boundaryIndex: Substring.Index
+    ) -> Bool {
+        var tokenStart = boundaryIndex
+        while tokenStart > content.startIndex {
+            let previous = content.index(before: tokenStart)
+            guard isCompactTermCharacter(content[previous]) else { break }
+            tokenStart = previous
+        }
+
+        let leftSegmentLength = content.distance(from: tokenStart, to: boundaryIndex)
+        return (1...4).contains(leftSegmentLength)
+    }
+
+    private static func isCompactTermCharacter(_ character: Character) -> Bool {
+        character.unicodeScalars.allSatisfy { scalar in
+            (65...90).contains(scalar.value)
+                || (97...122).contains(scalar.value)
+                || (48...57).contains(scalar.value)
+        }
     }
 
     /// Heuristic guard: rejects camelCase-boundary splits that fall inside

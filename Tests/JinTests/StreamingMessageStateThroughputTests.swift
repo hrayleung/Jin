@@ -5,8 +5,8 @@ import XCTest
 final class StreamingMessageStateThroughputTests: XCTestCase {
     func testAppendDeltasStaysFastForLongStream() {
         let state = StreamingMessageState()
-        let chunkCount = 50
-        let chunkSize = 100
+        let chunkCount = 200
+        let chunkSize = 500
         let chunk = String(repeating: "x", count: chunkSize)
 
         let started = ProcessInfo.processInfo.systemUptime
@@ -16,9 +16,11 @@ final class StreamingMessageStateThroughputTests: XCTestCase {
         let elapsed = ProcessInfo.processInfo.systemUptime - started
 
         XCTAssertEqual(state.textContent.count, chunkCount * chunkSize)
+        XCTAssertGreaterThan(state.visibleTextChunks.count, 1)
+        XCTAssertLessThanOrEqual(state.visibleTextChunks.map(\.count).max() ?? 0, 2_048)
         // Sanity guard against the O(N²) regression that motivated this branch.
-        // 50 chunks of 100 chars in a debug build should comfortably finish in
-        // well under a second; the threshold is generous to avoid flake on CI.
+        // 100k streamed chars in a debug build should comfortably finish in
+        // under a second when the hot path avoids full-string trimming/copying.
         XCTAssertLessThan(elapsed, 1.0, "appendDeltas threw away its incremental scan budget (took \(elapsed)s)")
     }
 

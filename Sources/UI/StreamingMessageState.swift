@@ -8,12 +8,14 @@ final class StreamingMessageState: ObservableObject {
 
     var debugContext: StreamingDebugContext?
     private(set) var thinkingChunks: [String] = []
+    private(set) var visibleTextChunks: [String] = []
     private(set) var searchActivities: [SearchActivity] = []
     private(set) var codeExecutionActivities: [CodeExecutionActivity] = []
     private(set) var streamingToolCalls: [ToolCall] = []
     private(set) var toolResultsByCallID: [String: ToolResult] = [:]
     private(set) var renderTick: Int = 0
     private(set) var visibleText: String = ""
+    private(set) var visibleTextCharacterCount: Int = 0
     private(set) var artifacts: [ParsedArtifact] = []
     private(set) var hasVisibleText: Bool = false
     private(set) var isThinkingComplete: Bool = false
@@ -42,6 +44,8 @@ final class StreamingMessageState: ObservableObject {
         codeExecutionActivitiesByID = [:]
         hasLoggedFirstDeltaApply = false
         visibleText = ""
+        visibleTextChunks = []
+        visibleTextCharacterCount = 0
         artifacts = []
         hasVisibleText = false
         isThinkingComplete = false
@@ -57,6 +61,8 @@ final class StreamingMessageState: ObservableObject {
         var nextThinkingStorage = thinkingStorage
         var nextThinkingChunks = thinkingChunks
         var nextVisibleText = visibleText
+        var nextVisibleTextChunks = visibleTextChunks
+        var nextVisibleTextCharacterCount = visibleTextCharacterCount
         var nextArtifacts = artifacts
         var nextHasVisibleText = hasVisibleText
         var nextIsThinkingComplete = isThinkingComplete
@@ -83,9 +89,27 @@ final class StreamingMessageState: ObservableObject {
                 hidesTrailingIncompleteArtifact: true,
                 state: &artifactScanState
             )
-            nextVisibleText = parseResult.visibleText
+
+            if parseResult.isPassthroughFullText {
+                nextVisibleText = nextTextStorage
+                appendDelta(textDelta, to: &nextVisibleTextChunks, maxChunkSize: Self.maxChunkSize)
+                nextVisibleTextCharacterCount += textDelta.count
+                nextHasVisibleText = nextHasVisibleText || textDelta.containsNonWhitespace
+            } else {
+                let chunkUpdate = visibleTextChunkUpdate(
+                    previous: visibleText,
+                    next: parseResult.visibleText,
+                    chunks: visibleTextChunks,
+                    prefersIncrementalAppend: !parseResult.hasIncompleteTrailingArtifact
+                        && parseResult.artifacts.count == artifacts.count
+                )
+                nextVisibleText = chunkUpdate.visibleText
+                nextVisibleTextChunks = chunkUpdate.chunks
+                nextVisibleTextCharacterCount = chunkUpdate.characterCount
+                nextHasVisibleText = nextVisibleText.containsNonWhitespace
+            }
+
             nextArtifacts = parseResult.artifacts
-            nextHasVisibleText = nextVisibleText.trimmedNonEmpty != nil
             parseDurationMs = Int((ProcessInfo.processInfo.systemUptime - parseStartedAt) * 1000)
         }
 
@@ -96,6 +120,8 @@ final class StreamingMessageState: ObservableObject {
         thinkingStorage = nextThinkingStorage
         thinkingChunks = nextThinkingChunks
         visibleText = nextVisibleText
+        visibleTextChunks = nextVisibleTextChunks
+        visibleTextCharacterCount = nextVisibleTextCharacterCount
         artifacts = nextArtifacts
         hasVisibleText = nextHasVisibleText
         isThinkingComplete = nextIsThinkingComplete
@@ -195,6 +221,46 @@ final class StreamingMessageState: ObservableObject {
                 chunks.append(suffix)
             }
         }
+    }
+
+    private func visibleTextChunkUpdate(
+        previous: String,
+        next: String,
+        chunks: [String],
+        prefersIncrementalAppend: Bool
+    ) -> (visibleText: String, chunks: [String], characterCount: Int) {
+        if prefersIncrementalAppend, next.count >= visibleTextCharacterCount {
+            let suffixStart = next.index(next.startIndex, offsetBy: visibleTextCharacterCount)
+            let suffix = String(next[suffixStart...])
+            guard !suffix.isEmpty else {
+                return (next, chunks, visibleTextCharacterCount)
+            }
+
+            var updatedChunks = chunks
+            appendDelta(suffix, to: &updatedChunks, maxChunkSize: Self.maxChunkSize)
+            return (next, updatedChunks, visibleTextCharacterCount + suffix.count)
+        }
+
+        guard next.hasPrefix(previous) else {
+            return (next, chunksRebuilt(from: next), next.count)
+        }
+
+        let suffixStart = next.index(next.startIndex, offsetBy: previous.count)
+        let suffix = String(next[suffixStart...])
+        guard !suffix.isEmpty else {
+            return (next, chunks, visibleTextCharacterCount)
+        }
+
+        var updatedChunks = chunks
+        appendDelta(suffix, to: &updatedChunks, maxChunkSize: Self.maxChunkSize)
+        return (next, updatedChunks, visibleTextCharacterCount + suffix.count)
+    }
+
+    private func chunksRebuilt(from text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+        var chunks: [String] = []
+        appendDelta(text, to: &chunks, maxChunkSize: Self.maxChunkSize)
+        return chunks
     }
 }
 

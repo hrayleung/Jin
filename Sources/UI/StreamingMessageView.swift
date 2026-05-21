@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct StreamingMessageView: View {
+    private static let richMarkdownCharacterLimit = 4_000
+
     @ObservedObject var state: StreamingMessageState
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
@@ -9,13 +11,12 @@ struct StreamingMessageView: View {
     let providerType: ProviderType?
     let providerIconID: String?
     let onContentUpdate: () -> Void
-    @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
     var body: some View {
         let hidesManagedAgentInternalUI = ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType)
         let visibleText = state.visibleText
-        let showsCopyButton = visibleText.trimmedNonEmpty != nil
+        let showsCopyButton = state.hasVisibleText
         let visibleToolCalls = hidesManagedAgentInternalUI ? [] : state.streamingToolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
             && !isGoogleProviderNativeToolName(call.name)
@@ -78,10 +79,7 @@ struct StreamingMessageView: View {
                         }
 
                         if !visibleText.isEmpty {
-                            NativeMarkdownView(
-                                markdownText: visibleText,
-                                isStreaming: true
-                            )
+                            streamingTextView(visibleText)
                         }
 
                         if !state.artifacts.isEmpty {
@@ -105,7 +103,12 @@ struct StreamingMessageView: View {
 
                     if showsCopyButton {
                         HStack {
-                            CopyToPasteboardButton(text: visibleText, helpText: "Copy message", useProminentStyle: false)
+                            CopyToPasteboardButton(
+                                text: visibleText,
+                                helpText: "Copy message",
+                                useProminentStyle: false,
+                                isDisabled: !state.hasVisibleText
+                            )
                                 .accessibilityLabel("Copy message")
                             Spacer(minLength: 0)
                         }
@@ -125,12 +128,43 @@ struct StreamingMessageView: View {
         }
     }
 
-    private var chatBodyFont: Font {
-        JinTypography.chatBodyFont(appFamilyPreference: appFontFamily, scale: JinTypography.defaultChatMessageScale)
+    @ViewBuilder
+    private func streamingTextView(_ visibleText: String) -> some View {
+        if state.visibleTextCharacterCount <= Self.richMarkdownCharacterLimit {
+            NativeMarkdownView(
+                markdownText: visibleText,
+                isStreaming: true
+            )
+        } else {
+            StreamingPlainTextChunksView(chunks: state.visibleTextChunks)
+        }
     }
 
     private var chatCodeFont: Font {
         JinTypography.chatCodeFont(codeFamilyPreference: codeFontFamily, scale: JinTypography.defaultChatMessageScale)
+    }
+}
+
+private struct StreamingPlainTextChunksView: View {
+    let chunks: [String]
+
+    @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
+
+    var body: some View {
+        composedText
+            .font(JinTypography.chatBodyFont(
+                appFamilyPreference: appFontFamily,
+                scale: JinTypography.defaultChatMessageScale
+            ))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
+    }
+
+    private var composedText: Text {
+        chunks.reduce(Text("")) { partial, chunk in
+            partial + Text(chunk)
+        }
     }
 }
 

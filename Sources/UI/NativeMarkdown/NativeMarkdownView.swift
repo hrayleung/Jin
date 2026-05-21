@@ -63,7 +63,10 @@ struct NativeMarkdownView: View {
         }
         .task(id: key) {
             guard syncHit == nil else { return }
-            let value = await NativeMarkdownParseService.parse(key: key, theme: theme)
+            guard let value = await NativeMarkdownParseService.parse(key: key, theme: theme) else {
+                return
+            }
+            guard !Task.isCancelled else { return }
             asyncParsed = value
         }
     }
@@ -231,22 +234,30 @@ enum NativeMarkdownParseService {
     static func parse(
         key: NativeMarkdownCache.Key,
         theme: MarkdownTheme
-    ) async -> NativeMarkdownCache.Value {
+    ) async -> NativeMarkdownCache.Value? {
+        guard !Task.isCancelled else { return nil }
         if let cached = NativeMarkdownCache.tryGet(key: key) {
             return cached
         }
-        return await withCheckedContinuation { continuation in
-            Task.detached(priority: .userInitiated) {
-                if let cached = NativeMarkdownCache.tryGet(key: key) {
-                    continuation.resume(returning: cached)
-                    return
-                }
-                let value = NativeMarkdownCache.compute(key: key, theme: theme)
-                if !key.isStreaming {
-                    NativeMarkdownCache.insert(value, forKey: key)
-                }
-                continuation.resume(returning: value)
+        let task = Task.detached(priority: .userInitiated) {
+            if Task.isCancelled {
+                return NativeMarkdownCache.tryGet(key: key)
             }
+            if let cached = NativeMarkdownCache.tryGet(key: key) {
+                return cached
+            }
+            let value = NativeMarkdownCache.compute(key: key, theme: theme)
+            if !Task.isCancelled, !key.isStreaming {
+                NativeMarkdownCache.insert(value, forKey: key)
+            }
+            return value
         }
+        let value = await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+        guard !Task.isCancelled else { return nil }
+        return value
     }
 }
