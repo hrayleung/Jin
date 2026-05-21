@@ -34,9 +34,18 @@ struct MapsPlaceRowView: View {
             pinBadge
                 .padding(.trailing, JinSpacing.small + 2)
 
-            Text(place.name)
-                .font(.subheadline.weight(.medium))
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(place.name)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+
+                ForEach(Array(place.reviewSnippets.prefix(2).enumerated()), id: \.offset) { _, snippet in
+                    Text(snippet)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
 
             Spacer(minLength: 0)
 

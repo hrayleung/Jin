@@ -227,11 +227,7 @@ extension GeminiAdapter {
     }
 
     func isCandidateContentFiltered(_ candidate: GeminiGenerateContentResponse.Candidate) -> Bool {
-        let reason = (candidate.finishReason ?? "").uppercased()
-        if reason == "SAFETY" || reason == "BLOCKED" || reason == "PROHIBITED_CONTENT" {
-            return true
-        }
-        return false
+        GoogleGenerateContentFinishReasonSupport.isCandidateContentFiltered(candidate)
     }
 
 }

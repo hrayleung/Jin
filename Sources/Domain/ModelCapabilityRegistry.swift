@@ -149,7 +149,10 @@ enum ModelCapabilityRegistry {
     /// Models documented by Google as supporting grounding with Google Maps in Gemini API.
     private static let geminiGoogleMapsSupportedModelIDs: Set<String> = [
         "gemini-3.5-flash",
+        "gemini-3.1-pro-preview",
         "gemini-3.1-flash-lite",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3-flash-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -159,7 +162,9 @@ enum ModelCapabilityRegistry {
 
     /// Models supporting grounding with Google Maps in Vertex AI.
     /// Vertex documentation's Google Maps grounding pages list these exact model IDs
-    /// or exact model families as supported as of March 13, 2026.
+    /// or exact model families as supported as of May 21, 2026. Keep this list
+    /// constrained by runtime validation because Vertex model pages and the
+    /// grounding page can temporarily disagree for preview models.
     ///
     /// Notes:
     /// - We include the current exact preview version IDs where the model pages expose them
@@ -168,8 +173,6 @@ enum ModelCapabilityRegistry {
     ///   (for example `gemini-2.5-flash-preview`) so previously-saved conversations
     ///   do not silently lose the Maps UI toggle.
     private static let vertexGoogleMapsSupportedModelIDs: Set<String> = [
-        "gemini-3.5-flash",
-        "gemini-3-flash-preview",
         "gemini-3-pro-preview",
         "gemini-3-pro-image-preview",
         "gemini-2.5-pro",

@@ -1412,8 +1412,8 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
         let current = GoogleMapsControls(
             enabled: true,
             enableWidget: true,
-            latitude: 35.6764,
-            longitude: 139.65,
+            latitude: GoogleMapsCoordinateFixture.alternateLatitude,
+            longitude: GoogleMapsCoordinateFixture.alternateLongitude,
             languageCode: "ja_JP"
         )
 
@@ -1423,8 +1423,8 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
         )
 
         XCTAssertEqual(prepared.draft.enabled, true)
-        XCTAssertEqual(prepared.latitudeDraft, "35.6764")
-        XCTAssertEqual(prepared.longitudeDraft, "139.65")
+        XCTAssertEqual(prepared.latitudeDraft, String(GoogleMapsCoordinateFixture.alternateLatitude))
+        XCTAssertEqual(prepared.longitudeDraft, String(GoogleMapsCoordinateFixture.alternateLongitude))
         XCTAssertEqual(prepared.languageCodeDraft, "ja_JP")
     }
 
@@ -1434,8 +1434,8 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
                 googleMaps: GoogleMapsControls(
                     enabled: true,
                     enableWidget: true,
-                    latitude: 35.6764,
-                    longitude: 139.65,
+                    latitude: GoogleMapsCoordinateFixture.alternateLatitude,
+                    longitude: GoogleMapsCoordinateFixture.alternateLongitude,
                     languageCode: "ja_JP"
                 )
             )
@@ -1472,23 +1472,23 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
                 googleMaps: GoogleMapsControls(
                     enabled: true,
                     enableWidget: true,
-                    latitude: 35.6764,
-                    longitude: 139.65,
+                    latitude: GoogleMapsCoordinateFixture.alternateLatitude,
+                    longitude: GoogleMapsCoordinateFixture.alternateLongitude,
                     languageCode: "ja_JP"
                 )
             )
         )
         XCTAssertEqual(configured.googleMaps?.enabled, false)
         XCTAssertEqual(configured.googleMaps?.enableWidget, true)
-        XCTAssertEqual(configured.googleMaps?.latitude, 35.6764)
-        XCTAssertEqual(configured.googleMaps?.longitude, 139.65)
+        XCTAssertEqual(configured.googleMaps?.latitude, GoogleMapsCoordinateFixture.alternateLatitude)
+        XCTAssertEqual(configured.googleMaps?.longitude, GoogleMapsCoordinateFixture.alternateLongitude)
         XCTAssertEqual(configured.googleMaps?.languageCode, "ja_JP")
     }
 
     func testApplyGoogleMapsDraftRequiresBothCoordinates() {
         let result = ChatAuxiliaryControlSupport.applyGoogleMapsDraft(
             draft: GoogleMapsControls(enabled: true),
-            latitudeDraft: "35.0",
+            latitudeDraft: GoogleMapsCoordinateFixture.latitudeDraft,
             longitudeDraft: "",
             languageCodeDraft: "",
             providerType: .gemini
@@ -1521,15 +1521,15 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
         let configured = try XCTUnwrap(
             try? ChatAuxiliaryControlSupport.applyGoogleMapsDraft(
                 draft: GoogleMapsControls(enabled: true),
-                latitudeDraft: " 34.050481\n",
-                longitudeDraft: "\t-118.248526 ",
+                latitudeDraft: " \(GoogleMapsCoordinateFixture.latitudeDraft)\n",
+                longitudeDraft: "\t\(GoogleMapsCoordinateFixture.longitudeDraft) ",
                 languageCodeDraft: " en_US\n",
                 providerType: .vertexai
             ).get()
         )
 
-        XCTAssertEqual(configured.latitude, 34.050481)
-        XCTAssertEqual(configured.longitude, -118.248526)
+        XCTAssertEqual(configured.latitude, GoogleMapsCoordinateFixture.latitude)
+        XCTAssertEqual(configured.longitude, GoogleMapsCoordinateFixture.longitude)
         XCTAssertEqual(configured.languageCode, "en_US")
 
         let empty = try? ChatAuxiliaryControlSupport.applyGoogleMapsDraft(
@@ -1551,8 +1551,8 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
 
         let applied = try ChatAuxiliaryControlSupport.applyGoogleMapsDraft(
             draft: GoogleMapsControls(enabled: true, enableWidget: false),
-            latitudeDraft: "34.050481",
-            longitudeDraft: "-118.248526",
+            latitudeDraft: GoogleMapsCoordinateFixture.latitudeDraft,
+            longitudeDraft: GoogleMapsCoordinateFixture.longitudeDraft,
             languageCodeDraft: "en_US",
             providerType: .vertexai,
             controls: controls
@@ -1561,22 +1561,26 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
         XCTAssertEqual(applied.controls.temperature, 0.2)
         XCTAssertEqual(applied.googleMaps?.enabled, true)
         XCTAssertNil(applied.googleMaps?.enableWidget)
-        XCTAssertEqual(applied.googleMaps?.latitude, 34.050481)
-        XCTAssertEqual(applied.googleMaps?.longitude, -118.248526)
+        XCTAssertEqual(applied.googleMaps?.latitude, GoogleMapsCoordinateFixture.latitude)
+        XCTAssertEqual(applied.googleMaps?.longitude, GoogleMapsCoordinateFixture.longitude)
         XCTAssertEqual(applied.googleMaps?.languageCode, "en_US")
-        XCTAssertEqual(applied.controls.googleMaps?.latitude, 34.050481)
-        XCTAssertEqual(applied.controls.googleMaps?.longitude, -118.248526)
+        XCTAssertEqual(applied.controls.googleMaps?.latitude, GoogleMapsCoordinateFixture.latitude)
+        XCTAssertEqual(applied.controls.googleMaps?.longitude, GoogleMapsCoordinateFixture.longitude)
     }
 
     func testApplyGoogleMapsDraftWithGenerationControlsPropagatesValidationFailure() {
         let result = ChatAuxiliaryControlSupport.applyGoogleMapsDraft(
             draft: GoogleMapsControls(enabled: true),
-            latitudeDraft: "34.050481",
+            latitudeDraft: GoogleMapsCoordinateFixture.latitudeDraft,
             longitudeDraft: "",
             languageCodeDraft: "",
             providerType: .vertexai,
             controls: GenerationControls(
-                googleMaps: GoogleMapsControls(enabled: true, latitude: 10, longitude: 20)
+                googleMaps: GoogleMapsControls(
+                    enabled: true,
+                    latitude: GoogleMapsCoordinateFixture.alternateLatitude,
+                    longitude: GoogleMapsCoordinateFixture.alternateLongitude
+                )
             )
         )
 

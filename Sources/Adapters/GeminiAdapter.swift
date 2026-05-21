@@ -81,6 +81,15 @@ actor GeminiAdapter: LLMProviderAdapter {
                     continuation.yield(event)
                 }
 
+                if let terminalError = GoogleGenerateContentFinishReasonSupport.terminalError(
+                    in: response,
+                    providerName: "Gemini"
+                ) {
+                    continuation.yield(.error(terminalError))
+                    continuation.finish()
+                    return
+                }
+
                 continuation.yield(.messageEnd(usage: usage))
                 continuation.finish()
             }
@@ -137,6 +146,15 @@ actor GeminiAdapter: LLMProviderAdapter {
                             let grounding = candidateGroundingMetadata(in: chunk.candidates) ?? chunk.groundingMetadata
                             for streamEvent in searchActivities(from: grounding) {
                                 continuation.yield(streamEvent)
+                            }
+
+                            if let terminalError = GoogleGenerateContentFinishReasonSupport.terminalError(
+                                in: chunk,
+                                providerName: "Gemini"
+                            ) {
+                                continuation.yield(.error(terminalError))
+                                continuation.finish()
+                                return
                             }
 
                         case .done:

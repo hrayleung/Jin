@@ -14,7 +14,20 @@ struct GoogleGenerateContentResponse: Codable {
     struct Candidate: Codable {
         let content: Content?
         let finishReason: String?
+        let finishMessage: String?
         let groundingMetadata: GroundingMetadata?
+
+        init(
+            content: Content?,
+            finishReason: String?,
+            groundingMetadata: GroundingMetadata?,
+            finishMessage: String? = nil
+        ) {
+            self.content = content
+            self.finishReason = finishReason
+            self.finishMessage = finishMessage
+            self.groundingMetadata = groundingMetadata
+        }
     }
 
     struct Content: Codable {
@@ -88,8 +101,21 @@ struct GoogleGenerateContentResponse: Codable {
 
             struct MapsChunk: Codable {
                 let uri: String?
+                let googleMapsUri: String?
                 let title: String?
+                let text: String?
                 let placeId: String?
+                let placeAnswerSources: PlaceAnswerSources?
+
+                struct PlaceAnswerSources: Codable {
+                    let reviewSnippets: [ReviewSnippet]?
+
+                    struct ReviewSnippet: Codable {
+                        let reviewId: String?
+                        let googleMapsUri: String?
+                        let title: String?
+                    }
+                }
             }
         }
 
