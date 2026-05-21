@@ -129,7 +129,10 @@ struct ListItemRow: View {
     private var markerWidth: CGFloat {
         switch effectiveMarker {
         case .bullet: return 12
-        case .ordered: return 22
+        case .ordered(let n):
+            let marker = "\(n)." as NSString
+            let measuredWidth = marker.size(withAttributes: [.font: theme.bodyFont]).width
+            return max(22, ceil(measuredWidth) + 4)
         case .task: return 16
         }
     }

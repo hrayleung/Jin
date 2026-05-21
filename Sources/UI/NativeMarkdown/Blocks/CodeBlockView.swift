@@ -6,6 +6,7 @@ import SwiftUI
 /// line numbers. Soft-collapse "Show N more lines" was the WebView era's
 /// affordance and has been removed — long blocks render fully and users
 /// can collapse them via the chevron in the header.
+@MainActor
 struct CodeBlockView: View {
     let language: String?
     let source: String
@@ -185,15 +186,19 @@ private struct HighlightedCodeView: NSViewRepresentable {
     let language: String?
     let theme: MarkdownTheme
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeNSView(context: Context) -> JinMessageTextView {
         let view = JinMessageTextView()
         view.isSelectable = true
-        applyAttributedString(to: view)
+        applyAttributedString(to: view, coordinator: context.coordinator)
         return view
     }
 
     func updateNSView(_ nsView: JinMessageTextView, context: Context) {
-        applyAttributedString(to: nsView)
+        applyAttributedString(to: nsView, coordinator: context.coordinator)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: JinMessageTextView, context: Context) -> CGSize? {
@@ -217,7 +222,11 @@ private struct HighlightedCodeView: NSViewRepresentable {
         return CGSize(width: max(1, width), height: max(1, height))
     }
 
-    private func applyAttributedString(to view: JinMessageTextView) {
+    private func applyAttributedString(to view: JinMessageTextView, coordinator: Coordinator) {
+        let fingerprint = Fingerprint(source: source, language: language, theme: theme)
+        guard coordinator.lastAppliedFingerprint != fingerprint else { return }
+
+        let selectedRange = view.selectedRange()
         let highlighted = MarkdownSyntaxHighlighter.highlight(source, language: language, theme: theme)
         let withInsets = NSMutableAttributedString(attributedString: highlighted)
         withInsets.addAttribute(
@@ -226,7 +235,25 @@ private struct HighlightedCodeView: NSViewRepresentable {
             range: NSRange(location: 0, length: withInsets.length)
         )
         view.textStorage?.setAttributedString(withInsets)
+        view.setSelectedRange(clamped(range: selectedRange, length: withInsets.length))
         view.textContainerInset = NSSize(width: 14, height: 10)
+        coordinator.lastAppliedFingerprint = fingerprint
+    }
+
+    private func clamped(range: NSRange, length: Int) -> NSRange {
+        let location = min(range.location, length)
+        let remaining = max(0, length - location)
+        return NSRange(location: location, length: min(range.length, remaining))
+    }
+
+    final class Coordinator {
+        var lastAppliedFingerprint: Fingerprint?
+    }
+
+    fileprivate struct Fingerprint: Equatable {
+        let source: String
+        let language: String?
+        let theme: MarkdownTheme
     }
 }
 

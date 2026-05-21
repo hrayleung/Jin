@@ -93,7 +93,10 @@ enum MarkdownExtensionPreprocessor {
 
     private static func emitMathBlock(buffer: [String], into output: inout String) {
         let latex = buffer.joined(separator: "\n")
-        output.append("\n```math\n")
+        if !output.isEmpty, !output.hasSuffix("\n") {
+            output.append("\n")
+        }
+        output.append("```math\n")
         output.append(latex)
         if !latex.hasSuffix("\n") { output.append("\n") }
         output.append("```\n")

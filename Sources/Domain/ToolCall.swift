@@ -28,7 +28,7 @@ struct ToolCall: Codable, Identifiable, Sendable {
 }
 
 /// Result from tool execution
-struct ToolResult: Codable, Identifiable, Sendable {
+struct ToolResult: Codable, Identifiable, Equatable, Sendable {
     let id: String
     let toolCallID: String
     let toolName: String?

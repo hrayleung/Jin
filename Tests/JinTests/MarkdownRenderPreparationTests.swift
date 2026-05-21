@@ -499,8 +499,8 @@ final class MarkdownRenderPreparationTests: XCTestCase {
 
         let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
 
-        XCTAssertFalse(result.text.contains("**\u{200B}："))
-        XCTAssertTrue(result.text.contains("**极度集中**："))
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
     }
 
     func testHeadingOnlyOrderedListRepairDoesNotScanSplitBodyLine() {

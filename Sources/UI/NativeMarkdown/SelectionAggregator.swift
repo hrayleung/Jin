@@ -28,8 +28,8 @@ final class SelectionAggregator: ObservableObject {
         var length: Int { plainText.utf16.count }
     }
 
-    let messageID: UUID?
-    let anchorID: String?
+    private(set) var messageID: UUID?
+    private(set) var anchorID: String?
     var actions: MessageTextSelectionActions
 
     private(set) var flatText: String = ""
@@ -69,6 +69,23 @@ final class SelectionAggregator: ObservableObject {
         self.persistedHighlights = persistedHighlights
         applyHighlightsToAllBlocks()
         refreshSnapshotMatchingHighlights()
+    }
+
+    func reset(
+        messageID: UUID?,
+        anchorID: String?,
+        actions: MessageTextSelectionActions,
+        blocks: [BlockOffsetInfo],
+        persistedHighlights: [MessageHighlightSnapshot]
+    ) {
+        self.messageID = messageID
+        self.anchorID = anchorID
+        self.actions = actions
+        self.blocks = blocks
+        self.flatText = blocks.map(\.plainText).joined(separator: "\n")
+        self.persistedHighlights = persistedHighlights
+        self.lastSnapshot = nil
+        applyHighlightsToAllBlocks()
     }
 
     /// `lastSnapshot.matchingHighlightIDs` is computed inside

@@ -204,7 +204,7 @@ final class SelectionAggregatorStore: ObservableObject {
         persistedHighlights: [MessageHighlightSnapshot]
     ) {
         if aggregator.messageID != messageID || aggregator.anchorID != anchorID {
-            aggregator = SelectionAggregator(
+            aggregator.reset(
                 messageID: messageID,
                 anchorID: anchorID,
                 actions: actions,
