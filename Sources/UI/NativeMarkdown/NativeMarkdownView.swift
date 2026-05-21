@@ -53,12 +53,12 @@ struct NativeMarkdownView: View {
         // than swapping the entire subtree out and back in. The next
         // parse will overwrite `asyncParsed` and the view catches up.
         //
-        // For non-streaming cache misses (first render of static content
-        // or font-prefs change while the @State carries an old parse), we
-        // must NOT show the stale `asyncParsed` — that's content from a
-        // different markdown text and would flash visibly until the new
-        // parse completes. Render the placeholder instead.
-        let parsed = syncHit ?? (isStreaming ? asyncParsed : nil)
+        // The same fallback is also required on non-streaming first open:
+        // the async parse populates `asyncParsed` first; the cache insert
+        // is on a different thread and is not always visible to the next
+        // `tryGet` issued from the body re-eval, so `asyncParsed` is the
+        // only guaranteed source of truth in that window.
+        let parsed = syncHit ?? asyncParsed
 
         return Group {
             if let parsed {
