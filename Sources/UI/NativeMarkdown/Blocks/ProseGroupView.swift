@@ -13,6 +13,7 @@ struct ProseGroupView: View {
     let plainText: String
     let linkURLs: [LinkRange]
     let path: [Int]
+    let contentSignature: UInt64
 
     @Environment(\.markdownTheme) private var theme
     @Environment(\.nativeMarkdownAnchor) private var anchor
@@ -23,7 +24,8 @@ struct ProseGroupView: View {
             attributedString: attributedString,
             links: linkURLs,
             blockID: info?.id,
-            aggregator: anchor?.aggregator
+            aggregator: anchor?.aggregator,
+            contentSignature: contentSignature
         )
         // Align first-text baseline with the first line of the prose group's
         // first paragraph. Same `ascender + leading` formula as

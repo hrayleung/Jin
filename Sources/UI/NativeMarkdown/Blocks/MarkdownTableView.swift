@@ -79,15 +79,15 @@ struct MarkdownTableView: View {
             textAlignment = .leading; frameAlignment = .leading
         }
 
-        // SwiftUI Text — table cells don't need NSTextView selection
-        // coordination (selection across cells doesn't behave like prose
-        // anywhere), and a 10×5 table previously allocated 50 TextKit
-        // stacks. Switching to Text saves the bulk of that memory.
+        // SwiftUI Text — table cells don't need selection coordination
+        // (selection across cells doesn't behave like prose anywhere). Keep
+        // these non-selectable: enabling SwiftUI text selection per cell can
+        // send long mixed-language tables through a very expensive TextKit
+        // layout path when the chat row is first measured.
         let swiftAttr = (try? AttributedString(baseAttrs, including: \.swiftUI))
             ?? AttributedString(baseAttrs)
         return Text(swiftAttr)
             .multilineTextAlignment(textAlignment)
-            .textSelection(.enabled)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: frameAlignment)

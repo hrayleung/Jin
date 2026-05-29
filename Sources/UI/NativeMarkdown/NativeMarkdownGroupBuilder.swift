@@ -98,8 +98,11 @@ enum NativeMarkdownGroupBuilder {
             }
         }
 
+        let attributedString = result.copy() as! NSAttributedString
+        combineRenderAttributes(of: attributedString, links: translatedLinks, into: &hasher)
+
         return .prose(
-            attributedString: result.copy() as! NSAttributedString,
+            attributedString: attributedString,
             plainText: plainText,
             linkURLs: translatedLinks,
             signature: hasher.value
@@ -131,6 +134,57 @@ enum NativeMarkdownGroupBuilder {
                 ),
                 url: linkRange.url
             ))
+        }
+    }
+
+    private static func combineRenderAttributes(
+        of attributedString: NSAttributedString,
+        links: [LinkRange],
+        into hasher: inout FNVHasher
+    ) {
+        let fullRange = NSRange(location: 0, length: attributedString.length)
+        guard fullRange.length > 0 else { return }
+
+        attributedString.enumerateAttributes(in: fullRange) { attributes, range, _ in
+            hasher.combine("range:\(range.location):\(range.length)")
+            for key in attributes.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+                hasher.combine(key.rawValue)
+                combineAttributeValue(attributes[key] ?? "", into: &hasher)
+            }
+        }
+
+        for link in links {
+            hasher.combine("link:\(link.range.location):\(link.range.length):\(link.url.absoluteString)")
+        }
+    }
+
+    private static func combineAttributeValue(_ value: Any, into hasher: inout FNVHasher) {
+        switch value {
+        case let font as NSFont:
+            hasher.combine("font:\(font.fontName):\(font.pointSize):\(font.fontDescriptor.symbolicTraits.rawValue)")
+
+        case let color as NSColor:
+            let rgb = color.usingColorSpace(.deviceRGB)
+            hasher.combine(
+                "color:\(rgb?.redComponent ?? 0):\(rgb?.greenComponent ?? 0):\(rgb?.blueComponent ?? 0):\(rgb?.alphaComponent ?? color.alphaComponent)"
+            )
+
+        case let style as NSParagraphStyle:
+            hasher.combine("""
+            paragraph:\(style.alignment.rawValue):\(style.lineBreakMode.rawValue):\(style.lineSpacing):\(style.paragraphSpacing):\(style.paragraphSpacingBefore):\(style.headIndent):\(style.firstLineHeadIndent):\(style.tailIndent):\(style.minimumLineHeight):\(style.maximumLineHeight):\(style.lineHeightMultiple)
+            """)
+
+        case let url as URL:
+            hasher.combine("url:\(url.absoluteString)")
+
+        case let string as String:
+            hasher.combine("string:\(string)")
+
+        case let number as NSNumber:
+            hasher.combine("number:\(number.stringValue)")
+
+        default:
+            hasher.combine(String(describing: value))
         }
     }
 

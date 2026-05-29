@@ -46,8 +46,9 @@ protocol LanguageTokenizer {
 /// the local tokenizer for streaming, unsupported languages, and failure
 /// cases where readability matters more than perfect token coverage.
 enum MarkdownSyntaxHighlighter {
-    /// Hard cap to prevent slow JavaScriptCore/regex passes on huge code blocks.
-    private static let maxHighlightLength = 50_000
+    /// Hard cap to keep visible code blocks from monopolizing the render path.
+    /// Large blocks stay readable as plain monospace text and can still be copied.
+    static let maxHighlightLength = 50_000
     private static let highlightJSRenderer = HighlightJSRenderer()
 
     static func highlight(

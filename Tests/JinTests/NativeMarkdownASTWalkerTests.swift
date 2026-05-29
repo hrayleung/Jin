@@ -71,4 +71,40 @@ final class NativeMarkdownASTWalkerTests: XCTestCase {
         XCTAssertEqual(level, 6)
         XCTAssertEqual(run.plainText, "sixth")
     }
+
+    func testTableCellResolvesEscapedAsterisk() {
+        // An intact table row whose cell contains `A\*` must render the
+        // escaped asterisk as a literal `*` (no backslash, no row spill).
+        let document = Document(parsing: """
+        | 维度 | 值 |
+        | :--- | :--- |
+        | CORE Ranking | A / A\\* 级别 |
+        """)
+        let blocks = MarkdownASTWalker(theme: theme).walk(document: document)
+
+        XCTAssertEqual(blocks.count, 1)
+        guard case let .table(_, _, rows) = blocks[0] else {
+            return XCTFail("expected table block, got \(blocks[0])")
+        }
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].count, 2)
+        XCTAssertEqual(rows[0][1].plainText, "A / A* 级别")
+    }
+
+    func testProseGroupSignatureIncludesStylingAndLinks() {
+        XCTAssertEqual(proseSignature(for: "[docs](https://example.com/a)"), proseSignature(for: "[docs](https://example.com/a)"))
+        XCTAssertNotEqual(proseSignature(for: "[docs](https://example.com/a)"), proseSignature(for: "[docs](https://example.com/b)"))
+        XCTAssertNotEqual(proseSignature(for: "plain text"), proseSignature(for: "**plain text**"))
+    }
+
+    private func proseSignature(for markdown: String) -> UInt64 {
+        let document = Document(parsing: markdown)
+        let blocks = MarkdownASTWalker(theme: theme).walk(document: document)
+        let groups = NativeMarkdownGroupBuilder.build(blocks: blocks, theme: theme)
+        guard let first = groups.first else {
+            XCTFail("expected prose group")
+            return 0
+        }
+        return first.contentSignature
+    }
 }

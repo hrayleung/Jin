@@ -549,4 +549,46 @@ final class MarkdownRenderPreparationTests: XCTestCase {
         XCTAssertFalse(result.didChange)
         XCTAssertEqual(result.text, input)
     }
+
+    func testDoesNotSplitTableRowOnEscapedAsteriskBullet() {
+        // Regression: `A\*` (the model escaped the asterisk to print "A*") was
+        // mistaken for an embedded bullet (` * 级别…`), splitting the table row
+        // into a one-cell row plus a stray bullet list. The escaped marker must
+        // stay literal so the row survives intact.
+        let input = """
+        | 维度 | NSDI | MobiHoc |
+        | :--- | :--- | :--- |
+        | **CORE Ranking** | A / A\\* 级别（系统方向公认的殿堂级会议） | B 级别（历史上曾为 A 级，偏重理论） |
+        """
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.text.contains("\n* "), "escaped \\* must not become a bullet; got: \(result.text.debugDescription)")
+        XCTAssertTrue(
+            result.text.contains("| **CORE Ranking** | A / A\\* 级别（系统方向公认的殿堂级会议） | B 级别（历史上曾为 A 级，偏重理论） |"),
+            "table row should remain on one line; got: \(result.text.debugDescription)"
+        )
+    }
+
+    func testDoesNotSplitDigitGluedPlusMarkerInCJKProse() {
+        // Regression: `每年 600+ 篇` — the `+` after a digit is a count, not a
+        // bullet. It was splitting `（每年 600+ 篇）` into a paragraph plus a
+        // stray bullet list (`+ 篇）…`).
+        let input = "虽然近年来随着投稿量激增（每年 600+ 篇），录用论文数量有所增加。"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.diagnostics.repairMode, .none)
+        XCTAssertEqual(result.text, input)
+        XCTAssertFalse(result.text.contains("\n+ "))
+    }
+
+    func testDoesNotSplitDigitGluedDashMarkerInCJKProse() {
+        let input = "录用率在 600- 篇之间波动。"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.text.contains("\n- "), "digit-glued dash must not become a bullet; got: \(result.text.debugDescription)")
+    }
 }

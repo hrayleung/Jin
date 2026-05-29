@@ -9,17 +9,20 @@ struct AttributedTextBlock: NSViewRepresentable {
     let links: [LinkRange]
     let blockID: UUID?
     let aggregator: SelectionAggregator?
+    let contentSignature: UInt64?
 
     init(
         attributedString: NSAttributedString,
         links: [LinkRange] = [],
         blockID: UUID? = nil,
-        aggregator: SelectionAggregator? = nil
+        aggregator: SelectionAggregator? = nil,
+        contentSignature: UInt64? = nil
     ) {
         self.attributedString = attributedString
         self.links = links
         self.blockID = blockID
         self.aggregator = aggregator
+        self.contentSignature = contentSignature
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(links: links) }
@@ -29,7 +32,7 @@ struct AttributedTextBlock: NSViewRepresentable {
         view.delegate = context.coordinator
         view.aggregator = aggregator
         view.blockID = blockID
-        applyAttributedString(to: view)
+        applyAttributedString(to: view, coordinator: context.coordinator)
         registerWithAggregator(view: view)
         return view
     }
@@ -40,8 +43,8 @@ struct AttributedTextBlock: NSViewRepresentable {
         let blockChanged = nsView.blockID != blockID
         nsView.aggregator = aggregator
         nsView.blockID = blockID
-        if !nsView.attributedString().isEqual(to: attributedString) {
-            applyAttributedString(to: nsView)
+        if needsAttributedStringApply(nsView, coordinator: context.coordinator) {
+            applyAttributedString(to: nsView, coordinator: context.coordinator)
             registerWithAggregator(view: nsView)
         } else if aggregatorChanged || blockChanged {
             registerWithAggregator(view: nsView)
@@ -53,8 +56,8 @@ struct AttributedTextBlock: NSViewRepresentable {
         nsView: JinMessageTextView,
         context: Context
     ) -> CGSize? {
-        if !nsView.attributedString().isEqual(to: attributedString) {
-            applyAttributedString(to: nsView)
+        if needsAttributedStringApply(nsView, coordinator: context.coordinator) {
+            applyAttributedString(to: nsView, coordinator: context.coordinator)
             registerWithAggregator(view: nsView)
         }
 
@@ -86,15 +89,31 @@ struct AttributedTextBlock: NSViewRepresentable {
         aggregator.register(blockID: blockID, textView: view)
     }
 
-    private func applyAttributedString(to view: JinMessageTextView) {
-        view.textStorage?.setAttributedString(attributedString)
+    private func needsAttributedStringApply(_ view: JinMessageTextView, coordinator: Coordinator) -> Bool {
+        if let contentSignature {
+            return coordinator.lastAppliedContentSignature != contentSignature
+        }
+        return !view.attributedString().isEqual(to: attributedString)
+    }
+
+    private func applyAttributedString(to view: JinMessageTextView, coordinator: Coordinator) {
+        // Scrub U+FFFC (NSAttachmentCharacter) — a bare one in LLM text makes
+        // TextKit add a subview mid-`drawRect:` and crash. See
+        // `JinMessageTextView.setScrubbedAttributedString`.
+        view.setScrubbedAttributedString(attributedString)
         view.invalidateHeightCache()
         view.invalidateIntrinsicContentSize()
+        coordinator.lastAppliedContentSignature = contentSignature
+        // Covers the rare content-changed-but-same-size case the layer's
+        // `.duringViewResize` policy wouldn't catch (e.g. a same-height text
+        // swap), so the CALayer doesn't keep the previous content's raster.
+        view.needsDisplay = true
     }
 
     @MainActor
     final class Coordinator: NSObject, NSTextViewDelegate {
         var links: [LinkRange]
+        var lastAppliedContentSignature: UInt64?
 
         init(links: [LinkRange]) {
             self.links = links

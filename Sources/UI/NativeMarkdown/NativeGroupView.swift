@@ -12,12 +12,13 @@ struct NativeGroupView: View {
 
     var body: some View {
         switch group {
-        case .prose(let attributedString, let plainText, let linkURLs, _):
+        case .prose(let attributedString, let plainText, let linkURLs, let signature):
             ProseGroupView(
                 attributedString: attributedString,
                 plainText: plainText,
                 linkURLs: linkURLs,
-                path: path
+                path: path,
+                contentSignature: signature
             )
 
         case .codeBlock(let language, let source, let isStreamingTail, _):

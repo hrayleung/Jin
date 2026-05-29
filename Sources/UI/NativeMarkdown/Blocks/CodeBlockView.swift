@@ -255,7 +255,7 @@ private struct HighlightedCodeView: NSViewRepresentable {
             value: theme.codeParagraphStyle,
             range: NSRange(location: 0, length: withInsets.length)
         )
-        view.textStorage?.setAttributedString(withInsets)
+        view.setScrubbedAttributedString(withInsets)
         view.setSelectedRange(clamped(range: selectedRange, length: withInsets.length))
         view.textContainerInset = NSSize(width: 14, height: 10)
         coordinator.lastAppliedFingerprint = fingerprint

@@ -108,8 +108,15 @@ enum MarkdownStructuralRepair {
     }
 
     static func insertBreaksBeforeEmbeddedBullets(_ line: String) -> String {
+        // Two lookbehinds keep a marker that isn't really a bullet literal:
+        //   `(?<!\\)` — an escaped `A\*`/`\-` (the model meant a literal `*`,
+        //     common inside table cells); splitting it shatters the table row.
+        //   `(?<!\d)` — a marker glued to a digit is a count/range/operator,
+        //     not a list marker: `每年 600+ 篇`, `5-10 个` must not become bullets.
+        // Genuine glued bullets follow a letter or CJK punctuation
+        // (`Geopolitics- **U.S.**`), so neither guard touches them.
         MarkdownRenderPreparation.replacingOutsideRanges(
-            pattern: #"(?<=\S)(?<![*+-])([-*+])\s+(?=(?:\*\*)?[\p{L}\p{N}])"#,
+            pattern: #"(?<=\S)(?<![*+-])(?<!\\)(?<!\d)([-*+])\s+(?=(?:\*\*)?[\p{L}\p{N}])"#,
             in: line,
             protectedRanges: protectedRanges(in: line),
             with: "\n$1 "

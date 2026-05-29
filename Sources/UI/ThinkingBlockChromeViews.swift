@@ -113,10 +113,10 @@ struct ThinkingBlockExpandedTextContent: View {
     let text: String
 
     var body: some View {
-        Text(text)
-            .font(.subheadline)
-            .foregroundStyle(JinSemanticColor.textSecondary)
-            .textSelection(.enabled)
+        AttributedTextBlock(
+            attributedString: attributedText,
+            contentSignature: contentSignature
+        )
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, JinSpacing.medium)
             .padding(.top, JinSpacing.xSmall)
@@ -128,6 +128,23 @@ struct ThinkingBlockExpandedTextContent: View {
                     .frame(width: 2)
             }
             .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    private var attributedText: NSAttributedString {
+        NSAttributedString(
+            string: text,
+            attributes: [
+                .font: NSFont.preferredFont(forTextStyle: .subheadline),
+                .foregroundColor: NSColor.secondaryLabelColor
+            ]
+        )
+    }
+
+    private var contentSignature: UInt64 {
+        var hasher = FNVHasher()
+        hasher.combine("thinking")
+        hasher.combine(text)
+        return hasher.value
     }
 }
 

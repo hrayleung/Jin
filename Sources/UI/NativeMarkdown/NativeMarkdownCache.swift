@@ -21,6 +21,11 @@ enum NativeMarkdownCache {
         let layout: NativeAnchorLayout
     }
 
+    struct PrewarmItem: Hashable {
+        let markdownText: String
+        let renderPlainText: Bool
+    }
+
     private static let capacity = 256
     private static let storage = OSAllocatedUnfairLock<Storage>(initialState: Storage(capacity: capacity))
 
@@ -39,35 +44,31 @@ enum NativeMarkdownCache {
         return value
     }
 
-    /// Off-main pre-warm. Given the markdown texts that will eventually be
-    /// rendered (typically every `.text` content part across the messages
-    /// currently in the SwiftUI timeline window), parses each in the
-    /// background so the LRU is populated before `LazyVStack` lazily
-    /// instantiates the corresponding `NativeMarkdownView`. Eliminates the
-    /// placeholder → content swap users see when scrolling into a fresh
-    /// message in a long conversation.
+    /// Off-main pre-warm. Given the text payloads that will eventually be
+    /// rendered by `NativeMarkdownView`, computes each with the same
+    /// plain-text-vs-markdown mode the row will use so the LRU is populated
+    /// before `LazyVStack` lazily instantiates the corresponding view.
+    /// Eliminates the placeholder → content swap users see when scrolling
+    /// into a fresh message in a long conversation.
     ///
-    /// `texts` is consumed front-to-back; callers that want the user's
+    /// `items` are consumed front-to-back; callers that want the user's
     /// most-likely-visible messages cached first (e.g., the bottom of a
     /// pin-to-bottom chat timeline) should pre-reverse the input. Already-
     /// cached entries are skipped without dispatching, so re-invocations
     /// for a growing message list are cheap.
     ///
-    /// Runs the per-text parse on a background `TaskGroup` with bounded
-    /// concurrency so all available cores are used without flooding the
-    /// dispatch queue on huge load-earlier expansions. Returns a `Task`
-    /// the caller can cancel — splitting that responsibility onto the
-    /// caller lets the SwiftUI view stop the previous wave the moment a
-    /// new conversation opens, instead of letting orphan parses keep
-    /// thrashing the CPU.
+    /// Runs the per-item parse on a background `TaskGroup` with low bounded
+    /// concurrency so pre-warm cannot steal every core from the foreground
+    /// TextKit layout happening during conversation open. Returns a `Task`
+    /// the caller can cancel.
     @discardableResult
     static func prewarm(
-        texts: [String],
+        items: [PrewarmItem],
         appFontFamily: String,
         codeFontFamily: String,
-        concurrency: Int = max(2, ProcessInfo.processInfo.activeProcessorCount - 1)
+        concurrency: Int = 2
     ) -> Task<Void, Never> {
-        guard !texts.isEmpty else {
+        guard !items.isEmpty else {
             return Task {}
         }
         // Defend against a misconfigured caller passing 0 or a negative
@@ -80,16 +81,17 @@ enum NativeMarkdownCache {
         return Task.detached(priority: .utility) {
             await withTaskGroup(of: Void.self) { group in
                 var inFlight = 0
-                var iterator = texts.makeIterator()
+                var iterator = items.makeIterator()
 
-                @Sendable func makeChild(_ text: String) -> (@Sendable () async -> Void) {
+                @Sendable func makeChild(_ item: PrewarmItem) -> (@Sendable () async -> Void) {
                     {
                         if Task.isCancelled { return }
+                        let text = item.markdownText
                         guard !text.isEmpty else { return }
                         let key = Key(
                             markdownText: text,
                             isStreaming: false,
-                            renderPlainText: false,
+                            renderPlainText: item.renderPlainText,
                             appFontFamily: appFontFamily,
                             codeFontFamily: codeFontFamily
                         )

@@ -23,6 +23,32 @@ final class JinMessageTextView: NSTextView {
         cachedHeight = nil
     }
 
+    /// Replace U+FFFC (OBJECT REPLACEMENT CHARACTER, the `NSAttachmentCharacter`)
+    /// before it reaches the text storage. LLM output occasionally contains a
+    /// bare U+FFFC; TextKit 1 classifies it as an attachment control glyph, so
+    /// `drawRect:` routes it to `-[NSLayoutManager showAttachment:…]` →
+    /// `-[NSView addSubview:]` — adding a subview *during* the layer display
+    /// cycle, which mutates the constraint hierarchy and throws
+    /// `_postWindowNeedsUpdateConstraints`, crashing the app (and leaving a
+    /// mis-laid 1-glyph-wide "ghost" subview / re-throwing every draw pass =
+    /// the unusable lag). U+FFFD is a normal printable glyph, so swapping it is
+    /// length-preserving (selection/highlight offsets stay aligned) and safe.
+    func setScrubbedAttributedString(_ attributed: NSAttributedString) {
+        guard let textStorage else { return }
+        if attributed.string.utf16.contains(0xFFFC) {
+            let scrubbed = NSMutableAttributedString(attributedString: attributed)
+            scrubbed.mutableString.replaceOccurrences(
+                of: "\u{FFFC}",
+                with: "\u{FFFD}",
+                options: [],
+                range: NSRange(location: 0, length: scrubbed.length)
+            )
+            textStorage.setAttributedString(scrubbed)
+        } else {
+            textStorage.setAttributedString(attributed)
+        }
+    }
+
     init() {
         // NSTextView's designated initializer `init(frame:textContainer:)` does
         // NOT auto-create the text network — Apple's `NSTextView.h` notes that
@@ -73,7 +99,14 @@ final class JinMessageTextView: NSTextView {
         // drawRect: on each scroll frame — that was the root cause of the
         // post-refactor scroll lag the WebView never had.
         wantsLayer = true
-        layerContentsRedrawPolicy = .onSetNeedsDisplay
+        // `.duringViewResize` re-rasterizes on bounds-SIZE changes — the
+        // width-0→real first layout (otherwise a stale 1-glyph-per-line "ghost"
+        // raster is cached) and content-height growth — but NOT on pure scroll
+        // translation (scrolling moves the view, it doesn't resize it), so the
+        // cheap GPU composite scroll path is preserved. This replaces hand-rolled
+        // `needsDisplay` bookkeeping that ping-ponged between a ghost raster and
+        // a scroll-onset re-raster storm.
+        layerContentsRedrawPolicy = .duringViewResize
 
         // Turn off every "smart" feature NSTextView enables by default.
         // For static, non-editable read-only display of LLM output these
@@ -130,6 +163,9 @@ final class JinMessageTextView: NSTextView {
         // loop where every frame size set re-armed a layout pass that asked
         // for intrinsic size again. Just drop the cached height so the next
         // `computeHeight` / `intrinsicContentSize` reflects the new width.
+        // Re-rasterization on the size change is handled by the layer's
+        // `.duringViewResize` policy — no manual `needsDisplay` here (that
+        // re-rastered every resident text view at scroll onset).
         if widthChanged {
             invalidateHeightCache()
         }

@@ -54,6 +54,7 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
+    private static let maxPrewarmItems = 8
 
     /// Background markdown-parse pre-warm. We hold the `Task` returned by
     /// `NativeMarkdownCache.prewarm(...)` so a new wave can cancel the
@@ -242,26 +243,36 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
         // where pin-to-bottom puts the user on conversation open — gets
         // parsed first. The user sees its content come up without the
         // synchronous parse hitch on first paint.
-        let texts = extractMarkdownTexts(from: visibleMessagesForWindow).reversed()
+        let items = extractPrewarmItems(from: visibleMessagesForWindow)
+            .reversed()
+            .prefix(Self.maxPrewarmItems)
         prewarmTask = NativeMarkdownCache.prewarm(
-            texts: Array(texts),
+            items: Array(items),
             appFontFamily: appFontFamily,
             codeFontFamily: codeFontFamily
         )
     }
 
-    private func extractMarkdownTexts(from messages: [MessageRenderItem]) -> [String] {
-        var texts: [String] = []
-        texts.reserveCapacity(messages.count)
-        for message in messages {
+    private func extractPrewarmItems(from messages: [MessageRenderItem]) -> [NativeMarkdownCache.PrewarmItem] {
+        var items: [NativeMarkdownCache.PrewarmItem] = []
+        items.reserveCapacity(messages.count)
+        for (index, message) in messages.enumerated() {
+            guard message.isAssistant else { continue }
+            let renderMode = effectiveRenderMode(index: index, message: message)
+            guard renderMode != .collapsedPreview else { continue }
+            let renderPlainText = renderMode == .nativeText
+
             for block in message.renderedBlocks {
                 guard case .content(_, let part) = block else { continue }
                 guard case .text(let text) = part else { continue }
                 guard !text.isEmpty else { continue }
-                texts.append(text)
+                items.append(NativeMarkdownCache.PrewarmItem(
+                    markdownText: text,
+                    renderPlainText: renderPlainText
+                ))
             }
         }
-        return texts
+        return items
     }
 
     private func timelineView(

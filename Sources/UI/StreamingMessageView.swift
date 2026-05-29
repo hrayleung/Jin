@@ -145,26 +145,39 @@ struct StreamingMessageView: View {
     }
 }
 
+/// Plain-text fallback shown while a *long* (> `richMarkdownCharacterLimit`)
+/// message is still streaming. The earlier implementation composed a SwiftUI
+/// `Text` tree with `.textSelection(.enabled)`; that re-shaped the entire
+/// growing string on every layout probe (and the streaming bubble is probed
+/// repeatedly per flush by `ConstrainedWidth` + `NSHostingView`'s intrinsic
+/// sizing), which was the dominant on-main cost of the streaming lag.
+///
+/// Routing the text through `AttributedTextBlock` instead reuses the
+/// renderer's `JinMessageTextView`, whose height is memoized by
+/// `(textStorage length, width)` so repeated same-width probes in one layout
+/// pass are free, whose layer-backing keeps scroll compositing cheap, and
+/// which is selectable out of the box. The `contentSignature` (the text's
+/// byte length — monotonic while streaming) gates `setAttributedString` to
+/// once per flush. Attributes mirror the canonical plain-text path in
+/// `NativeMarkdownCache.compute`, so the swap to the fully-rendered message
+/// at stream end stays visually consistent.
 private struct StreamingPlainTextChunksView: View {
     let chunks: [String]
 
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
+    @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
     var body: some View {
-        composedText
-            .font(JinTypography.chatBodyFont(
-                appFamilyPreference: appFontFamily,
-                scale: JinTypography.defaultChatMessageScale
-            ))
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .textSelection(.enabled)
-    }
-
-    private var composedText: Text {
-        chunks.reduce(Text("")) { partial, chunk in
-            partial + Text(chunk)
-        }
+        let theme = MarkdownTheme.resolved(appFontFamily: appFontFamily, codeFontFamily: codeFontFamily)
+        let text = chunks.joined()
+        AttributedTextBlock(
+            attributedString: NSAttributedString(
+                string: text,
+                attributes: [.font: theme.bodyFont, .foregroundColor: theme.baseColor]
+            ),
+            contentSignature: UInt64(text.utf8.count)
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

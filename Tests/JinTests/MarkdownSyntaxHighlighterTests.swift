@@ -72,7 +72,7 @@ final class MarkdownSyntaxHighlighterTests: XCTestCase {
         XCTAssertNotEqual(constColor, stdColor)
     }
 
-    func testHugeCodeBlockRendersWithoutHighlighting() {
+    func testHugeCodeBlockRendersPlainPastHighlightCap() {
         let source = String(repeating: "func name() {}\n", count: 4_000)
         let attr = MarkdownSyntaxHighlighter.highlight(
             source,

@@ -25,7 +25,11 @@ extension MarkdownRenderPreparation {
             if matches(MarkdownStructuralRepair.cjkEmbeddedHeadingPattern, in: protectedLine) {
                 score += 2
             }
-            if matches(#"(?<=\S)(?<![*+-])(?:-\s+(?=(?:\*\*)?[\p{L}\p{N}])|\*\s+(?=[\p{L}\p{N}])|\+\s+(?=[\p{L}\p{N}]))"#, in: protectedLine) {
+            // Mirror the `(?<!\\)`/`(?<!\d)` guards in
+            // `insertBreaksBeforeEmbeddedBullets`: escaped markers and
+            // digit-glued `+`/`-` (`600+ 篇`) are not bullets, so they must
+            // not score as anomalies and open the repair gate.
+            if matches(#"(?<=\S)(?<![*+-])(?<!\\)(?<!\d)(?:-\s+(?=(?:\*\*)?[\p{L}\p{N}])|\*\s+(?=[\p{L}\p{N}])|\+\s+(?=[\p{L}\p{N}]))"#, in: protectedLine) {
                 score += 2
             }
             if matches(#"(?<=[\.:：;；\)])\s*(\d{1,2}[.)])\s+(?=[\p{L}\p{N}])"#, in: protectedLine) {
