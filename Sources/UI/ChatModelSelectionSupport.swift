@@ -69,7 +69,8 @@ enum ChatModelSelectionSupport {
         case .githubCopilot:
             return nil
         case .anthropic, .claudeManagedAgents:
-            return models.first(where: { $0.id == "claude-opus-4-7" })?.id
+            return models.first(where: { $0.id == "claude-opus-4-8" })?.id
+                ?? models.first(where: { $0.id == "claude-opus-4-7" })?.id
                 ?? models.first(where: { $0.id == "claude-opus-4-6" })?.id
                 ?? models.first(where: { $0.id == "claude-sonnet-4-6" })?.id
                 ?? models.first(where: { $0.id == "claude-sonnet-4-5-20250929" })?.id

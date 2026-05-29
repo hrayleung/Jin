@@ -171,7 +171,8 @@ final class AnthropicAdapterFastModeTests: XCTestCase {
 
     // MARK: - Model gating
 
-    func testSupportsFastModeOnOpus47AndOpus46() {
+    func testSupportsFastModeOnOpus48AndOpus47AndOpus46() {
+        XCTAssertTrue(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-8"))
         XCTAssertTrue(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-7"))
         XCTAssertTrue(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-6"))
     }
@@ -187,8 +188,10 @@ final class AnthropicAdapterFastModeTests: XCTestCase {
         // Anthropic documents fast mode for the exact model IDs only — refuse
         // hypothetical date snapshots or custom suffixes so we never send
         // `speed: "fast"` for a model the API would reject.
+        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-8-20260528"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-7-20260128"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-6-20260101"))
+        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-8-custom"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-7-custom"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-7-thinking"))
     }

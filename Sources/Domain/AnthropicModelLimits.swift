@@ -3,11 +3,11 @@ import Foundation
 enum AnthropicModelLimits {
     static func supportsAdaptiveThinking(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
-        return isOpus47(lower) || isOpus46(lower) || isSonnet46(lower)
+        return isOpus48(lower) || isOpus47(lower) || isOpus46(lower) || isSonnet46(lower)
     }
 
     static func supportsEffort(for modelID: String) -> Bool {
-        // Effort works on Opus 4.7, Opus 4.6, Sonnet 4.6 (with adaptive thinking)
+        // Effort works on Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 4.6 (with adaptive thinking)
         // and Opus 4.5, Opus 4.1 (with budget_tokens thinking).
         // DeepSeek V4 exposes effort through Anthropic-compatible output_config.
         let lower = modelID.lowercased()
@@ -22,37 +22,40 @@ enum AnthropicModelLimits {
     }
 
     static func supportsXHighEffort(for modelID: String) -> Bool {
-        isOpus47(modelID.lowercased())
+        let lower = modelID.lowercased()
+        return isOpus48(lower) || isOpus47(lower)
     }
 
     /// Fast mode (beta: research preview) is documented for the exact model IDs
-    /// `claude-opus-4-7` and `claude-opus-4-6` only. Sending `speed: "fast"` to
-    /// any other model — including date-suffixed snapshots of Opus 4.7/4.6 —
-    /// returns an API error, and the request still bills at the fast-mode rate
-    /// as extra usage, so we gate strictly on exact-match.
+    /// `claude-opus-4-8`, `claude-opus-4-7` and `claude-opus-4-6` only. Sending
+    /// `speed: "fast"` to any other model — including date-suffixed snapshots of
+    /// Opus 4.8/4.7/4.6 — returns an API error, and the request still bills at
+    /// the fast-mode rate as extra usage, so we gate strictly on exact-match.
     static func supportsFastMode(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
-        return lower == "claude-opus-4-7" || lower == "claude-opus-4-6"
+        return lower == "claude-opus-4-8" || lower == "claude-opus-4-7" || lower == "claude-opus-4-6"
     }
 
     static func supportsMaxEffort(for modelID: String) -> Bool {
-        // Opus 4.7 supports both xhigh and max. Opus 4.6 supports max only.
+        // Opus 4.8 and Opus 4.7 support both xhigh and max. Opus 4.6 supports max only.
         let lower = modelID.lowercased()
-        return isOpus47(lower) || isOpus46(lower)
+        return isOpus48(lower) || isOpus47(lower) || isOpus46(lower)
     }
 
     static func supportsSamplingParameters(for modelID: String) -> Bool {
-        !isOpus47(modelID.lowercased())
+        let lower = modelID.lowercased()
+        return !(isOpus48(lower) || isOpus47(lower))
     }
 
     static func requiresExplicitThinkingDisplay(for modelID: String) -> Bool {
-        isOpus47(modelID.lowercased())
+        let lower = modelID.lowercased()
+        return isOpus48(lower) || isOpus47(lower)
     }
 
     static func maxOutputTokens(for modelID: String) -> Int? {
         let lower = modelID.lowercased()
 
-        if isOpus47(lower) || isOpus46(lower) {
+        if isOpus48(lower) || isOpus47(lower) || isOpus46(lower) {
             return 128_000
         }
 
@@ -87,6 +90,10 @@ enum AnthropicModelLimits {
         }
 
         return max(1, resolved)
+    }
+
+    private static func isOpus48(_ lowercasedModelID: String) -> Bool {
+        isModelFamily(lowercasedModelID, prefix: "claude-opus-4-8")
     }
 
     private static func isOpus47(_ lowercasedModelID: String) -> Bool {

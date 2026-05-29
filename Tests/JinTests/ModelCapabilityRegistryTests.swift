@@ -52,6 +52,7 @@ final class ModelCapabilityRegistryTests: XCTestCase {
     }
 
     func testAnthropicCodeExecutionUsesExactDocumentedModelIDs() {
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-opus-4-8"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-opus-4-7"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-opus-4-6"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-sonnet-4-6"))
@@ -66,6 +67,10 @@ final class ModelCapabilityRegistryTests: XCTestCase {
 
     func testAnthropicReasoningEffortsAndDynamicFilteringDistinguishClaude47FromClaude46() {
         XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .anthropic, modelID: "claude-opus-4-8"),
+            [.low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .anthropic, modelID: "claude-opus-4-7"),
             [.low, .medium, .high, .xhigh, .max]
         )
@@ -78,6 +83,10 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             [.low, .medium, .high]
         )
         XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .anthropic, modelID: "claude-opus-4-8"),
+            .xhigh
+        )
+        XCTAssertEqual(
             ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .anthropic, modelID: "claude-opus-4-7"),
             .xhigh
         )
@@ -86,10 +95,13 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             .max
         )
         XCTAssertTrue(
+            ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(for: .anthropic, modelID: "claude-opus-4-8")
+        )
+        XCTAssertTrue(
             ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(for: .anthropic, modelID: "claude-opus-4-7")
         )
         XCTAssertFalse(
-            ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(for: .anthropic, modelID: "claude-opus-4-7-20260416")
+            ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(for: .anthropic, modelID: "claude-opus-4-8-20260528")
         )
     }
 
