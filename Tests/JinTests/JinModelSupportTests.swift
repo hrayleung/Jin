@@ -26,6 +26,7 @@ final class JinModelSupportTests: XCTestCase {
     func testCloudflareAIGatewayUsesProviderPrefixedExactModelIDsForFullySupportedTag() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "openai/gpt-5.2"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "openai/gpt-5.3-chat-latest"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-opus-4-8"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-opus-4-7"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-sonnet-4-6"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-opus-4-5-20251101"))
@@ -46,6 +47,7 @@ final class JinModelSupportTests: XCTestCase {
 
     func testVercelAIGatewayUsesProviderPrefixedExactModelIDsForFullySupportedTag() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "openai/gpt-5.2"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-opus-4.8"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-opus-4.7"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-sonnet-4.6"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-opus-4.5"))
@@ -61,6 +63,8 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testAnthropicClaude47UsesExactFullySupportedID() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-opus-4-8"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-opus-4-8-custom"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-opus-4-7"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-opus-4-7-custom"))
     }

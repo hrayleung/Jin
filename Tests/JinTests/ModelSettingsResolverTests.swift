@@ -159,6 +159,13 @@ final class ModelSettingsResolverTests: XCTestCase {
     }
 
     func testAnthropicCatalogCarriesDocsVerifiedContextAndMaxOutput() {
+        let opus48 = ModelCatalog.modelInfo(for: "claude-opus-4-8", provider: .anthropic)
+        let resolvedOpus48 = ModelSettingsResolver.resolve(model: opus48, providerType: .anthropic)
+        XCTAssertEqual(resolvedOpus48.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedOpus48.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedOpus48.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedOpus48.reasoningConfig?.defaultEffort, .high)
+
         let opus47 = ModelCatalog.modelInfo(for: "claude-opus-4-7", provider: .anthropic)
         let resolvedOpus47 = ModelSettingsResolver.resolve(model: opus47, providerType: .anthropic)
         XCTAssertEqual(resolvedOpus47.contextWindow, 1_000_000)
