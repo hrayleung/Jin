@@ -17,6 +17,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
 
     static let hardcodedBaseURL = "https://opencode.ai/zen/v1"
     static let anthropicModelIDs: Set<String> = [
+        "claude-opus-4-8",
         "claude-opus-4-7",
         "claude-opus-4-6",
         "claude-opus-4-5",

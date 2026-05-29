@@ -255,6 +255,7 @@ enum ModelCapabilityRegistry {
 
     /// Exact model IDs that Anthropic currently documents as supporting the code execution tool.
     private static let anthropicCodeExecutionSupportedModelIDs: Set<String> = [
+        "claude-opus-4-8",
         "claude-opus-4-7",
         "claude-opus-4-6",
         "claude-sonnet-4-6",
@@ -776,7 +777,8 @@ enum ModelCapabilityRegistry {
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
         let lower = modelID.lowercased()
-        return lower == "claude-opus-4-7"
+        return lower == "claude-opus-4-8"
+            || lower == "claude-opus-4-7"
             || lower == "claude-opus-4-6"
             || lower == "claude-sonnet-4-6"
     }
