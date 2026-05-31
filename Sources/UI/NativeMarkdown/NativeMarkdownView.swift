@@ -150,14 +150,18 @@ struct NativeMarkdownView: View {
 }
 
 extension NativeMarkdownCache.Value {
-    /// Pre-computed `(NativeMarkdownBlockID, NativeMarkdownGroup)` pairs
-    /// keyed by content-hash signature so SwiftUI's `ForEach` reuses the
-    /// same `NSTextView` (for prose groups) or widget view when only the
-    /// tail group changes during streaming.
+    /// Pre-computed `(NativeMarkdownBlockID, NativeMarkdownGroup)` pairs whose
+    /// `ForEach` id is `(position, kind)` — NOT the content signature. Keying on
+    /// the content signature meant the growing tail prose group got a fresh id
+    /// every streaming flush, so SwiftUI tore down and rebuilt its
+    /// `NSTextView` (a full TextKit-stack allocation + glyph layout from
+    /// scratch) ~10x/sec. With a kind-based id the tail view is reused; the
+    /// real `contentSignature` is still threaded down to
+    /// `AttributedTextBlock`, which applies the new attributed string in place.
     var indexedGroups: [IndexedGroup] {
         groups.enumerated().map { offset, group in
             IndexedGroup(
-                id: NativeMarkdownBlockID(position: offset, signature: group.contentSignature),
+                id: NativeMarkdownBlockID(position: offset, signature: group.kindTag),
                 position: offset,
                 group: group
             )

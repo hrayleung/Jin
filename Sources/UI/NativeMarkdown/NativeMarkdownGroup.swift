@@ -64,6 +64,27 @@ extension NativeMarkdownGroup {
         }
     }
 
+    /// Positional/structural identity tag used (with the group's position) as
+    /// the `ForEach` id. Deliberately depends ONLY on the case kind, NOT on the
+    /// content — so the trailing prose group's `NSTextView` is REUSED (and
+    /// updated in place via `contentSignature`) as text streams in, instead of
+    /// being torn down and rebuilt every flush. A genuinely new block opening at
+    /// a position (e.g. a code fence after prose) shifts positions / changes the
+    /// kind at that slot, which correctly forces a fresh view there.
+    var kindTag: UInt64 {
+        switch self {
+        case .prose: return 1
+        case .codeBlock: return 2
+        case .table: return 3
+        case .math: return 4
+        case .mermaid: return 5
+        case .htmlBlock: return 6
+        case .thematicBreak: return 7
+        case .complexList: return 8
+        case .complexBlockQuote: return 9
+        }
+    }
+
     /// The text this group contributes to `NativeAnchorLayout.flatText`,
     /// used for stable highlight-offset persistence across renderer
     /// versions. Mirrors the contribution that the per-block layout

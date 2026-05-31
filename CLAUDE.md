@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-When searching for code, use the augment MCP tool (`morph`) as the first choice instead of grep/search.
+When searching for code, use the auggie or morph mcp tools as the first choice instead of grep/search.
 
 # Multi agents usage
 

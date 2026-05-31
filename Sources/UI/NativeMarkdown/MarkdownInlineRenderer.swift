@@ -37,7 +37,7 @@ private extension MarkdownInlineRenderer {
         mutating func render(_ markup: any Markup) {
             switch markup {
             case let text as Markdown.Text:
-                append(text.string, frame: stack.last!)
+                appendText(text.string, frame: stack.last!)
 
             case let strong as Strong:
                 stack.append(stack.last!.withBold(theme: theme))
@@ -91,6 +91,39 @@ private extension MarkdownInlineRenderer {
             default:
                 for child in markup.children { render(child) }
             }
+        }
+
+        /// Append a `Markdown.Text` run, rendering any inline math (`$…$` /
+        /// `\(…\)`) natively. Prose segments still flow through `append` (which
+        /// linkifies bare URLs); math segments become baseline-aligned image
+        /// attachments, or their raw source on a parse failure.
+        mutating func appendText(_ string: String, frame: InlineAttributes) {
+            guard InlineMath.mightContainMath(string) else {
+                append(string, frame: frame)
+                return
+            }
+            for segment in InlineMath.split(string) {
+                switch segment {
+                case .text(let prose):
+                    append(prose, frame: frame)
+                case .math(let inner, let original):
+                    appendInlineMath(inner: inner, original: original, frame: frame)
+                }
+            }
+        }
+
+        /// Appends one inline-math span. The attributed result is either a
+        /// single attachment glyph (U+FFFC) or the raw source; in both cases
+        /// `plain` mirrors `attrs.string` so selection offsets stay aligned.
+        mutating func appendInlineMath(inner: String, original: String, frame: InlineAttributes) {
+            let math = InlineMath.attributedString(
+                inner: inner,
+                original: original,
+                font: frame.font,
+                color: frame.color
+            )
+            attrs.append(math)
+            plain.append(math.string)
         }
 
         /// Append text with linkify processing — bare URLs get split into

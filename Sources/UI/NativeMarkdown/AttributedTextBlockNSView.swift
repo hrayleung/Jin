@@ -1,4 +1,18 @@
 import AppKit
+import os
+
+/// Process-wide live-instance census for `JinMessageTextView`. Scroll-frame
+/// time is linear in the number of RESIDENT text-view bridges, so this is the
+/// single most informative perf gauge: if cell recycling works it stays bounded
+/// (~viewport worth) while scrolling a long conversation; if recycling is
+/// broken it grows with conversation length. Thread-safe (deinit may run
+/// off-main) and dependency-free.
+enum JinTextViewCensus {
+    private static let lock = OSAllocatedUnfairLock(initialState: 0)
+    static func increment() { lock.withLock { $0 += 1 } }
+    static func decrement() { lock.withLock { $0 -= 1 } }
+    static var current: Int { lock.withLock { $0 } }
+}
 
 /// Non-scrolling, non-editable `NSTextView` used by every text-bearing block
 /// in the native markdown renderer. Self-sizes for the proposed width and,
@@ -35,18 +49,32 @@ final class JinMessageTextView: NSTextView {
     /// length-preserving (selection/highlight offsets stay aligned) and safe.
     func setScrubbedAttributedString(_ attributed: NSAttributedString) {
         guard let textStorage else { return }
-        if attributed.string.utf16.contains(0xFFFC) {
-            let scrubbed = NSMutableAttributedString(attributedString: attributed)
-            scrubbed.mutableString.replaceOccurrences(
-                of: "\u{FFFC}",
-                with: "\u{FFFD}",
-                options: [],
-                range: NSRange(location: 0, length: scrubbed.length)
-            )
-            textStorage.setAttributedString(scrubbed)
-        } else {
+        guard attributed.string.utf16.contains(0xFFFC) else {
             textStorage.setAttributedString(attributed)
+            return
         }
+        // Replace ONLY bare U+FFFC (the crash trigger). A U+FFFC that carries a
+        // real `.attachment` is legitimate — that's how we embed inline math
+        // (see `InlineMath`) — and must be preserved, or the math vanishes.
+        let scrubbed = NSMutableAttributedString(attributedString: attributed)
+        let ns = scrubbed.mutableString
+        var searchStart = 0
+        while searchStart < ns.length {
+            let found = ns.range(
+                of: "\u{FFFC}",
+                options: [],
+                range: NSRange(location: searchStart, length: ns.length - searchStart)
+            )
+            if found.location == NSNotFound { break }
+            let hasAttachment = scrubbed.attribute(.attachment, at: found.location, effectiveRange: nil) != nil
+            if hasAttachment {
+                searchStart = found.location + found.length
+            } else {
+                scrubbed.replaceCharacters(in: found, with: "\u{FFFD}")
+                searchStart = found.location + 1
+            }
+        }
+        textStorage.setAttributedString(scrubbed)
     }
 
     init() {
@@ -66,11 +94,17 @@ final class JinMessageTextView: NSTextView {
         layoutManager.addTextContainer(container)
         super.init(frame: .zero, textContainer: container)
         configureForBlockRendering()
+        JinTextViewCensus.increment()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         configureForBlockRendering()
+        JinTextViewCensus.increment()
+    }
+
+    deinit {
+        JinTextViewCensus.decrement()
     }
 
     private func configureForBlockRendering() {

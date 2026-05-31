@@ -40,9 +40,28 @@ enum NativeMarkdownGroupBuilder {
         switch block {
         case .paragraph, .heading:
             return true
+        case .bulletList(let items, _), .orderedList(_, let items, _):
+            // Fold SIMPLE lists (each item is a single paragraph, no nesting)
+            // into the prose text view instead of one NSTextView per item.
+            // Lists are the #1 resident-NSTextView multiplier in LLM output, so
+            // this is the central scroll-cost reduction. Complex/nested lists
+            // still take the per-item ListView path.
+            return isSimpleProseList(items)
         default:
             return false
         }
+    }
+
+    /// A list we can render as attributed text inside the prose group: every
+    /// item is exactly one paragraph with no nested blocks.
+    private static func isSimpleProseList(_ items: [ListItemContent]) -> Bool {
+        guard !items.isEmpty else { return false }
+        for item in items {
+            guard item.children.count == 1, case .paragraph = item.children[0] else {
+                return false
+            }
+        }
+        return true
     }
 
     // MARK: - Prose group construction
@@ -78,6 +97,18 @@ enum NativeMarkdownGroupBuilder {
                     into: result,
                     plainText: &plainText,
                     links: &translatedLinks
+                )
+
+            case .bulletList(let items, let tight):
+                appendSimpleList(
+                    kind: .bullet, start: 1, items: items, tight: tight, theme: theme,
+                    into: result, plainText: &plainText, links: &translatedLinks, hasher: &hasher
+                )
+
+            case .orderedList(let start, let items, let tight):
+                appendSimpleList(
+                    kind: .ordered, start: start, items: items, tight: tight, theme: theme,
+                    into: result, plainText: &plainText, links: &translatedLinks, hasher: &hasher
                 )
 
             default:
@@ -135,6 +166,81 @@ enum NativeMarkdownGroupBuilder {
                 url: linkRange.url
             ))
         }
+    }
+
+    /// Renders a simple list's items into the prose attributed string as one
+    /// hanging-indent paragraph per item (`marker \t text`). Markers go into BOTH
+    /// the attributed string AND plainText so NSTextView char positions stay
+    /// equal to plainText offsets (selection/highlight mapping stays correct).
+    private static func appendSimpleList(
+        kind: NativeMarkdownGroup.ComplexListKind,
+        start: Int,
+        items: [ListItemContent],
+        tight: Bool,
+        theme: MarkdownTheme,
+        into result: NSMutableAttributedString,
+        plainText: inout String,
+        links: inout [LinkRange],
+        hasher: inout FNVHasher
+    ) {
+        let style = simpleListParagraphStyle(tight: tight)
+        for (offset, item) in items.enumerated() {
+            guard case .paragraph(let run)? = item.children.first else { continue }
+
+            let marker: String
+            if let checked = item.checkbox {
+                marker = checked ? "☑\t" : "☐\t"
+            } else if kind == .ordered {
+                marker = "\(start + offset).\t"
+            } else {
+                marker = "•\t"
+            }
+
+            hasher.combine("li-\(kind == .ordered ? "o" : "u")-\(tight)")
+            hasher.combine(marker)
+            hasher.combine(run.plainText)
+
+            result.append(NSAttributedString(string: marker, attributes: [
+                .font: theme.bodyFont,
+                .foregroundColor: theme.secondaryColor,
+                .paragraphStyle: style,
+            ]))
+            plainText.append(marker)
+
+            let runStart = result.length
+            let attr = NSMutableAttributedString(attributedString: run.attributedString)
+            attr.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: attr.length))
+            result.append(attr)
+            plainText.append(run.plainText)
+            for linkRange in run.linkURLs {
+                links.append(LinkRange(
+                    range: NSRange(location: linkRange.range.location + runStart, length: linkRange.range.length),
+                    url: linkRange.url
+                ))
+            }
+
+            if offset != items.count - 1 {
+                result.append(NSAttributedString(string: "\n", attributes: [
+                    .font: theme.bodyFont,
+                    .foregroundColor: theme.baseColor,
+                    .paragraphStyle: style,
+                ]))
+                plainText.append("\n")
+            }
+        }
+    }
+
+    private static func simpleListParagraphStyle(tight: Bool) -> NSParagraphStyle {
+        let style = (MarkdownTheme.cachedBodyParagraphStyle.mutableCopy() as? NSMutableParagraphStyle)
+            ?? NSMutableParagraphStyle()
+        // Marker sits at ~2pt; a left tab stop + headIndent at 22pt put the item
+        // text (and any wrapped lines) in a hanging-indent column after the marker.
+        style.firstLineHeadIndent = 2
+        style.headIndent = 22
+        style.tabStops = [NSTextTab(textAlignment: .left, location: 22)]
+        style.defaultTabInterval = 22
+        style.paragraphSpacing = tight ? 2 : 6
+        return style
     }
 
     private static func combineRenderAttributes(
