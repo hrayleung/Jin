@@ -13,6 +13,17 @@ extension XAIAdapter {
         let imageURL = try imageURLForImageGeneration(from: messages)
         let isVideoToVideo = videoInput != nil
         let isImageToVideo = !isVideoToVideo && imageURL?.isEmpty == false
+
+        // Some models (e.g. grok-imagine-video-1.5) reject text-only prompts and
+        // require an image. Fail fast with guidance instead of firing a request
+        // the API will reject with "Text-to-video is not supported for this model."
+        if !isVideoToVideo, !isImageToVideo,
+           XAIModelSupport.requiresImageInputForVideoGeneration(modelID) {
+            throw LLMError.invalidRequest(
+                message: "This model doesn't support text-to-video. Attach a starting image to generate a video (image-to-video)."
+            )
+        }
+
         let prompt = try mediaPrompt(
             from: messages,
             mode: isVideoToVideo ? .video : (isImageToVideo ? .image : .none)

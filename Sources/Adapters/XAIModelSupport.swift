@@ -18,6 +18,15 @@ enum XAIModelSupport {
         "grok-imagine-video-1.5-2026-05-30",
     ]
 
+    /// Video-generation models that reject pure text-to-video and require an
+    /// input image (image-to-video). Verified against the live xAI API, which
+    /// returns `400 {"error":"Text-to-video is not supported for this model."}`
+    /// for these IDs. The base `grok-imagine-video` does support text-to-video.
+    static let imageRequiredVideoGenerationModelIDs: Set<String> = [
+        "grok-imagine-video-1.5-preview",
+        "grok-imagine-video-1.5-2026-05-30",
+    ]
+
     private static let chatReasoningModelIDs: Set<String> = [
         "grok-4",
         "grok-4.3",
@@ -85,6 +94,11 @@ enum XAIModelSupport {
 
     static func isVideoGenerationModelID(_ modelID: String) -> Bool {
         videoGenerationModelIDs.contains(modelID.lowercased())
+    }
+
+    /// Whether the model rejects text-only prompts and needs an image (or video) input.
+    static func requiresImageInputForVideoGeneration(_ modelID: String) -> Bool {
+        imageRequiredVideoGenerationModelIDs.contains(modelID.lowercased())
     }
 
     static func supportsImageResolutionControl(_ modelID: String) -> Bool {
