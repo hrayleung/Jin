@@ -14,6 +14,8 @@ enum XAIModelSupport {
     ]
     static let videoGenerationModelIDs: Set<String> = [
         "grok-imagine-video",
+        "grok-imagine-video-1.5-preview",
+        "grok-imagine-video-1.5-2026-05-30",
     ]
 
     private static let chatReasoningModelIDs: Set<String> = [
