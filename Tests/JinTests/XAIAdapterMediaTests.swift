@@ -1157,6 +1157,46 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertEqual(id, "vid_req_123")
     }
 
+    func testGrokImagineVideo15PreviewRejectsTextOnlyWithGuidance() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        // The guard must fail fast: no network request may be issued.
+        protocolType.requestHandler = { _ in
+            XCTFail("Text-only request to an image-required model must not hit the network")
+            throw URLError(.badServerResponse)
+        }
+
+        let providerConfig = ProviderConfig(
+            id: "x",
+            name: "xAI",
+            type: .xai,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let adapter = XAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        do {
+            _ = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("cat lying on piano")])],
+                modelID: "grok-imagine-video-1.5-preview",
+                controls: GenerationControls(),
+                tools: [],
+                streaming: false
+            )
+            XCTFail("Expected sendMessage to throw for a text-only image-required model")
+        } catch let error as LLMError {
+            guard case .invalidRequest(let message) = error else {
+                return XCTFail("Expected .invalidRequest, got \(error)")
+            }
+            XCTAssertTrue(
+                message.lowercased().contains("image"),
+                "Error should guide the user to attach an image: \(message)"
+            )
+        }
+    }
+
     func testXAIVideoGenerationPollsUntilDoneAndDownloadsVideo() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
