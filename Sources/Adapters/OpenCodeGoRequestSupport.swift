@@ -5,11 +5,9 @@ extension OpenCodeGoAdapter {
     /// (per opencode.ai/docs/go + models.dev `opencode-go` → `@ai-sdk/anthropic`).
     /// Besides Claude, OpenCode Go routes the MiniMax and Qwen families through
     /// `/messages`; everything else (DeepSeek, GLM, Kimi, MiMo, …) uses `/chat/completions`.
+    /// Matched by exact ID (see `anthropicMessagesModelIDs`), never by prefix.
     static func usesAnthropicMessagesEndpoint(_ modelID: String) -> Bool {
-        let id = modelID.lowercased()
-        return anthropicModelIDs.contains(id)
-            || id.hasPrefix("minimax-")
-            || id.hasPrefix("qwen")
+        anthropicMessagesModelIDs.contains(modelID.lowercased())
     }
 
     func buildOpenAIRequest(

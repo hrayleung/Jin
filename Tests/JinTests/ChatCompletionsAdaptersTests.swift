@@ -2294,6 +2294,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for id in ["deepseek-v4-pro", "glm-5", "kimi-k2.6", "mimo-v2.5-pro", "hy3-preview"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /chat/completions")
         }
+        // Routing is exact-ID, not prefix: unknown minimax-/qwen IDs must NOT auto-route.
+        for id in ["minimax-future-x", "qwen-experimental", "qwen4-max"] {
+            XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) is unknown and must not prefix-match to /messages")
+        }
     }
 
     func testOpenCodeGoValidateAPIKeyUsesMessagesEndpointForMiniMaxModel() async throws {
