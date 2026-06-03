@@ -1,8 +1,13 @@
 import Foundation
 
 extension OpenCodeGoAdapter {
-    static func isAnthropicModel(_ modelID: String) -> Bool {
-        anthropicModelIDs.contains(modelID.lowercased())
+    /// Models OpenCode Go serves via the Anthropic-style `/messages` endpoint
+    /// (per opencode.ai/docs/go + models.dev `opencode-go` → `@ai-sdk/anthropic`).
+    /// Besides Claude, OpenCode Go routes the MiniMax and Qwen families through
+    /// `/messages`; everything else (DeepSeek, GLM, Kimi, MiMo, …) uses `/chat/completions`.
+    /// Matched by exact ID (see `anthropicMessagesModelIDs`), never by prefix.
+    static func usesAnthropicMessagesEndpoint(_ modelID: String) -> Bool {
+        anthropicMessagesModelIDs.contains(modelID.lowercased())
     }
 
     func buildOpenAIRequest(

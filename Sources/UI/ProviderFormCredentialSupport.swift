@@ -54,7 +54,7 @@ extension ProviderFormSupport {
         case .minimax:
             return "International endpoint: `https://api.minimax.io/v1`. Recommended models: `MiniMax-M2.7`, `MiniMax-M2.5`."
         case .minimaxCodingPlan:
-            return "Uses MiniMax's Anthropic-compatible endpoint: `https://api.minimaxi.com/anthropic/v1`. Supports both pay-as-you-go and Coding Plan API keys."
+            return "Uses MiniMax's unified OpenAI-compatible endpoint (international: `https://api.minimax.io/v1`; China: `https://api.minimaxi.com/v1`). Supports both pay-as-you-go and Token Plan keys (Token Plan keys start with `sk-cp-`); the same key also works on MiniMax's `/anthropic` endpoint."
         case .mimoTokenPlanOpenAI:
             return "Use the OpenAI-compatible Token Plan Base URL from the MiMo subscription page. The Singapore default is `https://token-plan-sgp.xiaomimimo.com/v1`; Token Plan keys start with `tp-`."
         case .mimoTokenPlanAnthropic:

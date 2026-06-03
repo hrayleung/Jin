@@ -70,6 +70,27 @@ final class XAIMediaRequestSupportTests: XCTestCase {
         XCTAssertEqual((components.body["image"] as? [String: Any])?["url"] as? String, "https://example.com/input.png")
     }
 
+    func testGrokImagineVideo15PreviewUsesGenerationEndpointAndControls() {
+        let components = XAIMediaRequestSupport.videoRequestComponents(
+            modelID: "grok-imagine-video-1.5-preview",
+            prompt: "A neon city at night",
+            imageURL: "https://example.com/still.png",
+            videoURL: nil,
+            controls: XAIVideoGenerationControls(
+                duration: 10,
+                aspectRatio: .ratio9x16,
+                resolution: .res720p
+            )
+        )
+
+        XCTAssertEqual(components.endpoint, "videos/generations")
+        XCTAssertEqual(components.body["model"] as? String, "grok-imagine-video-1.5-preview")
+        XCTAssertEqual(components.body["duration"] as? Int, 10)
+        XCTAssertEqual(components.body["aspect_ratio"] as? String, "9:16")
+        XCTAssertEqual(components.body["resolution"] as? String, "720p")
+        XCTAssertEqual((components.body["image"] as? [String: Any])?["url"] as? String, "https://example.com/still.png")
+    }
+
     func testVideoEditComponentsIncludeVideoAndOmitGenerationOnlyControls() {
         let components = XAIMediaRequestSupport.videoRequestComponents(
             modelID: "grok-imagine-video",

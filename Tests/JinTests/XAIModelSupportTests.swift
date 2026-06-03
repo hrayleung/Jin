@@ -7,9 +7,22 @@ final class XAIModelSupportTests: XCTestCase {
         XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("grok-imagine-image-quality"))
         XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("GROK-IMAGINE-IMAGE-PRO"))
         XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video"))
+        XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video-1.5-preview"))
+        XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("GROK-IMAGINE-VIDEO-1.5-PREVIEW"))
+        XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video-1.5-2026-05-30"))
 
         XCTAssertFalse(XAIModelSupport.isImageGenerationModelID("grok-imagine-image-custom"))
         XCTAssertFalse(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video-custom"))
+    }
+
+    func testImageRequiredVideoModelsRejectTextToVideo() {
+        // grok-imagine-video-1.5 is image-to-video only (API rejects text-only).
+        XCTAssertTrue(XAIModelSupport.requiresImageInputForVideoGeneration("grok-imagine-video-1.5-preview"))
+        XCTAssertTrue(XAIModelSupport.requiresImageInputForVideoGeneration("GROK-IMAGINE-VIDEO-1.5-PREVIEW"))
+        XCTAssertTrue(XAIModelSupport.requiresImageInputForVideoGeneration("grok-imagine-video-1.5-2026-05-30"))
+
+        // Base model supports text-to-video, so it must NOT require an image.
+        XCTAssertFalse(XAIModelSupport.requiresImageInputForVideoGeneration("grok-imagine-video"))
     }
 
     func testSupportsImageResolutionControlOnlyForQualityAndProTiers() {
