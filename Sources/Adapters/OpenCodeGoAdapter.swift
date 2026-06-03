@@ -1,12 +1,15 @@
 import Foundation
 
-/// OpenCode Zen provider adapter.
+/// OpenCode Go provider adapter.
+///
+/// OpenCode Go is the flat-fee subscription tier (open-weight models), served on the
+/// `/zen/go/v1` path — distinct from pay-as-you-go OpenCode Zen on `/zen/v1`.
 ///
 /// Routes requests to the correct endpoint format based on model ID:
 /// - Cataloged non-Claude models → OpenAI-compatible `/chat/completions`
 /// - Claude models manually added by ID → Anthropic-compatible `/messages`
 ///
-/// Docs: https://opencode.ai/docs/zen/
+/// Docs: https://opencode.ai/docs/go/
 actor OpenCodeGoAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]
@@ -15,7 +18,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
     let networkManager: NetworkManager
     private let anthropicDelegate: AnthropicAdapter
 
-    static let hardcodedBaseURL = "https://opencode.ai/zen/v1"
+    static let hardcodedBaseURL = "https://opencode.ai/zen/go/v1"
     static let anthropicModelIDs: Set<String> = [
         "claude-opus-4-8",
         "claude-opus-4-7",
@@ -55,7 +58,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        if Self.isAnthropicModel(modelID) {
+        if Self.usesAnthropicMessagesEndpoint(modelID) {
             return try await anthropicDelegate.sendMessage(
                 messages: messages,
                 modelID: modelID,

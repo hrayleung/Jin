@@ -80,7 +80,7 @@ extension AnthropicAdapter {
         }
     }
 
-    /// Anthropic-compatible providers (e.g. MiniMax Coding Plan) may not expose a `/models` endpoint.
+    /// Anthropic-compatible providers (e.g. Xiaomi MiMo Token Plan) may not expose a `/models` endpoint.
     private var supportsModelsEndpoint: Bool {
         providerConfig.type == .anthropic
     }

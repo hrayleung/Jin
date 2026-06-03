@@ -15,7 +15,7 @@ extension OpenCodeGoAdapter {
 
         do {
             let request: URLRequest
-            if Self.isAnthropicModel(modelID) {
+            if Self.usesAnthropicMessagesEndpoint(modelID) {
                 request = try NetworkRequestFactory.makeJSONRequest(
                     url: validatedURL("\(Self.hardcodedBaseURL)/messages"),
                     headers: [
@@ -45,6 +45,27 @@ extension OpenCodeGoAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
+        do {
+            let request = makeGETRequest(
+                url: try validatedURL("\(Self.hardcodedBaseURL)/models"),
+                apiKey: apiKey,
+                includeUserAgent: false
+            )
+            let (data, _) = try await networkManager.sendRequest(request)
+            let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
+            let live = response.data.map {
+                OpenAICompatibleModelMappingSupport.modelInfo(from: $0, providerType: .opencodeGo)
+            }
+            if !live.isEmpty { return live }
+            return bundledCatalogModels()
+        } catch {
+            // OpenCode Go's `/models` is normally a public HTTP 200, but fall back to the
+            // bundled catalog if the request or decode fails so the picker is never empty.
+            return bundledCatalogModels()
+        }
+    }
+
+    private func bundledCatalogModels() -> [ModelInfo] {
         (ModelCatalog.orderedRecords[.opencodeGo] ?? []).map { record in
             ModelInfo(
                 id: record.id,

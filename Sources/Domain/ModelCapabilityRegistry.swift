@@ -328,13 +328,13 @@ enum ModelCapabilityRegistry {
         switch providerType {
         case .openai, .openaiWebSocket:
             return .openAIResponses
-        case .anthropic, .claudeManagedAgents, .minimaxCodingPlan, .mimoTokenPlanAnthropic:
+        case .anthropic, .claudeManagedAgents, .mimoTokenPlanAnthropic:
             return .anthropic
         case .gemini, .vertexai:
             return .gemini
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .perplexity, .morphllm, .opencodeGo,
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .perplexity, .morphllm, .opencodeGo,
              .zyphra, .none:
             return .openAICompatible
         }
