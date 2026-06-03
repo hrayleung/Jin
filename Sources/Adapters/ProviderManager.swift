@@ -41,13 +41,13 @@ actor ProviderManager {
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return OpenAIWebSocketAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq, .mistral, .deepinfra,
-             .zhipuCodingPlan, .minimax, .mimoTokenPlanOpenAI:
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanOpenAI:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return OpenAICompatibleAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .openrouter:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return OpenRouterAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
-        case .anthropic, .minimaxCodingPlan, .mimoTokenPlanAnthropic:
+        case .anthropic, .mimoTokenPlanAnthropic:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return AnthropicAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .claudeManagedAgents:

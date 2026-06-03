@@ -1,12 +1,16 @@
 import Foundation
 
-/// OpenCode Zen provider adapter.
+/// OpenCode Go provider adapter.
 ///
-/// Routes requests to the correct endpoint format based on model ID:
-/// - Cataloged non-Claude models → OpenAI-compatible `/chat/completions`
-/// - Claude models manually added by ID → Anthropic-compatible `/messages`
+/// OpenCode Go is the flat-fee subscription tier (open-weight models), served on the
+/// `/zen/go/v1` path — distinct from pay-as-you-go OpenCode Zen on `/zen/v1`.
 ///
-/// Docs: https://opencode.ai/docs/zen/
+/// Routes requests to the correct endpoint format based on model ID
+/// (see `usesAnthropicMessagesEndpoint(_:)`):
+/// - Claude, MiniMax, and Qwen models → Anthropic-compatible `/messages`
+/// - DeepSeek, GLM, Kimi, MiMo, and other models → OpenAI-compatible `/chat/completions`
+///
+/// Docs: https://opencode.ai/docs/go/
 actor OpenCodeGoAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]
@@ -15,7 +19,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
     let networkManager: NetworkManager
     private let anthropicDelegate: AnthropicAdapter
 
-    static let hardcodedBaseURL = "https://opencode.ai/zen/v1"
+    static let hardcodedBaseURL = "https://opencode.ai/zen/go/v1"
     static let anthropicModelIDs: Set<String> = [
         "claude-opus-4-8",
         "claude-opus-4-7",
@@ -28,6 +32,20 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         "claude-haiku-4-5",
         "claude-3-5-haiku",
     ]
+
+    /// Exact model IDs OpenCode Go serves via the Anthropic-style `/messages` endpoint
+    /// (Claude, plus the MiniMax and Qwen families per opencode.ai/docs/go + models.dev
+    /// `opencode-go` → `@ai-sdk/anthropic`). Matched by exact ID — never by prefix — so a
+    /// new/unknown `minimax-*`/`qwen*` ID does not silently route to the wrong endpoint.
+    static let anthropicMessagesModelIDs: Set<String> = anthropicModelIDs.union([
+        "minimax-m3",
+        "minimax-m2.7",
+        "minimax-m2.5",
+        "minimax-m2.5-free",
+        "qwen3.7-max",
+        "qwen3.6-plus",
+        "qwen3.5-plus",
+    ])
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
         self.providerConfig = providerConfig
@@ -55,7 +73,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
-        if Self.isAnthropicModel(modelID) {
+        if Self.usesAnthropicMessagesEndpoint(modelID) {
             return try await anthropicDelegate.sendMessage(
                 messages: messages,
                 modelID: modelID,

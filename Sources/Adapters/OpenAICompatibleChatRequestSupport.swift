@@ -116,6 +116,7 @@ extension OpenAICompatibleAdapter {
                     dict["content"] = mistralAssistantContentChunks(visible: split.visible, thinking: thinking)
                 } else if providerConfig.type == .zhipuCodingPlan
                     || providerConfig.type == .minimax
+                    || providerConfig.type == .minimaxCodingPlan
                     || providerConfig.type == .mimoTokenPlanOpenAI {
                     dict["content"] = split.visible
                     dict["reasoning_content"] = thinking

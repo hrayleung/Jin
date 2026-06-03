@@ -9,6 +9,8 @@ final class AppPostLaunchMaintenance {
     private let mcpSchemaVersionPreferenceKey = "mcpTransportSchemaVersion"
     private let mcpSchemaVersion = 2
     private let providerModelRefreshInterval: TimeInterval = 24 * 60 * 60
+    private let minimaxTokenPlanRenamePreferenceKey = "minimaxCodingPlanRenamedToTokenPlan"
+    private let minimaxTokenPlanUnifiedEndpointPreferenceKey = "minimaxTokenPlanMigratedToUnifiedEndpoint"
 
     init(
         defaults: UserDefaults = .standard,
@@ -20,7 +22,62 @@ final class AppPostLaunchMaintenance {
 
     func perform(with container: ModelContainer) {
         resetMCPServersForTransportV2IfNeeded(container: container)
+        renameMiniMaxCodingPlanToTokenPlanIfNeeded(container: container)
+        migrateMiniMaxTokenPlanToUnifiedEndpointIfNeeded(container: container)
         updateProviderModelsIfNeeded(container: container)
+    }
+
+    /// One-time migration of the MiniMax Token Plan provider from MiniMax's Anthropic-compatible
+    /// endpoint (`…/anthropic/v1`) to its unified OpenAI-compatible endpoint (`…/v1`). The Token
+    /// Plan `sk-cp-` key works on both surfaces; Jin now routes it through the OpenAI-compatible
+    /// adapter, so any persisted `/anthropic` base URL must drop the `/anthropic` segment (the
+    /// host — international `.io` or China `.minimaxi.com` — is preserved).
+    func migrateMiniMaxTokenPlanToUnifiedEndpointIfNeeded(container: ModelContainer) {
+        guard !defaults.bool(forKey: minimaxTokenPlanUnifiedEndpointPreferenceKey) else { return }
+
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<ProviderConfigEntity>()
+        guard let providers = try? context.fetch(descriptor) else { return }
+
+        var didChange = false
+        for provider in providers where provider.typeRaw == ProviderType.minimaxCodingPlan.rawValue {
+            guard let baseURL = provider.baseURL, baseURL.contains("/anthropic") else { continue }
+            provider.baseURL = baseURL.replacingOccurrences(of: "/anthropic", with: "")
+            didChange = true
+        }
+
+        do {
+            if didChange { try context.save() }
+            defaults.set(true, forKey: minimaxTokenPlanUnifiedEndpointPreferenceKey)
+        } catch {
+            assertionFailure("Failed to migrate MiniMax Token Plan base URL: \(error)")
+        }
+    }
+
+    /// One-time rename of the shipped "MiniMax Coding Plan" provider to "MiniMax Token Plan"
+    /// (MiniMax rebranded the product to "Token Plan" on 2026-03-23). Only renames installs
+    /// that still carry the old default name, so user-customized names are left untouched.
+    func renameMiniMaxCodingPlanToTokenPlanIfNeeded(container: ModelContainer) {
+        guard !defaults.bool(forKey: minimaxTokenPlanRenamePreferenceKey) else { return }
+
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<ProviderConfigEntity>()
+        guard let providers = try? context.fetch(descriptor) else { return }
+
+        let targets = providers.filter {
+            $0.typeRaw == ProviderType.minimaxCodingPlan.rawValue && $0.name == "MiniMax Coding Plan"
+        }
+
+        for provider in targets {
+            provider.name = "MiniMax Token Plan"
+        }
+
+        do {
+            if !targets.isEmpty { try context.save() }
+            defaults.set(true, forKey: minimaxTokenPlanRenamePreferenceKey)
+        } catch {
+            assertionFailure("Failed to rename MiniMax Coding Plan provider: \(error)")
+        }
     }
 
     func resetMCPServersForTransportV2IfNeeded(container: ModelContainer) {

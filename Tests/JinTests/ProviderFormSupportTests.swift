@@ -45,7 +45,7 @@ final class ProviderFormSupportTests: XCTestCase {
         )
         XCTAssertEqual(
             ProviderFormSupport.providerDetailsText(for: .minimaxCodingPlan),
-            "Uses MiniMax's Anthropic-compatible endpoint: `https://api.minimaxi.com/anthropic/v1`. Supports both pay-as-you-go and Coding Plan API keys."
+            "Uses MiniMax's unified OpenAI-compatible endpoint (international: `https://api.minimax.io/v1`; China: `https://api.minimaxi.com/v1`). Supports both pay-as-you-go and Token Plan keys (Token Plan keys start with `sk-cp-`); the same key also works on MiniMax's `/anthropic` endpoint."
         )
         XCTAssertEqual(
             ProviderFormSupport.providerDetailsText(for: .mimoTokenPlanOpenAI),

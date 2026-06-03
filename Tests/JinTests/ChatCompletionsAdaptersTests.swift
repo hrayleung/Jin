@@ -1520,7 +1520,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
@@ -1629,7 +1629,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
 
@@ -2093,7 +2093,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
             XCTAssertNil(request.value(forHTTPHeaderField: "x-api-key"))
@@ -2187,7 +2187,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
             XCTAssertNil(request.value(forHTTPHeaderField: "x-api-key"))
@@ -2262,7 +2262,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         protocolType.requestHandler = { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/v1/messages")
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/messages")
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "test-key")
             XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
@@ -2274,6 +2274,60 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertEqual(root["model"] as? String, "claude-sonnet-4-6")
             XCTAssertEqual(root["max_tokens"] as? Int, 1)
             XCTAssertEqual(root["stream"] as? Bool, false)
+
+            let response = ["id": "msg_validation"]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "ignored", networkManager: networkManager)
+        let isValid = try await adapter.validateAPIKey("test-key")
+        XCTAssertTrue(isValid)
+    }
+
+    func testOpenCodeGoRoutesMiniMaxAndQwenToAnthropicMessagesEndpoint() {
+        // OpenCode Go serves MiniMax + Qwen via the Anthropic /messages endpoint
+        // (@ai-sdk/anthropic); DeepSeek/GLM/Kimi/MiMo/Hy3 use OpenAI /chat/completions.
+        for id in ["minimax-m3", "minimax-m2.7", "qwen3.7-max", "qwen3.6-plus", "claude-opus-4-8"] {
+            XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /messages")
+        }
+        for id in ["deepseek-v4-pro", "glm-5", "kimi-k2.6", "mimo-v2.5-pro", "hy3-preview"] {
+            XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /chat/completions")
+        }
+        // Routing is exact-ID, not prefix: unknown minimax-/qwen IDs must NOT auto-route.
+        for id in ["minimax-future-x", "qwen-experimental", "qwen4-max"] {
+            XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) is unknown and must not prefix-match to /messages")
+        }
+    }
+
+    func testOpenCodeGoValidateAPIKeyUsesMessagesEndpointForMiniMaxModel() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored",
+            models: [
+                ModelInfo(
+                    id: "minimax-m3",
+                    name: "MiniMax M3",
+                    capabilities: [.streaming, .toolCalling, .reasoning],
+                    contextWindow: 1_048_576
+                )
+            ]
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/messages")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "test-key")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "minimax-m3")
 
             let response = ["id": "msg_validation"]
             let data = try JSONSerialization.data(withJSONObject: response)

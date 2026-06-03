@@ -24,6 +24,21 @@ extension OpenAICompatibleAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
+        do {
+            return try await fetchModelsFromProviderAPI()
+        } catch {
+            // MiniMax's GET /v1/models exists but a Token Plan key may be billing-scoped to a
+            // subset of models (and the listing can fail transiently), so fall back to the
+            // bundled catalog instead of leaving the user with an empty model list.
+            if providerConfig.type == .minimax || providerConfig.type == .minimaxCodingPlan {
+                let fallback = bundledCatalogModels()
+                if !fallback.isEmpty { return fallback }
+            }
+            throw error
+        }
+    }
+
+    private func fetchModelsFromProviderAPI() async throws -> [ModelInfo] {
         var request = makeGETRequest(
             url: try validatedURL(modelsListURLString),
             apiKey: apiKey,
@@ -48,6 +63,21 @@ extension OpenAICompatibleAdapter {
             return models.filter { !OpenAICompatibleModelMappingSupport.isMiMoTTSModelID($0.id) }
         }
         return models
+    }
+
+    /// The locally bundled model catalog for this provider, used as a fetch fallback
+    /// for providers (e.g. MiniMax) that lack a usable `/models` listing endpoint.
+    private func bundledCatalogModels() -> [ModelInfo] {
+        (ModelCatalog.orderedRecords[providerConfig.type] ?? []).map { record in
+            ModelInfo(
+                id: record.id,
+                name: record.displayName,
+                capabilities: record.capabilities,
+                contextWindow: record.contextWindow,
+                maxOutputTokens: record.maxOutputTokens,
+                reasoningConfig: record.reasoningConfig
+            )
+        }
     }
 
     var baseURL: String {
