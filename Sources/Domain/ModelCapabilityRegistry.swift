@@ -607,7 +607,11 @@ enum ModelCapabilityRegistry {
         return !isLikelyMediaGenerationModelID(lowerModelID)
     }
 
-    private static func supportsOpenRouterWebSearch(lowerModelID: String) -> Bool {
+    private static func supportsOpenRouterWebSearch(lowerModelID rawModelID: String) -> Bool {
+        // OpenRouter "latest"-family aliases are prefixed with `~` (e.g. `~openai/gpt-latest`).
+        // Strip it so they share the same web-search policy as their canonical twins.
+        let lowerModelID = rawModelID.hasPrefix("~") ? String(rawModelID.dropFirst()) : rawModelID
+
         if containsAnyFragment(in: lowerModelID, fragments: searchKeywords) {
             return true
         }
