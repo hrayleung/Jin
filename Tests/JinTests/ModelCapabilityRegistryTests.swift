@@ -254,4 +254,34 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .vercelAIGateway, modelID: "anthropic/claude-sonnet-4.6"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .vercelAIGateway, modelID: "google/gemini-3.1-pro-preview"))
     }
+
+    func testOpenRouterTildeAliasesShareCanonicalWebSearchPolicy() {
+        // The `~`-prefixed "latest"-family aliases must resolve to the same web-search
+        // policy as their canonical twins (the `~` is stripped before the prefix checks).
+        let aliasPairs = [
+            ("~openai/gpt-latest", "openai/gpt-latest"),
+            ("~openai/gpt-mini-latest", "openai/gpt-mini-latest"),
+            ("~anthropic/claude-opus-latest", "anthropic/claude-opus-latest"),
+            ("~anthropic/claude-sonnet-latest", "anthropic/claude-sonnet-latest"),
+            ("~anthropic/claude-haiku-latest", "anthropic/claude-haiku-latest"),
+            ("~google/gemini-pro-latest", "google/gemini-pro-latest"),
+            ("~google/gemini-flash-latest", "google/gemini-flash-latest"),
+            ("~moonshotai/kimi-latest", "moonshotai/kimi-latest"),
+        ]
+        for (alias, canonical) in aliasPairs {
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: alias),
+                ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: canonical),
+                "\(alias) should share \(canonical)'s web-search policy"
+            )
+        }
+
+        // OpenAI- and Anthropic-family aliases enable OpenRouter web search (the point of the `~` fix).
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: "~openai/gpt-latest"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: "~openai/gpt-mini-latest"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: "~anthropic/claude-opus-latest"))
+
+        // A vendor outside the web-search allowlist stays disabled, matching its canonical id.
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: "~moonshotai/kimi-latest"))
+    }
 }

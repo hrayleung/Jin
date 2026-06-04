@@ -1386,4 +1386,86 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(unknown.maxOutputTokens)
         XCTAssertNil(unknown.reasoningConfig)
     }
+
+    func testNewOpenRouterModelsExposeVerifiedCatalogMetadata() {
+        struct Case {
+            let id: String
+            let contextWindow: Int
+            let maxOutputTokens: Int?
+            let required: ModelCapability
+            let hasReasoning: Bool
+            let effort: ReasoningEffort?
+        }
+
+        // Representative slice of the newly curated OpenRouter records, including `~` family
+        // aliases, free variants, a router, and hybrid (reasoning-off-by-default) models.
+        let cases: [Case] = [
+            Case(id: "qwen/qwen3.7-plus", contextWindow: 1_000_000, maxOutputTokens: 65_536,
+                 required: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], hasReasoning: true, effort: .medium),
+            Case(id: "minimax/minimax-m3", contextWindow: 1_048_576, maxOutputTokens: 512_000,
+                 required: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], hasReasoning: true, effort: .high),
+            Case(id: "anthropic/claude-opus-4.8", contextWindow: 1_000_000, maxOutputTokens: 128_000,
+                 required: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], hasReasoning: true, effort: .high),
+            Case(id: "openai/gpt-5.5", contextWindow: 1_050_000, maxOutputTokens: 128_000,
+                 required: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], hasReasoning: true, effort: .medium),
+            Case(id: "openai/gpt-5.4-mini", contextWindow: 400_000, maxOutputTokens: 128_000,
+                 required: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], hasReasoning: true, effort: ReasoningEffort.none),
+            Case(id: "openai/gpt-chat-latest", contextWindow: 400_000, maxOutputTokens: 128_000,
+                 required: [.streaming, .toolCalling, .vision, .promptCaching], hasReasoning: false, effort: nil),
+            Case(id: "~openai/gpt-latest", contextWindow: 1_050_000, maxOutputTokens: 128_000,
+                 required: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], hasReasoning: true, effort: .medium),
+            Case(id: "~anthropic/claude-opus-latest", contextWindow: 1_000_000, maxOutputTokens: 128_000,
+                 required: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], hasReasoning: true, effort: .high),
+            Case(id: "~google/gemini-pro-latest", contextWindow: 1_048_576, maxOutputTokens: 65_536,
+                 required: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching], hasReasoning: true, effort: .high),
+            Case(id: "google/gemma-4-31b-it:free", contextWindow: 262_144, maxOutputTokens: 32_768,
+                 required: [.streaming, .toolCalling, .vision, .reasoning], hasReasoning: true, effort: ReasoningEffort.none),
+            Case(id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", contextWindow: 256_000, maxOutputTokens: 65_536,
+                 required: [.streaming, .toolCalling, .vision, .audio, .reasoning], hasReasoning: true, effort: .low),
+            Case(id: "openrouter/pareto-code", contextWindow: 2_000_000, maxOutputTokens: nil,
+                 required: [.streaming], hasReasoning: false, effort: nil),
+            Case(id: "z-ai/glm-5.1", contextWindow: 202_752, maxOutputTokens: 131_072,
+                 required: [.streaming, .toolCalling, .reasoning, .promptCaching], hasReasoning: true, effort: .high),
+            Case(id: "xiaomi/mimo-v2.5", contextWindow: 1_048_576, maxOutputTokens: 131_072,
+                 required: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching], hasReasoning: true, effort: .medium),
+        ]
+
+        // The OpenRouter adapter drops video parts, text-fallbacks PDFs, and cannot route
+        // provider-native code execution — no curated OpenRouter record may claim these.
+        let forbidden: ModelCapability = [.videoInput, .nativePDF, .codeExecution]
+
+        for c in cases {
+            let model = ModelCatalog.modelInfo(for: c.id, provider: .openrouter)
+            XCTAssertEqual(model.contextWindow, c.contextWindow, c.id)
+            XCTAssertEqual(model.maxOutputTokens, c.maxOutputTokens, c.id)
+            XCTAssertTrue(model.capabilities.isSuperset(of: c.required), "\(c.id) missing expected capabilities")
+            XCTAssertTrue(model.capabilities.isDisjoint(with: forbidden), "\(c.id) must not claim video/PDF/code-exec on OpenRouter")
+            if c.hasReasoning {
+                XCTAssertEqual(model.reasoningConfig?.type, .effort, c.id)
+                XCTAssertEqual(model.reasoningConfig?.defaultEffort, c.effort, c.id)
+            } else {
+                XCTAssertNil(model.reasoningConfig, c.id)
+            }
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: c.id, provider: .openrouter), c.id)
+        }
+
+        // Reka Edge name was normalized to the catalog-wide "Vendor: Model" convention and is non-reasoning.
+        let reka = ModelCatalog.modelInfo(for: "rekaai/reka-edge", provider: .openrouter)
+        XCTAssertEqual(reka.name, "Reka AI: Reka Edge")
+        XCTAssertTrue(reka.capabilities.contains(.vision))
+        XCTAssertFalse(reka.capabilities.contains(.reasoning))
+        XCTAssertNil(reka.reasoningConfig)
+    }
+
+    func testNewOpenRouterModelsRequireExactIDs() {
+        // Near-miss ids (including `~` aliases) must fall back to conservative defaults.
+        for id in ["~openai/gpt-latest-custom", "minimax/minimax-m3-preview", "z-ai/glm-5.1-custom"] {
+            let unknown = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
+            XCTAssertEqual(unknown.contextWindow, 128_000, id)
+            XCTAssertNil(unknown.maxOutputTokens, id)
+            XCTAssertNil(unknown.reasoningConfig, id)
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .openrouter), id)
+        }
+    }
 }
