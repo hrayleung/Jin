@@ -288,6 +288,12 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
 
         // Anthropic
+        Record(id: "anthropic/claude-fable-5", displayName: "Claude Fable 5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "anthropic/claude-opus-4-8", displayName: "Claude Opus 4.8",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_000_000,
@@ -517,6 +523,12 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
 
         // Anthropic
+        Record(id: "anthropic/claude-fable-5", displayName: "Claude Fable 5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "anthropic/claude-opus-4.8", displayName: "Claude Opus 4.8",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_000_000,

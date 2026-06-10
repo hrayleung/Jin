@@ -105,6 +105,43 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         )
     }
 
+    func testFableMythos5SupportEffortButNotServerSideTools() {
+        // Effort spans low…max (adaptive-thinking-only, xhigh + max), same as Opus 4.8/4.7.
+        for modelID in ["claude-fable-5", "claude-mythos-5"] {
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .anthropic, modelID: modelID),
+                [.low, .medium, .high, .xhigh, .max],
+                "\(modelID) should expose the full effort range"
+            )
+            XCTAssertEqual(
+                ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .anthropic, modelID: modelID),
+                .xhigh,
+                "\(modelID) supports xhigh natively"
+            )
+
+            // Per Anthropic's launch docs, Fable 5 / Mythos 5 do NOT support server-side
+            // web search, web fetch, or code execution at launch.
+            XCTAssertFalse(
+                ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: modelID),
+                "\(modelID) does not support code execution at launch"
+            )
+            XCTAssertFalse(
+                ModelCapabilityRegistry.supportsWebSearch(for: .anthropic, modelID: modelID),
+                "\(modelID) does not support the web search tool at launch"
+            )
+            XCTAssertFalse(
+                ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(for: .anthropic, modelID: modelID),
+                "\(modelID) is not on the dynamic-filtering list (only Mythos Preview is, not Mythos 5)"
+            )
+        }
+
+        // Positive control: narrowing the .anthropic web-search heuristic must not affect Opus.
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .anthropic, modelID: "claude-opus-4-8"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .anthropic, modelID: "claude-sonnet-4-6"))
+        // `claude-mythos-preview` is a different (older) model and is NOT gated off here.
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .anthropic, modelID: "claude-mythos-preview"))
+    }
+
     func testGeminiCodeExecutionUsesExactDocumentedModelIDs() {
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .gemini, modelID: "gemini-3-pro"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .gemini, modelID: "gemini-3.1-pro-preview"))

@@ -50,6 +50,50 @@ final class AnthropicRequestBodySupportTests: XCTestCase {
         XCTAssertEqual(outputConfig["effort"] as? String, "xhigh")
     }
 
+    func testApplyThinkingConfigForFable5UsesAdaptiveAndSummarizedDisplayNeverDisabled() throws {
+        var body: [String: Any] = [:]
+
+        AnthropicRequestBodySupport.applyThinkingConfig(
+            to: &body,
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .high)
+            ),
+            providerType: .anthropic,
+            modelID: "claude-fable-5"
+        )
+
+        let thinking = try XCTUnwrap(body["thinking"] as? [String: Any])
+        XCTAssertEqual(thinking["type"] as? String, "adaptive")
+        // Raw thinking is never returned on Fable 5; default display must be "summarized".
+        XCTAssertEqual(thinking["display"] as? String, "summarized")
+        XCTAssertNil(thinking["budget_tokens"])
+        XCTAssertNotEqual(thinking["type"] as? String, "disabled")
+
+        let outputConfig = try XCTUnwrap(body["output_config"] as? [String: Any])
+        XCTAssertEqual(outputConfig["effort"] as? String, "high")
+    }
+
+    func testApplyThinkingConfigForFable5DisabledOmitsThinkingAndSampling() throws {
+        var body: [String: Any] = [:]
+
+        // Fable 5's adaptive thinking is always on and `thinking: {type: "disabled"}` 400s, so
+        // the disabled path must omit the field entirely. Sampling params are also unsupported.
+        AnthropicRequestBodySupport.applyThinkingConfig(
+            to: &body,
+            controls: GenerationControls(
+                temperature: 0.4,
+                topP: 0.8,
+                reasoning: ReasoningControls(enabled: false)
+            ),
+            providerType: .anthropic,
+            modelID: "claude-fable-5"
+        )
+
+        XCTAssertNil(body["thinking"], "Fable 5 must omit the thinking field — never send type=disabled")
+        XCTAssertNil(body["temperature"], "Fable 5 does not accept sampling params")
+        XCTAssertNil(body["top_p"], "Fable 5 does not accept sampling params")
+    }
+
     func testApplyThinkingConfigForMimoAddsSamplingAndSimpleThinkingState() throws {
         var body: [String: Any] = [:]
 
