@@ -7,6 +7,23 @@ extension ModelCatalog {
     // MARK: Anthropic
 
     static let anthropicRecords: [Record] = [
+        // Fable/Mythos 5 generation: most capable widely released model. Adaptive thinking is
+        // always on (no disabled config), no sampling params, effort low…max. Server-side
+        // tools (web search, web fetch, code execution) are not supported at launch, so
+        // `.codeExecution` is intentionally omitted. Mythos 5 shares the exact surface but is
+        // limited-availability (Project Glasswing), so it is recognized-but-not-seeded.
+        Record(id: "claude-fable-5", displayName: "Claude Fable 5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "claude-mythos-5", displayName: "Claude Mythos 5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "claude-opus-4-8", displayName: "Claude Opus 4.8",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,
