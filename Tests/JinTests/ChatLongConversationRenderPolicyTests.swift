@@ -25,18 +25,21 @@ final class ChatLongConversationRenderPolicyTests: XCTestCase {
         XCTAssertEqual(mode, .nativeText)
     }
 
-    func testEffectiveRenderModeCollapsesOlderMemoryIntensiveAssistantMessages() {
+    func testEffectiveRenderModeNeverAutoCollapsesOldMessages() {
+        // The auto-collapse was a WebView-era memory guard; the recycling
+        // table never realizes off-screen rows, so old messages must render
+        // fully regardless of conversation length.
         let message = makeAssistantItem()
 
         let mode = ChatLongConversationRenderPolicy.effectiveRenderMode(
             index: 0,
             message: message,
-            totalMessageCount: ChatView.smartLongChatCollapseThreshold + 1,
-            visibleMessageCount: ChatView.smartLongChatExpandedTailCount + 2,
+            totalMessageCount: ChatView.smartLongChatCollapseThreshold + 100,
+            visibleMessageCount: ChatView.smartLongChatExpandedTailCount + 50,
             expandedIDs: []
         )
 
-        XCTAssertEqual(mode, .collapsedPreview)
+        XCTAssertEqual(mode, .fullWeb)
     }
 
     func testEffectiveRenderModeKeepsExpandedTailFullyRendered() {
