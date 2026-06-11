@@ -3,7 +3,7 @@ import Foundation
 enum AnthropicModelLimits {
     static func supportsAdaptiveThinking(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
-        return isOpus48(lower) || isOpus47(lower) || isOpus46(lower) || isSonnet46(lower)
+        return isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower) || isOpus46(lower) || isSonnet46(lower)
     }
 
     static func supportsEffort(for modelID: String) -> Bool {
@@ -23,7 +23,7 @@ enum AnthropicModelLimits {
 
     static func supportsXHighEffort(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
-        return isOpus48(lower) || isOpus47(lower)
+        return isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower)
     }
 
     /// Fast mode (beta: research preview) is documented for the exact model IDs
@@ -37,25 +37,29 @@ enum AnthropicModelLimits {
     }
 
     static func supportsMaxEffort(for modelID: String) -> Bool {
-        // Opus 4.8 and Opus 4.7 support both xhigh and max. Opus 4.6 supports max only.
+        // Fable/Mythos 5 and Opus 4.8/4.7 support both xhigh and max. Opus 4.6 supports max only.
         let lower = modelID.lowercased()
-        return isOpus48(lower) || isOpus47(lower) || isOpus46(lower)
+        return isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower) || isOpus46(lower)
     }
 
     static func supportsSamplingParameters(for modelID: String) -> Bool {
+        // Sampling params (temperature/top_p/top_k) are removed on Fable/Mythos 5 and Opus 4.8/4.7
+        // (sending them returns 400).
         let lower = modelID.lowercased()
-        return !(isOpus48(lower) || isOpus47(lower))
+        return !(isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower))
     }
 
     static func requiresExplicitThinkingDisplay(for modelID: String) -> Bool {
+        // Raw thinking is never returned on Fable/Mythos 5 and Opus 4.8/4.7; `thinking.display`
+        // defaults to "omitted", so we opt in to "summarized" to surface readable reasoning.
         let lower = modelID.lowercased()
-        return isOpus48(lower) || isOpus47(lower)
+        return isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower)
     }
 
     static func maxOutputTokens(for modelID: String) -> Int? {
         let lower = modelID.lowercased()
 
-        if isOpus48(lower) || isOpus47(lower) || isOpus46(lower) {
+        if isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower) || isOpus46(lower) {
             return 128_000
         }
 
@@ -90,6 +94,15 @@ enum AnthropicModelLimits {
         }
 
         return max(1, resolved)
+    }
+
+    /// The Fable/Mythos 5 generation (`claude-fable-5`, `claude-mythos-5`). Mythos 5
+    /// shares Fable 5's exact API surface (adaptive-thinking-only, no sampling params,
+    /// 128k output) without the safety classifiers. Note: the older invitation-only
+    /// `claude-mythos-preview` is a different model and is intentionally NOT matched here.
+    static func isFableMythos5(_ lowercasedModelID: String) -> Bool {
+        isModelFamily(lowercasedModelID, prefix: "claude-fable-5")
+            || isModelFamily(lowercasedModelID, prefix: "claude-mythos-5")
     }
 
     private static func isOpus48(_ lowercasedModelID: String) -> Bool {

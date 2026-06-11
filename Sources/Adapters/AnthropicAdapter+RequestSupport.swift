@@ -140,8 +140,12 @@ extension AnthropicAdapter {
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
+        // Claude 4.x families match via the "-4-"/"-4." substrings. The Fable/Mythos 5
+        // generation has no such substring but is fully PDF-capable ("all active models
+        // support PDF processing"), and its catalog records declare `.nativePDF` — so it
+        // must be matched here too, or PDFs would silently fall back to a filename-only stub.
         let lower = modelID.lowercased()
-        return lower.contains("-4-") || lower.contains("-4.")
+        return lower.contains("-4-") || lower.contains("-4.") || AnthropicModelLimits.isFableMythos5(lower)
     }
 
     private func supportsWebSearch(_ modelID: String) -> Bool {

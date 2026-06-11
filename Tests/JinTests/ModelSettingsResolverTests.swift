@@ -159,6 +159,20 @@ final class ModelSettingsResolverTests: XCTestCase {
     }
 
     func testAnthropicCatalogCarriesDocsVerifiedContextAndMaxOutput() {
+        let fable5 = ModelCatalog.modelInfo(for: "claude-fable-5", provider: .anthropic)
+        let resolvedFable5 = ModelSettingsResolver.resolve(model: fable5, providerType: .anthropic)
+        XCTAssertEqual(resolvedFable5.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedFable5.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedFable5.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedFable5.reasoningConfig?.defaultEffort, .high)
+
+        let mythos5 = ModelCatalog.modelInfo(for: "claude-mythos-5", provider: .anthropic)
+        let resolvedMythos5 = ModelSettingsResolver.resolve(model: mythos5, providerType: .anthropic)
+        XCTAssertEqual(resolvedMythos5.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedMythos5.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedMythos5.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedMythos5.reasoningConfig?.defaultEffort, .high)
+
         let opus48 = ModelCatalog.modelInfo(for: "claude-opus-4-8", provider: .anthropic)
         let resolvedOpus48 = ModelSettingsResolver.resolve(model: opus48, providerType: .anthropic)
         XCTAssertEqual(resolvedOpus48.contextWindow, 1_000_000)

@@ -474,7 +474,12 @@ enum ModelCapabilityRegistry {
         case .openrouter:
             return supportsOpenRouterWebSearch(lowerModelID: lowerModelID)
         case .anthropic:
+            // Fable 5 / Mythos 5 do not support the server-side web search tool at launch —
+            // Anthropic's "Introducing Claude Fable 5 and Claude Mythos 5" supported-features
+            // list, the web-search-tool model list, and the code-execution model list all omit
+            // them (only the older Mythos Preview is listed for dynamic filtering).
             return isAnthropicModelID(lowerModelID)
+                && !AnthropicModelLimits.isFableMythos5(lowerModelID)
         case .claudeManagedAgents:
             return false
         case .perplexity:
@@ -607,7 +612,11 @@ enum ModelCapabilityRegistry {
         return !isLikelyMediaGenerationModelID(lowerModelID)
     }
 
-    private static func supportsOpenRouterWebSearch(lowerModelID: String) -> Bool {
+    private static func supportsOpenRouterWebSearch(lowerModelID rawModelID: String) -> Bool {
+        // OpenRouter "latest"-family aliases are prefixed with `~` (e.g. `~openai/gpt-latest`).
+        // Strip it so they share the same web-search policy as their canonical twins.
+        let lowerModelID = rawModelID.hasPrefix("~") ? String(rawModelID.dropFirst()) : rawModelID
+
         if containsAnyFragment(in: lowerModelID, fragments: searchKeywords) {
             return true
         }

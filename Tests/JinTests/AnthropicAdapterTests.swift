@@ -970,6 +970,100 @@ final class AnthropicAdapterTests: XCTestCase {
         XCTAssertEqual(uploadCount, 1)
     }
 
+    func testAnthropicAdapterUsesNativePDFForFable5() async throws {
+        // Regression: Fable 5's model ID has no "-4-"/"-4." substring, so the adapter's
+        // native-PDF gate used to return false even though the catalog declares `.nativePDF`.
+        // That mismatch silently dropped PDFs to a filename-only stub. Fable 5 must take the
+        // native path (Files API upload + a `type:"document"` block).
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        var sawNativePDFDocumentBlock = false
+
+        protocolType.requestHandler = { request in
+            switch request.url?.path {
+            case "/files":
+                // The hosted-file store may serve a cached reference (keyed by content) from a
+                // prior test, so this upload is not guaranteed to fire — the regression assertion
+                // below depends only on a document block being produced, never on the upload.
+                let response: [String: Any] = [
+                    "id": "file_ant_fable5",
+                    "filename": "fable5-regression.pdf",
+                    "mime_type": "application/pdf"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+
+            case "/messages":
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+                let content = try XCTUnwrap(messages.first?["content"] as? [[String: Any]])
+                if let document = content.first(where: { ($0["type"] as? String) == "document" }),
+                   let source = document["source"] as? [String: Any] {
+                    // Native PDF: either a hosted file reference or an inline base64 document —
+                    // both are correct; the broken behavior was a filename-only text stub instead.
+                    let isHostedRef = (source["type"] as? String) == "file"
+                    let isInlinePDF = (source["media_type"] as? String) == "application/pdf"
+                    sawNativePDFDocumentBlock = isHostedRef || isInlinePDF
+                }
+
+                let response = Data("data: [DONE]\n\n".utf8)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    response
+                )
+
+            default:
+                XCTFail("Unexpected request: \(request.url?.absoluteString ?? "<nil>")")
+                return (
+                    HTTPURLResponse(url: request.url ?? URL(string: "https://example.com")!, statusCode: 500, httpVersion: nil, headerFields: nil)!,
+                    Data()
+                )
+            }
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .file(FileContent(
+                            mimeType: "application/pdf",
+                            filename: "fable5-regression.pdf",
+                            // Unique bytes so this PDF doesn't collide with another test's cache entry.
+                            data: Data([0x25, 0x50, 0x44, 0x46, 0x46, 0x35]),
+                            url: nil,
+                            extractedText: "PDF"
+                        ))
+                    ]
+                )
+            ],
+            modelID: "claude-fable-5",
+            controls: GenerationControls(pdfProcessingMode: .native),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+        XCTAssertTrue(
+            sawNativePDFDocumentBlock,
+            "Fable 5 PDF must become a native document block, not a filename-only fallback"
+        )
+    }
+
     func testAnthropicPrefixWindowUsesTopLevelCacheControl() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
