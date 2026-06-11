@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 
 /// Resolved palette + fonts for the native markdown renderer. Mirrors the CSS
@@ -147,6 +148,55 @@ extension MarkdownTheme {
     }()
 
     var bodyParagraphStyle: NSParagraphStyle { Self.cachedBodyParagraphStyle }
+
+    /// Process-wide cache of indent-variant paragraph styles (folded lists,
+    /// folded blockquotes). Same rationale as the singletons above: a fresh
+    /// `NSMutableParagraphStyle` per render defeats `NSLayoutManager`'s
+    /// paragraph-style identity caching. Keyed by the quantized geometry, so
+    /// every list item at the same indent level across the whole app shares
+    /// one instance. (Immutable `NSParagraphStyle` copies are thread-safe;
+    /// the box exists only because the Sendable conformance is unavailable.)
+    private struct CachedStyleBox: @unchecked Sendable { let style: NSParagraphStyle }
+    private static let indentedStyleCache = OSAllocatedUnfairLock<[String: CachedStyleBox]>(initialState: [:])
+
+    /// Body-based style for folded list items / quote paragraphs: hanging
+    /// indent with the item text column at `headIndent`.
+    static func listParagraphStyle(
+        firstLineHeadIndent: CGFloat,
+        headIndent: CGFloat,
+        paragraphSpacing: CGFloat
+    ) -> NSParagraphStyle {
+        let key = "body|\(Int(firstLineHeadIndent))|\(Int(headIndent))|\(Int(paragraphSpacing))"
+        let box = indentedStyleCache.withLock { cache -> CachedStyleBox in
+            if let cached = cache[key] { return cached }
+            let style = (cachedBodyParagraphStyle.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+            style.firstLineHeadIndent = firstLineHeadIndent
+            style.headIndent = headIndent
+            style.tabStops = [NSTextTab(textAlignment: .left, location: headIndent)]
+            style.defaultTabInterval = 22
+            style.paragraphSpacing = paragraphSpacing
+            let boxed = CachedStyleBox(style: style.copy() as! NSParagraphStyle)
+            cache[key] = boxed
+            return boxed
+        }
+        return box.style
+    }
+
+    /// Heading style indented for folded blockquote content.
+    static func indentedHeadingParagraphStyle(level: Int, indent: CGFloat) -> NSParagraphStyle {
+        let key = "h\(max(1, min(6, level)))|\(Int(indent))"
+        let box = indentedStyleCache.withLock { cache -> CachedStyleBox in
+            if let cached = cache[key] { return cached }
+            let base = headingParagraphStyle(forLevel: level)
+            let style = (base.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+            style.firstLineHeadIndent = indent
+            style.headIndent = indent
+            let boxed = CachedStyleBox(style: style.copy() as! NSParagraphStyle)
+            cache[key] = boxed
+            return boxed
+        }
+        return box.style
+    }
 
     static func headingParagraphStyle(forLevel level: Int) -> NSParagraphStyle {
         Self.cachedHeadingParagraphStyles[max(1, min(6, level))] ?? Self.cachedBodyParagraphStyle

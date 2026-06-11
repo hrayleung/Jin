@@ -8,6 +8,16 @@ extension NSAttributedString.Key {
     /// rendering the WebView era had.
     static let jinInlineCodeBackground = NSAttributedString.Key("jin.inline-code.background")
     static let jinInlineCodeBorder = NSAttributedString.Key("jin.inline-code.border")
+
+    /// Marks folded blockquote content (value: `NSNumber` nesting depth ≥ 1).
+    /// `JinMarkdownLayoutManager` draws one vertical bar per depth level
+    /// beside these ranges — the same mechanism as the inline-code
+    /// background, chosen over NSTextBlock (rectangular borders + its own
+    /// width model that fights `widthTracksTextView`) and over SwiftUI
+    /// overlays (re-introduces per-paragraph bridge churn). Custom keys are
+    /// dropped by the pasteboard's plain-text flavor, so copy is unaffected.
+    static let jinBlockQuoteDepth = NSAttributedString.Key("jin.blockquote.depth")
+    static let jinBlockQuoteBarColor = NSAttributedString.Key("jin.blockquote.bar-color")
 }
 
 /// `NSLayoutManager` subclass that paints rounded backgrounds for runs marked
@@ -25,6 +35,8 @@ final class JinMarkdownLayoutManager: NSLayoutManager {
 
         let charRange = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
         guard charRange.length > 0 else { return }
+
+        drawBlockQuoteBars(in: charRange, storage: textStorage, container: textContainer, origin: origin, context: context)
 
         textStorage.enumerateAttribute(
             .jinInlineCodeBackground,
@@ -62,6 +74,43 @@ final class JinMarkdownLayoutManager: NSLayoutManager {
                 }
                 context.restoreGState()
             }
+        }
+    }
+
+    /// One 3pt rounded vertical bar per quote depth level, spanning each
+    /// contiguous `.jinBlockQuoteDepth` run (`enumerateAttribute` coalesces
+    /// adjacent equal values, so a multi-paragraph quote gets one continuous
+    /// bar). Bars sit in the indent gutter the folded quote's paragraph
+    /// style reserves (13pt per depth: 3pt bar + 10pt gap).
+    private func drawBlockQuoteBars(
+        in charRange: NSRange,
+        storage: NSTextStorage,
+        container: NSTextContainer,
+        origin: NSPoint,
+        context: CGContext
+    ) {
+        storage.enumerateAttribute(.jinBlockQuoteDepth, in: charRange, options: []) { value, attrRange, _ in
+            guard let depth = (value as? NSNumber)?.intValue, depth > 0 else { return }
+            let barColor = (storage.attribute(.jinBlockQuoteBarColor, at: attrRange.location, effectiveRange: nil) as? NSColor)
+                ?? NSColor.separatorColor
+
+            let glyphRange = self.glyphRange(forCharacterRange: attrRange, actualCharacterRange: nil)
+            guard glyphRange.length > 0 else { return }
+            let bounding = self.boundingRect(forGlyphRange: glyphRange, in: container)
+            guard bounding.height > 1 else { return }
+
+            context.saveGState()
+            barColor.setFill()
+            for level in 0..<depth {
+                let barRect = NSRect(
+                    x: origin.x + CGFloat(level) * 13,
+                    y: origin.y + bounding.minY + 1,
+                    width: 3,
+                    height: max(0, bounding.height - 2)
+                )
+                NSBezierPath(roundedRect: barRect, xRadius: 1.5, yRadius: 1.5).fill()
+            }
+            context.restoreGState()
         }
     }
 }
