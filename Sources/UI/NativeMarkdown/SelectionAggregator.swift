@@ -140,7 +140,12 @@ final class SelectionAggregator: ObservableObject {
         let safeLocation = min(localRange.location, blockText.length)
         let safeLength = min(localRange.length, blockText.length - safeLocation)
         let safeRange = NSRange(location: safeLocation, length: safeLength)
+        // The CJK emphasis repair inserts U+200B into the rendered text (and
+        // therefore into plainText/flatText, which offsets index). Strip it
+        // from the OUTGOING text only — quotes and prompts must not carry
+        // invisible characters; offsets stay raw.
         let selectedText = blockText.substring(with: safeRange)
+            .replacingOccurrences(of: "\u{200B}", with: "")
 
         let globalStart = block.offsetInAnchor + safeRange.location
         let globalEnd = globalStart + safeRange.length

@@ -192,32 +192,73 @@ enum MarkdownStructuralRepair {
     /// we picked it over a regular space because a real space would
     /// change the visible output, which is the very thing this fix
     /// avoids.
+    /// The flanking failure this repair targets is a *CJK* phenomenon —
+    /// CommonMark's rule only bites when CJK punctuation/ideographs sit on
+    /// the emphasis boundary. Each pattern therefore requires a CJK
+    /// character on at least one side. An unrestricted `\p{P}` version
+    /// previously fired on Latin text like `f(x)**2 … g(y)**3`, made the
+    /// two `**` runs flank, and the parser swallowed the literal asterisks
+    /// into a bogus bold span.
+    private static let cjkLetterClass = #"\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}"#
+    private static let cjkPunctuationClass =
+        "（）「」『』【】〈〉《》〔〕［］｛｝、，。；：！？…・～｜—％"
+
     static func insertZeroWidthSpaceAtCJKEmphasisBoundary(_ line: String) -> String {
         let zwsp = "\u{200B}"
+        let cjkL = cjkLetterClass
+        let cjkP = NSRegularExpression.escapedPattern(for: cjkPunctuationClass)
         var result = line
+
         // Closing-`**` failure: punctuation + `**` + letter/digit.
         // Insert ZWSP between the punctuation and the `**`.
+        // (a) CJK punctuation before the `**`; any letter after.
         result = MarkdownRenderPreparation.replacing(
-            pattern: #"(\p{P})(\*\*)(?=[\p{L}\p{N}])"#,
+            pattern: "([\(cjkP)])(\\*\\*)(?=[\\p{L}\\p{N}])",
             in: result,
             with: "$1\(zwsp)$2"
         )
+        // (b) Any punctuation before; CJK letter after. (ZWSP inserted by
+        // (a) is category Cf, not P, so the two variants never double-fire.)
+        result = MarkdownRenderPreparation.replacing(
+            pattern: "(\\p{P})(\\*\\*)(?=[\(cjkL)])",
+            in: result,
+            with: "$1\(zwsp)$2"
+        )
+
         // Opening-`**` failure: letter/digit + `**` + punctuation.
-        // Insert ZWSP between the `**` and the punctuation.
+        // Insert ZWSP between the `**` and the punctuation. CJK letters are
+        // captured (not look-behind) because `\p{Han}` is variable-width in
+        // UTF-16 — Extension B ideographs are surrogate pairs.
         result = MarkdownRenderPreparation.replacing(
-            pattern: #"(?<=[\p{L}\p{N}])(\*\*)(\p{P})(?=[^\n]*\*\*)"#,
+            pattern: "([\(cjkL)])(\\*\\*)(\\p{P})(?=[^\\n]*\\*\\*)",
+            in: result,
+            with: "$1$2\(zwsp)$3"
+        )
+        result = MarkdownRenderPreparation.replacing(
+            pattern: "(?<=[\\p{L}\\p{N}])(\\*\\*)([\(cjkP)])(?=[^\\n]*\\*\\*)",
             in: result,
             with: "$1\(zwsp)$2"
         )
-        // Same two patterns for single-`*` (italic) emphasis, but only
-        // when not adjacent to another `*` (i.e., not part of `**`).
+
+        // Same pairs for single-`*` (italic) emphasis, but only when not
+        // adjacent to another `*` (i.e., not part of `**`).
         result = MarkdownRenderPreparation.replacing(
-            pattern: #"(\p{P})(?<!\*)(\*)(?!\*)(?=[\p{L}\p{N}])"#,
+            pattern: "([\(cjkP)])(?<!\\*)(\\*)(?!\\*)(?=[\\p{L}\\p{N}])",
             in: result,
             with: "$1\(zwsp)$2"
         )
         result = MarkdownRenderPreparation.replacing(
-            pattern: #"(?<=[\p{L}\p{N}])(?<!\*)(\*)(?!\*)(\p{P})(?=[^\n]*(?<!\*)\*(?!\*))"#,
+            pattern: "(\\p{P})(?<!\\*)(\\*)(?!\\*)(?=[\(cjkL)])",
+            in: result,
+            with: "$1\(zwsp)$2"
+        )
+        result = MarkdownRenderPreparation.replacing(
+            pattern: "([\(cjkL)])(?<!\\*)(\\*)(?!\\*)(\\p{P})(?=[^\\n]*(?<!\\*)\\*(?!\\*))",
+            in: result,
+            with: "$1$2\(zwsp)$3"
+        )
+        result = MarkdownRenderPreparation.replacing(
+            pattern: "(?<=[\\p{L}\\p{N}])(?<!\\*)(\\*)(?!\\*)([\(cjkP)])(?=[^\\n]*(?<!\\*)\\*(?!\\*))",
             in: result,
             with: "$1\(zwsp)$2"
         )

@@ -107,6 +107,20 @@ final class JinMessageTextView: NSTextView {
         JinTextViewCensus.decrement()
     }
 
+    /// Strip the invisible U+200B the CJK emphasis repair inserts before
+    /// the selection leaves the app. Offsets/storage stay raw; only the
+    /// plain-string pasteboard flavor is rewritten (RTF keeps the ZWSP —
+    /// it round-trips invisibly there).
+    override func writeSelection(to pboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> Bool {
+        let wrote = super.writeSelection(to: pboard, types: types)
+        if wrote,
+           let plain = pboard.string(forType: .string),
+           plain.contains("\u{200B}") {
+            pboard.setString(plain.replacingOccurrences(of: "\u{200B}", with: ""), forType: .string)
+        }
+        return wrote
+    }
+
     private func configureForBlockRendering() {
         isEditable = false
         isSelectable = true
