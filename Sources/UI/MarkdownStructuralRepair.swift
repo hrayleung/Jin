@@ -406,6 +406,7 @@ enum MarkdownStructuralRepair {
                 if prefixCount >= 8,
                    suffixCount >= 8,
                    !looksLikeCompactCamelCaseTerm(content: content, at: index),
+                   !looksLikeMultiHumpIdentifier(content: content, at: index),
                    !looksLikeContinuedNounPhrase(content: content, at: index) {
                     return index
                 }
@@ -436,6 +437,43 @@ enum MarkdownStructuralRepair {
 
         let leftSegmentLength = content.distance(from: tokenStart, to: boundaryIndex)
         return (1...4).contains(leftSegmentLength)
+    }
+
+    /// Rejects splits inside multi-hump PascalCase identifiers such as
+    /// `MarkdownRenderPreparation` (2 humps) — code symbols routinely appear
+    /// in headings (`## MarkdownRenderPreparation 模块详解`) and must not be
+    /// torn into heading + fake body. The compact-term guard only protects
+    /// left segments of 1-4 chars, which long identifiers exceed. A single
+    /// hump (`InfrastructureToken sentence…`) still splits — that's the real
+    /// glued-heading-body shape this repair exists for.
+    private static func looksLikeMultiHumpIdentifier(
+        content: Substring,
+        at boundaryIndex: Substring.Index
+    ) -> Bool {
+        var tokenStart = boundaryIndex
+        while tokenStart > content.startIndex {
+            let previous = content.index(before: tokenStart)
+            guard isCompactTermCharacter(content[previous]) else { break }
+            tokenStart = previous
+        }
+        var tokenEnd = boundaryIndex
+        while tokenEnd < content.endIndex, isCompactTermCharacter(content[tokenEnd]) {
+            tokenEnd = content.index(after: tokenEnd)
+        }
+
+        var transitions = 0
+        var previous: Character?
+        for character in content[tokenStart..<tokenEnd] {
+            if let previous,
+               MarkdownRenderPreparation.isLowercaseLetter(previous)
+                   || MarkdownRenderPreparation.isDecimalDigit(previous),
+               MarkdownRenderPreparation.isUppercaseLetter(character) {
+                transitions += 1
+                if transitions >= 2 { return true }
+            }
+            previous = character
+        }
+        return false
     }
 
     private static func isCompactTermCharacter(_ character: Character) -> Bool {

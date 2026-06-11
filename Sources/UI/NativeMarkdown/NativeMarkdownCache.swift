@@ -138,7 +138,12 @@ enum NativeMarkdownCache {
 
         let repaired = MarkdownRenderPreparation.prepareForRender(key.markdownText, isStreaming: key.isStreaming).text
         let preprocessed = MarkdownExtensionPreprocessor.preprocess(repaired)
-        let document = Document(parsing: preprocessed, options: [.parseBlockDirectives, .parseSymbolLinks])
+        // NOTE: `.parseBlockDirectives` is deliberately absent. Nothing in
+        // the app consumes `BlockDirective` nodes, and with the option on,
+        // ordinary prose like `@media (max-width: 600px) { … }` or
+        // `@Observable class Foo` parses as a directive that consumes the
+        // following lines into its children — mangling visible content.
+        let document = Document(parsing: preprocessed, options: [.parseSymbolLinks])
         let walker = MarkdownASTWalker(theme: theme, isStreaming: key.isStreaming)
         let blocks = walker.walk(document: document)
         let groups = NativeMarkdownGroupBuilder.build(blocks: blocks, theme: theme)

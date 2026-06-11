@@ -8,7 +8,15 @@ extension MarkdownRenderPreparation {
         var score = 0
 
         _ = transformOutsideProtectedBlocks(in: markdown) { line in
-            let protectedLine = preserveInlineCode(in: line) { $0 }
+            // Capture the SANITIZED form (inline code replaced by
+            // placeholders) — `preserveInlineCode(in:) { $0 }` restores the
+            // code before returning, so its return value would feed code
+            // content straight into the score regexes below.
+            var protectedLine = line
+            _ = preserveInlineCode(in: line) { sanitized in
+                protectedLine = sanitized
+                return sanitized
+            }
 
             // Atomic group on `#{1,6}` so the regex can't backtrack to a
             // shorter prefix. Without it, `## 二、…` (well-formed) would still

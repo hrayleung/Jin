@@ -11,7 +11,7 @@ import XCTest
 /// textual expansion to compare against.
 @MainActor
 final class MarkdownRendererPlainTextParityTests: XCTestCase {
-    private static let productionParseOptions: ParseOptions = [.parseBlockDirectives, .parseSymbolLinks]
+    private static let productionParseOptions: ParseOptions = [.parseSymbolLinks]
 
     func testFlatTextMatchesDocumentWalkForMathFreeCorpus() {
         let theme = MarkdownTheme.resolved(appFontFamily: "", codeFontFamily: "")

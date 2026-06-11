@@ -10,7 +10,7 @@ import XCTest
 final class MarkdownNoTextLossEndToEndTests: XCTestCase {
     /// Mirrors `NativeMarkdownCache.compute`'s `Document(parsing:options:)`.
     /// Keep in sync with the production parse options.
-    private static let productionParseOptions: ParseOptions = [.parseBlockDirectives, .parseSymbolLinks]
+    private static let productionParseOptions: ParseOptions = [.parseSymbolLinks]
 
     // MARK: - Assertion core
 

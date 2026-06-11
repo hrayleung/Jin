@@ -268,11 +268,8 @@ enum MarkdownTextLossCorpus {
 
         正文继续。
         """),
-    ]
 
-    /// Known-lossy reproductions. Each names the fix that moves it up.
-    static let pendingFixDocuments: [Entry] = [
-        // Fix: drop `.parseBlockDirectives` from the production parse options.
+        // Graduated by removing `.parseBlockDirectives` from the parse options.
         Entry(name: "atPrefixedProse", text: """
         响应式样式写法：
 
@@ -281,6 +278,9 @@ enum MarkdownTextLossCorpus {
         上面的 CSS 片段必须原样可见。
         """),
     ]
+
+    /// Known-lossy reproductions. Each names the fix that moves it up.
+    static let pendingFixDocuments: [Entry] = []
 
     static var allDocuments: [Entry] { documents + pendingFixDocuments }
 

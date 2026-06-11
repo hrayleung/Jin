@@ -37,4 +37,22 @@ final class MarkdownHeadingBodySplitRegressionTests: XCTestCase {
         XCTAssertTrue(result.didChange)
         XCTAssertTrue(result.text.contains("## 7. Cloud & AI Infrastructure\nToken costs have dropped."))
     }
+
+    func testDoesNotSplitMultiHumpIdentifierInHeading() {
+        // ≥2 lower→Upper transitions in the token = a code symbol, not a
+        // glued heading+body. `MarkdownRenderPreparation` must stay intact.
+        let input = "## MarkdownRenderPreparation 模块详解"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertEqual(result.text, input, "multi-hump identifier was split: \(result.text.debugDescription)")
+    }
+
+    func testDoesNotSplitMultiHumpIdentifierMidHeadingSentence() {
+        let input = "## Understanding the NativeMarkdownGroupBuilder aggregation rules in detail"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertEqual(result.text, input)
+    }
 }
