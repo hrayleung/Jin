@@ -53,4 +53,23 @@ final class MarkdownRepairCharacterAuditTests: XCTestCase {
             )
         }
     }
+
+    func testCorruptedPlaceholderFallsBackToOriginalLine() {
+        // Inject a transform that destroys the placeholder's closing scalar —
+        // restoration then can't find it. The fail-safe must return the
+        // ORIGINAL line rather than leaking PUA junk / dropping the code.
+        let line = "前缀 `code span` 后缀"
+        let mangled = MarkdownRenderPreparation.preserveInlineCode(in: line) { sanitized in
+            sanitized.replacingOccurrences(of: "\u{F0001}", with: "")
+        }
+        XCTAssertEqual(mangled, line)
+    }
+
+    func testInputContainingPlaceholderScalarsSkipsProtection() {
+        // Adversarial input that already contains our PUA scalars must not
+        // collide with minted placeholders (which would duplicate content).
+        let line = "异常\u{F0000}JIN_CODE_0\u{F0001}文本 `code` 结尾"
+        let result = MarkdownRenderPreparation.preserveInlineCode(in: line) { $0 }
+        XCTAssertEqual(result, line)
+    }
 }

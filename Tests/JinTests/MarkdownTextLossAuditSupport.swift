@@ -26,14 +26,13 @@ enum MarkdownTextLossAudit {
     // MARK: - Skeletons
 
     /// Characters that never count as content: all whitespace, the ZWSP the
-    /// CJK emphasis repair inserts, and variation selectors.
+    /// CJK emphasis repair inserts, and variation selectors. Delegates to
+    /// the production invariant so test and DEBUG-assert rules can't drift.
     static func skeleton(_ string: String) -> [Character] {
-        string.filter { char in
-            !char.isWhitespace && !Self.invisibleScalars.contains(char)
-        }
+        MarkdownRepairInvariant.skeleton(string)
     }
 
-    private static let invisibleScalars: Set<Character> = ["\u{200B}", "\u{FE0F}", "\u{FE0E}"]
+    private static let invisibleScalars = MarkdownRepairInvariant.invisibleCharacters
 
     /// Markdown syntax characters excluded from Tier-2/Tier-3 comparison.
     /// Repairs and parsing legitimately create or consume these (auto-closed
@@ -114,57 +113,24 @@ enum MarkdownTextLossAudit {
         return String(chars[lower..<upper])
     }
 
-    // MARK: - Tier 1: repair audit
+    // MARK: - Tier 1: repair audit (delegates to the production invariant)
 
-    /// Characters the repair pipeline may insert (beyond whitespace/ZWSP,
-    /// which the skeleton already ignores): inline-completion closers and
-    /// auto-closed fences.
-    static let repairInsertionWhitelist: Set<Character> = ["*", "_", "~", "`"]
-
-    /// Two-pointer ordered-subsequence audit of one repair stage.
-    /// Returns nil when `output` preserves `input` content.
     static func auditRepair(input: String, output: String) -> Violation? {
-        let inSkel = skeleton(input)
-        let outSkel = skeleton(output)
-        var i = 0
-        var j = 0
-        while i < inSkel.count {
-            if j < outSkel.count, outSkel[j] == inSkel[i] {
-                i += 1
-                j += 1
-                continue
-            }
-            if inSkel[i] == "\\" {
-                // Unescape may delete backslashes.
-                i += 1
-                continue
-            }
-            if j < outSkel.count, repairInsertionWhitelist.contains(outSkel[j]) {
-                j += 1
-                continue
-            }
-            return Violation(
-                message: "repair lost or reordered content at input index \(i) / output index \(j)",
-                expectedContext: context(inSkel, around: i),
-                actualContext: context(outSkel, around: j)
-            )
-        }
-        while j < outSkel.count {
-            guard repairInsertionWhitelist.contains(outSkel[j]) else {
-                return Violation(
-                    message: "repair inserted non-whitelisted character '\(outSkel[j])' at output index \(j)",
-                    expectedContext: context(inSkel, around: inSkel.count),
-                    actualContext: context(outSkel, around: j)
-                )
-            }
-            j += 1
-        }
-        return nil
+        guard let violation = MarkdownRepairInvariant.auditContentPreserved(
+            input: input,
+            output: output,
+            stage: "test"
+        ) else { return nil }
+        return Violation(
+            message: violation.message,
+            expectedContext: violation.inputContext,
+            actualContext: violation.outputContext
+        )
     }
 
     /// The inline-code placeholder scalars must never leak out of the repair.
     static func placeholderResidue(in string: String) -> Bool {
-        string.unicodeScalars.contains { $0.value == 0xF0000 || $0.value == 0xF0001 }
+        MarkdownRepairInvariant.containsPlaceholderScalar(string)
     }
 
     // MARK: - Tier 2: text-only document walks

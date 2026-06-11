@@ -83,7 +83,18 @@ enum MarkdownRenderPreparation {
         let repairedLines = transformOutsideProtectedBlocks(in: markdown) { line in
             MarkdownStructuralRepair.repairLine(line)
         }
+        MarkdownRepairInvariant.assertStagePreservesContent(
+            input: markdown, output: repairedLines, stage: "structuralRepair"
+        )
         let completed = MarkdownInlineCompletion.completeUnclosedInlineMarkers(in: repairedLines)
-        return isStreaming ? completed : normalizeBlockSpacing(in: completed)
+        MarkdownRepairInvariant.assertStagePreservesContent(
+            input: repairedLines, output: completed, stage: "inlineCompletion"
+        )
+        guard !isStreaming else { return completed }
+        let spaced = normalizeBlockSpacing(in: completed)
+        MarkdownRepairInvariant.assertStagePreservesContent(
+            input: completed, output: spaced, stage: "blockSpacing"
+        )
+        return spaced
     }
 }

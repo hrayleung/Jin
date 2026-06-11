@@ -7,6 +7,12 @@ extension MarkdownRenderPreparation {
     ) -> String {
         let characters = Array(line)
         guard characters.contains("`") else { return transform(line) }
+        // Input that already contains our placeholder scalars would collide
+        // with the placeholders we mint — run the transform unprotected
+        // instead of risking content duplication on restore.
+        guard !MarkdownRepairInvariant.containsPlaceholderScalar(line) else {
+            return transform(line)
+        }
 
         var placeholderIndex = 0
         var index = 0
@@ -67,6 +73,14 @@ extension MarkdownRenderPreparation {
         var transformed = transform(sanitized)
         for entry in placeholders {
             transformed = transformed.replacingOccurrences(of: entry.placeholder, with: entry.content)
+        }
+        // Fail-safe: if a transform corrupted a placeholder, restoration
+        // missed it and the line now carries invisible PUA junk in place of
+        // the user's code. Return the original line instead — broken
+        // styling beats lost code. (The DEBUG stage audits in
+        // `repairMarkdown` surface any real transform doing this.)
+        if MarkdownRepairInvariant.containsPlaceholderScalar(transformed) {
+            return line
         }
         return transformed
     }
