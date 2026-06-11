@@ -29,6 +29,34 @@ struct NativeAnchorLayout {
 }
 
 enum NativeAnchorLayoutBuilder {
+    /// Deterministic per-path block ID. A fresh `UUID()` here would defeat
+    /// `SelectionAggregator.update`'s `blocks ==` gate on every streaming
+    /// flush (forcing a full highlight re-walk) and grow its
+    /// `blockTextViews` registration dictionary without bound — the same
+    /// path must yield the same ID across rebuilds. Content changes are
+    /// still detected: `BlockOffsetInfo == ` compares `plainText` and
+    /// `offsetInAnchor`.
+    static func deterministicBlockID(path: [Int]) -> UUID {
+        let key = path.map(String.init).joined(separator: ".")
+        var high = FNVHasher()
+        high.combine("A:" + key)
+        var low = FNVHasher()
+        low.combine("B:" + key)
+        var bytes = [UInt8](repeating: 0, count: 16)
+        for offset in 0..<8 {
+            bytes[offset] = UInt8(truncatingIfNeeded: high.value >> (8 * UInt64(7 - offset)))
+            bytes[8 + offset] = UInt8(truncatingIfNeeded: low.value >> (8 * UInt64(7 - offset)))
+        }
+        bytes[6] = (bytes[6] & 0x0F) | 0x40 // version 4
+        bytes[8] = (bytes[8] & 0x3F) | 0x80 // RFC 4122 variant
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
+
     static func build(groups: [NativeMarkdownGroup]) -> NativeAnchorLayout {
         var state = State()
         for (groupIndex, group) in groups.enumerated() {
@@ -60,7 +88,7 @@ enum NativeAnchorLayoutBuilder {
         case .prose(_, let plainText, _, _):
             let id = NativeAnchorLayout.BlockHash(path: path)
             let info = SelectionAggregator.BlockOffsetInfo(
-                id: UUID(),
+                id: deterministicBlockID(path: path),
                 offsetInAnchor: state.flatText.utf16.count,
                 plainText: plainText
             )
@@ -128,7 +156,7 @@ enum NativeAnchorLayoutBuilder {
         case .paragraph(let run):
             let id = NativeAnchorLayout.BlockHash(path: path)
             let info = SelectionAggregator.BlockOffsetInfo(
-                id: UUID(),
+                id: deterministicBlockID(path: path),
                 offsetInAnchor: state.flatText.utf16.count,
                 plainText: run.plainText
             )
@@ -140,7 +168,7 @@ enum NativeAnchorLayoutBuilder {
         case .heading(_, let content):
             let id = NativeAnchorLayout.BlockHash(path: path)
             let info = SelectionAggregator.BlockOffsetInfo(
-                id: UUID(),
+                id: deterministicBlockID(path: path),
                 offsetInAnchor: state.flatText.utf16.count,
                 plainText: content.plainText
             )

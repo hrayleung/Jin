@@ -64,9 +64,14 @@ final class SelectionAggregator: ObservableObject {
         if self.blocks == blocks && self.persistedHighlights == persistedHighlights {
             return
         }
+        let hadHighlights = !self.persistedHighlights.isEmpty
         self.blocks = blocks
         self.flatText = blocks.map(\.plainText).joined(separator: "\n")
         self.persistedHighlights = persistedHighlights
+        // During streaming the tail block legitimately differs every flush;
+        // when there is nothing painted and nothing to paint, skip the
+        // textStorage walk entirely.
+        guard hadHighlights || !persistedHighlights.isEmpty else { return }
         applyHighlightsToAllBlocks()
         refreshSnapshotMatchingHighlights()
     }
