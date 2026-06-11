@@ -18,47 +18,60 @@ extension MarkdownRenderPreparation {
                 return sanitized
             }
 
+            // Cheap character pre-flights gate every regex below — most
+            // lines of a normal document contain none of the trigger
+            // characters and skip the ICU matching entirely.
+            let hasHash = protectedLine.contains("#")
+            let hasDigit = protectedLine.rangeOfCharacter(from: .decimalDigits) != nil
+            let hasBulletChar = protectedLine.contains("-")
+                || protectedLine.contains("*")
+                || protectedLine.contains("+")
+
             // Atomic group on `#{1,6}` so the regex can't backtrack to a
             // shorter prefix. Without it, `## 二、…` (well-formed) would still
             // match: greedy `##` fails lookahead `\S` (next char is space), but
             // backtracks to a single `#` and finds the second `#` as `\S`,
             // generating a false anomaly that breaks the score guard whenever
             // a repair splits one heading into two heading lines.
-            if matches(#"^( {0,3}(?>#{1,6}))(?=\S)"#, in: protectedLine) {
+            if hasHash, matches(#"^( {0,3}(?>#{1,6}))(?=\S)"#, in: protectedLine) {
                 score += 3
             }
-            if matches(MarkdownStructuralRepair.embeddedHeadingAfterWhitespacePattern, in: protectedLine) {
-                score += 2
-            }
-            if matches(MarkdownStructuralRepair.cjkEmbeddedHeadingPattern, in: protectedLine) {
-                score += 2
+            if protectedLine.contains("###") {
+                if matches(MarkdownStructuralRepair.embeddedHeadingAfterWhitespacePattern, in: protectedLine) {
+                    score += 2
+                }
+                if matches(MarkdownStructuralRepair.cjkEmbeddedHeadingPattern, in: protectedLine) {
+                    score += 2
+                }
             }
             // Mirror the `(?<!\\)`/`(?<!\d)` guards in
             // `insertBreaksBeforeEmbeddedBullets`: escaped markers and
             // digit-glued `+`/`-` (`600+ 篇`) are not bullets, so they must
             // not score as anomalies and open the repair gate.
-            if matches(#"(?<=\S)(?<![*+-])(?<!\\)(?<!\d)(?:-\s+(?=(?:\*\*)?[\p{L}\p{N}])|\*\s+(?=[\p{L}\p{N}])|\+\s+(?=[\p{L}\p{N}]))"#, in: protectedLine) {
+            if hasBulletChar, matches(#"(?<=\S)(?<![*+-])(?<!\\)(?<!\d)(?:-\s+(?=(?:\*\*)?[\p{L}\p{N}])|\*\s+(?=[\p{L}\p{N}])|\+\s+(?=[\p{L}\p{N}]))"#, in: protectedLine) {
                 score += 2
             }
-            if matches(#"(?<=[\.:：;；\)])\s*(\d{1,2}[.)])\s+(?=[\p{L}\p{N}])"#, in: protectedLine) {
+            if hasDigit, matches(#"(?<=[\.:：;；\)])\s*(\d{1,2}[.)])\s+(?=[\p{L}\p{N}])"#, in: protectedLine) {
                 score += 1
             }
-            if matches(#"^ {0,3}#{1,6} .*\p{Han}\d{1,2}[.)]\s+(?:\*\*)?[\p{L}\p{N}]"#, in: protectedLine) {
+            if hasHash, hasDigit, matches(#"^ {0,3}#{1,6} .*\p{Han}\d{1,2}[.)]\s+(?:\*\*)?[\p{L}\p{N}]"#, in: protectedLine) {
                 score += 1
             }
             if MarkdownStructuralRepair.hasEscapedLeadingEmphasis(in: protectedLine) {
                 score += 1
             }
-            if matches(#"(?<!^)(?<!\n)(?<!-)(---+)(?=(?:#{1,6}\S| {0,3}[-*+]\s|$))"#, in: protectedLine) {
+            if protectedLine.contains("---"), matches(#"(?<!^)(?<!\n)(?<!-)(---+)(?=(?:#{1,6}\S| {0,3}[-*+]\s|$))"#, in: protectedLine) {
                 score += 2
             }
             if lineHasInlineTableBreakage(protectedLine) {
                 score += 2
             }
-            if MarkdownStructuralRepair.headingBodySplitIndex(in: protectedLine) != nil {
+            if hasHash, MarkdownStructuralRepair.headingBodySplitIndex(in: protectedLine) != nil {
                 score += 1
             }
             if !ignoringSmushedBoldTitleInHeading,
+               hasHash,
+               protectedLine.contains("*"),
                MarkdownStructuralRepair.hasSmushedBoldTitleInHeading(in: protectedLine) {
                 score += 2
             }

@@ -57,6 +57,19 @@ enum MarkdownRenderPreparation {
         }
 
         let repaired = repairMarkdown(markdown, isStreaming: isStreaming)
+        // No change → the result is the input either way; skip the second
+        // full anomaly pass (it's ~11 regexes per line).
+        guard repaired != markdown else {
+            return PreparedMarkdownResult(
+                text: markdown,
+                didChange: false,
+                diagnostics: MarkdownPreparationDiagnostics(
+                    repairMode: .none,
+                    anomalyScoreBefore: scoreBefore,
+                    anomalyScoreAfter: scoreBefore
+                )
+            )
+        }
         let scoreAfter = anomalyScore(
             in: repaired,
             ignoringSmushedBoldTitleInHeading: isStreaming

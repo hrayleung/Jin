@@ -25,20 +25,31 @@ enum MarkdownStructuralRepair {
 
     // MARK: - Emphasis-aware transforms
 
-    /// Computes inline-emphasis & inline-code ranges once for the line, then
+    /// Computes inline-emphasis & inline-code ranges ONCE for the line, then
     /// applies every break-insertion transform through a helper that skips
-    /// regex matches whose range overlaps protected spans.
+    /// regex matches whose range overlaps protected spans. Ranges are only
+    /// recomputed when a transform actually changed the string (the
+    /// tokenizer retokenizes the line, previously up to 6× per line even
+    /// when nothing changed); each transform also has a cheap character
+    /// pre-flight so lines without its trigger characters skip the regex.
     private static func applyEmphasisAwareTransforms(_ line: String) -> String {
         var current = line
-        // Emphasis ranges must be recomputed when the string content changes
-        // (table normalization can split a line by inserting `\n`). Each
-        // transform calls `protectedRanges(in: current)` afresh.
-        current = insertBreaksBeforeEmbeddedHorizontalRules(current)
-        current = insertBreaksBeforeEmbeddedHeadings(current)
-        current = insertBreaksBeforeEmbeddedBullets(current)
-        current = insertBreaksBeforeEmbeddedOrderedListMarkers(current)
-        current = insertBreaksBeforeEmbeddedOrderedListMarkerInHeading(current)
-        current = normalizeInlineTable(current)
+        var ranges = protectedRanges(in: current)
+
+        func apply(_ transform: (String, [Range<String.Index>]) -> String) {
+            let next = transform(current, ranges)
+            if next != current {
+                current = next
+                ranges = protectedRanges(in: current)
+            }
+        }
+
+        apply(insertBreaksBeforeEmbeddedHorizontalRules)
+        apply(insertBreaksBeforeEmbeddedHeadings)
+        apply(insertBreaksBeforeEmbeddedBullets)
+        apply(insertBreaksBeforeEmbeddedOrderedListMarkers)
+        apply(insertBreaksBeforeEmbeddedOrderedListMarkerInHeading)
+        apply(normalizeInlineTable)
         return current
     }
 
@@ -72,21 +83,29 @@ enum MarkdownStructuralRepair {
 
     // MARK: - Break insertions (emphasis-aware)
 
-    static func insertBreaksBeforeEmbeddedHorizontalRules(_ line: String) -> String {
-        MarkdownRenderPreparation.replacingOutsideRanges(
+    static func insertBreaksBeforeEmbeddedHorizontalRules(
+        _ line: String,
+        _ ranges: [Range<String.Index>]
+    ) -> String {
+        guard line.contains("---") else { return line }
+        return MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: #"(?<!^)(?<!\n)(?<!-)(---+)(?=(?:#{1,6}\S| {0,3}[-*+]\s|$))"#,
             in: line,
-            protectedRanges: protectedRanges(in: line),
+            protectedRanges: ranges,
             with: "\n$1\n"
         )
     }
 
-    static func insertBreaksBeforeEmbeddedHeadings(_ line: String) -> String {
+    static func insertBreaksBeforeEmbeddedHeadings(
+        _ line: String,
+        _ ranges: [Range<String.Index>]
+    ) -> String {
+        guard line.contains("###") else { return line }
         var current = line
         current = MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: embeddedHeadingAfterWhitespacePattern,
             in: current,
-            protectedRanges: protectedRanges(in: current),
+            protectedRanges: ranges,
             with: "\n$1 "
         )
         // CJK-glued embedded heading: `战役###1.早期…` (no whitespace before the
@@ -101,13 +120,16 @@ enum MarkdownStructuralRepair {
         current = MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: cjkEmbeddedHeadingPattern,
             in: current,
-            protectedRanges: protectedRanges(in: current),
+            protectedRanges: current == line ? ranges : protectedRanges(in: current),
             with: "$1\n$2 "
         )
         return current
     }
 
-    static func insertBreaksBeforeEmbeddedBullets(_ line: String) -> String {
+    static func insertBreaksBeforeEmbeddedBullets(
+        _ line: String,
+        _ ranges: [Range<String.Index>]
+    ) -> String {
         // Two lookbehinds keep a marker that isn't really a bullet literal:
         //   `(?<!\\)` — an escaped `A\*`/`\-` (the model meant a literal `*`,
         //     common inside table cells); splitting it shatters the table row.
@@ -115,19 +137,24 @@ enum MarkdownStructuralRepair {
         //     not a list marker: `每年 600+ 篇`, `5-10 个` must not become bullets.
         // Genuine glued bullets follow a letter or CJK punctuation
         // (`Geopolitics- **U.S.**`), so neither guard touches them.
-        MarkdownRenderPreparation.replacingOutsideRanges(
+        guard line.contains("-") || line.contains("*") || line.contains("+") else { return line }
+        return MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: #"(?<=\S)(?<![*+-])(?<!\\)(?<!\d)([-*+])\s+(?=(?:\*\*)?[\p{L}\p{N}])"#,
             in: line,
-            protectedRanges: protectedRanges(in: line),
+            protectedRanges: ranges,
             with: "\n$1 "
         )
     }
 
-    static func insertBreaksBeforeEmbeddedOrderedListMarkers(_ line: String) -> String {
-        MarkdownRenderPreparation.replacingOutsideRanges(
+    static func insertBreaksBeforeEmbeddedOrderedListMarkers(
+        _ line: String,
+        _ ranges: [Range<String.Index>]
+    ) -> String {
+        guard line.rangeOfCharacter(from: .decimalDigits) != nil else { return line }
+        return MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: #"(?<=[\.:：;；\)])\s*(\d{1,2}[.)])\s+(?=[\p{L}\p{N}])"#,
             in: line,
-            protectedRanges: protectedRanges(in: line),
+            protectedRanges: ranges,
             with: "\n$1 "
         )
     }
@@ -138,17 +165,29 @@ enum MarkdownStructuralRepair {
     /// general-purpose `insertBreaksBeforeEmbeddedOrderedListMarkers` requires
     /// preceding ASCII/CJK punctuation, which Chinese titles don't have, so
     /// this fills the gap without loosening the broader paragraph rule.
-    static func insertBreaksBeforeEmbeddedOrderedListMarkerInHeading(_ line: String) -> String {
+    static func insertBreaksBeforeEmbeddedOrderedListMarkerInHeading(
+        _ line: String,
+        _ ranges: [Range<String.Index>]
+    ) -> String {
+        guard line.contains("#") else { return line }
         guard let newlineIndex = line.firstIndex(of: "\n") else {
-            return insertBreaksBeforeEmbeddedOrderedListMarkerInSingleHeadingLine(line)
+            return insertBreaksBeforeEmbeddedOrderedListMarkerInSingleHeadingLine(line, ranges)
         }
 
+        // The heading sub-line is a different string from the caller's, so
+        // its protected ranges must be computed for it specifically.
         let headingLine = String(line[..<newlineIndex])
         let remainder = String(line[newlineIndex...])
-        return insertBreaksBeforeEmbeddedOrderedListMarkerInSingleHeadingLine(headingLine) + remainder
+        return insertBreaksBeforeEmbeddedOrderedListMarkerInSingleHeadingLine(
+            headingLine,
+            protectedRanges(in: headingLine)
+        ) + remainder
     }
 
-    private static func insertBreaksBeforeEmbeddedOrderedListMarkerInSingleHeadingLine(_ line: String) -> String {
+    private static func insertBreaksBeforeEmbeddedOrderedListMarkerInSingleHeadingLine(
+        _ line: String,
+        _ ranges: [Range<String.Index>]
+    ) -> String {
         let trimmedLeading = String(line.drop(while: { $0 == " " }))
         guard MarkdownRenderPreparation.matches(#"^#{1,6} "#, in: trimmedLeading) else {
             return line
@@ -159,7 +198,7 @@ enum MarkdownStructuralRepair {
         return MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: #"(\p{Han})(\d{1,2}[.)])\s+(?=(?:\*\*)?[\p{L}\p{N}])"#,
             in: line,
-            protectedRanges: protectedRanges(in: line),
+            protectedRanges: ranges,
             with: "$1\n$2 "
         )
     }
@@ -204,6 +243,7 @@ enum MarkdownStructuralRepair {
         "（）「」『』【】〈〉《》〔〕［］｛｝、，。；：！？…・～｜—％"
 
     static func insertZeroWidthSpaceAtCJKEmphasisBoundary(_ line: String) -> String {
+        guard line.contains("*") else { return line }
         let zwsp = "\u{200B}"
         let cjkL = cjkLetterClass
         let cjkP = NSRegularExpression.escapedPattern(for: cjkPunctuationClass)
@@ -268,6 +308,7 @@ enum MarkdownStructuralRepair {
     // MARK: - Escaped emphasis (unchanged behavior)
 
     static func unescapeEscapedLeadingEmphasis(_ line: String) -> String {
+        guard line.contains(#"\*"#) else { return line }
         var normalized = line
         for marker in ["***", "**", "*"] {
             // Two-step: the LINE-LEADING pattern gates (a line whose start
@@ -291,7 +332,8 @@ enum MarkdownStructuralRepair {
     }
 
     static func hasEscapedLeadingEmphasis(in line: String) -> Bool {
-        ["***", "**", "*"].contains { marker in
+        guard line.contains(#"\*"#) else { return false }
+        return ["***", "**", "*"].contains { marker in
             MarkdownRenderPreparation.matches(escapedLeadingEmphasisPattern(for: marker), in: line)
         }
     }
@@ -324,46 +366,54 @@ enum MarkdownStructuralRepair {
 
     // MARK: - Inline table (delegates to existing helpers, then guarded by emphasis ranges)
 
-    static func normalizeInlineTable(_ line: String) -> String {
+    static func normalizeInlineTable(
+        _ line: String,
+        _ ranges: [Range<String.Index>]
+    ) -> String {
         guard line.contains("|") else { return line }
         // Tables almost never appear inside emphasis runs; we still use the
         // emphasis-aware helper for the regex-based steps so the rare case
         // of `*foo | bar*` doesn't get rewritten.
 
-        let ranges = protectedRanges(in: line)
-
         var normalized = line
+        var currentRanges = ranges
         if let firstPipeIndex = normalized.firstIndex(of: "|"),
-           !ranges.contains(where: { $0.contains(firstPipeIndex) }) {
+           !currentRanges.contains(where: { $0.contains(firstPipeIndex) }) {
             let prefix = normalized[..<firstPipeIndex].trimmingCharacters(in: .whitespaces)
             let suffix = String(normalized[firstPipeIndex...])
             if !prefix.isEmpty,
                MarkdownRenderPreparation.looksLikeTableRow(suffix),
                !MarkdownRenderPreparation.looksLikeParagraphWithPipes(prefix) {
                 normalized = String(prefix) + "\n" + suffix
+                currentRanges = protectedRanges(in: normalized)
             }
         }
 
-        normalized = MarkdownRenderPreparation.replacingOutsideRanges(
+        var next = MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: #"(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)\s*(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)"#,
             in: normalized,
-            protectedRanges: protectedRanges(in: normalized),
+            protectedRanges: currentRanges,
             with: "$1\n$2"
         )
+        if next != normalized {
+            normalized = next
+            currentRanges = protectedRanges(in: normalized)
+        }
 
-        normalized = MarkdownRenderPreparation.replacingOutsideRanges(
+        next = MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: #"(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)\s*(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)"#,
-            in: normalized,
-            protectedRanges: protectedRanges(in: normalized),
+            in: next,
+            protectedRanges: currentRanges,
             with: "$1\n$2"
         )
 
-        return normalized
+        return next
     }
 
     // MARK: - Heading body camelCase split (unchanged behavior)
 
     static func insertBreakBetweenHeadingAndBody(_ line: String) -> String {
+        guard line.contains("#") else { return line }
         let leadingWhitespace = String(line.prefix { $0.isWhitespace })
         let trimmedLeading = String(line.dropFirst(leadingWhitespace.count)).trimmingCharacters(in: .whitespaces)
         guard MarkdownRenderPreparation.matches(#"^#{1,6}\s+"#, in: trimmedLeading),
@@ -538,6 +588,7 @@ enum MarkdownStructuralRepair {
     /// the `**...**` is not at end of line, the opening is space-separated,
     /// the bold content contains a stray `*`, or substance guards fail.
     static func detectSmushedBoldTitleInHeading(_ line: String) -> SmushedBoldTitleHit? {
+        guard line.contains("#"), line.contains("*") else { return nil }
         // If an earlier per-line repair already inserted a `\n` into this
         // logical line (camelCase split, embedded bullet, etc.), the heading
         // has already been restructured — leave it alone.
