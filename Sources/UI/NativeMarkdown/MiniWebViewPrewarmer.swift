@@ -33,9 +33,9 @@ enum MiniWebViewPrewarmer {
         // Defer past the initial window flush so the prewarm doesn't
         // contend with first-frame layout. 1 s is well after the user is
         // looking at the chat UI and before they're likely to send a
-        // message that asks for math/mermaid.
+        // message that asks for a mermaid diagram. (Math is fully native
+        // via SwiftMath — mermaid is the ONLY remaining WebView consumer.)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            spawnWarmupView(templateName: "native-markdown-katex")
             spawnWarmupView(templateName: "native-markdown-mermaid")
         }
     }

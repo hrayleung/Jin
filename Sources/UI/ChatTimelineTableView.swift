@@ -28,7 +28,7 @@ struct ChatTimelineSharedInputs {
 // MARK: - Row model
 
 /// One row in the recycling timeline. Exactly mirrors the flat child list the
-/// old `ChatMessageTimelineView` built inside the `LazyVStack`
+/// pre-rewrite SwiftUI timeline built inside its `LazyVStack`
 /// (load-earlier header → messages → streaming → bottom spacer), except the
 /// bottom spacer is replaced by the scroll view's bottom content inset.
 enum ChatTimelineRow {
@@ -54,7 +54,7 @@ enum ChatTimelineRow {
 // MARK: - SwiftUI content for a message row
 
 /// Single source of truth for building a `MessageRow` from the shared inputs.
-/// The same construction the old `ChatMessageTimelineView` used, lifted here so
+/// The same construction the pre-rewrite SwiftUI timeline used, lifted here so
 /// both the (legacy) SwiftUI path and the recycling table render identically.
 struct ChatTimelineMessageContent: View {
     let item: MessageRenderItem

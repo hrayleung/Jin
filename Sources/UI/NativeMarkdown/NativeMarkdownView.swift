@@ -168,11 +168,6 @@ extension NativeMarkdownCache.Value {
         }
     }
 
-    fileprivate func matches(key: NativeMarkdownCache.Key) -> Bool {
-        // The async parse stores the parsed Value but not the key; we
-        // re-check via the LRU.
-        NativeMarkdownCache.tryGet(key: key) != nil
-    }
 }
 
 struct IndexedGroup: Identifiable {
