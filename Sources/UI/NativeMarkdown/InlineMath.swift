@@ -45,12 +45,14 @@ enum InlineMath {
             if c == "\\", i + 1 < n {
                 // \( … \) explicit inline math.
                 if chars[i + 1] == "(", let close = findParenClose(chars, from: i + 2) {
-                    flushText(upTo: i)
                     let inner = String(chars[(i + 2)..<close])
-                    segments.append(.math(inner: inner, original: "\\(" + inner + "\\)"))
-                    i = close + 2
-                    textStart = i
-                    continue
+                    if isPlausibleInlineMath(inner) {
+                        flushText(upTo: i)
+                        segments.append(.math(inner: inner, original: "\\(" + inner + "\\)"))
+                        i = close + 2
+                        textStart = i
+                        continue
+                    }
                 }
                 // Any other backslash escape (incl. \$) — pass both chars through as text.
                 i += 2
@@ -61,12 +63,14 @@ enum InlineMath {
                 // Opening `$`: needs a following non-space, non-`$`.
                 if i + 1 < n, chars[i + 1] != "$", !chars[i + 1].isWhitespace,
                    let close = findDollarClose(chars, from: i + 1) {
-                    flushText(upTo: i)
                     let inner = String(chars[(i + 1)..<close])
-                    segments.append(.math(inner: inner, original: "$" + inner + "$"))
-                    i = close + 1
-                    textStart = i
-                    continue
+                    if isPlausibleInlineMath(inner) {
+                        flushText(upTo: i)
+                        segments.append(.math(inner: inner, original: "$" + inner + "$"))
+                        i = close + 1
+                        textStart = i
+                        continue
+                    }
                 }
                 i += 1
                 continue
@@ -77,6 +81,30 @@ enum InlineMath {
 
         flushText(upTo: n)
         return segments.isEmpty ? [.text(s)] : segments
+    }
+
+    /// LaTeX never legitimately contains CJK ideographs or CJK punctuation
+    /// (modulo rare `\text{中文}` — accepted tradeoff), and real inline
+    /// formulas are short. Without this, two stray `$` characters around a
+    /// CJK ticker list (`$AAPL、$TSLA`) or half a paragraph apart would be
+    /// rendered as one garbage math span, swallowing the prose between.
+    private static let inlineMathMaxLength = 120
+
+    private static func isPlausibleInlineMath(_ inner: String) -> Bool {
+        guard !inner.isEmpty, inner.count <= inlineMathMaxLength else { return false }
+        return !inner.unicodeScalars.contains { scalar in
+            let v = scalar.value
+            return (0x2E80...0x303E).contains(v)      // CJK radicals + symbols/punctuation
+                || v == 0x3000                        // ideographic space
+                || (0x3041...0x30FF).contains(v)      // hiragana + katakana
+                || (0x3400...0x4DBF).contains(v)      // CJK extension A
+                || (0x4E00...0x9FFF).contains(v)      // CJK unified ideographs
+                || (0xAC00...0xD7A3).contains(v)      // hangul syllables
+                || (0xF900...0xFAFF).contains(v)      // CJK compatibility ideographs
+                || (0xFE30...0xFE4F).contains(v)      // CJK compatibility forms
+                || (0xFF00...0xFF65).contains(v)      // fullwidth forms + CJK punct
+                || (0x20000...0x2FFFD).contains(v)    // CJK extension B+
+        }
     }
 
     /// Finds a valid closing `$` index for math opened at `from`. Skips escaped
