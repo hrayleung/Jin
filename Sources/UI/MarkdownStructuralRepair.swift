@@ -270,8 +270,19 @@ enum MarkdownStructuralRepair {
     static func unescapeEscapedLeadingEmphasis(_ line: String) -> String {
         var normalized = line
         for marker in ["***", "**", "*"] {
+            // Two-step: the LINE-LEADING pattern gates (a line whose start
+            // exhibits the broken model habit of escaping intended
+            // emphasis); once gated, the relaxed pattern unescapes EVERY
+            // whitespace-preceded run on that line — previously only the
+            // first run was repaired (`\*\*A\*\* 与 \*\*B\*\*` left the
+            // second literal). Ungated lines keep their escapes: prose like
+            // `输入 \*斜体\* 即可` means literal asterisks.
+            guard MarkdownRenderPreparation.matches(
+                escapedLeadingEmphasisPattern(for: marker),
+                in: normalized
+            ) else { continue }
             normalized = MarkdownRenderPreparation.replacing(
-                pattern: escapedLeadingEmphasisPattern(for: marker),
+                pattern: escapedAnywhereEmphasisPattern(for: marker),
                 in: normalized,
                 with: "$1\(marker)$2\(marker)"
             )
@@ -286,8 +297,21 @@ enum MarkdownStructuralRepair {
     }
 
     static func escapedLeadingEmphasisPattern(for marker: String) -> String {
+        // Line-leading (including sub-lines earlier repairs created by
+        // inserting `\n` into the logical line).
+        escapedEmphasisPattern(for: marker, anchor: #"(?:^|(?<=\n))"#)
+    }
+
+    static func escapedAnywhereEmphasisPattern(for marker: String) -> String {
+        // After any whitespace — used only on lines the leading pattern
+        // already gated.
+        escapedEmphasisPattern(for: marker, anchor: #"(?:^|(?<=\s))"#)
+    }
+
+    private static func escapedEmphasisPattern(for marker: String, anchor: String) -> String {
         let escapedMarker = escapedEmphasisMarkerSequence(for: marker)
-        return #"^(\s*(?:(?:[-*+•]|\d{1,2}[.)])\s+)?)"#
+        return anchor
+            + #"(\s*(?:(?:[-*+•]|\d{1,2}[.)])\s+)?)"#
             + escapedMarker
             + #"(?=\S)([^\n]*?\S)"#
             + escapedMarker

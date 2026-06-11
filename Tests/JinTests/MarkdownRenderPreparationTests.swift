@@ -76,6 +76,27 @@ final class MarkdownRenderPreparationTests: XCTestCase {
         XCTAssertTrue(result.text.contains("• **Markets:**"))
     }
 
+    func testUnescapesAllEscapedEmphasisRunsInOneLine() {
+        let input = "- \\*\\*要点一\\*\\*：说明文字，以及 \\*\\*要点二\\*\\*：补充说明。"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertTrue(result.text.contains("**要点一**"), "first run not unescaped: \(result.text.debugDescription)")
+        XCTAssertTrue(result.text.contains("**要点二**"), "second run not unescaped: \(result.text.debugDescription)")
+        XCTAssertFalse(result.text.contains("\\*"))
+    }
+
+    func testDoesNotUnescapeMidSentenceLiteralAsterisksOnUngatedLine() {
+        // A line that does NOT start with an escaped run means the escapes
+        // are intentional literals (e.g. teaching markdown syntax).
+        let input = "输入 \\*斜体\\* 即可显示星号。"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertEqual(result.text, input)
+    }
+
     func testDoesNotRewriteModelTextQualityIssues() {
         let input = "The result was announced on April24,2026, involved of30 billion rupees, and mentioned age92."
 
