@@ -173,7 +173,14 @@ private struct StreamingPlainTextChunksView: View {
         AttributedTextBlock(
             attributedString: NSAttributedString(
                 string: text,
-                attributes: [.font: theme.bodyFont, .foregroundColor: theme.baseColor]
+                attributes: [
+                    .font: theme.bodyFont,
+                    .foregroundColor: theme.baseColor,
+                    // Match the post-stream rich render's body line metrics
+                    // (lineHeightMultiple etc.) so the swap at stream end
+                    // doesn't reflow every line of a >4000-char message.
+                    .paragraphStyle: theme.bodyParagraphStyle,
+                ]
             ),
             contentSignature: UInt64(text.utf8.count)
         )

@@ -47,15 +47,30 @@ final class JinMessageTextView: NSTextView {
     /// mis-laid 1-glyph-wide "ghost" subview / re-throwing every draw pass =
     /// the unusable lag). U+FFFD is a normal printable glyph, so swapping it is
     /// length-preserving (selection/highlight offsets stay aligned) and safe.
+    /// The exact (scrubbed) string most recently applied by us. The live
+    /// `textStorage` cannot serve as the comparison baseline for the
+    /// incremental apply: `processEditing`'s attribute fixing rewrites font
+    /// runs (CJK substitution) and the selection aggregator paints highlight
+    /// attributes into storage. This is a retain of the (usually
+    /// cache-shared) applied instance, not a copy.
+    private var lastAppliedSource: NSAttributedString?
+
     func setScrubbedAttributedString(_ attributed: NSAttributedString) {
         guard let textStorage else { return }
-        guard attributed.string.utf16.contains(0xFFFC) else {
-            textStorage.setAttributedString(attributed)
-            return
-        }
-        // Replace ONLY bare U+FFFC (the crash trigger). A U+FFFC that carries a
-        // real `.attachment` is legitimate — that's how we embed inline math
-        // (see `InlineMath`) — and must be preserved, or the math vanishes.
+        let scrubbed = Self.scrubbingBareObjectReplacementCharacters(in: attributed)
+        textStorage.setAttributedString(scrubbed)
+        lastAppliedSource = scrubbed
+    }
+
+    /// Replace ONLY bare U+FFFC (the crash trigger). A U+FFFC that carries a
+    /// real `.attachment` is legitimate — that's how we embed inline math
+    /// (see `InlineMath`) — and must be preserved, or the math vanishes.
+    /// EVERY path that writes into a `JinMessageTextView`'s text storage must
+    /// go through this (full apply and incremental tail append both do).
+    static func scrubbingBareObjectReplacementCharacters(
+        in attributed: NSAttributedString
+    ) -> NSAttributedString {
+        guard attributed.string.utf16.contains(0xFFFC) else { return attributed }
         let scrubbed = NSMutableAttributedString(attributedString: attributed)
         let ns = scrubbed.mutableString
         var searchStart = 0
@@ -74,7 +89,91 @@ final class JinMessageTextView: NSTextView {
                 searchStart = found.location + 1
             }
         }
-        textStorage.setAttributedString(scrubbed)
+        return scrubbed
+    }
+
+    enum ApplyMode: Equatable {
+        case incremental
+        case full
+    }
+
+    /// Streaming-optimized text apply. When `attributed` is a pure extension
+    /// of the current storage — same characters AND same attribute runs over
+    /// the existing prefix, which is the common case for a growing streaming
+    /// tail — only the new tail is appended, so TextKit relayouts from the
+    /// edited paragraph instead of the whole document and the user's
+    /// selection survives. Any uncertainty (retro text edit, a late `**`
+    /// close restyling earlier characters, aggregator-painted highlight
+    /// attributes in storage, shrink/equal length) falls back to the full
+    /// `setAttributedString` — exactly the previous behavior.
+    @discardableResult
+    func applyAttributedStringPreferringIncremental(_ attributed: NSAttributedString) -> ApplyMode {
+        guard let textStorage else { return .full }
+        guard let baseline = lastAppliedSource,
+              baseline.length > 0,
+              textStorage.length == baseline.length,
+              attributed.length > baseline.length else {
+            setScrubbedAttributedString(attributed)
+            return .full
+        }
+        let oldLength = baseline.length
+
+        // Step 1: plain UTF-16 prefix comparison (no copy). The baseline is
+        // SCRUBBED — if the new prefix carries a bare U+FFFC the comparison
+        // fails against the recorded U+FFFD and we re-scrub fully.
+        let newString = attributed.string as NSString
+        let prefixMatches = newString.compare(
+            baseline.string,
+            options: .literal,
+            range: NSRange(location: 0, length: oldLength)
+        ) == .orderedSame
+        guard prefixMatches else {
+            setScrubbedAttributedString(attributed)
+            return .full
+        }
+
+        // Step 2: attribute runs over the prefix must match exactly. Fast in
+        // practice: fonts/paragraph styles are process-wide cached singletons
+        // and run counts are small.
+        guard Self.attributeRunsMatch(baseline, attributed, upTo: oldLength) else {
+            setScrubbedAttributedString(attributed)
+            return .full
+        }
+
+        // Step 3: append only the tail. Storage may carry fixed fonts and
+        // painted highlight attributes on the prefix — appending leaves both
+        // untouched, which is the point.
+        let tail = attributed.attributedSubstring(
+            from: NSRange(location: oldLength, length: attributed.length - oldLength)
+        )
+        let scrubbedTail = Self.scrubbingBareObjectReplacementCharacters(in: tail)
+        textStorage.beginEditing()
+        textStorage.replaceCharacters(
+            in: NSRange(location: oldLength, length: 0),
+            with: scrubbedTail
+        )
+        textStorage.endEditing()
+        lastAppliedSource = Self.scrubbingBareObjectReplacementCharacters(in: attributed)
+        return .incremental
+    }
+
+    private static func attributeRunsMatch(
+        _ lhs: NSAttributedString,
+        _ rhs: NSAttributedString,
+        upTo limit: Int
+    ) -> Bool {
+        var index = 0
+        while index < limit {
+            var lhsRange = NSRange()
+            var rhsRange = NSRange()
+            let clip = NSRange(location: index, length: limit - index)
+            let lhsAttrs = lhs.attributes(at: index, longestEffectiveRange: &lhsRange, in: clip)
+            let rhsAttrs = rhs.attributes(at: index, longestEffectiveRange: &rhsRange, in: clip)
+            guard lhsRange == rhsRange else { return false }
+            guard (lhsAttrs as NSDictionary).isEqual(to: rhsAttrs) else { return false }
+            index = lhsRange.upperBound
+        }
+        return true
     }
 
     init() {

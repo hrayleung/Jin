@@ -97,10 +97,12 @@ struct AttributedTextBlock: NSViewRepresentable {
     }
 
     private func applyAttributedString(to view: JinMessageTextView, coordinator: Coordinator) {
-        // Scrub U+FFFC (NSAttachmentCharacter) — a bare one in LLM text makes
-        // TextKit add a subview mid-`drawRect:` and crash. See
-        // `JinMessageTextView.setScrubbedAttributedString`.
-        view.setScrubbedAttributedString(attributedString)
+        // Incremental-preferring apply: a growing streaming tail appends in
+        // place (TextKit relayouts only the dirtied tail, selection
+        // survives); anything else falls back to a full scrubbed
+        // setAttributedString. Both paths scrub U+FFFC — a bare one in LLM
+        // text makes TextKit add a subview mid-`drawRect:` and crash.
+        view.applyAttributedStringPreferringIncremental(attributedString)
         view.invalidateHeightCache()
         view.invalidateIntrinsicContentSize()
         coordinator.lastAppliedContentSignature = contentSignature
