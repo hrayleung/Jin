@@ -15,7 +15,7 @@ enum MarkdownInlineCompletion {
         var output: [String] = []
         var paragraph: [String] = []
         var fenceState: FenceState?
-        var insideDisplayMath = false
+        var displayMathDelimiter: MarkdownDisplayMathDelimiters.Delimiter?
 
         func flushParagraph() {
             guard !paragraph.isEmpty else { return }
@@ -50,16 +50,31 @@ enum MarkdownInlineCompletion {
                 continue
             }
 
-            // Display math delimiters toggle a protected block.
-            if trimmedFull == "$$" || trimmedFull == "\\[" || trimmedFull == "\\]" {
-                flushParagraph()
+            // Inside a display-math block: pass through; only watch for close.
+            if let delimiter = displayMathDelimiter {
                 output.append(line)
-                insideDisplayMath.toggle()
+                if case .closes = MarkdownDisplayMathDelimiters.closingRole(
+                    ofTrimmedLine: trimmedFull,
+                    delimiter: delimiter
+                ) {
+                    displayMathDelimiter = nil
+                }
                 continue
             }
-            if insideDisplayMath {
+
+            // Display math delimiters bound a protected block.
+            switch MarkdownDisplayMathDelimiters.openingRole(ofTrimmedLine: trimmedFull) {
+            case .selfContained:
+                flushParagraph()
                 output.append(line)
                 continue
+            case .opens(let delimiter, _):
+                flushParagraph()
+                output.append(line)
+                displayMathDelimiter = delimiter
+                continue
+            case .none:
+                break
             }
 
             // Fence opening.

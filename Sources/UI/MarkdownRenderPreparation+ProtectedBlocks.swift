@@ -14,7 +14,7 @@ extension MarkdownRenderPreparation {
         output.reserveCapacity(markdown.count + 64)
 
         var activeFenceDelimiter: FenceDelimiter?
-        var insideDisplayMathBlock = false
+        var displayMathDelimiter: MarkdownDisplayMathDelimiters.Delimiter?
 
         for rawLine in markdown.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = String(rawLine)
@@ -38,14 +38,35 @@ extension MarkdownRenderPreparation {
                 continue
             }
 
-            if isStandaloneDisplayMathDelimiter(trimmed) {
-                insideDisplayMathBlock.toggle()
+            if let delimiter = displayMathDelimiter {
                 output.append(line)
                 output.append("\n")
+                if case .closes = MarkdownDisplayMathDelimiters.closingRole(
+                    ofTrimmedLine: trimmed,
+                    delimiter: delimiter
+                ) {
+                    displayMathDelimiter = nil
+                }
                 continue
             }
 
-            if insideDisplayMathBlock || shouldLeaveHTMLLineUntouched(trimmedLeading) {
+            switch MarkdownDisplayMathDelimiters.openingRole(ofTrimmedLine: trimmed) {
+            case .selfContained:
+                // `$$x^2$$` — the whole line is LaTeX; shield it from repair.
+                output.append(line)
+                output.append("\n")
+                continue
+            case .opens(let delimiter, _):
+                // Opener (possibly with seed LaTeX, `$$E=mc^2`) — shield it.
+                displayMathDelimiter = delimiter
+                output.append(line)
+                output.append("\n")
+                continue
+            case .none:
+                break
+            }
+
+            if shouldLeaveHTMLLineUntouched(trimmedLeading) {
                 output.append(line)
                 output.append("\n")
                 continue
@@ -66,10 +87,6 @@ extension MarkdownRenderPreparation {
         guard !trimmedLeading.isEmpty else { return false }
         return trimmedLeading.hasPrefix("<")
             || trimmedLeading.hasPrefix("<!--")
-    }
-
-    private static func isStandaloneDisplayMathDelimiter(_ trimmed: String) -> Bool {
-        trimmed == "$$" || trimmed == "\\[" || trimmed == "\\]"
     }
 
     private static func fenceDelimiter(in trimmedLeading: String) -> FenceDelimiter? {

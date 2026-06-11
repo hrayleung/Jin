@@ -235,11 +235,8 @@ enum MarkdownTextLossCorpus {
         """),
 
         Entry(name: "longCJKDocumentOver4000", text: Self.longCJKDocument),
-    ]
 
-    /// Known-lossy reproductions. Each names the fix that moves it up.
-    static let pendingFixDocuments: [Entry] = [
-        // Fix: display-math delimiter unification (orphan-closer swallow).
+        // Graduated by the display-math delimiter unification.
         Entry(name: "displayMathOrphanCloser", text: """
         前文段落需要保留。
 
@@ -253,7 +250,6 @@ enum MarkdownTextLossCorpus {
         收尾句子也要在。
         """),
 
-        // Fix: display-math delimiter unification (closer-with-content).
         Entry(name: "displayMathCloserWithContent", text: """
         $$
         E = mc^2 $$
@@ -265,6 +261,17 @@ enum MarkdownTextLossCorpus {
         小节正文。
         """),
 
+        Entry(name: "displayMathCloserWithLeadingProseRemainder", text: """
+        $$
+        E = mc^2
+        $$结论写在闭合符后面。
+
+        正文继续。
+        """),
+    ]
+
+    /// Known-lossy reproductions. Each names the fix that moves it up.
+    static let pendingFixDocuments: [Entry] = [
         // Fix: drop `.parseBlockDirectives` from the production parse options.
         Entry(name: "atPrefixedProse", text: """
         响应式样式写法：

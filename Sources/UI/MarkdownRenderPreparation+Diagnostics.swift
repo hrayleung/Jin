@@ -71,7 +71,7 @@ extension MarkdownRenderPreparation {
         var paragraph: [String] = []
         var fenceMarker: Character?
         var fenceLength = 0
-        var insideDisplayMath = false
+        var displayMathDelimiter: MarkdownDisplayMathDelimiters.Delimiter?
 
         func flush() {
             guard !paragraph.isEmpty else { return }
@@ -99,13 +99,25 @@ extension MarkdownRenderPreparation {
                 continue
             }
 
-            if trimmedFull == "$$" || trimmedFull == "\\[" || trimmedFull == "\\]" {
-                flush()
-                insideDisplayMath.toggle()
+            if let delimiter = displayMathDelimiter {
+                if case .closes = MarkdownDisplayMathDelimiters.closingRole(
+                    ofTrimmedLine: trimmedFull,
+                    delimiter: delimiter
+                ) {
+                    displayMathDelimiter = nil
+                }
                 continue
             }
-            if insideDisplayMath {
+            switch MarkdownDisplayMathDelimiters.openingRole(ofTrimmedLine: trimmedFull) {
+            case .selfContained:
+                flush()
                 continue
+            case .opens(let delimiter, _):
+                flush()
+                displayMathDelimiter = delimiter
+                continue
+            case .none:
+                break
             }
 
             if let first = trimmedLeading.first, first == "`" || first == "~" {

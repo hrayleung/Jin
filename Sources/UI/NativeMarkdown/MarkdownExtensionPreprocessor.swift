@@ -18,7 +18,8 @@ enum MarkdownExtensionPreprocessor {
         var activeFenceMarker: Character?
         var activeFenceLength = 0
         var displayMathBuffer: [String]?
-        var displayMathDelimiter: String?
+        var displayMathDelimiter: MarkdownDisplayMathDelimiters.Delimiter?
+        var displayMathOpenerLine: String?
 
         for rawLine in source.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = String(rawLine)
@@ -37,12 +38,19 @@ enum MarkdownExtensionPreprocessor {
             }
 
             // Inside a multi-line display-math block — collect until close.
-            if displayMathBuffer != nil {
-                if let closer = displayMathDelimiter, isDisplayMathCloser(trimmed, opener: closer) {
-                    emitMathBlock(buffer: displayMathBuffer!, into: &output)
+            if displayMathBuffer != nil, let delimiter = displayMathDelimiter {
+                switch MarkdownDisplayMathDelimiters.closingRole(ofTrimmedLine: trimmed, delimiter: delimiter) {
+                case .closes(let content, let remainder):
+                    if let content { displayMathBuffer?.append(content) }
+                    emitMathBlock(buffer: displayMathBuffer ?? [], into: &output)
                     displayMathBuffer = nil
                     displayMathDelimiter = nil
-                } else {
+                    displayMathOpenerLine = nil
+                    if let remainder {
+                        output.append(remainder)
+                        output.append("\n")
+                    }
+                case .notClosing:
                     displayMathBuffer?.append(line)
                 }
                 continue
@@ -57,32 +65,33 @@ enum MarkdownExtensionPreprocessor {
                 continue
             }
 
-            // Self-contained single-line display math: `$$x^2$$`.
-            if let inlineDisplay = singleLineDisplayMath(trimmed) {
-                emitMathBlock(buffer: [inlineDisplay], into: &output)
+            switch MarkdownDisplayMathDelimiters.openingRole(ofTrimmedLine: trimmed) {
+            case .selfContained(let latex):
+                emitMathBlock(buffer: [latex], into: &output)
                 continue
-            }
-
-            // Open a multi-line display-math block (`$$` or `\[`).
-            if trimmed == "$$" {
-                displayMathBuffer = []
-                displayMathDelimiter = "$$"
+            case .opens(let delimiter, let seed):
+                displayMathBuffer = seed.map { [$0] } ?? []
+                displayMathDelimiter = delimiter
+                displayMathOpenerLine = line
                 continue
-            }
-            if trimmed == "\\[" {
-                displayMathBuffer = []
-                displayMathDelimiter = "\\]"
-                continue
+            case .none:
+                break
             }
 
             output.append(line)
             output.append("\n")
         }
 
-        // If a math block was never closed (incomplete during streaming),
-        // emit what we have so far — the user still sees their LaTeX.
-        if let leftover = displayMathBuffer, !leftover.isEmpty {
-            emitMathBlock(buffer: leftover, into: &output)
+        // A math block never closed (incomplete during streaming): emit what
+        // we have so far — the user still sees their LaTeX. If nothing was
+        // buffered, re-emit the opener line verbatim instead of dropping it.
+        if let leftover = displayMathBuffer {
+            if !leftover.isEmpty {
+                emitMathBlock(buffer: leftover, into: &output)
+            } else if let opener = displayMathOpenerLine {
+                output.append(opener)
+                output.append("\n")
+            }
         }
 
         if !source.hasSuffix("\n"), output.hasSuffix("\n") {
@@ -100,18 +109,6 @@ enum MarkdownExtensionPreprocessor {
         output.append(latex)
         if !latex.hasSuffix("\n") { output.append("\n") }
         output.append("```\n")
-    }
-
-    private static func singleLineDisplayMath(_ trimmed: String) -> String? {
-        guard trimmed.hasPrefix("$$"), trimmed.hasSuffix("$$"), trimmed.count >= 4 else { return nil }
-        let start = trimmed.index(trimmed.startIndex, offsetBy: 2)
-        let end = trimmed.index(trimmed.endIndex, offsetBy: -2)
-        let latex = String(trimmed[start..<end])
-        return latex.isEmpty ? nil : latex
-    }
-
-    private static func isDisplayMathCloser(_ trimmed: String, opener: String) -> Bool {
-        trimmed == opener
     }
 
     private static func openingFenceLength(_ trimmedLeading: String) -> (Character, Int)? {
