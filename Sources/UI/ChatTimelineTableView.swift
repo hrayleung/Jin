@@ -267,6 +267,23 @@ final class ChatTimelineHostingCell: NSTableCellView {
     }
 }
 
+// MARK: - Scroll view (wheel-event hook)
+
+/// `NSScrollView` exposing raw `scrollWheel` events. The live-scroll
+/// notifications cover drag gestures and scroller-knob tracking but NOT the
+/// momentum phase or single wheel ticks — and the controller's unpin
+/// decision must distinguish "the user scrolled" from "layout moved the
+/// bounds" (the latter previously mis-unpinned follow-to-bottom during
+/// conversation open, leaving it parked above the bottom).
+final class ChatTimelineScrollView: NSScrollView {
+    var onUserScrollWheel: ((NSEvent) -> Void)?
+
+    override func scrollWheel(with event: NSEvent) {
+        onUserScrollWheel?(event)
+        super.scrollWheel(with: event)
+    }
+}
+
 // MARK: - Controller
 
 @MainActor
@@ -287,7 +304,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let onLoadEarlier: () -> Void
     }
 
-    private let scrollView = NSScrollView()
+    private let scrollView = ChatTimelineScrollView()
     private let tableView = NSTableView()
 
     private var rows: [ChatTimelineRow] = []
@@ -297,6 +314,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// by realized on-screen cells reporting their `fittingSize`; off-screen
     /// rows fall back to `estimatedHeight` so they are NEVER realized to measure.
     private var heightCache: [String: CGFloat] = [:]
+    /// Memoized content-aware estimates (same key scheme). The estimator is a
+    /// single O(text) pass — fine once, not fine on every `heightOfRow` call.
+    private var estimateCache: [String: CGFloat] = [:]
 
     private var currentColumnWidth: CGFloat = 0
     private var lastConversationID: UUID?
@@ -304,11 +324,20 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     // Pin / scroll-intent state. These mirror the old SwiftUI machinery:
     // `shouldMaintainBottom` is the latch that keeps follow-to-bottom alive
     // until the user scrolls away; `isProgrammaticScrolling` suppresses the
-    // unpin that our own bottom-scrolls would otherwise trigger.
+    // unpin that our own bottom-scrolls would otherwise trigger. Unpin is
+    // GESTURE-GATED: only wheel events / live-scroll tracking count as user
+    // intent — bounds changes caused by layout (rows re-measuring during
+    // open) can no longer disengage follow-to-bottom.
     private var shouldMaintainBottom = true
     private var isProgrammaticScrolling = false
     private var isPinned = true
-    private var initialScrollWorkItems: [DispatchWorkItem] = []
+    private var isUserLiveScrolling = false
+    private var lastUserScrollEventAt: TimeInterval = 0
+
+    private var recentUserScrollGesture: Bool {
+        isUserLiveScrolling
+            || ProcessInfo.processInfo.systemUptime - lastUserScrollEventAt < 0.15
+    }
 
     // MARK: View lifecycle
 
@@ -382,7 +411,24 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             object: scrollView
         )
 
+        scrollView.onUserScrollWheel = { [weak self] event in
+            self?.handleUserScrollWheel(event)
+        }
+
         view = scrollView
+    }
+
+    /// The "user scroll wins instantly" guarantee: the very first upward
+    /// wheel tick disables follow-to-bottom BEFORE the next streaming
+    /// flush's `documentFrameDidChange` could fight the gesture.
+    private func handleUserScrollWheel(_ event: NSEvent) {
+        lastUserScrollEventAt = ProcessInfo.processInfo.systemUptime
+        // `scrollingDeltaY` is already natural-scrolling-adjusted: positive
+        // means the content should move down, i.e. the user is scrolling UP
+        // toward older messages.
+        if event.scrollingDeltaY > 0 {
+            shouldMaintainBottom = false
+        }
     }
 
     deinit {
@@ -412,17 +458,28 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         }
 
         // Heights are width-dependent (keyed by ceil(columnWidth)); drop the
-        // cache on a width change so rows re-measure at the new wrap width.
+        // caches on a width change so rows re-measure at the new wrap width.
         if widthChanged {
             heightCache.removeAll(keepingCapacity: true)
+            estimateCache.removeAll(keepingCapacity: true)
         }
 
         if conversationChanged {
             lastConversationID = newModel.conversationID
             shouldMaintainBottom = true
             heightCache.removeAll(keepingCapacity: true)
+            estimateCache.removeAll(keepingCapacity: true)
+            seedHeightsFromStore()
             reloadDataPreservingPin()
-            scheduleInitialBottomScroll()
+            // Deterministic open-at-bottom: pin once now; every later height
+            // correction re-pins via `documentFrameDidChange` for as long as
+            // `shouldMaintainBottom` holds — which, with gesture-gated unpin,
+            // is "until the user actually scrolls". The previous fixed
+            // 0/0.12/0.5s settle timers missed content that measured late
+            // (a big code block at the tail) and left the view parked short
+            // of the bottom.
+            view.layoutSubtreeIfNeeded()
+            scrollToBottom(animated: false, force: true)
             return
         }
 
@@ -566,6 +623,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// Cheap height for a row we haven't realized yet — a number, so the table
     /// can size the scroller WITHOUT instantiating the cell. The real height
     /// replaces it (via `cellDidMeasureHeight`) when the row scrolls into view.
+    /// Content-aware (CJK width, code fences, headings, tables) and memoized:
+    /// `heightOfRow` is called repeatedly during scroll for every unmeasured
+    /// row, and the previous version re-counted `copyText` (O(n)) per call.
     private func estimatedHeight(for row: ChatTimelineRow) -> CGFloat {
         switch row {
         case .loadEarlier:
@@ -573,26 +633,115 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         case .streaming:
             return 120
         case .message(let item, _):
-            // Coarse content-length estimate so the scroller isn't wildly off
-            // before rows are measured; erring slightly tall avoids a clip flash.
-            let charsPerLine = max(20.0, currentColumnWidth / 8.0)
-            let lines = max(1.0, ceil(Double(item.copyText.count) / charsPerLine))
-            return CGFloat(lines * 22.0 + 64.0)
+            let key = heightKey(row.identity)
+            if let memoized = estimateCache[key] { return memoized }
+            let estimate = ChatTimelineHeightEstimator.estimate(
+                text: item.copyText,
+                columnWidth: currentColumnWidth
+            )
+            estimateCache[key] = estimate
+            return estimate
         }
     }
 
-    /// A realized, on-screen cell reported its true natural height (async
-    /// content has loaded by now). Cache it and re-note just that one row.
+    /// A realized cell reported its true natural height (async content has
+    /// loaded by now). Cache it, re-note just that one row — and when the
+    /// corrected row's top sits ABOVE the viewport, shift the scroll origin
+    /// by the same delta so the on-screen content stays pixel-stationary
+    /// (the row "grows upward"). Without this, every estimate correction
+    /// while scrolling up through history visibly jumped the content.
     private func cellDidMeasureHeight(identity: String, height: CGFloat) {
         let key = heightKey(identity)
-        guard abs((heightCache[key] ?? -1) - height) > 0.5 else { return }
+        let previous = heightCache[key]
+        guard abs((previous ?? -1) - height) > 0.5 else { return }
         heightCache[key] = height
         guard let index = rows.firstIndex(where: { $0.identity == identity }) else { return }
+
+        if previous == nil {
+            logEstimateError(identity: identity, key: key, measured: height)
+        }
+        storeMeasuredHeight(identity: identity, height: height)
+
+        // Snapshot the CURRENT laid-out geometry — what the table actually
+        // shows — before the height change lands. Deltas measured against
+        // live geometry compose correctly with load-earlier's
+        // capture-then-adjust and with multiple measurements per runloop.
+        let clip = scrollView.contentView
+        let visibleTop = scrollView.documentVisibleRect.minY
+        let oldRowRect = tableView.rect(ofRow: index)
+        let delta = height - oldRowRect.height
+        let rowTopIsAboveViewport = oldRowRect.minY < visibleTop - 0.5
+
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0
             tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: index))
         }
-        maintainBottomIfNeeded()
+
+        if shouldMaintainBottom {
+            // Pinned: the bottom anchor wins; never also compensate.
+            maintainBottomIfNeeded()
+            return
+        }
+        guard rowTopIsAboveViewport, abs(delta) > 0.5 else { return }
+
+        var targetY = clip.bounds.origin.y + delta
+        let topLimit = -scrollView.contentInsets.top
+        let maxOriginY = tableView.frame.height - clip.bounds.height + scrollView.contentInsets.bottom
+        // Clamp inside the legal range so compensation never pops the view
+        // into the rubber-band region mid-momentum.
+        targetY = min(max(targetY, topLimit), max(topLimit, maxOriginY))
+        isProgrammaticScrolling = true
+        clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
+        scrollView.reflectScrolledClipView(clip)
+        DispatchQueue.main.async { [weak self] in self?.isProgrammaticScrolling = false }
+        logAnchorCompensation(row: index, delta: delta)
+    }
+
+    /// First-measurement estimate-error telemetry, for tuning
+    /// `ChatTimelineHeightEstimator`'s constants against real content.
+    private func logEstimateError(identity: String, key: String, measured: CGFloat) {
+        guard let estimated = estimateCache[key] else { return }
+        ChatDiagnosticLogger.log(
+            runId: "scroll-perf",
+            hypothesisId: "estimator",
+            message: "estimate_error",
+            data: [
+                "identity": identity,
+                "estimated": String(format: "%.0f", estimated),
+                "measured": String(format: "%.0f", measured),
+                "err": String(format: "%.2f", measured > 0 ? abs(estimated - measured) / measured : 0),
+                "width": String(format: "%.0f", currentColumnWidth),
+            ]
+        )
+    }
+
+    private func logAnchorCompensation(row: Int, delta: CGFloat) {
+        ChatDiagnosticLogger.log(
+            runId: "scroll-perf",
+            hypothesisId: "anchor-comp",
+            message: "anchor_comp",
+            data: [
+                "row": String(row),
+                "delta": String(format: "%.1f", delta),
+            ]
+        )
+    }
+
+    /// Write-through to the cross-conversation warm-start store.
+    private func storeMeasuredHeight(identity: String, height: CGFloat) {
+        guard let conversationID = lastConversationID,
+              let row = rows.first(where: { $0.identity == identity }),
+              case .message(let item, _) = row else { return }
+        ChatTimelineRowHeightStore.shared.store(
+            height,
+            for: ChatTimelineRowHeightStore.Key(
+                conversationID: conversationID,
+                rowIdentity: identity,
+                widthBucket: Int(ceil(max(1, currentColumnWidth))),
+                contentSignature: ChatTimelineRowHeightStore.contentSignature(for: item.copyText),
+                environmentToken: ChatTimelineRowHeightStore.environmentToken()
+            )
+        )
     }
 
     // MARK: Content building
@@ -660,7 +809,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         // The table grew/shrank because rows self-sized (async content resolving,
         // streaming tokens). Keep the viewport pinned to the bottom if we're
         // following, but never fight an active user scroll.
-        guard shouldMaintainBottom, !isProgrammaticScrolling else { return }
+        guard shouldMaintainBottom, !isProgrammaticScrolling, !isUserLiveScrolling else { return }
         scrollToBottom(animated: false, force: false)
     }
 
@@ -682,22 +831,36 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     }
 
     @objc private func boundsDidChange() {
-        recomputePinned()
-        // A bounds change we did not initiate, that moved us off the bottom,
-        // means the user scrolled away → stop following.
-        if !isProgrammaticScrolling, distanceFromBottom() > (model.map { max(0, $0.bottomTolerance) } ?? 40) {
+        let distance = distanceFromBottom()
+        let tolerance = model.map { max(0, $0.bottomTolerance) } ?? 40
+        let pinned = distance <= tolerance
+        if pinned != isPinned {
+            isPinned = pinned
+            model?.setPinned(pinned)
+        }
+        // Only a USER gesture may change the follow latch. Bounds changes
+        // caused by layout (rows re-measuring on open, insets changing) used
+        // to be misattributed to the user and disengaged follow-to-bottom.
+        guard !isProgrammaticScrolling, recentUserScrollGesture else { return }
+        if distance > tolerance {
             shouldMaintainBottom = false
+        } else {
+            // The user scrolled back to the bottom (including via momentum,
+            // which produces no live-scroll notifications) → resume follow.
+            shouldMaintainBottom = true
         }
     }
 
     @objc private func userWillStartLiveScroll() {
-        cancelInitialBottomScroll()
+        isUserLiveScrolling = true
         if distanceFromBottom() > (model.map { max(0, $0.bottomTolerance) } ?? 40) {
             shouldMaintainBottom = false
         }
     }
 
     @objc private func userDidEndLiveScroll() {
+        isUserLiveScrolling = false
+        lastUserScrollEventAt = ProcessInfo.processInfo.systemUptime
         recomputePinned()
         if isPinned { shouldMaintainBottom = true }
         logResidentTextViewCount("scroll-end")
@@ -721,7 +884,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     }
 
     private func maintainBottomIfNeeded() {
-        guard shouldMaintainBottom else { return }
+        guard shouldMaintainBottom, !isUserLiveScrolling else { return }
         scrollToBottom(animated: false, force: false)
     }
 
@@ -766,25 +929,29 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         model?.setPinned(true)
     }
 
-    // MARK: Initial / load-earlier scroll helpers
+    // MARK: Warm-start heights
 
-    private func scheduleInitialBottomScroll() {
-        cancelInitialBottomScroll()
-        // Mirror the old settle: scroll now, then re-pin after layout passes
-        // land (heights for freshly measured rows can shift the content size).
-        for delay in [0.0, 0.12, 0.5] {
-            let item = DispatchWorkItem { [weak self] in
-                guard let self, self.shouldMaintainBottom else { return }
-                self.scrollToBottom(animated: false, force: false)
+    /// Pre-seed the local height cache from the cross-conversation store so a
+    /// revisited conversation opens with real geometry instead of estimates.
+    /// Misses are harmless (estimate path); stale entries can't match — the
+    /// key carries width bucket, content signature, and font token.
+    private func seedHeightsFromStore() {
+        guard let conversationID = lastConversationID else { return }
+        let widthBucket = Int(ceil(max(1, currentColumnWidth)))
+        let environmentToken = ChatTimelineRowHeightStore.environmentToken()
+        for row in rows {
+            guard case .message(let item, _) = row else { continue }
+            let key = ChatTimelineRowHeightStore.Key(
+                conversationID: conversationID,
+                rowIdentity: row.identity,
+                widthBucket: widthBucket,
+                contentSignature: ChatTimelineRowHeightStore.contentSignature(for: item.copyText),
+                environmentToken: environmentToken
+            )
+            if let stored = ChatTimelineRowHeightStore.shared.lookup(key) {
+                heightCache[heightKey(row.identity)] = stored
             }
-            initialScrollWorkItems.append(item)
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
         }
-    }
-
-    private func cancelInitialBottomScroll() {
-        for item in initialScrollWorkItems { item.cancel() }
-        initialScrollWorkItems.removeAll()
     }
 
 }
