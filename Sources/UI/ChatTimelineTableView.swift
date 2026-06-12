@@ -455,6 +455,11 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let current = scrollView.contentInsets
         if abs(current.top - newModel.topInset) > 0.5 || abs(current.bottom - newModel.bottomInset) > 0.5 {
             scrollView.contentInsets = NSEdgeInsets(top: newModel.topInset, left: 0, bottom: newModel.bottomInset, right: 0)
+            // AppKit insets the overlay scroller track by `contentInsets`, so
+            // with the composer-sized bottom inset the knob could never reach
+            // the bottom of the window even at max scroll. Negative
+            // `scrollerInsets` cancel that and restore a full-height track.
+            scrollView.scrollerInsets = NSEdgeInsets(top: -newModel.topInset, left: 0, bottom: -newModel.bottomInset, right: 0)
         }
 
         // Heights are width-dependent (keyed by ceil(columnWidth)); drop the
