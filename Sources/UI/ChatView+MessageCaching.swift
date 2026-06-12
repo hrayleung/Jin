@@ -63,6 +63,7 @@ extension ChatView {
     }
 
     func autoOpenLatestArtifactIfNeeded(from message: Message) {
+        guard conversationEntity.artifactsEnabled == true else { return }
         guard let selection = ArtifactWorkspaceSupport.latestArtifactSelection(
             from: message,
             in: renderCache.artifactCatalog
@@ -84,6 +85,7 @@ extension ChatView {
             orderedMessages: orderedConversationMessages(),
             updatedAt: conversationEntity.updatedAt,
             fallbackModelLabel: currentModelName,
+            artifactsEnabled: conversationEntity.artifactsEnabled == true,
             providerIconsByID: Dictionary(
                 providers.map { ($0.id, $0.resolvedProviderIconID) },
                 uniquingKeysWith: { first, _ in first }

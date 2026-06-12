@@ -71,6 +71,7 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
         let context = ChatMessageRenderPipeline.makeDecodedRenderContext(
             from: [PersistedMessageSnapshot(entity)],
             fallbackModelLabel: "GPT",
+            artifactsEnabled: true,
             assistantProviderIconsByID: [:]
         )
 
@@ -109,6 +110,7 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
         let context = ChatMessageRenderPipeline.makeDecodedRenderContext(
             from: [PersistedMessageSnapshot(entity)],
             fallbackModelLabel: "GPT",
+            artifactsEnabled: true,
             assistantProviderIconsByID: [:]
         )
 
@@ -145,6 +147,7 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
         let context = ChatMessageRenderPipeline.makeRenderContext(
             from: [entity],
             fallbackModelLabel: "GPT",
+            artifactsEnabled: true,
             assistantProviderIconID: { _ in nil }
         )
 
@@ -181,6 +184,7 @@ final class ChatMessageRenderPipelineHistoricalDecodingTests: XCTestCase {
         let context = ChatMessageRenderPipeline.makeRenderContext(
             from: [entity],
             fallbackModelLabel: "GPT",
+            artifactsEnabled: true,
             assistantProviderIconID: { _ in nil }
         )
 

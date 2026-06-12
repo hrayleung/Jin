@@ -49,8 +49,10 @@ extension OpenAIAdapter {
     func preparedUploadImages(from images: [ImageContent]) async throws -> [PreparedOpenAIUploadImage] {
         var prepared: [PreparedOpenAIUploadImage] = []
 
-        for (index, image) in images.enumerated() {
-            let data = try await resolvedImageData(forUpload: image)
+        for (index, image) in images.prefix(16).enumerated() {
+            guard let data = try resolvedImageData(forUpload: image) else {
+                continue
+            }
             let filename = preferredImageFilename(for: image, index: index + 1)
             prepared.append(
                 PreparedOpenAIUploadImage(
@@ -96,21 +98,35 @@ extension OpenAIAdapter {
         }
     }
 
-    private func resolvedImageData(forUpload image: ImageContent) async throws -> Data {
+    private func resolvedImageData(forUpload image: ImageContent) throws -> Data? {
         if let data = image.data {
             return data
         }
 
-        if let url = image.url {
-            if url.isFileURL {
-                return try resolveFileData(from: url)
-            }
-            let request = NetworkRequestFactory.makeRequest(url: url, method: "GET")
-            let (data, _) = try await networkManager.sendRequest(request)
-            return data
+        guard let url = image.url else {
+            return nil
         }
 
-        throw LLMError.invalidRequest(message: "OpenAI image editing requires a readable input image.")
+        guard url.isFileURL else {
+            return nil
+        }
+
+        guard image.assetDisposition == .managed,
+              isAllowedMultipartUploadFileURL(url) else {
+            return nil
+        }
+
+        return try resolveFileData(from: url)
+    }
+
+    private func isAllowedMultipartUploadFileURL(_ url: URL) -> Bool {
+        guard let attachmentsDirectory = try? AppDataLocations.attachmentsDirectoryURL() else {
+            return false
+        }
+
+        let filePath = url.standardizedFileURL.path
+        let attachmentPath = attachmentsDirectory.standardizedFileURL.path
+        return filePath == attachmentPath || filePath.hasPrefix(attachmentPath + "/")
     }
 
     private func preferredImageFilename(for image: ImageContent, index: Int) -> String {

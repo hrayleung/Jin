@@ -8,10 +8,19 @@ enum MessageMediaAssetPersistenceSupport {
         dataProvider: HTTPDataProvider? = nil
     ) async -> URL? {
         do {
-            let (data, response) = try await remoteData(from: url, mode: "attachment_image_download", dataProvider: dataProvider)
+            guard RemoteMediaURLPolicy.isAllowedForAutomaticFetch(url) else {
+                return nil
+            }
+
+            let (data, response) = try await boundedRemoteImageData(
+                from: url,
+                mode: "attachment_image_download",
+                dataProvider: dataProvider
+            )
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode),
-                  !data.isEmpty else {
+                  !data.isEmpty,
+                  data.count <= RemoteMediaURLPolicy.maximumAutomaticFetchBytes else {
                 return nil
             }
             if let mimeType = httpResponse.mimeType,
@@ -80,6 +89,50 @@ enum MessageMediaAssetPersistenceSupport {
             return url
         } catch {
             return nil
+        }
+    }
+
+    private static func boundedRemoteImageData(from url: URL, mode: String, dataProvider: HTTPDataProvider?) async throws -> (Data, URLResponse) {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("image/*", forHTTPHeaderField: "Accept")
+
+        if let dataProvider {
+            let (data, response) = try await NetworkDebugRequestExecutor.data(for: request, mode: mode, dataProvider: dataProvider)
+            try validateRemoteImageResponse(response, byteCount: data.count)
+            return (data, response)
+        }
+
+        let configuration = NetworkDebugRequestExecutor.makeDefaultSessionConfiguration()
+        let session = URLSession(configuration: configuration)
+        let (bytes, response) = try await session.bytes(for: request)
+        try validateRemoteImageResponse(response, byteCount: nil)
+
+        var data = Data()
+        data.reserveCapacity(min(RemoteMediaURLPolicy.maximumAutomaticFetchBytes, max(0, Int(response.expectedContentLength))))
+        for try await byte in bytes {
+            if data.count >= RemoteMediaURLPolicy.maximumAutomaticFetchBytes {
+                throw URLError(.dataLengthExceedsMaximum)
+            }
+            data.append(byte)
+        }
+        return (data, response)
+    }
+
+    private static func validateRemoteImageResponse(_ response: URLResponse, byteCount: Int?) throws {
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        if httpResponse.expectedContentLength > Int64(RemoteMediaURLPolicy.maximumAutomaticFetchBytes) {
+            throw URLError(.dataLengthExceedsMaximum)
+        }
+        if let byteCount, byteCount > RemoteMediaURLPolicy.maximumAutomaticFetchBytes {
+            throw URLError(.dataLengthExceedsMaximum)
+        }
+        if let mimeType = httpResponse.mimeType,
+           !mimeType.lowercased().hasPrefix("image") {
+            throw URLError(.cannotDecodeContentData)
         }
     }
 

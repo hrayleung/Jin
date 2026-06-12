@@ -10,31 +10,16 @@ extension TextToSpeechPluginSettingsView {
             textToSpeechLoadSnapshot(matchingProviderRaw: requestedProviderRaw)
         }) else { return }
 
-        guard !load.apiKey.isEmpty else {
-            await MainActor.run {
-                guard isCurrentTextToSpeechLoad(
-                    provider: load.provider,
-                    providerRaw: load.providerRaw,
-                    apiKey: load.apiKey
-                ) else { return }
-                clearFetchedTextToSpeechModels()
-            }
-            return
-        }
-
-        switch load.provider {
-        case .openai, .openRouter, .groq, .xiaomiMiMo:
-            await loadRemoteTextToSpeechModels()
-            await MainActor.run {
-                guard isCurrentTextToSpeechLoad(
-                    provider: load.provider,
-                    providerRaw: load.providerRaw,
-                    apiKey: load.apiKey
-                ) else { return }
-                clearFetchedTextToSpeechModels(for: .elevenlabs)
-            }
-        case .elevenlabs:
-            await loadElevenLabsVoicesAndModels()
+        // Do not automatically call remote model/voice APIs here. Stored base URLs can be
+        // user-controlled, so credentials should leave the device only after an explicit
+        // Test Connection or speech operation.
+        await MainActor.run {
+            guard isCurrentTextToSpeechLoad(
+                provider: load.provider,
+                providerRaw: load.providerRaw,
+                apiKey: load.apiKey
+            ) else { return }
+            clearFetchedTextToSpeechModels(for: load.provider)
         }
     }
 }

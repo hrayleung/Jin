@@ -5,6 +5,62 @@ import XCTest
 @testable import Jin
 
 final class PDFProcessingModeTests: XCTestCase {
+    func testFirecrawlOCRPluginDefaultsDisabledUntilExplicitlyEnabled() {
+        let suiteName = "PDFProcessingModeTests.firecrawl.defaultDisabled.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertFalse(AppPreferences.isPluginEnabled("firecrawl_ocr", defaults: defaults))
+
+        AppPreferences.setPluginEnabled(true, for: "firecrawl_ocr", defaults: defaults)
+        XCTAssertTrue(AppPreferences.isPluginEnabled("firecrawl_ocr", defaults: defaults))
+    }
+
+    func testFirecrawlOCRConfiguredRequiresCloudflareR2UploadPluginEnabled() {
+        let suiteName = "PDFProcessingModeTests.firecrawl.requiresR2Enabled.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set("firecrawl-key", forKey: AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)
+        setValidCloudflareR2Configuration(defaults)
+        AppPreferences.setPluginEnabled(true, for: "firecrawl_ocr", defaults: defaults)
+        AppPreferences.setPluginEnabled(false, for: "cloudflare_r2_upload", defaults: defaults)
+
+        var status = ChatConversationStateSupport.resolveExtensionCredentialStatus(defaults: defaults)
+        XCTAssertFalse(status.firecrawlOCRConfigured)
+        XCTAssertTrue(status.firecrawlOCRPluginEnabled)
+
+        AppPreferences.setPluginEnabled(true, for: "cloudflare_r2_upload", defaults: defaults)
+        status = ChatConversationStateSupport.resolveExtensionCredentialStatus(defaults: defaults)
+        XCTAssertTrue(status.firecrawlOCRConfigured)
+    }
+
+    func testFirecrawlPDFPreparationClientsRequireCloudflareR2UploadPluginEnabled() {
+        let suiteName = "PDFProcessingModeTests.firecrawl.clientsRequireR2Enabled.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set("firecrawl-key", forKey: AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)
+        AppPreferences.setPluginEnabled(false, for: "cloudflare_r2_upload", defaults: defaults)
+
+        XCTAssertThrowsError(
+            try ChatMessagePreparationSupport.makePDFPreparationClients(
+                pdfCount: 1,
+                requestedMode: .firecrawlOCR,
+                defaults: defaults
+            )
+        )
+
+        AppPreferences.setPluginEnabled(true, for: "cloudflare_r2_upload", defaults: defaults)
+        XCTAssertNoThrow(
+            try ChatMessagePreparationSupport.makePDFPreparationClients(
+                pdfCount: 1,
+                requestedMode: .firecrawlOCR,
+                defaults: defaults
+            )
+        )
+    }
+
     func testDefaultPDFProcessingFallbackModePrefersExistingConfiguredOCRBeforeMinerU() {
         XCTAssertEqual(
             ChatModelCapabilitySupport.defaultPDFProcessingFallbackMode(
@@ -1501,4 +1557,12 @@ private func makeZipArchive(entries: [String: String]) throws -> Data {
     XCTAssertEqual(process.terminationStatus, 0)
 
     return try Data(contentsOf: archiveURL)
+}
+
+private func setValidCloudflareR2Configuration(_ defaults: UserDefaults) {
+    defaults.set("account", forKey: AppPreferenceKeys.cloudflareR2AccountID)
+    defaults.set("access", forKey: AppPreferenceKeys.cloudflareR2AccessKeyID)
+    defaults.set("secret", forKey: AppPreferenceKeys.cloudflareR2SecretAccessKey)
+    defaults.set("bucket", forKey: AppPreferenceKeys.cloudflareR2Bucket)
+    defaults.set("https://example.com/uploads", forKey: AppPreferenceKeys.cloudflareR2PublicBaseURL)
 }

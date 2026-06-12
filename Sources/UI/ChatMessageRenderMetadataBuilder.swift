@@ -7,11 +7,15 @@ struct ChatMessageRenderMetadata: Sendable {
 }
 
 enum ChatMessageRenderMetadataBuilder {
-    static func copyableText(from content: [RenderedContentPart], role: MessageRole) -> String {
+    static func copyableText(
+        from content: [RenderedContentPart],
+        role: MessageRole,
+        artifactsEnabled: Bool
+    ) -> String {
         let textParts = content.compactMap { part -> String? in
             switch part {
             case .text(let text):
-                let sourceText = role == .assistant ? ArtifactMarkupParser.visibleText(from: text) : text
+                let sourceText = role == .assistant && artifactsEnabled ? ArtifactMarkupParser.visibleText(from: text) : text
                 return sourceText.trimmedNonEmpty
             case .quote(let quote):
                 guard let trimmed = quote.quotedText.trimmedNonEmpty else { return nil }
@@ -55,7 +59,7 @@ enum ChatMessageRenderMetadataBuilder {
             guard case .content(_, let part) = block else { return nil }
             return part
         }
-        let combinedText = assistantVisibleText(from: content)
+        let combinedText = assistantVisibleText(from: content, artifactsEnabled: containsArtifact)
         let hasSingleTextPartOnly = renderedBlocks.count == 1
             && visibleContent.count == 1
             && visibleContent.allSatisfy(isTextPart)
@@ -75,11 +79,14 @@ enum ChatMessageRenderMetadataBuilder {
         )
     }
 
-    private static func assistantVisibleText(from content: [RenderedContentPart]) -> String {
+    private static func assistantVisibleText(
+        from content: [RenderedContentPart],
+        artifactsEnabled: Bool
+    ) -> String {
         content.compactMap { part -> String? in
             switch part {
             case .text(let text):
-                return ArtifactMarkupParser.visibleText(from: text)
+                return artifactsEnabled ? ArtifactMarkupParser.visibleText(from: text) : text
             case .quote(let quote):
                 return quote.quotedText
             default:

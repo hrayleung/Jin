@@ -22,6 +22,7 @@ final class ChatMessageRenderPipelineArtifactTests: XCTestCase {
             role: .assistant,
             messageID: messageID,
             timestamp: timestamp,
+            artifactsEnabled: true,
             artifactVersionCounts: &artifactVersionCounts,
             artifactVersionsByID: &artifactVersionsByID
         )
@@ -77,6 +78,7 @@ final class ChatMessageRenderPipelineArtifactTests: XCTestCase {
         let context = ChatMessageRenderPipeline.makeRenderContext(
             from: [entityOne, entityTwo],
             fallbackModelLabel: "GPT",
+            artifactsEnabled: true,
             assistantProviderIconID: { _ in nil }
         )
 
@@ -98,5 +100,65 @@ final class ChatMessageRenderPipelineArtifactTests: XCTestCase {
         XCTAssertTrue(context.visibleMessages[0].copyText.contains("Outro"))
         XCTAssertFalse(context.visibleMessages[0].copyText.contains("<jinArtifact"))
         XCTAssertFalse(context.visibleMessages[1].copyText.contains("<jinArtifact"))
+    }
+
+    func testRenderPipelineDoesNotParseArtifactsWhenArtifactsAreDisabled() throws {
+        let artifactMarkup = #"<jinArtifact artifact_id="demo" title="Demo" contentType="text/html"><div>one</div></jinArtifact>"#
+        let assistant = Message(
+            id: UUID(),
+            role: .assistant,
+            content: [
+                .text(
+                    """
+                    Before
+                    \(artifactMarkup)
+                    After
+                    """
+                )
+            ],
+            timestamp: Date(timeIntervalSince1970: 1)
+        )
+        let entity = try MessageEntity.fromDomain(assistant)
+
+        let context = ChatMessageRenderPipeline.makeRenderContext(
+            from: [entity],
+            fallbackModelLabel: "GPT",
+            artifactsEnabled: false,
+            assistantProviderIconID: { _ in nil }
+        )
+
+        XCTAssertTrue(context.artifactCatalog.isEmpty)
+        let item = try XCTUnwrap(context.visibleMessages.first)
+        XCTAssertEqual(item.renderedBlocks.count, 1)
+        XCTAssertTrue(item.copyText.contains("<jinArtifact"))
+
+        guard case .content(_, .text(let text)) = try XCTUnwrap(item.renderedBlocks.first) else {
+            return XCTFail("Expected raw artifact markup to remain text when artifacts are disabled")
+        }
+        XCTAssertTrue(text.contains("<jinArtifact"))
+    }
+
+    func testDecodedRenderContextDoesNotParseArtifactsWhenArtifactsAreDisabled() throws {
+        let assistant = Message(
+            id: UUID(),
+            role: .assistant,
+            content: [
+                .text(#"<jinArtifact artifact_id="demo" title="Demo" contentType="text/html"><div>one</div></jinArtifact>"#)
+            ],
+            timestamp: Date(timeIntervalSince1970: 1)
+        )
+        let entity = try MessageEntity.fromDomain(assistant)
+
+        let context = ChatMessageRenderPipeline.makeDecodedRenderContext(
+            from: [PersistedMessageSnapshot(entity)],
+            fallbackModelLabel: "GPT",
+            artifactsEnabled: false,
+            assistantProviderIconsByID: [:]
+        )
+
+        XCTAssertTrue(context.artifactCatalog.isEmpty)
+        let item = try XCTUnwrap(context.visibleMessages.first)
+        XCTAssertEqual(item.renderedBlocks.count, 1)
+        XCTAssertTrue(item.copyText.contains("<jinArtifact"))
     }
 }

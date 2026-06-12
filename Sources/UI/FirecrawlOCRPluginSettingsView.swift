@@ -66,7 +66,7 @@ struct FirecrawlOCRPluginSettingsView: View {
 
     private var r2RequirementCallout: some View {
         HStack(alignment: .firstTextBaseline, spacing: JinSpacing.medium) {
-            Text("Requires Cloudflare R2 to be configured for uploads.")
+            Text("Requires Cloudflare R2 Upload to be enabled and configured before PDFs can be sent to Firecrawl.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
