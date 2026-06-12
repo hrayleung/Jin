@@ -95,7 +95,7 @@ final class DataSettingsSupportTests: XCTestCase {
         XCTAssertEqual(DataSettingsSupport.importStartedMessage, "Validating and queuing recovery pack…")
         XCTAssertEqual(
             DataSettingsSupport.importSuccessMessage,
-            "Recovery pack queued. Jin will restart to apply it."
+            "Recovery pack queued. Jin will restart to apply it. Imported MCP servers will be disabled until you review and re-enable them."
         )
         XCTAssertEqual(
             DataSettingsSupport.importFailureMessage(errorDescription: "Bad archive"),

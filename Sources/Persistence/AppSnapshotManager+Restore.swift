@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 extension AppSnapshotManager {
     static func restoreSnapshot(_ snapshot: SnapshotSummary) throws {
@@ -26,6 +27,33 @@ extension AppSnapshotManager {
         }
         try FileManager.default.createDirectory(at: queuedDirectory, withIntermediateDirectories: true)
         try SnapshotFileOperations.copyDirectoryContents(from: packageDirectory, to: queuedDirectory)
+        do {
+            try neutralizeImportedMCPServers(in: queuedDirectory)
+        } catch {
+            try? FileManager.default.removeItem(at: queuedDirectory)
+            throw error
+        }
+    }
+
+    private static func neutralizeImportedMCPServers(in snapshotDirectory: URL) throws {
+        guard let storeURL = SnapshotFileOperations.snapshotPrimaryStoreURL(in: snapshotDirectory) else {
+            throw SnapshotError.invalidSnapshot("Snapshot database is missing.")
+        }
+
+        let container = try PersistenceContainerFactory.makeContainer(storeURL: storeURL)
+        let context = ModelContext(container)
+        let servers = try context.fetch(FetchDescriptor<MCPServerConfigEntity>())
+        var changed = false
+
+        for server in servers where server.isEnabled || server.runToolsAutomatically {
+            server.isEnabled = false
+            server.runToolsAutomatically = false
+            changed = true
+        }
+
+        if changed {
+            try context.save()
+        }
     }
 
     static func exportRecoveryArchive(to destinationURL: URL) throws {
