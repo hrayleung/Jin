@@ -48,7 +48,7 @@ enum DataSettingsSupport {
     }
 
     static let importStartedMessage = "Validating and queuing recovery pack…"
-    static let importSuccessMessage = "Recovery pack queued. Jin will restart to apply it."
+    static let importSuccessMessage = "Recovery pack queued. Jin will restart to apply it. Imported MCP servers will be disabled until you review and re-enable them."
 
     static func importFailureMessage(errorDescription: String) -> String {
         "Import failed: \(errorDescription)"

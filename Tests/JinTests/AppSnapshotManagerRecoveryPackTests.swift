@@ -87,6 +87,8 @@ final class AppSnapshotManagerRecoveryPackTests: PreferencesSandboxedTestCase {
 
         XCTAssertEqual(providers.map(\.id), ["openai"])
         XCTAssertEqual(mcpServers.map(\.id), ["local-test"])
+        XCTAssertFalse(mcpServers[0].isEnabled)
+        XCTAssertFalse(mcpServers[0].runToolsAutomatically)
         XCTAssertTrue(UserDefaults.standard.bool(forKey: AppPreferenceKeys.pluginWebSearchEnabled))
         XCTAssertEqual(UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginWebSearchExaAPIKey), "exa-test-key")
         XCTAssertEqual(
@@ -94,6 +96,28 @@ final class AppSnapshotManagerRecoveryPackTests: PreferencesSandboxedTestCase {
             AppPreferences.encodeStringArrayJSON(["local-test"])
         )
         XCTAssertEqual(UserDefaults.standard.integer(forKey: "mcpTransportSchemaVersion"), 2)
+    }
+
+    func testImportedRecoveryPackDisarmsEnabledAutoRunMCPServers() throws {
+        try seedProviderAndMCPServer(isEnabled: true, runToolsAutomatically: true)
+
+        let archiveURL = temporaryRoot.appendingPathComponent("autorun-mcp.jinbackup", isDirectory: false)
+        try AppSnapshotManager.exportRecoveryArchive(to: archiveURL)
+
+        let mutatedContainer = try PersistenceContainerFactory.makeContainer()
+        let mutatedContext = ModelContext(mutatedContainer)
+        try mutatedContext.delete(model: MCPServerConfigEntity.self)
+        try mutatedContext.save()
+
+        try AppSnapshotManager.queueImportArchiveForRestore(from: archiveURL)
+        let restoredContainer = try readyContainerAfterStartupEvaluation()
+        let restoredContext = ModelContext(restoredContainer)
+        let mcpServers = try restoredContext.fetch(FetchDescriptor<MCPServerConfigEntity>())
+
+        XCTAssertEqual(mcpServers.map(\.id), ["local-test"])
+        XCTAssertFalse(mcpServers[0].isEnabled)
+        XCTAssertFalse(mcpServers[0].runToolsAutomatically)
+        XCTAssertTrue(ChatAuxiliaryControlSupport.eligibleMCPServers(from: mcpServers).isEmpty)
     }
 
     func testRecoveryPackRestoresManagedPreferencesDirectoryContents() throws {
@@ -134,7 +158,10 @@ final class AppSnapshotManagerRecoveryPackTests: PreferencesSandboxedTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: strayAttachmentURL.path))
     }
 
-    private func seedProviderAndMCPServer() throws {
+    private func seedProviderAndMCPServer(
+        isEnabled: Bool = true,
+        runToolsAutomatically: Bool = false
+    ) throws {
         let container = try PersistenceContainerFactory.makeContainer()
         let context = ModelContext(container)
 
@@ -154,8 +181,8 @@ final class AppSnapshotManagerRecoveryPackTests: PreferencesSandboxedTestCase {
             transportKindRaw: MCPTransportKind.stdio.rawValue,
             transportData: try JSONEncoder().encode(transport),
             lifecycleRaw: MCPLifecyclePolicy.persistent.rawValue,
-            isEnabled: true,
-            runToolsAutomatically: false,
+            isEnabled: isEnabled,
+            runToolsAutomatically: runToolsAutomatically,
             isLongRunning: true
         )
         try server.setTransport(transport)
