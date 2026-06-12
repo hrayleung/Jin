@@ -13,5 +13,8 @@ final class ArtifactTemplateExportsTests: XCTestCase {
         XCTAssertTrue(html.contains("artifact-runtime.js"))
         XCTAssertTrue(html.contains("artifact-root"))
         XCTAssertTrue(html.contains("Content-Security-Policy"))
+        XCTAssertTrue(html.contains("connect-src 'none'"))
+        XCTAssertTrue(html.contains("navigate-to 'none'"))
+        XCTAssertTrue(html.contains("form-action 'none'"))
     }
 }

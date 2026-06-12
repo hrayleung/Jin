@@ -35,6 +35,7 @@ enum ChatMessageRenderPipeline {
     static func makeRenderContext(
         from orderedMessages: [MessageEntity],
         fallbackModelLabel: String,
+        artifactsEnabled: Bool,
         assistantProviderIconID: (String) -> String?
     ) -> ChatThreadRenderContext {
         var messageEntitiesByID: [UUID: MessageEntity] = [:]
@@ -85,6 +86,7 @@ enum ChatMessageRenderPipeline {
                         orderedMessages: orderedMessages
                     ) != nil,
                 perMessageMCPServerNames: message.perMessageMCPServerNames ?? [],
+                artifactsEnabled: artifactsEnabled,
                 artifactVersionCounts: &artifactVersionCounts,
                 artifactVersionsByID: &artifactVersionsByID
             )
@@ -103,6 +105,7 @@ enum ChatMessageRenderPipeline {
     static func makeDecodedRenderContext(
         from orderedMessages: [PersistedMessageSnapshot],
         fallbackModelLabel: String,
+        artifactsEnabled: Bool,
         assistantProviderIconsByID: [String: String?]
     ) -> ChatDecodedRenderContext {
         var renderedItems: [MessageRenderItem] = []
@@ -147,6 +150,7 @@ enum ChatMessageRenderPipeline {
                         orderedMessages: orderedMessages
                     ) != nil,
                 perMessageMCPServerNames: decode([String].self, from: snapshot.perMessageMCPServerNamesData, using: decoder) ?? [],
+                artifactsEnabled: artifactsEnabled,
                 artifactVersionCounts: &artifactVersionCounts,
                 artifactVersionsByID: &artifactVersionsByID
             )
@@ -202,6 +206,7 @@ enum ChatMessageRenderPipeline {
         highlightSnapshots: [MessageHighlightSnapshot],
         canDeleteResponse: Bool,
         perMessageMCPServerNames: [String],
+        artifactsEnabled: Bool,
         artifactVersionCounts: inout [String: Int],
         artifactVersionsByID: inout OrderedDictionary<String, [RenderedArtifactVersion]>
     ) -> MessageRenderItem {
@@ -210,10 +215,15 @@ enum ChatMessageRenderPipeline {
             role: messageRole,
             messageID: id,
             timestamp: timestamp,
+            artifactsEnabled: artifactsEnabled,
             artifactVersionCounts: &artifactVersionCounts,
             artifactVersionsByID: &artifactVersionsByID
         )
-        let copyText = ChatMessageRenderMetadataBuilder.copyableText(from: renderedContent, role: messageRole)
+        let copyText = ChatMessageRenderMetadataBuilder.copyableText(
+            from: renderedContent,
+            role: messageRole,
+            artifactsEnabled: artifactsEnabled
+        )
         let renderMetadata = ChatMessageRenderMetadataBuilder.renderMetadata(
             role: messageRole,
             content: renderedContent,
