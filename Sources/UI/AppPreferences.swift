@@ -40,9 +40,12 @@ enum AppPreferences {
         if let value = defaults.object(forKey: key) as? Bool {
             return value
         }
-        if pluginID == "chat_naming" || pluginID == "cloudflare_r2_upload" {
-            return false
-        }
+        let defaultDisabledPluginIDs: Set<String> = [
+            "chat_naming",
+            "cloudflare_r2_upload",
+            "firecrawl_ocr"
+        ]
+        if defaultDisabledPluginIDs.contains(pluginID) { return false }
         return true
     }
 
