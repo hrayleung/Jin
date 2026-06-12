@@ -187,7 +187,7 @@ final class OpenAIAdapterImageGenerationTests: XCTestCase {
         XCTAssertEqual(imageData, expected)
     }
 
-    func testOpenAIImage2EditDownloadsRemoteInputImageBeforeMultipartUpload() async throws {
+    func testOpenAIImage2EditRejectsRemoteURLMultipartInputs() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -199,42 +199,14 @@ final class OpenAIAdapterImageGenerationTests: XCTestCase {
             baseURL: "https://example.com"
         )
 
-        let remoteURL = URL(string: "https://cdn.example.com/source.png")!
-        let expected = Data("PNG".utf8)
-
+        var requestedURLs: [String] = []
         protocolType.requestHandler = { request in
-            let url = try XCTUnwrap(request.url?.absoluteString)
-
-            switch url {
-            case "https://cdn.example.com/source.png":
-                XCTAssertEqual(request.httpMethod, "GET")
-                XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
-                return (
-                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
-                    Data("REMOTEPNG".utf8)
-                )
-            case "https://example.com/images/edits":
-                XCTAssertTrue(request.value(forHTTPHeaderField: "Content-Type")?.hasPrefix("multipart/form-data; boundary=") == true)
-                let body = String(decoding: try XCTUnwrap(requestBodyData(request)), as: UTF8.self)
-                XCTAssertTrue(body.contains("REMOTEPNG"))
-                XCTAssertTrue(body.contains("source.png"))
-
-                let response: [String: Any] = [
-                    "data": [
-                        ["b64_json": expected.base64EncodedString()]
-                    ]
-                ]
-                let data = try JSONSerialization.data(withJSONObject: response)
-                return (
-                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
-                    data
-                )
-            default:
-                XCTFail("Unexpected URL: \(url)")
-                throw URLError(.badURL)
-            }
+            requestedURLs.append(request.url?.absoluteString ?? "<nil>")
+            XCTFail("Multipart image edits must not download or upload remote image URL inputs.")
+            throw URLError(.badURL)
         }
 
+        let remoteURL = URL(string: "https://cdn.example.com/source.png")!
         let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
         let stream = try await adapter.sendMessage(
             messages: [
@@ -253,7 +225,18 @@ final class OpenAIAdapterImageGenerationTests: XCTestCase {
             streaming: false
         )
 
-        for try await _ in stream {}
+        do {
+            for try await _ in stream {}
+            XCTFail("Expected remote-only multipart edit inputs to be rejected.")
+        } catch let error as LLMError {
+            guard case .invalidRequest(let message) = error else {
+                XCTFail("Expected invalidRequest, got \(error)")
+                return
+            }
+            XCTAssertEqual(message, "OpenAI image editing requires at least one readable input image.")
+        }
+
+        XCTAssertTrue(requestedURLs.isEmpty)
     }
 
     func testOpenAILegacyImageEditStillUsesJSONRequest() async throws {
