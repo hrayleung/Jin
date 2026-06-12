@@ -38,7 +38,7 @@ enum AppPreferenceKeys {
 
     // MARK: - Extensions
 
-    // Plugin visibility toggles (default: true)
+    // Plugin visibility toggles (most default to true; sensitive upload-backed plugins default to false)
     static let pluginTextToSpeechEnabled = "pluginTextToSpeechEnabled"
     static let pluginSpeechToTextEnabled = "pluginSpeechToTextEnabled"
     static let pluginMistralOCREnabled = "pluginMistralOCREnabled"

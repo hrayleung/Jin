@@ -32,7 +32,9 @@ enum ChatConversationStateSupport {
         let mineruConfigured = hasStoredKey(AppPreferenceKeys.pluginMineruOCRAPIToken)
         let deepSeekConfigured = hasStoredKey(AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
         let openRouterConfigured = hasStoredKey(AppPreferenceKeys.pluginOpenRouterOCRAPIKey)
+        let cloudflareR2UploadEnabled = AppPreferences.isPluginEnabled("cloudflare_r2_upload", defaults: defaults)
         let firecrawlConfigured = hasStoredKey(AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)
+            && cloudflareR2UploadEnabled
             && ((try? CloudflareR2Configuration.load(from: defaults).validated()) != nil)
 
         let ttsProvider = try? SpeechPluginConfigFactory.currentTTSProvider(defaults: defaults)

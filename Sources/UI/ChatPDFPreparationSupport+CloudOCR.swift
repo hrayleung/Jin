@@ -55,6 +55,11 @@ extension ChatMessagePreparationSupport {
         guard let r2Uploader else {
             throw LLMError.invalidRequest(message: "Firecrawl OCR requires the Cloudflare R2 uploader.")
         }
+        guard await r2Uploader.isPluginEnabled() else {
+            throw LLMError.invalidRequest(
+                message: "Firecrawl OCR requires Cloudflare R2 Upload to be enabled in Settings → Plugins."
+            )
+        }
 
         await onStatusUpdate("Uploading PDF \(pdfOrdinal)/\(max(1, totalPDFCount)) (Cloudflare R2): \(attachment.filename)")
 

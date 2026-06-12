@@ -32,7 +32,7 @@ extension ChatMessagePreparationSupport {
             deepSeekClient: try makeDeepSeekClientIfNeeded(requestedMode: requestedMode, defaults: defaults),
             openRouterClient: try makeOpenRouterClientIfNeeded(requestedMode: requestedMode, defaults: defaults),
             firecrawlClient: try makeFirecrawlClientIfNeeded(requestedMode: requestedMode, defaults: defaults),
-            r2Uploader: requestedMode == .firecrawlOCR ? CloudflareR2Uploader(defaults: defaults) : nil
+            r2Uploader: try makeCloudflareR2UploaderIfNeeded(requestedMode: requestedMode, defaults: defaults)
         )
     }
 
@@ -104,5 +104,20 @@ extension ChatMessagePreparationSupport {
         guard !trimmed.isEmpty else { throw PDFProcessingError.firecrawlAPIKeyMissing }
 
         return FirecrawlPDFOCRClient(apiKey: trimmed)
+    }
+}
+
+extension ChatMessagePreparationSupport {
+    private static func makeCloudflareR2UploaderIfNeeded(
+        requestedMode: PDFProcessingMode,
+        defaults: UserDefaults
+    ) throws -> CloudflareR2Uploader? {
+        guard requestedMode == .firecrawlOCR else { return nil }
+        guard AppPreferences.isPluginEnabled("cloudflare_r2_upload", defaults: defaults) else {
+            throw LLMError.invalidRequest(
+                message: "Firecrawl OCR requires Cloudflare R2 Upload to be enabled in Settings → Plugins."
+            )
+        }
+        return CloudflareR2Uploader(defaults: defaults)
     }
 }

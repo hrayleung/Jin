@@ -10,6 +10,7 @@ enum CloudflareR2UploaderError: LocalizedError {
     case malformedDataURL
     case uploadRejected(statusCode: Int, message: String)
     case publicURLValidationFailed(message: String)
+    case pluginDisabled(message: String)
     case inputVideoTooLong(duration: Double, maximum: Double)
 
     var errorDescription: String? {
@@ -32,6 +33,8 @@ enum CloudflareR2UploaderError: LocalizedError {
             return "Cloudflare R2 upload failed (HTTP \(statusCode)): \(message)"
         case .publicURLValidationFailed(let message):
             return "Cloudflare R2 public URL validation failed: \(message)"
+        case .pluginDisabled(let message):
+            return message
         case .inputVideoTooLong(let duration, let maximum):
             return "Input video is too long for xAI video edit (\(String(format: "%.2f", duration))s). Maximum supported length is \(String(format: "%.1f", maximum))s."
         }
@@ -78,6 +81,11 @@ actor CloudflareR2Uploader {
         _ file: FileContent,
         configuration overrideConfiguration: CloudflareR2Configuration? = nil
     ) async throws -> URL {
+        guard isPluginEnabled() else {
+            throw CloudflareR2UploaderError.pluginDisabled(
+                message: "Cloudflare R2 Upload must be enabled before uploading PDFs."
+            )
+        }
         let configuration = try (overrideConfiguration ?? currentConfiguration()).validated()
         let payload = try localPDFPayload(from: file)
         return try await uploadPayload(

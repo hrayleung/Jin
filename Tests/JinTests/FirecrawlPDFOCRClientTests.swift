@@ -185,6 +185,7 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: attachment.fileURL) }
 
         let defaults = makeIsolatedUserDefaults().defaults
+        AppPreferences.setPluginEnabled(true, for: "cloudflare_r2_upload", defaults: defaults)
         let uploader = CloudflareR2Uploader(defaults: defaults)
         let firecrawlClient = FirecrawlPDFOCRClient(apiKey: "test-key")
 
@@ -218,6 +219,7 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         seedCloudflareR2Defaults(defaults)
+        AppPreferences.setPluginEnabled(true, for: "cloudflare_r2_upload", defaults: defaults)
 
         let uploader = CloudflareR2Uploader(networkManager: networkManager, defaults: defaults)
         let firecrawlClient = FirecrawlPDFOCRClient(apiKey: "test-key", networkManager: networkManager)
@@ -331,6 +333,10 @@ final class FirecrawlPDFOCRClientTests: XCTestCase {
         XCTAssertTrue(status.firecrawlOCRPluginEnabled)
 
         seedCloudflareR2Defaults(defaults)
+        status = ChatConversationStateSupport.resolveExtensionCredentialStatus(defaults: defaults)
+        XCTAssertFalse(status.firecrawlOCRConfigured)
+
+        AppPreferences.setPluginEnabled(true, for: "cloudflare_r2_upload", defaults: defaults)
         status = ChatConversationStateSupport.resolveExtensionCredentialStatus(defaults: defaults)
         XCTAssertTrue(status.firecrawlOCRConfigured)
 
