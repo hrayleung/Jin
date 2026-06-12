@@ -60,6 +60,10 @@ final class JinMessageTextView: NSTextView {
         let scrubbed = Self.scrubbingBareObjectReplacementCharacters(in: attributed)
         textStorage.setAttributedString(scrubbed)
         lastAppliedSource = scrubbed
+        // The cache keys on storage LENGTH; a same-length replacement (e.g. a
+        // recycled cell whose new message happens to match the old one's
+        // UTF-16 count) would otherwise return the previous content's height.
+        invalidateHeightCache()
     }
 
     /// Replace ONLY bare U+FFFC (the crash trigger). A U+FFFC that carries a

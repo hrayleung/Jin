@@ -302,6 +302,12 @@ struct MessageRow: View, Equatable {
               lhs.item.codeExecutionActivities.count == rhs.item.codeExecutionActivities.count,
               lhs.item.preferredRenderMode == rhs.item.preferredRenderMode,
               lhs.item.collapsedPreview == rhs.item.collapsedPreview,
+              // Footer/action state. `canDeleteResponse` is derived from the
+              // messages AFTER this row, so it can flip (e.g. when the
+              // assistant reply lands) while everything above stays equal.
+              lhs.item.canEditUserMessage == rhs.item.canEditUserMessage,
+              lhs.item.canDeleteResponse == rhs.item.canDeleteResponse,
+              lhs.item.responseMetrics == rhs.item.responseMetrics,
               lhs.renderMode == rhs.renderMode,
               lhs.maxBubbleWidth == rhs.maxBubbleWidth,
               lhs.assistantDisplayName == rhs.assistantDisplayName,

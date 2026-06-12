@@ -231,10 +231,14 @@ private final class HighlightJSRenderer {
             mutable.addAttribute(.font, value: font, range: range)
         }
 
+        var missingColorRanges: [NSRange] = []
         mutable.enumerateAttribute(.foregroundColor, in: fullRange) { value, range, _ in
             if value == nil {
-                mutable.addAttribute(.foregroundColor, value: theme.baseColor, range: range)
+                missingColorRanges.append(range)
             }
+        }
+        for range in missingColorRanges {
+            mutable.addAttribute(.foregroundColor, value: theme.baseColor, range: range)
         }
         return mutable
     }
