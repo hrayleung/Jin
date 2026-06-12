@@ -110,6 +110,7 @@ struct ChatView: View {
     // swiftlint:disable:next private_swiftui_state
     @State var renderCache = ChatRenderCacheController()
     @State var isArtifactPaneVisible = false
+    @State var artifactPaneWidth: CGFloat = 500
     @State var selectedArtifactID: String?
     @State var selectedArtifactVersion: Int?
     @ObservedObject var favoriteModelsStore = FavoriteModelsStore.shared

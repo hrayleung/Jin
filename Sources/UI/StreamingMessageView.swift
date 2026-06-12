@@ -12,6 +12,12 @@ struct StreamingMessageView: View {
     let providerIconID: String?
     let onContentUpdate: () -> Void
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
+    /// Bumped when row-internal state changes the content's height outside
+    /// of a streaming delta (thinking block expand/collapse). Folded into
+    /// the `ConstrainedWidth` layout version below so the cached measurement
+    /// is invalidated — `renderTick` alone only ticks on deltas, which left
+    /// the row at a stale height and clipped the newly expanded content.
+    @State private var layoutEpoch = 0
 
     var body: some View {
         let hidesManagedAgentInternalUI = ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType)
@@ -74,7 +80,8 @@ struct StreamingMessageView: View {
                             StreamingThinkingBlockView(
                                 chunks: visibleThinkingChunks,
                                 codeFont: chatCodeFont,
-                                isThinkingComplete: state.isThinkingComplete
+                                isThinkingComplete: state.isThinkingComplete,
+                                onExpansionChanged: { layoutEpoch &+= 1 }
                             )
                         }
 
@@ -115,7 +122,10 @@ struct StreamingMessageView: View {
                         .padding(.top, JinSpacing.xSmall - 2)
                     }
                 }
-                .layoutValue(key: ConstrainedWidthContentVersionKey.self, value: .version(state.renderTick))
+                // Both inputs are monotonically increasing, so any change —
+                // a streaming delta OR a thinking expand/collapse — yields a
+                // version the cache hasn't seen.
+                .layoutValue(key: ConstrainedWidthContentVersionKey.self, value: .version(state.renderTick &+ layoutEpoch))
             }
             .padding(.horizontal, JinSpacing.small)
 
