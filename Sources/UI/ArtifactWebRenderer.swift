@@ -65,14 +65,26 @@ private struct ArtifactWebRendererRepresentable: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
-            if navigationAction.navigationType == .linkActivated,
-               let url = navigationAction.request.url {
+            guard let url = navigationAction.request.url else { return .cancel }
+
+            if navigationAction.navigationType == .linkActivated {
                 if let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme) {
                     NSWorkspace.shared.open(url)
                 }
                 return .cancel
             }
-            return .allow
+
+            if url.scheme?.lowercased() == "about" {
+                return .allow
+            }
+
+            if url.isFileURL,
+               let artifactTemplateURL,
+               url.standardizedFileURL == artifactTemplateURL.standardizedFileURL {
+                return .allow
+            }
+
+            return .cancel
         }
 
         func renderIfNeeded(_ artifact: RenderedArtifactVersion, in webView: WKWebView, force: Bool = false) {

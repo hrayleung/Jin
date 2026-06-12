@@ -8,6 +8,7 @@ struct ChatRenderCacheRebuildRequest {
     let orderedMessages: [MessageEntity]
     let updatedAt: Date
     let fallbackModelLabel: String
+    let artifactsEnabled: Bool
     let providerIconsByID: [String: String?]
 }
 
@@ -76,6 +77,7 @@ final class ChatRenderCacheController {
             let context = ChatMessageRenderPipeline.makeRenderContext(
                 from: request.orderedMessages,
                 fallbackModelLabel: request.fallbackModelLabel,
+                artifactsEnabled: request.artifactsEnabled,
                 assistantProviderIconID: assistantProviderIconID
             )
             applyDecodedRenderContext(
@@ -102,6 +104,7 @@ final class ChatRenderCacheController {
             ChatMessageRenderPipeline.makeDecodedRenderContext(
                 from: snapshots,
                 fallbackModelLabel: request.fallbackModelLabel,
+                artifactsEnabled: request.artifactsEnabled,
                 assistantProviderIconsByID: request.providerIconsByID
             )
         }
@@ -128,6 +131,7 @@ final class ChatRenderCacheController {
                 let fallbackContext = ChatMessageRenderPipeline.makeRenderContext(
                     from: request.orderedMessages,
                     fallbackModelLabel: request.fallbackModelLabel,
+                    artifactsEnabled: request.artifactsEnabled,
                     assistantProviderIconID: assistantProviderIconID
                 )
                 contextToApply = ChatDecodedRenderContext(

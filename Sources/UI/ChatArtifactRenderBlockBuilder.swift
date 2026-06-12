@@ -7,6 +7,7 @@ enum ChatArtifactRenderBlockBuilder {
         role: MessageRole,
         messageID: UUID,
         timestamp: Date,
+        artifactsEnabled: Bool,
         artifactVersionCounts: inout [String: Int],
         artifactVersionsByID: inout OrderedDictionary<String, [RenderedArtifactVersion]>
     ) -> [RenderedMessageBlock] {
@@ -23,6 +24,7 @@ enum ChatArtifactRenderBlockBuilder {
                 role: role,
                 messageID: messageID,
                 timestamp: timestamp,
+                artifactsEnabled: artifactsEnabled,
                 artifactVersionCounts: &artifactVersionCounts,
                 artifactVersionsByID: &artifactVersionsByID,
                 blocks: &blocks
@@ -38,6 +40,7 @@ enum ChatArtifactRenderBlockBuilder {
         role: MessageRole,
         messageID: UUID,
         timestamp: Date,
+        artifactsEnabled: Bool,
         artifactVersionCounts: inout [String: Int],
         artifactVersionsByID: inout OrderedDictionary<String, [RenderedArtifactVersion]>,
         blocks: inout [RenderedMessageBlock]
@@ -45,7 +48,7 @@ enum ChatArtifactRenderBlockBuilder {
         switch part {
         case .redactedThinking:
             return
-        case .text(let text) where role == .assistant:
+        case .text(let text) where role == .assistant && artifactsEnabled:
             appendArtifactTextBlocks(
                 from: text,
                 anchorPrefix: stableAnchorPrefix(messageID: messageID, stableAnchorBase: stableAnchorBase),

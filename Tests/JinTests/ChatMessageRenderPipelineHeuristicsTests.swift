@@ -68,6 +68,7 @@ final class ChatMessageRenderPipelineHeuristicsTests: XCTestCase {
         let context = ChatMessageRenderPipeline.makeRenderContext(
             from: [entity],
             fallbackModelLabel: "GPT",
+            artifactsEnabled: true,
             assistantProviderIconID: { _ in nil }
         )
 
@@ -99,6 +100,7 @@ final class ChatMessageRenderPipelineHeuristicsTests: XCTestCase {
         let context = ChatMessageRenderPipeline.makeRenderContext(
             from: [entity],
             fallbackModelLabel: "GPT",
+            artifactsEnabled: true,
             assistantProviderIconID: { _ in nil }
         )
 
@@ -122,6 +124,7 @@ final class ChatMessageRenderPipelineHeuristicsTests: XCTestCase {
         let context = ChatMessageRenderPipeline.makeRenderContext(
             from: [entity],
             fallbackModelLabel: "GPT",
+            artifactsEnabled: true,
             assistantProviderIconID: { _ in nil }
         )
 
