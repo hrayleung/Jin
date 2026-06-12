@@ -273,7 +273,7 @@ class MTAtomTokenizer {
         let text = atom.nucleus
         guard text.count > 1 else { return [] }
 
-        let debugTokenization = false  // Enable to debug text tokenization
+        let debugTokenization = MTTokenizationDebug.isEnabled  // Debug text tokenization
         if debugTokenization {
             print("\n=== Tokenizing multi-char text: '\(text)' ===")
         }

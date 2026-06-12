@@ -32,7 +32,7 @@ class MTLineFitter {
         guard !elements.isEmpty else { return [] }
         guard maxWidth > 0 else { return [elements] }  // No width constraint
 
-        let debugPunctuation = false  // Enable to debug line breaking issues
+        let debugPunctuation = MTTokenizationDebug.isEnabled  // Debug line breaking issues
 
         if debugPunctuation {
             print("\n=== MTLineFitter: fitting \(elements.count) elements, maxWidth=\(maxWidth) ===")
@@ -84,7 +84,7 @@ class MTLineFitter {
 
             // Check if element fits on current line
             if !lines.last!.isEmpty && currentWidth + element.width > maxWidth - margin {
-                if debugPunctuation, case .text(let t) = element.content {
+                if debugPunctuation, case .text = element.content {
                     print("    Doesn't fit (width=\(currentWidth) + \(element.width) > \(maxWidth)), current line has \(lines.last!.count) elements")
                 }
                 // Element doesn't fit - find best break point in current line
@@ -211,8 +211,7 @@ class MTLineFitter {
         var bestIndex: Int? = nil
         var lowestPenalty = Int.max
 
-        let debugBreak = false  // Enable to debug break point selection
-        let debugFit = false
+        let debugBreak = MTTokenizationDebug.isEnabled  // Debug break point selection
 
         // Scan from right to left to prefer breaking later in the line
         // Note: Skip the last element (idx == line.count - 1) because breaking after it
