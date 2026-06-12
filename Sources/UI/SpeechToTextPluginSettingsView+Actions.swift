@@ -12,19 +12,17 @@ extension SpeechToTextPluginSettingsView {
             speechToTextLoadSnapshot(matchingProviderRaw: requestedProviderRaw)
         }) else { return }
 
-        guard !load.apiKey.isEmpty else {
-            await MainActor.run {
-                guard isCurrentSpeechToTextLoad(
-                    provider: load.provider,
-                    providerRaw: load.providerRaw,
-                    apiKey: load.apiKey
-                ) else { return }
-                clearFetchedSpeechToTextModels()
-            }
-            return
+        // Do not automatically call remote model/voice APIs here. Stored base URLs can be
+        // user-controlled, so credentials should leave the device only after an explicit
+        // Test Connection or speech operation.
+        await MainActor.run {
+            guard isCurrentSpeechToTextLoad(
+                provider: load.provider,
+                providerRaw: load.providerRaw,
+                apiKey: load.apiKey
+            ) else { return }
+            clearFetchedSpeechToTextModels(for: load.provider)
         }
-
-        await loadRemoteSpeechToTextModels()
     }
 
     func loadExistingKey() async {
