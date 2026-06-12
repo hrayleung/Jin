@@ -13,7 +13,7 @@ struct RemoteMessageImageView: View {
         Group {
             if loadFailed {
                 fallbackView
-            } else if isUser {
+            } else if canLoadPreview && isUser {
                 KFImage(source: .network(KF.ImageResource(downloadURL: url)))
                     .placeholder { _ in userPlaceholderView }
                     .cancelOnDisappear(true)
@@ -31,7 +31,7 @@ struct RemoteMessageImageView: View {
                     .onTapGesture {
                         NSWorkspace.shared.open(url)
                     }
-            } else {
+            } else if canLoadPreview {
                 KFImage(source: .network(KF.ImageResource(downloadURL: url)))
                     .placeholder { _ in placeholderView }
                     .cancelOnDisappear(true)
@@ -42,6 +42,8 @@ struct RemoteMessageImageView: View {
                     .scaledToFit()
                     .frame(maxWidth: 500)
                     .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+            } else {
+                fallbackView
             }
         }
         .task(id: url) {
@@ -71,6 +73,10 @@ struct RemoteMessageImageView: View {
                 Text("External reference")
             }
         }
+    }
+
+    private var canLoadPreview: Bool {
+        image.assetDisposition != .externalReference && RemoteMediaURLPolicy.isAllowedForAutomaticFetch(url)
     }
 
     private var userPlaceholderView: some View {
