@@ -68,12 +68,40 @@ struct NativeMarkdownView: View {
             }
         }
         .task(id: key) {
-            guard syncHit == nil else { return }
+            if let syncHit {
+                // Retain the hit: `.task(id:)` won't re-fire for this key, so
+                // if the LRU later evicts it a body re-eval would regress to
+                // the placeholder with no recovery path. Also keeps
+                // `asyncParsed` tracking the CURRENT key so the
+                // `syncHit ?? asyncParsed` fallback can't pin stale content
+                // after an in-place text change.
+                asyncParsed = syncHit
+                return
+            }
             guard let value = await NativeMarkdownParseService.parse(key: key, theme: theme) else {
                 return
             }
-            guard !Task.isCancelled else { return }
+            // Apply even if this task was cancelled mid-await (cell recycling
+            // re-pushed a structurally identical tree, which preserves view
+            // identity and never re-fires this task). For stable keys the
+            // write is exactly the heal; if the identity is truly gone the
+            // write lands nowhere. Streaming keys keep the guard — their old
+            // tasks are cancelled by id-change and an out-of-order write
+            // would regress the growing text.
+            if key.isStreaming, Task.isCancelled { return }
             asyncParsed = value
+        }
+        .onReceive(NativeMarkdownCache.insertNotifications) { _ in
+            // Heals the placeholder-stuck state from OUTSIDE the view's own
+            // lifecycle: targets the leaf view directly, so it works even
+            // when the enclosing `.equatable()` gate prunes body re-evals
+            // and the parse that produced the value was issued by another
+            // view (prewarm, another cell). Only placeholder-state views pay
+            // the lookup.
+            guard !isStreaming, asyncParsed == nil else { return }
+            if let value = NativeMarkdownCache.tryGet(key: key) {
+                asyncParsed = value
+            }
         }
     }
 
@@ -240,19 +268,25 @@ enum NativeMarkdownParseService {
         key: NativeMarkdownCache.Key,
         theme: MarkdownTheme
     ) async -> NativeMarkdownCache.Value? {
-        guard !Task.isCancelled else { return nil }
         if let cached = NativeMarkdownCache.tryGet(key: key) {
             return cached
         }
         let task = Task.detached(priority: .userInitiated) {
-            if Task.isCancelled {
-                return NativeMarkdownCache.tryGet(key: key)
-            }
             if let cached = NativeMarkdownCache.tryGet(key: key) {
-                return cached
+                return Optional(cached)
+            }
+            // Streaming keys are throwaway (a fresh key arrives ~100 ms
+            // later), so cancellation may cut them off. NON-streaming keys
+            // are stable: finish and bank the parse even if the requesting
+            // view was recycled away mid-parse. Discarding completed work
+            // here left rows stuck on a mid-commit placeholder forever —
+            // `.task(id:)` never re-fires for a preserved identity, so the
+            // cache write is the only path by which the row can ever heal.
+            if key.isStreaming, Task.isCancelled {
+                return nil
             }
             let value = NativeMarkdownCache.compute(key: key, theme: theme)
-            if !Task.isCancelled, !key.isStreaming {
+            if !key.isStreaming {
                 NativeMarkdownCache.insert(value, forKey: key)
             }
             return value
@@ -262,7 +296,7 @@ enum NativeMarkdownParseService {
         } onCancel: {
             task.cancel()
         }
-        guard !Task.isCancelled else { return nil }
+        if key.isStreaming, Task.isCancelled { return nil }
         return value
     }
 }

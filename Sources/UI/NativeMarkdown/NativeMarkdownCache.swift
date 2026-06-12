@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Markdown
 import os
@@ -29,12 +30,22 @@ enum NativeMarkdownCache {
     private static let capacity = 256
     private static let storage = OSAllocatedUnfairLock<Storage>(initialState: Storage(capacity: capacity))
 
+    /// Fires (throttled, on main) after inserts. A `NativeMarkdownView`
+    /// whose own `.task` died mid-parse (cell recycling) can never re-fire
+    /// it — observing inserts lets such views pick up values parsed by any
+    /// other caller (prewarm, another cell) and leave the placeholder state.
+    private static let insertSignal = PassthroughSubject<Void, Never>()
+    static let insertNotifications: AnyPublisher<Void, Never> = insertSignal
+        .throttle(for: .milliseconds(120), scheduler: DispatchQueue.main, latest: true)
+        .eraseToAnyPublisher()
+
     static func tryGet(key: Key) -> Value? {
         storage.withLock { $0.lookup(key) }
     }
 
     static func insert(_ value: Value, forKey key: Key) {
         storage.withLock { $0.insert(value, forKey: key) }
+        insertSignal.send()
     }
 
     static func get(key: Key, theme: MarkdownTheme) -> Value {

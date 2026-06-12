@@ -223,6 +223,15 @@ final class ChatTimelineHostingCell: NSTableCellView {
     /// streaming tokens). The controller caches it and re-notes that ONE row.
     var onMeasuredHeight: ((String, CGFloat) -> Void)?
     private var lastReportedHeight: CGFloat = -1
+    /// Set on every rootView swap; cleared once `layout()` has forced the
+    /// SwiftUI commit. `host.rootView =` only SCHEDULES the view-graph
+    /// rebuild, and AppKit layout is top-down (our `layout()` runs before
+    /// the host's own), so without the forced flush a recycled cell's first
+    /// measurement is the PREVIOUS row's committed content height reported
+    /// under the NEW identity — which poisoned the height cache, triggered
+    /// ±1000px scroll-anchor fights, and wrote bad heights through to the
+    /// warm-start store.
+    private var hostHasPendingRootSwap = false
 
     override init(frame frameRect: NSRect) {
         host = NSHostingView(rootView: AnyView(EmptyView()))
@@ -249,7 +258,10 @@ final class ChatTimelineHostingCell: NSTableCellView {
         currentIdentity = identity
         lastReportedHeight = -1
         host.rootView = content
+        hostHasPendingRootSwap = true
         host.invalidateIntrinsicContentSize()
+        // Guarantee layout() runs even if AppKit didn't dirty us.
+        needsLayout = true
     }
 
     override func layout() {
@@ -260,6 +272,17 @@ final class ChatTimelineHostingCell: NSTableCellView {
         // whenever the host invalidates its intrinsic size (async content
         // resolving / streaming), so this catches those without polling.
         guard let identity = currentIdentity else { return }
+        if hostHasPendingRootSwap {
+            hostHasPendingRootSwap = false
+            // NSHostingView commits a pending rootView swap during ITS OWN
+            // layout(), which (top-down) runs AFTER ours in this pass — flush
+            // it now so `fittingSize` reflects the new content, not the
+            // recycled predecessor's. Done here rather than in `configure()`
+            // because a dequeued cell may still be windowless there, where
+            // hosting-view updates can defer.
+            host.needsLayout = true
+            host.layoutSubtreeIfNeeded()
+        }
         let measured = ceil(host.fittingSize.height)
         guard measured > 0, measured != lastReportedHeight else { return }
         lastReportedHeight = measured
@@ -660,7 +683,24 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let previous = heightCache[key]
         guard abs((previous ?? -1) - height) > 0.5 else { return }
         heightCache[key] = height
-        guard let index = rows.firstIndex(where: { $0.identity == identity }) else { return }
+        guard let index = rows.firstIndex(where: { $0.identity == identity }) else {
+            // The measurement landed while the row was absent from `rows`
+            // (mid-reconcile churn, e.g. the streaming→persisted swap). The
+            // cache now holds the right value but nothing would re-query
+            // `heightOfRow` until the next reload — in an idle chat that's
+            // never, leaving the row clipped at its stale height. Re-note it
+            // once the current mutation settles.
+            DispatchQueue.main.async { [weak self] in
+                guard let self,
+                      let retryIndex = self.rows.firstIndex(where: { $0.identity == identity }) else { return }
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0
+                    self.tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: retryIndex))
+                }
+                if self.shouldMaintainBottom { self.maintainBottomIfNeeded() }
+            }
+            return
+        }
 
         if previous == nil {
             logEstimateError(identity: identity, key: key, measured: height)
