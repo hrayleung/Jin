@@ -26,4 +26,17 @@ struct ServiceAccountCredentials: Codable {
         case clientX509CertURL = "client_x509_cert_url"
         case location
     }
+
+    /// Resolved region; falls back to "global" when the JSON omits `location`.
+    var resolvedLocation: String {
+        location ?? "global"
+    }
+
+    /// Vertex AI aiplatform base URL derived from the resolved location.
+    var vertexBaseURL: String {
+        if resolvedLocation == "global" {
+            return "https://aiplatform.googleapis.com/v1"
+        }
+        return "https://\(resolvedLocation)-aiplatform.googleapis.com/v1"
+    }
 }

@@ -147,14 +147,7 @@ struct VertexAICachedContentClient {
         accept: String? = nil,
         contentType: String? = nil
     ) -> [String: String] {
-        var headers: [String: String] = ["Authorization": "Bearer \(accessToken)"]
-        if let accept {
-            headers["Accept"] = accept
-        }
-        if let contentType {
-            headers["Content-Type"] = contentType
-        }
-        return headers
+        VertexAIRequestBuilder.makeAuthHeaders(accessToken: accessToken, accept: accept, contentType: contentType)
     }
 
     private func cachedContentEndpoint(for rawName: String) throws -> String {
@@ -162,23 +155,12 @@ struct VertexAICachedContentClient {
             throw LLMError.invalidRequest(message: "Invalid cachedContent name.")
         }
         if trimmed.lowercased().hasPrefix("projects/") {
-            return "\(baseURL)/\(trimmed)"
+            return "\(serviceAccountJSON.vertexBaseURL)/\(trimmed)"
         }
         return "\(cachedContentsCollectionEndpoint)/\(trimmed)"
     }
 
     private var cachedContentsCollectionEndpoint: String {
-        "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/cachedContents"
-    }
-
-    private var baseURL: String {
-        if location == "global" {
-            return "https://aiplatform.googleapis.com/v1"
-        }
-        return "https://\(location)-aiplatform.googleapis.com/v1"
-    }
-
-    private var location: String {
-        serviceAccountJSON.location ?? "global"
+        "\(serviceAccountJSON.vertexBaseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(serviceAccountJSON.resolvedLocation)/cachedContents"
     }
 }

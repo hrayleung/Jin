@@ -105,25 +105,13 @@ actor VertexAIAdapter: LLMProviderAdapter {
         accept: String? = nil,
         contentType: String? = nil
     ) -> [String: String] {
-        makeRequestBuilder().vertexHeaders(
-            accessToken: accessToken,
-            accept: accept,
-            contentType: contentType
-        )
+        VertexAIRequestBuilder.makeAuthHeaders(accessToken: accessToken, accept: accept, contentType: contentType)
     }
 
-    var baseURL: String {
-        if location == "global" {
-            return "https://aiplatform.googleapis.com/v1"
-        }
-        return "https://\(location)-aiplatform.googleapis.com/v1"
-    }
+    var baseURL: String { serviceAccountJSON.vertexBaseURL }
+    var location: String { serviceAccountJSON.resolvedLocation }
 
-    var location: String {
-        serviceAccountJSON.location ?? "global"
-    }
-
-    private func makeRequestBuilder() -> VertexAIRequestBuilder {
+    func makeRequestBuilder() -> VertexAIRequestBuilder {
         VertexAIRequestBuilder(
             providerConfig: providerConfig,
             serviceAccountJSON: serviceAccountJSON,
