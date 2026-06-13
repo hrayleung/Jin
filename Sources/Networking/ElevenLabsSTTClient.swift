@@ -68,20 +68,10 @@ actor ElevenLabsSTTClient {
 
     /// 100ms silent 16-bit PCM WAV at 16kHz (meets ElevenLabs minimum).
     private static func minimalSilentWAV() -> Data {
-        let sampleRate: UInt32 = 16_000
-        let numSamples: UInt32 = 1_600 // 100ms
-        let dataSize = numSamples * 2
-        let chunkSize = 36 + dataSize
-        var d = Data(capacity: Int(44 + dataSize))
-        func u16(_ v: UInt16) { var le = v.littleEndian; withUnsafeBytes(of: &le) { d.append(contentsOf: $0) } }
-        func u32(_ v: UInt32) { var le = v.littleEndian; withUnsafeBytes(of: &le) { d.append(contentsOf: $0) } }
-        d.append(contentsOf: [0x52,0x49,0x46,0x46]); u32(chunkSize)
-        d.append(contentsOf: [0x57,0x41,0x56,0x45])
-        d.append(contentsOf: [0x66,0x6D,0x74,0x20]); u32(16); u16(1); u16(1)
-        u32(sampleRate); u32(sampleRate * 2); u16(2); u16(16)
-        d.append(contentsOf: [0x64,0x61,0x74,0x61]); u32(dataSize)
-        d.append(Data(count: Int(dataSize)))
-        return d
+        let sampleRate = 16_000
+        let numSamples = 1_600 // 100ms at 16 kHz
+        let pcmData = Data(count: numSamples * 2) // 16-bit samples, all zero
+        return TextToSpeechWAVContainer.wrapPCM16LEMono(pcmData: pcmData, sampleRate: sampleRate)
     }
 
     func createTranscription(

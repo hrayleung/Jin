@@ -92,6 +92,22 @@ func resolveFileData(from url: URL) throws -> Data {
     }
 }
 
+// MARK: - Image MIME Type Inference
+
+/// Infers an image MIME type from the path extension of a URL.
+/// Returns nil for unrecognised extensions.
+/// Shared by `XAIMediaImageSupport`, `OpenAIChatCompletionsImageSupport`, and
+/// `OpenAIAdapter` (image generation outputs).
+func inferImageMIMEType(from url: URL) -> String? {
+    switch url.pathExtension.lowercased() {
+    case "jpg", "jpeg": return "image/jpeg"
+    case "png":         return "image/png"
+    case "webp":        return "image/webp"
+    case "gif":         return "image/gif"
+    default:            return nil
+    }
+}
+
 // MARK: - Image URL Encoding
 
 /// Converts an `ImageContent` to a data URI or remote URL string.

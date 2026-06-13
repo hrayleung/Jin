@@ -147,18 +147,6 @@ enum MessageMediaAssetPersistenceSupport {
     }
 
     private static func videoFileExtension(contentType: String?, url: URL) -> String {
-        let mimeToExt: [String: String] = [
-            "video/mp4": "mp4",
-            "video/quicktime": "mov",
-            "video/webm": "webm",
-            "video/x-msvideo": "avi",
-            "video/x-matroska": "mkv",
-        ]
-
-        if let contentType, let ext = mimeToExt[contentType] {
-            return ext
-        }
-
-        return fallbackExtension(from: url, defaultValue: "mp4")
+        VideoAttachmentUtility.resolveVideoFormat(contentType: contentType, url: url).ext
     }
 }
