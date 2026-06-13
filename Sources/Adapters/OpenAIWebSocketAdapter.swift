@@ -144,8 +144,7 @@ actor OpenAIWebSocketAdapter: LLMProviderAdapter {
 
                     var functionCallsByItemID: [String: ResponsesAPIFunctionCallState] = [:]
                     var codeInterpreterState = OpenAICodeInterpreterState()
-                    let eventDecoder = JSONDecoder()
-                    eventDecoder.keyDecodingStrategy = .convertFromSnakeCase
+                    let eventDecoder = JSONDecoder.snakeCaseConverting
 
                     while !Task.isCancelled {
                         try Task.checkCancellation()

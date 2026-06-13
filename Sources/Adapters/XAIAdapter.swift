@@ -75,9 +75,7 @@ actor XAIAdapter: LLMProviderAdapter {
 
         let (data, _) = try await networkManager.sendRequest(request)
 
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let response = try decoder.decode(XAIModelsResponse.self, from: data)
+        let response = try JSONDecoder.snakeCaseConverting.decode(XAIModelsResponse.self, from: data)
 
         return response.data
             .map { model in

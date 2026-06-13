@@ -133,9 +133,7 @@ struct VertexAICachedContentClient {
     }
 
     private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode(type, from: data)
+        try JSONDecoder.snakeCaseConverting.decode(type, from: data)
     }
 
     private func validate(payload: [String: Any]) throws {

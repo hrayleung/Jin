@@ -94,9 +94,7 @@ Return only the Markdown with no surrounding commentary.
 
         let (data, _) = try await networkManager.sendRequest(request)
         do {
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let response = try decoder.decode(ChatCompletionResponse.self, from: data)
+            let response = try JSONDecoder.snakeCaseConverting.decode(ChatCompletionResponse.self, from: data)
 
             let text = response.choices
                 .compactMap { $0.message?.content }

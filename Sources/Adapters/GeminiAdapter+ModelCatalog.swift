@@ -62,9 +62,7 @@ extension GeminiAdapter {
     }
 
     private func decodeModelsList(from data: Data) throws -> GeminiListModelsResponse {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return try decoder.decode(GeminiListModelsResponse.self, from: data)
+        try JSONDecoder.snakeCaseConverting.decode(GeminiListModelsResponse.self, from: data)
     }
 
     private func makeModelInfo(from model: GeminiListModelsResponse.GeminiModel) -> ModelInfo {

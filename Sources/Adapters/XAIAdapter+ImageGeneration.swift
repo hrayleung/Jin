@@ -23,9 +23,7 @@ extension XAIAdapter {
                     )
                     let (data, _) = try await networkManager.sendRequest(request)
 
-                    let decoder = JSONDecoder()
-                    decoder.keyDecodingStrategy = .convertFromSnakeCase
-                    let response = try decoder.decode(XAIImageGenerationResponse.self, from: data)
+                    let response = try JSONDecoder.snakeCaseConverting.decode(XAIImageGenerationResponse.self, from: data)
 
                     if let error = response.error {
                         throw LLMError.providerError(code: error.code ?? "image_generation_failed", message: error.message)

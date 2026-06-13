@@ -44,11 +44,8 @@ extension ProviderHostedFileStore {
                 )
             }
 
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-
             let (data, _) = try await networkManager.sendRequest(request)
-            let response = try decoder.decode(AnthropicFileResponse.self, from: data)
+            let response = try JSONDecoder.snakeCaseConverting.decode(AnthropicFileResponse.self, from: data)
 
             return HostedProviderFileReference(
                 id: response.id,

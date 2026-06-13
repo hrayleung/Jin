@@ -55,9 +55,7 @@ extension AnthropicAdapter {
 
             let (data, _) = try await networkManager.sendRequest(request)
 
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let response = try decoder.decode(AnthropicModelsListResponse.self, from: data)
+            let response = try JSONDecoder.snakeCaseConverting.decode(AnthropicModelsListResponse.self, from: data)
 
             for model in response.data {
                 guard !seenIDs.contains(model.id) else { continue }
