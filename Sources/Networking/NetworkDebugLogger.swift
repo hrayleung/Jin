@@ -3,8 +3,57 @@ import Foundation
 actor NetworkDebugLogger {
     static let shared = NetworkDebugLogger()
 
-    /// Kept for compatibility with existing call sites.
-    static let maxBodyBytes = Int.max
+    /// Maximum number of body bytes to describe in network trace metadata.
+    /// Raw payload contents are intentionally omitted so traces do not persist secrets or private chat data.
+    static let maxBodyBytes = 64 * 1024
+
+    private static let redactedValue = "<redacted>"
+    private static let omittedBodyValue = "<body omitted from network trace>"
+
+    private static let sensitiveHeaderNames: Set<String> = [
+        "authorization",
+        "proxy-authorization",
+        "x-api-key",
+        "api-key",
+        "apikey",
+        "access-token",
+        "x-access-token",
+        "refresh-token",
+        "id-token",
+        "session-token",
+        "cookie",
+        "set-cookie"
+    ]
+
+    /// Substring patterns that mark a header as secret even when its exact name is not enumerated above.
+    /// Catches provider-specific credential headers (e.g. Gemini `x-goog-api-key`, Brave `x-subscription-token`,
+    /// ElevenLabs `xi-api-key`) and any future variants without having to list every spelling.
+    private static let sensitiveHeaderSubstrings: [String] = [
+        "api-key",
+        "apikey",
+        "api_key",
+        "token",
+        "secret",
+        "credential",
+        "password"
+    ]
+
+    private static let sensitiveQueryItemNames: Set<String> = [
+        "access_token",
+        "api_key",
+        "apikey",
+        "auth",
+        "authorization",
+        "code",
+        "id_token",
+        "key",
+        "refresh_token",
+        "secret",
+        "session",
+        "sig",
+        "signature",
+        "token"
+    ]
 
     private struct ActiveRequest {
         let mode: String
@@ -50,7 +99,7 @@ actor NetworkDebugLogger {
         let requestID = UUID()
         let startedAt = Date()
         let method = request.httpMethod ?? "GET"
-        let url = request.url?.absoluteString ?? "<nil>"
+        let url = sanitizedURLString(request.url)
         let headers = headers(from: request.allHTTPHeaderFields)
         let body = bodyValue(
             data: request.httpBody,
@@ -102,8 +151,8 @@ actor NetworkDebugLogger {
             "latency_ms": Int(Date().timeIntervalSince(metadata.startedAt) * 1000),
             "body_truncated": responseBodyTruncated
         ]
-        if let responseURL = response?.url?.absoluteString {
-            responseRecord["url"] = responseURL
+        if let responseURL = response?.url {
+            responseRecord["url"] = sanitizedURLString(responseURL)
         }
         if let body {
             responseRecord["body"] = body
@@ -138,8 +187,8 @@ actor NetworkDebugLogger {
         activeWebSocketSessions[sessionID] = ActiveWebSocketSession(
             context: context,
             startedAt: startedAt,
-            url: url.absoluteString,
-            requestHeaders: headers ?? [:],
+            url: sanitizedURLString(url),
+            requestHeaders: self.headers(from: headers),
             frames: [],
             fileURL: Self.logFileURL(for: context, startedAt: startedAt, requestID: sessionID)
         )
@@ -155,12 +204,10 @@ actor NetworkDebugLogger {
             "direction": "send"
         ]
 
-        if let data = message.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: data) {
-            frame["body"] = json
-        } else {
-            frame["body"] = message
-        }
+        frame["body"] = bodyValue(
+            data: message.data(using: .utf8),
+            contentType: "application/json"
+        )
 
         session.frames.append(frame)
         activeWebSocketSessions[sessionID] = session
@@ -175,12 +222,10 @@ actor NetworkDebugLogger {
             "direction": "receive"
         ]
 
-        if let data = message.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: data) {
-            frame["body"] = json
-        } else {
-            frame["body"] = message
-        }
+        frame["body"] = bodyValue(
+            data: message.data(using: .utf8),
+            contentType: "application/json"
+        )
 
         session.frames.append(frame)
         activeWebSocketSessions[sessionID] = session
@@ -244,7 +289,13 @@ actor NetworkDebugLogger {
 
     private func headers(from headers: [String: String]?) -> [String: String] {
         guard let headers else { return [:] }
-        return headers
+
+        var out: [String: String] = [:]
+        out.reserveCapacity(headers.count)
+        for (key, value) in headers {
+            out[key] = Self.isSensitiveHeaderName(key) ? Self.redactedValue : value
+        }
+        return out
     }
 
     private func stringifyHeaders(_ headers: [AnyHashable: Any]) -> [String: String] {
@@ -260,17 +311,44 @@ actor NetworkDebugLogger {
     private func bodyValue(data: Data?, contentType: String?) -> Any? {
         guard let data, !data.isEmpty else { return nil }
 
-        let loweredContentType = (contentType ?? "").lowercased()
-        if loweredContentType.contains("application/json"),
-           let object = try? JSONSerialization.jsonObject(with: data) {
-            return object
+        var summary = Self.omittedBodyValue + " (\(data.count) bytes"
+        if let contentType = contentType?.trimmedNonEmpty {
+            summary += ", content-type: \(contentType)"
+        }
+        if data.count > Self.maxBodyBytes {
+            summary += ", exceeds \(Self.maxBodyBytes) byte trace limit"
+        }
+        summary += ")"
+        return summary
+    }
+
+    private func sanitizedURLString(_ url: URL?) -> String {
+        guard let url else { return "<nil>" }
+        return sanitizedURLString(url)
+    }
+
+    private func sanitizedURLString(_ url: URL) -> String {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url.absoluteString
         }
 
-        if let utf8 = String(data: data, encoding: .utf8) {
-            return utf8
+        components.user = components.user == nil ? nil : Self.redactedValue
+        components.password = components.password == nil ? nil : Self.redactedValue
+        components.queryItems = components.queryItems?.map { item in
+            guard Self.isSensitiveQueryItemName(item.name) else { return item }
+            return URLQueryItem(name: item.name, value: Self.redactedValue)
         }
+        return components.url?.absoluteString ?? url.absoluteString
+    }
 
-        return "<\(data.count) bytes (binary/base64): \(data.base64EncodedString())>"
+    private static func isSensitiveHeaderName(_ name: String) -> Bool {
+        let lowered = name.lowercased()
+        if sensitiveHeaderNames.contains(lowered) { return true }
+        return sensitiveHeaderSubstrings.contains { lowered.contains($0) }
+    }
+
+    private static func isSensitiveQueryItemName(_ name: String) -> Bool {
+        sensitiveQueryItemNames.contains(name.lowercased())
     }
 
     private func providerRequestID(from headers: [String: String]) -> String? {
