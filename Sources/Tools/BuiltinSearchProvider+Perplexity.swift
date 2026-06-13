@@ -1,6 +1,8 @@
 import Foundation
 
 extension BuiltinSearchToolHub {
+    private static let perplexityMaxResultsRange = 1...20
+
     func searchPerplexity(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
         if args.maxResults == 0 {
             return .empty(provider: .perplexity, query: args.query)
@@ -19,7 +21,7 @@ extension BuiltinSearchToolHub {
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
         let body = Self.makePerplexityRequestBody(args: args, settings: route.settings, overrides: route.overrides)
-        let clampedMax = args.maxResults.clamped(to: 1...20)
+        let clampedMax = args.maxResults.clamped(to: Self.perplexityMaxResultsRange)
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, _) = try await networkManager.sendRequest(request)
@@ -48,7 +50,7 @@ extension BuiltinSearchToolHub {
         settings: WebSearchPluginSettings,
         overrides: SearchPluginControls?
     ) -> [String: Any] {
-        let clampedMax = args.maxResults.clamped(to: 1...20)
+        let clampedMax = args.maxResults.clamped(to: Self.perplexityMaxResultsRange)
         var body: [String: Any] = [
             "query": args.query,
             "max_results": clampedMax

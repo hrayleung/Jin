@@ -60,9 +60,7 @@ struct RemoteMessageImageView: View {
             }
 
             Button {
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(url.absoluteString, forType: .string)
+                PasteboardSupport.writeString(url.absoluteString)
             } label: {
                 Label("Copy URL", systemImage: "doc.on.doc")
             }

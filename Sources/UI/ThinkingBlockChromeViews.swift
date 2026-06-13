@@ -207,9 +207,7 @@ struct ThinkingHeaderCopyButton: View {
 
     @MainActor
     private func copy() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        PasteboardSupport.writeString(text)
 
         withAnimation(.easeInOut(duration: 0.18)) {
             didCopy = true

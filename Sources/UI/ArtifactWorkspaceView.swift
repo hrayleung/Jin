@@ -203,9 +203,7 @@ struct ArtifactWorkspaceView: View {
     }
 
     private func copySource(_ source: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(source, forType: .string)
+        PasteboardSupport.writeString(source)
         pulseFeedback(.copy)
     }
 

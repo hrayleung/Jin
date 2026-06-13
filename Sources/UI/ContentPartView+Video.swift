@@ -85,9 +85,7 @@ private final class JinAVPlayerView: AVPlayerView {
 
     @objc private func copyPathOrURL() {
         guard let url = mediaURL else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(url.isFileURL ? url.path : url.absoluteString, forType: .string)
+        PasteboardSupport.writeString(url.isFileURL ? url.path : url.absoluteString)
     }
 }
 

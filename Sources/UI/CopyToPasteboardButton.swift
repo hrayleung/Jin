@@ -39,9 +39,7 @@ struct CopyToPasteboardButton: View {
 
     @MainActor
     private func copyToPasteboard() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        PasteboardSupport.writeString(text)
 
         withAnimation(.easeInOut(duration: 0.15)) {
             didCopy = true

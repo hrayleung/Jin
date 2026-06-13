@@ -1,6 +1,8 @@
 import Foundation
 
 extension BuiltinSearchToolHub {
+    private static let tavilyMaxResultsRange = 0...20
+
     func searchTavily(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
         var request = URLRequest(url: try validatedURL("https://api.tavily.com/search"))
         request.httpMethod = "POST"
@@ -9,7 +11,7 @@ extension BuiltinSearchToolHub {
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
         let body = Self.makeTavilyRequestBody(args: args, settings: route.settings, overrides: route.overrides)
-        let clampedMax = args.maxResults.clamped(to: 0...20)
+        let clampedMax = args.maxResults.clamped(to: Self.tavilyMaxResultsRange)
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, _) = try await networkManager.sendRequest(request)
@@ -38,7 +40,7 @@ extension BuiltinSearchToolHub {
         settings: WebSearchPluginSettings,
         overrides: SearchPluginControls?
     ) -> [String: Any] {
-        let clampedMax = args.maxResults.clamped(to: 0...20)
+        let clampedMax = args.maxResults.clamped(to: Self.tavilyMaxResultsRange)
         let depth = tavilyDepthValue(overrides?.tavilySearchDepth ?? settings.tavilySearchDepth)
         let topic = tavilyTopicValue(overrides?.tavilyTopic ?? settings.tavilyTopic)
         let shouldAutoTune = settings.tavilyAutoParameters

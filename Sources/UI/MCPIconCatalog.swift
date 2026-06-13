@@ -37,30 +37,9 @@ struct MCPIcon: Identifiable, Hashable {
 }
 
 enum MCPIconCatalog {
-    private final class ImageCache: @unchecked Sendable {
-        private let lock = NSLock()
-        private let cache: NSCache<NSString, NSImage> = {
-            let cache = NSCache<NSString, NSImage>()
-            cache.countLimit = 64
-            return cache
-        }()
-
-        func object(forKey key: NSString) -> NSImage? {
-            lock.lock()
-            defer { lock.unlock() }
-            return cache.object(forKey: key)
-        }
-
-        func setObject(_ image: NSImage, forKey key: NSString) {
-            lock.lock()
-            defer { lock.unlock() }
-            cache.setObject(image, forKey: key)
-        }
-    }
-
     static let defaultIconID = "mcp"
 
-    private static let imageCache = ImageCache()
+    private static let imageCache = LockedNSImageCache(countLimit: 64)
 
     static let all: [MCPIcon] = loadBundledIcons()
 
