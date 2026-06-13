@@ -16,13 +16,6 @@ extension ChatMessagePreparationSupport {
             throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "macOS Extract")
         }
 
-        var output = "macOS Extract (PDF): \(attachment.filename)\n\n\(extracted)"
-        output = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        if output.count > AttachmentConstants.maxPDFExtractedCharacters {
-            let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
-            output = "\(prefix)\n\n[Truncated]"
-        }
-
-        return PreparedPDFContent(extractedText: output, additionalParts: [])
+        return finalizedPDFOutput(extracted, header: "macOS Extract (PDF)", filename: attachment.filename)
     }
 }
