@@ -31,6 +31,12 @@ struct NativeMarkdownView: View {
     /// swap to raw markdown text every flush — that flicker is what gets
     /// perceived as "the AI streaming output is particularly laggy".
     @State private var asyncParsed: NativeMarkdownCache.Value?
+    /// The key `asyncParsed` was produced for. A recycled `NSTableView` cell
+    /// can preserve this view's `@State` while showing a DIFFERENT message, so
+    /// the retained parse is only safe to display when it belongs to the
+    /// current content lineage (same key, or the current text is a growth of
+    /// the parsed text — streaming flushes and the streaming→persisted swap).
+    @State private var asyncParsedKey: NativeMarkdownCache.Key?
 
     var body: some View {
         let theme = MarkdownTheme.resolved(appFontFamily: appFontFamily, codeFontFamily: codeFontFamily)
@@ -44,21 +50,20 @@ struct NativeMarkdownView: View {
 
         // Synchronous LRU hit — free, common case after first parse.
         let syncHit = NativeMarkdownCache.tryGet(key: key)
-        // During streaming, every flush produces a fresh key (the markdown
-        // grew). Falling back to the plain-text placeholder on every miss
-        // makes the rendered subtree flicker between NSTextView and raw
-        // `Text(markdownText)` at flush rate. Instead, retain whichever
-        // parse result we last computed — even if it's a few flushes
-        // stale, the in-progress streaming visual is dramatically smoother
-        // than swapping the entire subtree out and back in. The next
-        // parse will overwrite `asyncParsed` and the view catches up.
-        //
-        // The same fallback is also required on non-streaming first open:
-        // the async parse populates `asyncParsed` first; the cache insert
-        // is on a different thread and is not always visible to the next
-        // `tryGet` issued from the body re-eval, so `asyncParsed` is the
-        // only guaranteed source of truth in that window.
-        let parsed = syncHit ?? asyncParsed
+        // The retained async parse is reused only when it belongs to the
+        // current content lineage:
+        //  - same key (non-streaming first open: the async parse populates
+        //    `asyncParsed` before the cross-thread cache insert is visible to
+        //    the next `tryGet`, so `asyncParsed` is the only source of truth
+        //    in that window);
+        //  - the current text is a growth of the parsed text under the same
+        //    fonts/mode (streaming flushes mint a fresh key each ~100 ms, and
+        //    the streaming→persisted swap reuses the final streaming parse —
+        //    showing the last parse instead of flickering to the placeholder).
+        // A recycled cell that kept this view's `@State` for a DIFFERENT
+        // message fails the lineage test and falls back to the placeholder
+        // rather than briefly rendering the previous row's content.
+        let parsed = syncHit ?? (isLineageMatch(current: key, parsed: asyncParsedKey) ? asyncParsed : nil)
 
         return Group {
             if let parsed {
@@ -71,11 +76,9 @@ struct NativeMarkdownView: View {
             if let syncHit {
                 // Retain the hit: `.task(id:)` won't re-fire for this key, so
                 // if the LRU later evicts it a body re-eval would regress to
-                // the placeholder with no recovery path. Also keeps
-                // `asyncParsed` tracking the CURRENT key so the
-                // `syncHit ?? asyncParsed` fallback can't pin stale content
-                // after an in-place text change.
+                // the placeholder with no recovery path.
                 asyncParsed = syncHit
+                asyncParsedKey = key
                 return
             }
             guard let value = await NativeMarkdownParseService.parse(key: key, theme: theme) else {
@@ -90,19 +93,32 @@ struct NativeMarkdownView: View {
             // would regress the growing text.
             if key.isStreaming, Task.isCancelled { return }
             asyncParsed = value
+            asyncParsedKey = key
         }
         .onReceive(NativeMarkdownCache.insertNotifications) { _ in
             // Heals the placeholder-stuck state from OUTSIDE the view's own
             // lifecycle: targets the leaf view directly, so it works even
             // when the enclosing `.equatable()` gate prunes body re-evals
             // and the parse that produced the value was issued by another
-            // view (prewarm, another cell). Only placeholder-state views pay
-            // the lookup.
-            guard !isStreaming, asyncParsed == nil else { return }
-            if let value = NativeMarkdownCache.tryGet(key: key) {
-                asyncParsed = value
-            }
+            // view (prewarm, another cell). No-op once we already hold the
+            // current key's parse. Streaming keys are never cached, so this
+            // only fires for stable keys.
+            guard asyncParsedKey != key, let value = NativeMarkdownCache.tryGet(key: key) else { return }
+            asyncParsed = value
+            asyncParsedKey = key
         }
+    }
+
+    /// Whether a retained parse (produced for `parsed`) may stand in for the
+    /// `current` key. True when they're the same key, or when `current` is a
+    /// growth of `parsed` under identical fonts/mode — i.e. the same message
+    /// streaming or finishing, NOT a different message that recycled into this
+    /// view's preserved `@State`.
+    private func isLineageMatch(
+        current: NativeMarkdownCache.Key,
+        parsed: NativeMarkdownCache.Key?
+    ) -> Bool {
+        asyncParsed != nil && NativeMarkdownParseLineage.matches(current: current, retained: parsed)
     }
 
     @ViewBuilder
@@ -202,6 +218,28 @@ struct IndexedGroup: Identifiable {
     let id: NativeMarkdownBlockID
     let position: Int
     let group: NativeMarkdownGroup
+}
+
+/// Decides whether a retained parse may stand in for the current render key
+/// (see `NativeMarkdownView`'s `asyncParsed` reuse). Pure key comparison so it
+/// can be unit-tested without a view.
+enum NativeMarkdownParseLineage {
+    /// True when `retained` produced content the `current` key may display:
+    /// the same key, or `current` is a growth of `retained` under identical
+    /// fonts/mode (the same message streaming or finishing). False for a
+    /// different message — the recycled-cell stale-content case.
+    static func matches(
+        current: NativeMarkdownCache.Key,
+        retained: NativeMarkdownCache.Key?
+    ) -> Bool {
+        guard let retained else { return false }
+        if retained == current { return true }
+        return current.renderPlainText == retained.renderPlainText
+            && current.appFontFamily == retained.appFontFamily
+            && current.codeFontFamily == retained.codeFontFamily
+            && !retained.markdownText.isEmpty
+            && current.markdownText.hasPrefix(retained.markdownText)
+    }
 }
 
 /// Holder so we don't re-create `SelectionAggregator` on every body call.
