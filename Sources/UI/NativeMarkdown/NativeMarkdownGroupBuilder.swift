@@ -541,97 +541,63 @@ enum NativeMarkdownGroupBuilder {
     // MARK: - Widget groups
 
     private static func makeWidgetGroup(block: NativeMarkdownBlock) -> NativeMarkdownGroup {
-        var hasher = FNVHasher()
+        // The signature is the single source of truth on `NativeMarkdownBlock` so the
+        // group's `ForEach` id stays in lockstep with `contentSignature` (used as the
+        // block id elsewhere) and cannot drift from a second hashing implementation.
+        let signature = block.contentSignature
         switch block {
         case .codeBlock(let language, let source, let isStreamingTail):
-            hasher.combine("code-\(language ?? "")-\(isStreamingTail)")
-            hasher.combine(source)
             return .codeBlock(
                 language: language,
                 source: source,
                 isStreamingTail: isStreamingTail,
-                signature: hasher.value
+                signature: signature
             )
 
         case .table(let header, let alignments, let rows):
-            hasher.combine("table")
-            for alignment in alignments {
-                hasher.combine(String(describing: alignment))
-            }
-            for cell in header { hasher.combine(cell.plainText) }
-            for row in rows {
-                for cell in row { hasher.combine(cell.plainText) }
-            }
             return .table(
                 header: header,
                 alignments: alignments,
                 rows: rows,
-                signature: hasher.value
+                signature: signature
             )
 
         case .mathBlock(let latex):
-            hasher.combine("math")
-            hasher.combine(latex)
-            return .math(latex: latex, signature: hasher.value)
+            return .math(latex: latex, signature: signature)
 
         case .mermaidBlock(let source):
-            hasher.combine("mermaid")
-            hasher.combine(source)
-            return .mermaid(source: source, signature: hasher.value)
+            return .mermaid(source: source, signature: signature)
 
         case .htmlBlock(let text):
-            hasher.combine("html")
-            hasher.combine(text)
-            return .htmlBlock(text: text, signature: hasher.value)
+            return .htmlBlock(text: text, signature: signature)
 
         case .thematicBreak:
-            hasher.combine("hr")
-            return .thematicBreak(signature: hasher.value)
+            return .thematicBreak(signature: signature)
 
         case .bulletList(let items, let tight):
-            hasher.combine("ul-\(tight)")
-            for item in items {
-                hasher.combine(itemSignature(item))
-            }
             return .complexList(
                 kind: .bullet,
                 start: 1,
                 items: items,
                 tight: tight,
-                signature: hasher.value
+                signature: signature
             )
 
         case .orderedList(let start, let items, let tight):
-            hasher.combine("ol-\(start)-\(tight)")
-            for item in items {
-                hasher.combine(itemSignature(item))
-            }
             return .complexList(
                 kind: .ordered,
                 start: start,
                 items: items,
                 tight: tight,
-                signature: hasher.value
+                signature: signature
             )
 
         case .blockQuote(let children):
-            hasher.combine("bq")
-            for child in children {
-                hasher.combine(String(child.contentSignature))
-            }
-            return .complexBlockQuote(children: children, signature: hasher.value)
+            return .complexBlockQuote(children: children, signature: signature)
 
         case .paragraph, .heading:
             // `build()` filters these out before we get here.
             preconditionFailure("Prose blocks should be aggregated, not widget-wrapped")
         }
-    }
-
-    private static func itemSignature(_ item: ListItemContent) -> String {
-        var combined = item.checkbox.map { $0 ? "[x]" : "[ ]" } ?? "[-]"
-        for child in item.children {
-            combined.append("|\(child.contentSignature)")
-        }
-        return combined
     }
 }
