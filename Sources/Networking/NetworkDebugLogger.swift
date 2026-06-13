@@ -25,6 +25,19 @@ actor NetworkDebugLogger {
         "set-cookie"
     ]
 
+    /// Substring patterns that mark a header as secret even when its exact name is not enumerated above.
+    /// Catches provider-specific credential headers (e.g. Gemini `x-goog-api-key`, Brave `x-subscription-token`,
+    /// ElevenLabs `xi-api-key`) and any future variants without having to list every spelling.
+    private static let sensitiveHeaderSubstrings: [String] = [
+        "api-key",
+        "apikey",
+        "api_key",
+        "token",
+        "secret",
+        "credential",
+        "password"
+    ]
+
     private static let sensitiveQueryItemNames: Set<String> = [
         "access_token",
         "api_key",
@@ -329,7 +342,9 @@ actor NetworkDebugLogger {
     }
 
     private static func isSensitiveHeaderName(_ name: String) -> Bool {
-        sensitiveHeaderNames.contains(name.lowercased())
+        let lowered = name.lowercased()
+        if sensitiveHeaderNames.contains(lowered) { return true }
+        return sensitiveHeaderSubstrings.contains { lowered.contains($0) }
     }
 
     private static func isSensitiveQueryItemName(_ name: String) -> Bool {

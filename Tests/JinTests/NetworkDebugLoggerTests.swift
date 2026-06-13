@@ -41,6 +41,9 @@ final class NetworkDebugLoggerTests: XCTestCase {
         request.httpMethod = "POST"
         request.addValue("Bearer sk-request-secret", forHTTPHeaderField: "Authorization")
         request.addValue("session=response-secret", forHTTPHeaderField: "Cookie")
+        request.addValue("goog-key-secret", forHTTPHeaderField: "x-goog-api-key")
+        request.addValue("brave-token-secret", forHTTPHeaderField: "X-Subscription-Token")
+        request.addValue("eleven-key-secret", forHTTPHeaderField: "xi-api-key")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = Data(#"{"prompt":"PRIVATE_CHAT_PROMPT","api_key":"body-secret"}"#.utf8)
 
@@ -81,6 +84,9 @@ final class NetworkDebugLoggerTests: XCTestCase {
         XCTAssertFalse(trace.contains("body-secret"))
         XCTAssertFalse(trace.contains("response-cookie-secret"))
         XCTAssertFalse(trace.contains("PRIVATE_MODEL_RESPONSE"))
+        XCTAssertFalse(trace.contains("goog-key-secret"))
+        XCTAssertFalse(trace.contains("brave-token-secret"))
+        XCTAssertFalse(trace.contains("eleven-key-secret"))
     }
 
     func testWebSocketTraceRedactsHeadersAndOmitsFrameBodies() async throws {
