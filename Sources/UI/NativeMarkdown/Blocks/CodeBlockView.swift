@@ -159,6 +159,11 @@ private struct CodeBlockBody: View {
     let theme: MarkdownTheme
     let isDarkMode: Bool
 
+    /// Top/bottom inset of the code text view (`HighlightedCodeView` sets the
+    /// same value on its `textContainerInset.height`). The gutter matches it so
+    /// the first line number sits at the first code line's baseline.
+    static let codeVerticalInset: CGFloat = 10
+
     private var lines: [String] {
         source.components(separatedBy: "\n")
     }
@@ -167,25 +172,21 @@ private struct CodeBlockBody: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 0) {
                 if showLineNumbers {
-                    // The gutter/divider are SwiftUI views with no NSView of
-                    // their own, so a vertical wheel over them would be eaten by
-                    // the trapping horizontal scroll view. Host them in a
-                    // wheel-forwarding NSView so that region scrolls the page
-                    // too. (The code text is a JinMessageTextView, which
-                    // forwards on its own.) Only present when line numbers are
-                    // enabled, so the default code path is untouched.
-                    WheelForwardingContainer {
-                        HStack(alignment: .top, spacing: 0) {
-                            LineNumberGutter(
-                                count: lines.count,
-                                font: theme.codeFont
-                            )
-                            Rectangle()
-                                .fill(JinSemanticColor.borderSubtle)
-                                .frame(width: 1)
-                                .padding(.vertical, 6)
-                        }
-                    }
+                    // Laid out through the SAME TextKit paragraph style + font +
+                    // top inset as the code so the numbers stay aligned with the
+                    // code lines (a plain SwiftUI Text ignored the code's 1.3×
+                    // lineHeightMultiple, so numbers crept upward). It's also a
+                    // real NSView that forwards vertical wheels to the timeline,
+                    // so the gutter strip isn't a scroll dead-zone.
+                    CodeLineNumberGutterView(
+                        count: lines.count,
+                        font: theme.codeFont,
+                        verticalInset: Self.codeVerticalInset
+                    )
+                    Rectangle()
+                        .fill(JinSemanticColor.borderSubtle)
+                        .frame(width: 1)
+                        .padding(.vertical, 6)
                 }
                 HighlightedCodeView(
                     source: source,
@@ -268,7 +269,7 @@ private struct HighlightedCodeView: NSViewRepresentable {
         )
         view.setScrubbedAttributedString(withInsets)
         view.setSelectedRange(clamped(range: selectedRange, length: withInsets.length))
-        view.textContainerInset = NSSize(width: 14, height: 10)
+        view.textContainerInset = NSSize(width: 14, height: CodeBlockBody.codeVerticalInset)
         coordinator.lastAppliedFingerprint = fingerprint
     }
 
@@ -291,22 +292,124 @@ private struct HighlightedCodeView: NSViewRepresentable {
     }
 }
 
-private struct LineNumberGutter: View {
+/// Right-aligned line-number gutter laid out through TextKit with the code's
+/// own `codeParagraphStyle` (matching `lineHeightMultiple`), font, and vertical
+/// inset — so the numbers line up with the code lines fragment-for-fragment. A
+/// plain SwiftUI `Text` ignored the 1.3× line-height multiplier and the numbers
+/// drifted upward. The numbers are space-padded to a fixed digit width, which
+/// right-justifies them in the monospaced code font without needing the
+/// container-width gymnastics that paragraph `.right` alignment would require.
+private struct CodeLineNumberGutterView: NSViewRepresentable {
     let count: Int
     let font: NSFont
+    let verticalInset: CGFloat
 
-    var body: some View {
-        Text(
-            (1...max(1, count))
-                .map(String.init)
-                .joined(separator: "\n")
+    private static let horizontalInset: CGFloat = 8
+
+    func makeNSView(context: Context) -> CodeLineNumberTextView {
+        let view = CodeLineNumberTextView()
+        apply(to: view)
+        return view
+    }
+
+    func updateNSView(_ nsView: CodeLineNumberTextView, context: Context) {
+        apply(to: nsView)
+    }
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        nsView: CodeLineNumberTextView,
+        context: Context
+    ) -> CGSize? {
+        apply(to: nsView)
+        return nsView.naturalSize()
+    }
+
+    private func apply(to view: CodeLineNumberTextView) {
+        view.textContainerInset = NSSize(width: Self.horizontalInset, height: verticalInset)
+        view.textStorage?.setAttributedString(Self.attributedNumbers(count: count, font: font))
+    }
+
+    private static func attributedNumbers(count: Int, font: NSFont) -> NSAttributedString {
+        let total = max(1, count)
+        let digitWidth = String(total).count
+        let body = (1...total)
+            .map { String(format: "%\(digitWidth)d", $0) }
+            .joined(separator: "\n")
+        return NSAttributedString(
+            string: body,
+            attributes: [
+                .font: font,
+                .foregroundColor: NSColor.secondaryLabelColor,
+                // The code's own paragraph style → identical per-line fragment
+                // height, so numbers track the code lines exactly.
+                .paragraphStyle: MarkdownTheme.cachedCodeParagraphStyle,
+            ]
         )
-        .font(Font(font))
-        .foregroundStyle(.secondary)
-        .multilineTextAlignment(.trailing)
-        .padding(.leading, 10)
-        .padding(.trailing, 8)
-        .padding(.vertical, 8)
-        .frame(minWidth: 32, alignment: .trailing)
+    }
+}
+
+/// Minimal, non-selecting `NSTextView` for the line-number gutter. Lays the
+/// numbers out with the code's paragraph style and forwards vertical-dominant
+/// wheel events to the chat timeline (like the code text view), so the gutter
+/// strip scrolls the page instead of trapping it. Deliberately NOT a
+/// `JinMessageTextView` — it carries no selection/aggregator machinery and
+/// stays out of the resident-text-view census.
+final class CodeLineNumberTextView: NSTextView {
+    private var wheelRouter = CodeBlockWheelRouter()
+
+    override var isOpaque: Bool { false }
+
+    init() {
+        let storage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        storage.addLayoutManager(layoutManager)
+        let container = NSTextContainer(
+            size: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        )
+        container.lineFragmentPadding = 0
+        container.widthTracksTextView = false
+        container.heightTracksTextView = false
+        layoutManager.addTextContainer(container)
+        super.init(frame: .zero, textContainer: container)
+        isEditable = false
+        isSelectable = false
+        isRichText = false
+        drawsBackground = false
+        backgroundColor = .clear
+        isHorizontallyResizable = true
+        isVerticallyResizable = true
+        textContainerInset = .zero
+        autoresizingMask = []
+        isAutomaticTextCompletionEnabled = false
+        wantsLayer = true
+        layer?.isOpaque = false
+        layerContentsRedrawPolicy = .duringViewResize
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        switch wheelRouter.route(event: event, from: self) {
+        case .forwardToTimeline(let timeline):
+            timeline.scrollWheel(with: event)
+        case .passToSuper:
+            super.scrollWheel(with: event)
+        }
+    }
+
+    /// Glyph extent plus the symmetric text-container inset — the gutter's
+    /// natural (non-wrapping) size.
+    func naturalSize() -> NSSize {
+        guard let textContainer, let layoutManager else { return .zero }
+        layoutManager.ensureLayout(for: textContainer)
+        let used = layoutManager.usedRect(for: textContainer)
+        return NSSize(
+            width: ceil(used.width) + textContainerInset.width * 2,
+            height: ceil(used.height) + textContainerInset.height * 2
+        )
     }
 }

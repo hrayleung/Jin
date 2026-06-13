@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 /// A code block renders its content inside a SwiftUI `ScrollView(.horizontal)`
 /// (so long lines scroll sideways). When the code overflows horizontally, that
@@ -89,66 +88,5 @@ struct CodeBlockWheelRouter {
             current = candidate.superview
         }
         return nil
-    }
-}
-
-/// `NSHostingView` that forwards vertical-dominant wheel events to the chat
-/// timeline via `CodeBlockWheelRouter`. Hosts code-block sub-regions that have
-/// no `NSView` of their own (the line-number gutter + its divider) so a wheel
-/// over them isn't swallowed by the trapping horizontal scroll view. It only
-/// overrides an `NSResponder` event method; intrinsic sizing is identical to a
-/// plain `NSHostingView`.
-final class WheelForwardingHostingView<Content: View>: NSHostingView<Content> {
-    private var wheelRouter = CodeBlockWheelRouter()
-
-    required init(rootView: Content) {
-        super.init(rootView: rootView)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func scrollWheel(with event: NSEvent) {
-        switch wheelRouter.route(event: event, from: self) {
-        case .forwardToTimeline(let timeline):
-            timeline.scrollWheel(with: event)
-        case .passToSuper:
-            super.scrollWheel(with: event)
-        }
-    }
-}
-
-/// Hosts arbitrary SwiftUI content in a `WheelForwardingHostingView`, preserving
-/// the content's natural sizing (returns `nil` from `sizeThatFits` so SwiftUI
-/// uses the hosting view's intrinsic size). Used to wrap the line-number gutter
-/// so vertical scroll over it forwards to the timeline.
-struct WheelForwardingContainer<Content: View>: NSViewRepresentable {
-    private let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    func makeNSView(context: Context) -> WheelForwardingHostingView<Content> {
-        let host = WheelForwardingHostingView(rootView: content)
-        host.sizingOptions = [.intrinsicContentSize]
-        return host
-    }
-
-    func updateNSView(_ host: WheelForwardingHostingView<Content>, context: Context) {
-        host.rootView = content
-    }
-
-    func sizeThatFits(
-        _ proposal: ProposedViewSize,
-        nsView: WheelForwardingHostingView<Content>,
-        context: Context
-    ) -> CGSize? {
-        // nil → SwiftUI uses the hosting view's intrinsicContentSize, identical
-        // to embedding `content` directly. We never impose a width, so nothing
-        // about the surrounding layout (or the code's unwrapped height) changes.
-        nil
     }
 }
