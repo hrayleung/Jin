@@ -44,7 +44,7 @@ extension OpenAIAdapter {
                     )
                     let (data, _) = try await networkManager.sendRequest(request)
 
-                    let response = try JSONDecoder.snakeCaseConverting.decode(OpenAIImageGenerationResponse.self, from: data)
+                    let response = try JSONDecoder.snakeCaseConverting().decode(OpenAIImageGenerationResponse.self, from: data)
 
                     if let error = response.error {
                         throw LLMError.providerError(

@@ -18,14 +18,14 @@ extension XAIAdapter {
 
         if !streaming {
             let (data, _) = try await networkManager.sendRequest(request)
-            let response = try JSONDecoder.snakeCaseConverting.decode(ResponsesAPIResponse.self, from: data)
+            let response = try JSONDecoder.snakeCaseConverting().decode(ResponsesAPIResponse.self, from: data)
 
             return makeNonStreamingResponseStream(response)
         }
 
         let parser = SSEParser()
         let sseStream = await networkManager.streamRequest(request, parser: parser)
-        let streamDecoder = JSONDecoder.snakeCaseConverting
+        let streamDecoder = JSONDecoder.snakeCaseConverting()
 
         return AsyncThrowingStream { continuation in
             Task {

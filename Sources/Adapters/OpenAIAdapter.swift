@@ -52,7 +52,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         if !streaming {
             let (data, _) = try await networkManager.sendRequest(request)
-            let response = try JSONDecoder.snakeCaseConverting.decode(ResponsesAPIResponse.self, from: data)
+            let response = try JSONDecoder.snakeCaseConverting().decode(ResponsesAPIResponse.self, from: data)
 
             return AsyncThrowingStream { continuation in
                 continuation.yield(.messageStart(id: response.id))
@@ -76,7 +76,7 @@ actor OpenAIAdapter: LLMProviderAdapter {
 
         let parser = SSEParser()
         let sseStream = await networkManager.streamRequest(request, parser: parser)
-        let streamDecoder = JSONDecoder.snakeCaseConverting
+        let streamDecoder = JSONDecoder.snakeCaseConverting()
 
         return AsyncThrowingStream { continuation in
             Task {

@@ -113,7 +113,7 @@ actor ElevenLabsTTSClient {
 
         let (data, _) = try await networkManager.sendRequest(request)
         do {
-            let decoded = try JSONDecoder.snakeCaseConverting.decode(VoicesResponse.self, from: data)
+            let decoded = try JSONDecoder.snakeCaseConverting().decode(VoicesResponse.self, from: data)
             return decoded.voices
         } catch {
             let message = String(data: data, encoding: .utf8) ?? error.localizedDescription
@@ -130,7 +130,7 @@ actor ElevenLabsTTSClient {
         )
 
         let (data, _) = try await networkManager.sendRequest(request)
-        return try JSONDecoder.snakeCaseConverting.decodeOrThrowRawBody([Model].self, from: data)
+        return try JSONDecoder.snakeCaseConverting().decodeOrThrowRawBody([Model].self, from: data)
     }
 
     func createSpeech(

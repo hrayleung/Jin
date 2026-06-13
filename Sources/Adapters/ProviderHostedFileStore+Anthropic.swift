@@ -45,7 +45,7 @@ extension ProviderHostedFileStore {
             }
 
             let (data, _) = try await networkManager.sendRequest(request)
-            let response = try JSONDecoder.snakeCaseConverting.decode(AnthropicFileResponse.self, from: data)
+            let response = try JSONDecoder.snakeCaseConverting().decode(AnthropicFileResponse.self, from: data)
 
             return HostedProviderFileReference(
                 id: response.id,

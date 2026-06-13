@@ -1,14 +1,15 @@
 import Foundation
 
 extension JSONDecoder {
-    /// Shared decoder configured only with `.convertFromSnakeCase`. Mirrors the
-    /// per-module cached decoders that already existed; safe to share because
-    /// JSONDecoder is used read-only for decoding.
-    static let snakeCaseConverting: JSONDecoder = {
+    /// A freshly-configured `.convertFromSnakeCase` decoder, returned per call.
+    /// `JSONDecoder` is not documented as safe to share a single instance across
+    /// concurrent decode tasks (and the prior inline code allocated one per decode),
+    /// so this is a factory rather than a shared singleton.
+    static func snakeCaseConverting() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return decoder
-    }()
+    }
 
     /// Decodes `T`, or throws `LLMError.decodingError` carrying the raw response
     /// body (falling back to the underlying error description) on failure.

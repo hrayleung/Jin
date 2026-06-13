@@ -57,7 +57,7 @@ actor ElevenLabsSTTClient {
 
         let (data, _) = try await networkManager.sendRequest(request)
         do {
-            return try JSONDecoder.snakeCaseConverting.decode([AvailableModel].self, from: data).map { model in
+            return try JSONDecoder.snakeCaseConverting().decode([AvailableModel].self, from: data).map { model in
                 SpeechProviderModelChoice(id: model.modelId, name: model.name)
             }
         } catch {
@@ -125,7 +125,7 @@ actor ElevenLabsSTTClient {
 
         let (data, _) = try await networkManager.sendRequest(request)
         do {
-            let decoded = try JSONDecoder.snakeCaseConverting.decode(TranscriptionResponse.self, from: data)
+            let decoded = try JSONDecoder.snakeCaseConverting().decode(TranscriptionResponse.self, from: data)
             return decoded.text ?? ""
         } catch {
             let message = String(data: data, encoding: .utf8) ?? error.localizedDescription

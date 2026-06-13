@@ -11,7 +11,13 @@ enum PluginAutosave {
         Task {
             try? await Task.sleep(nanoseconds: delayNanos)
             guard !Task.isCancelled else { return }
-            await MainActor.run { persist() }
+            await MainActor.run {
+                // Re-check on the main actor: the task can be cancelled (reschedule /
+                // onDisappear) after the guard above but before this body runs, and a
+                // stale persist must not slip through.
+                guard !Task.isCancelled else { return }
+                persist()
+            }
         }
     }
 }

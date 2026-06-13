@@ -23,9 +23,12 @@ extension VertexAIRequestBuilder {
         return segments.last ?? trimmed
     }
 
-    /// Assembles the canonical Vertex AI model endpoint path.
+    /// Assembles the canonical Vertex AI model endpoint path. The model id is
+    /// normalized here so every caller (chat, video generation) gets the same
+    /// canonical form; normalization is idempotent for already-normalized ids.
     func modelEndpoint(modelID: String, verb: String) -> String {
-        "\(serviceAccountJSON.vertexBaseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(serviceAccountJSON.resolvedLocation)/publishers/google/models/\(modelID):\(verb)"
+        let canonicalModelID = normalizedModelID(from: modelID)
+        return "\(serviceAccountJSON.vertexBaseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(serviceAccountJSON.resolvedLocation)/publishers/google/models/\(canonicalModelID):\(verb)"
     }
 
     var baseURL: String { serviceAccountJSON.vertexBaseURL }

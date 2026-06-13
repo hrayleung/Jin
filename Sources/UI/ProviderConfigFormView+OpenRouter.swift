@@ -133,7 +133,7 @@ extension ProviderConfigFormView {
 
         let (data, _) = try await networkManager.sendRequest(request)
 
-        let response = try JSONDecoder.snakeCaseConverting.decode(OpenRouterKeyResponse.self, from: data)
+        let response = try JSONDecoder.snakeCaseConverting().decode(OpenRouterKeyResponse.self, from: data)
 
         let used = response.data.usage ?? 0
         var remaining: Double?
@@ -162,7 +162,7 @@ extension ProviderConfigFormView {
 
         let (data, _) = try await networkManager.sendRequest(request)
 
-        let response = try JSONDecoder.snakeCaseConverting.decode(OpenRouterCreditsResponse.self, from: data)
+        let response = try JSONDecoder.snakeCaseConverting().decode(OpenRouterCreditsResponse.self, from: data)
 
         guard let totalCredits = response.data.totalCredits,
               let totalUsage = response.data.totalUsage else {

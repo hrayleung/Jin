@@ -36,7 +36,7 @@ extension OpenRouterAdapter {
         )
 
         let (data, _) = try await networkManager.sendRequest(request)
-        let response = try JSONDecoder.snakeCaseConverting.decode(OpenRouterModelsResponse.self, from: data)
+        let response = try JSONDecoder.snakeCaseConverting().decode(OpenRouterModelsResponse.self, from: data)
         return response.data.map(makeModelInfo(from:))
     }
 
@@ -57,7 +57,7 @@ extension OpenRouterAdapter {
         )
 
         let (data, _) = try await networkManager.sendRequest(request)
-        let response = try JSONDecoder.snakeCaseConverting.decode(OpenRouterVideoModelsResponse.self, from: data)
+        let response = try JSONDecoder.snakeCaseConverting().decode(OpenRouterVideoModelsResponse.self, from: data)
         return response.data.map(makeModelInfo(from:))
     }
 

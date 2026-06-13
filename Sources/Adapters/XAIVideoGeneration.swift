@@ -41,7 +41,7 @@ extension XAIAdapter {
                         videoURL: isVideoToVideo ? resolvedVideoURL : nil,
                         controls: controls
                     )
-                    let decoder = JSONDecoder.snakeCaseConverting
+                    let decoder = JSONDecoder.snakeCaseConverting()
                     let (startData, _) = try await networkManager.sendRequest(startRequest)
                     let startResponse = try decoder.decode(XAIVideoStartResponse.self, from: startData)
 

@@ -13,7 +13,7 @@ extension XAIAdapter {
             return nil
         }
 
-        let decoder = JSONDecoder.snakeCaseConverting
+        let decoder = JSONDecoder.snakeCaseConverting()
 
         switch type {
         case "response.created":

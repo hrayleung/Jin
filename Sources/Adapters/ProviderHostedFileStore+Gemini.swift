@@ -64,7 +64,7 @@ extension ProviderHostedFileStore {
                 body: payload.data
             )
 
-            let decoder = JSONDecoder.snakeCaseConverting
+            let decoder = JSONDecoder.snakeCaseConverting()
             let (data, _) = try await networkManager.sendRequest(uploadRequest)
             let response = try decoder.decode(GeminiFileEnvelope.self, from: data)
             let readyFile = try await self.waitForGeminiFileToBecomeActive(

@@ -2,7 +2,7 @@ import Foundation
 
 extension VertexAIAdapter {
     func decodeGenerateContentResponse(from data: Data) throws -> VertexGenerateContentResponse {
-        try JSONDecoder.snakeCaseConverting.decode(VertexGenerateContentResponse.self, from: data)
+        try JSONDecoder.snakeCaseConverting().decode(VertexGenerateContentResponse.self, from: data)
     }
 
     func makeNonStreamingEventStream(

@@ -22,7 +22,7 @@ extension GeminiAdapter {
         )
 
         let (data, _) = try await networkManager.sendRequest(request)
-        let response = try JSONDecoder.snakeCaseConverting.decode(GeminiCachedContentsListResponse.self, from: data)
+        let response = try JSONDecoder.snakeCaseConverting().decode(GeminiCachedContentsListResponse.self, from: data)
         return response.cachedContents ?? []
     }
 
@@ -34,7 +34,7 @@ extension GeminiAdapter {
         )
 
         let (data, _) = try await networkManager.sendRequest(request)
-        return try JSONDecoder.snakeCaseConverting.decode(CachedContentResource.self, from: data)
+        return try JSONDecoder.snakeCaseConverting().decode(CachedContentResource.self, from: data)
     }
 
     func createCachedContent(payload: [String: Any]) async throws -> CachedContentResource {
@@ -49,7 +49,7 @@ extension GeminiAdapter {
         )
 
         let (data, _) = try await networkManager.sendRequest(request)
-        return try JSONDecoder.snakeCaseConverting.decode(CachedContentResource.self, from: data)
+        return try JSONDecoder.snakeCaseConverting().decode(CachedContentResource.self, from: data)
     }
 
     func updateCachedContent(
@@ -77,7 +77,7 @@ extension GeminiAdapter {
         )
 
         let (data, _) = try await networkManager.sendRequest(request)
-        return try JSONDecoder.snakeCaseConverting.decode(CachedContentResource.self, from: data)
+        return try JSONDecoder.snakeCaseConverting().decode(CachedContentResource.self, from: data)
     }
 
     func deleteCachedContent(named name: String) async throws {

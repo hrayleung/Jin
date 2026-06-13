@@ -38,7 +38,7 @@ extension VertexAIAdapter {
             return ([], nil, false, nil)
         }
 
-        let decoder = JSONDecoder.snakeCaseConverting
+        let decoder = JSONDecoder.snakeCaseConverting()
 
         if trimmed.hasPrefix("[") {
             let responses = try decoder.decode([VertexGenerateContentResponse].self, from: jsonData)

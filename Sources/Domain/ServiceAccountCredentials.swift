@@ -27,9 +27,11 @@ struct ServiceAccountCredentials: Codable {
         case location
     }
 
-    /// Resolved region; falls back to "global" when the JSON omits `location`.
+    /// Resolved region; falls back to "global" when the JSON omits `location` or
+    /// provides a blank/whitespace-only value (which would otherwise produce an
+    /// invalid `https://-aiplatform.googleapis.com` host).
     var resolvedLocation: String {
-        location ?? "global"
+        location?.trimmedNonEmpty ?? "global"
     }
 
     /// Vertex AI aiplatform base URL derived from the resolved location.

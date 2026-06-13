@@ -2,7 +2,7 @@ import Foundation
 
 extension CohereAdapter {
     func decodeChatResponse(_ data: Data) throws -> CohereChatResponse {
-        try JSONDecoder.snakeCaseConverting.decodeOrThrowRawBody(CohereChatResponse.self, from: data)
+        try JSONDecoder.snakeCaseConverting().decodeOrThrowRawBody(CohereChatResponse.self, from: data)
     }
 
     func makeNonStreamingStream(

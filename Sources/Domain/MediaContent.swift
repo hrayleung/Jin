@@ -6,7 +6,8 @@ import Foundation
 /// Conforming types are `AudioContent`, `VideoContent`.
 protocol LocalMediaPayload {
     var data: Data? { get }
-    /// The local file URL (must be a `file://` URL when present).
+    /// The payload's URL when present. May be a local `file://` URL or a remote URL;
+    /// `resolveMediaData(_:)` only reads `file://` URLs (remote URLs resolve to `nil`).
     var url: URL? { get }
 }
 
