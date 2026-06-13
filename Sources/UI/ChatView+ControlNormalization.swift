@@ -25,8 +25,7 @@ extension ChatView {
             conversationEntity.updatedAt = Date()
             try modelContext.save()
         } catch {
-            errorMessage = error.localizedDescription
-            showingError = true
+            presentError(error.localizedDescription)
         }
     }
 

@@ -48,9 +48,7 @@ actor GeminiAdapter: LLMProviderAdapter {
 
         if !streaming {
             let (data, _) = try await networkManager.sendRequest(request)
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let response = try decoder.decode(GeminiGenerateContentResponse.self, from: data)
+            let response = try JSONDecoder.snakeCaseConverting().decode(GeminiGenerateContentResponse.self, from: data)
 
             // Handle prompt-level blocks explicitly (Gemini returns promptFeedback for blocked prompts).
             if response.promptFeedback?.blockReason != nil {
@@ -111,9 +109,7 @@ actor GeminiAdapter: LLMProviderAdapter {
                         case .event(_, let data):
                             guard let jsonData = data.data(using: .utf8) else { continue }
 
-                            let decoder = JSONDecoder()
-                            decoder.keyDecodingStrategy = .convertFromSnakeCase
-                            let chunk = try decoder.decode(GeminiGenerateContentResponse.self, from: jsonData)
+                            let chunk = try JSONDecoder.snakeCaseConverting().decode(GeminiGenerateContentResponse.self, from: jsonData)
 
                             if chunk.promptFeedback?.blockReason != nil {
                                 continuation.yield(.error(.contentFiltered))

@@ -101,13 +101,6 @@ extension ChatView {
             .union(geminiAudioInputModelIDs)
     }()
 
-    static let gemini3ProModelIDs: Set<String> = [
-        "gemini-3-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
-        "gemini-3-pro-image-preview",
-    ]
-
     static let vertexGemini25TextModelIDs: Set<String> = [
         "gemini-2.5",
         "gemini-2.5-pro",

@@ -80,18 +80,9 @@ extension BuiltinSearchToolHub {
     /// Builds a UTC `YYYY-MM-DDtoYYYY-MM-DD` window for Brave's `freshness` parameter — strictly
     /// more precise than the coarse `pd|pw|pm|py` buckets the API also accepts.
     nonisolated static func braveDateRangeFreshness(recencyDays: Int, now: Date = Date()) -> String {
-        let calendar = Calendar(identifier: .gregorian)
-        var utc = calendar
-        utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-
+        let calendar = utcGregorianCalendar()
         let clamped = max(1, recencyDays)
-        let start = utc.date(byAdding: .day, value: -clamped, to: now) ?? now
-
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-
-        return "\(formatter.string(from: start))to\(formatter.string(from: now))"
+        let start = calendar.date(byAdding: .day, value: -clamped, to: now) ?? now
+        return "\(utcDateString(start, format: "yyyy-MM-dd"))to\(utcDateString(now, format: "yyyy-MM-dd"))"
     }
 }

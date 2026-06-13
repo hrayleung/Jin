@@ -139,8 +139,7 @@ extension ChatView {
         dismissOpenAIImageCustomSizeSheet()
 
         guard targetModelID == lowerModelID else {
-            errorMessage = "The selected OpenAI image model changed while the custom size sheet was open. Reopen the sheet and try again."
-            showingError = true
+            presentError("The selected OpenAI image model changed while the custom size sheet was open. Reopen the sheet and try again.")
             return
         }
 

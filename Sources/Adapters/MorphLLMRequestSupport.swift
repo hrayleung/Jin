@@ -39,18 +39,7 @@ extension MorphLLMAdapter {
     private func translateNonToolMessage(_ message: Message) -> [String: Any] {
         let split = splitContentParts(message.content)
         var dict: [String: Any] = ["role": message.role.rawValue]
-
-        switch message.role {
-        case .system, .user:
-            dict["content"] = split.visible
-
-        case .assistant:
-            dict["content"] = split.visible
-
-        case .tool:
-            dict["content"] = split.visible
-        }
-
+        dict["content"] = split.visible
         return dict
     }
 }

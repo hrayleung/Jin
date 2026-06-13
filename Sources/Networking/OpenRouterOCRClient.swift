@@ -88,9 +88,7 @@ actor OpenRouterOCRClient {
 
         let (data, _) = try await networkManager.sendRequest(request)
         do {
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let response = try decoder.decode(OpenRouterOCRChatCompletionResponse.self, from: data)
+            let response = try JSONDecoder.snakeCaseConverting().decode(OpenRouterOCRChatCompletionResponse.self, from: data)
             if let message = response.providerErrorMessage {
                 throw LLMError.decodingError(message: message)
             }

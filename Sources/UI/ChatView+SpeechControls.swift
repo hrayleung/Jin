@@ -58,13 +58,11 @@ extension ChatView {
                     config: config,
                     context: context,
                     onError: { error in
-                        errorMessage = SpeechPluginConfigFactory.textToSpeechErrorMessage(error, provider: provider)
-                        showingError = true
+                        presentError(SpeechPluginConfigFactory.textToSpeechErrorMessage(error, provider: provider))
                     }
                 )
             } catch {
-                errorMessage = SpeechPluginConfigFactory.textToSpeechErrorMessage(error, provider: provider)
-                showingError = true
+                presentError(SpeechPluginConfigFactory.textToSpeechErrorMessage(error, provider: provider))
             }
         }
     }

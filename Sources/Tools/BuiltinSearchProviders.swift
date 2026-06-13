@@ -5,13 +5,15 @@ import Foundation
 extension BuiltinSearchToolHub {
     // MARK: - Exa
 
+    private static let exaMaxResultsRange = 1...50
+
     func searchExa(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
         var request = URLRequest(url: try validatedURL("https://api.exa.ai/search"))
         request.httpMethod = "POST"
         request.addValue("Bearer \(route.apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let maxResults = args.maxResults.clamped(to: 1...50)
+        let maxResults = args.maxResults.clamped(to: Self.exaMaxResultsRange)
         let body = Self.makeExaRequestBody(args: args, settings: route.settings, overrides: route.overrides)
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -49,7 +51,7 @@ extension BuiltinSearchToolHub {
         settings: WebSearchPluginSettings,
         overrides: SearchPluginControls?
     ) -> [String: Any] {
-        let maxResults = args.maxResults.clamped(to: 1...50)
+        let maxResults = args.maxResults.clamped(to: Self.exaMaxResultsRange)
         var body: [String: Any] = [
             "query": args.query,
             "numResults": maxResults

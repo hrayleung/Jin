@@ -33,13 +33,7 @@ extension ChatMessagePreparationSupport {
             throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "MinerU OCR")
         }
 
-        var output = "MinerU OCR (Markdown): \(attachment.filename)\n\n\(combined)"
-        output = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        if output.count > AttachmentConstants.maxPDFExtractedCharacters {
-            let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
-            output = "\(prefix)\n\n[Truncated]"
-        }
-        return PreparedPDFContent(extractedText: output, additionalParts: [])
+        return finalizedPDFOutput(combined, header: "MinerU OCR (Markdown)", filename: attachment.filename)
     }
 
     static func preparedFirecrawlOCRPDF(
@@ -90,12 +84,6 @@ extension ChatMessagePreparationSupport {
             throw PDFProcessingError.noTextExtracted(filename: attachment.filename, method: "Firecrawl OCR")
         }
 
-        var output = "Firecrawl OCR (\(parserMode.displayName) Markdown): \(attachment.filename)\n\n\(combined)"
-        output = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        if output.count > AttachmentConstants.maxPDFExtractedCharacters {
-            let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
-            output = "\(prefix)\n\n[Truncated]"
-        }
-        return PreparedPDFContent(extractedText: output, additionalParts: [])
+        return finalizedPDFOutput(combined, header: "Firecrawl OCR (\(parserMode.displayName) Markdown)", filename: attachment.filename)
     }
 }

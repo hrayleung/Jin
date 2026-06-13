@@ -8,6 +8,28 @@ extension ChatMessagePreparationSupport {
         let openRouterClient: OpenRouterOCRClient?
         let firecrawlClient: FirecrawlPDFOCRClient?
         let r2Uploader: CloudflareR2Uploader?
+
+        static let empty = PDFPreparationClients(
+            mistralClient: nil,
+            mineruClient: nil,
+            deepSeekClient: nil,
+            openRouterClient: nil,
+            firecrawlClient: nil,
+            r2Uploader: nil
+        )
+    }
+
+    /// Reads a string preference, trims it, and returns the trimmed value.
+    /// Throws `missing` if the key is absent or blank after trimming.
+    static func requiredTrimmedCredential(
+        forKey key: String,
+        defaults: UserDefaults,
+        missing: PDFProcessingError
+    ) throws -> String {
+        let raw = defaults.string(forKey: key)
+        let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw missing }
+        return trimmed
     }
 
     static func makePDFPreparationClients(
@@ -15,16 +37,7 @@ extension ChatMessagePreparationSupport {
         requestedMode: PDFProcessingMode,
         defaults: UserDefaults = .standard
     ) throws -> PDFPreparationClients {
-        guard pdfCount > 0 else {
-            return PDFPreparationClients(
-                mistralClient: nil,
-                mineruClient: nil,
-                deepSeekClient: nil,
-                openRouterClient: nil,
-                firecrawlClient: nil,
-                r2Uploader: nil
-            )
-        }
+        guard pdfCount > 0 else { return .empty }
 
         return PDFPreparationClients(
             mistralClient: try makeMistralClientIfNeeded(requestedMode: requestedMode, defaults: defaults),
@@ -41,12 +54,12 @@ extension ChatMessagePreparationSupport {
         defaults: UserDefaults
     ) throws -> MistralOCRClient? {
         guard requestedMode == .mistralOCR else { return nil }
-
-        let key = defaults.string(forKey: AppPreferenceKeys.pluginMistralOCRAPIKey)
-        let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw PDFProcessingError.mistralAPIKeyMissing }
-
-        return MistralOCRClient(apiKey: trimmed)
+        let apiKey = try requiredTrimmedCredential(
+            forKey: AppPreferenceKeys.pluginMistralOCRAPIKey,
+            defaults: defaults,
+            missing: .mistralAPIKeyMissing
+        )
+        return MistralOCRClient(apiKey: apiKey)
     }
 
     private static func makeMinerUClientIfNeeded(
@@ -54,14 +67,14 @@ extension ChatMessagePreparationSupport {
         defaults: UserDefaults
     ) throws -> MinerUOCRClient? {
         guard requestedMode == .mineruOCR else { return nil }
-
-        let token = defaults.string(forKey: AppPreferenceKeys.pluginMineruOCRAPIToken)
-        let trimmed = (token ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw PDFProcessingError.mineruAPITokenMissing }
-
+        let apiToken = try requiredTrimmedCredential(
+            forKey: AppPreferenceKeys.pluginMineruOCRAPIToken,
+            defaults: defaults,
+            missing: .mineruAPITokenMissing
+        )
         let userIdentifier = defaults.string(forKey: AppPreferenceKeys.pluginMineruOCRUserIdentifier)
         let trimmedUserIdentifier = userIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return MinerUOCRClient(apiToken: trimmed, userToken: trimmedUserIdentifier)
+        return MinerUOCRClient(apiToken: apiToken, userToken: trimmedUserIdentifier)
     }
 
     private static func makeDeepSeekClientIfNeeded(
@@ -69,12 +82,12 @@ extension ChatMessagePreparationSupport {
         defaults: UserDefaults
     ) throws -> DeepInfraDeepSeekOCRClient? {
         guard requestedMode == .deepSeekOCR else { return nil }
-
-        let key = defaults.string(forKey: AppPreferenceKeys.pluginDeepSeekOCRAPIKey)
-        let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw PDFProcessingError.deepInfraAPIKeyMissing }
-
-        return DeepInfraDeepSeekOCRClient(apiKey: trimmed)
+        let apiKey = try requiredTrimmedCredential(
+            forKey: AppPreferenceKeys.pluginDeepSeekOCRAPIKey,
+            defaults: defaults,
+            missing: .deepInfraAPIKeyMissing
+        )
+        return DeepInfraDeepSeekOCRClient(apiKey: apiKey)
     }
 
     private static func makeOpenRouterClientIfNeeded(
@@ -82,15 +95,15 @@ extension ChatMessagePreparationSupport {
         defaults: UserDefaults
     ) throws -> OpenRouterOCRClient? {
         guard requestedMode == .openRouterOCR else { return nil }
-
-        let key = defaults.string(forKey: AppPreferenceKeys.pluginOpenRouterOCRAPIKey)
-        let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw PDFProcessingError.openRouterOCRAPIKeyMissing }
-
+        let apiKey = try requiredTrimmedCredential(
+            forKey: AppPreferenceKeys.pluginOpenRouterOCRAPIKey,
+            defaults: defaults,
+            missing: .openRouterOCRAPIKeyMissing
+        )
         let modelID = OpenRouterOCRModelCatalog.normalizedModelID(
             defaults.string(forKey: AppPreferenceKeys.pluginOpenRouterOCRModelID)
         )
-        return OpenRouterOCRClient(apiKey: trimmed, modelID: modelID)
+        return OpenRouterOCRClient(apiKey: apiKey, modelID: modelID)
     }
 
     private static func makeFirecrawlClientIfNeeded(
@@ -98,12 +111,12 @@ extension ChatMessagePreparationSupport {
         defaults: UserDefaults
     ) throws -> FirecrawlPDFOCRClient? {
         guard requestedMode == .firecrawlOCR else { return nil }
-
-        let key = defaults.string(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)
-        let trimmed = (key ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw PDFProcessingError.firecrawlAPIKeyMissing }
-
-        return FirecrawlPDFOCRClient(apiKey: trimmed)
+        let apiKey = try requiredTrimmedCredential(
+            forKey: AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey,
+            defaults: defaults,
+            missing: .firecrawlAPIKeyMissing
+        )
+        return FirecrawlPDFOCRClient(apiKey: apiKey)
     }
 }
 

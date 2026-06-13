@@ -2,26 +2,26 @@ import Foundation
 
 // MARK: - Audio Input Encoding
 
-/// Resolves the raw audio data from an `AudioContent`, reading from disk if needed.
-func resolveAudioData(_ audio: AudioContent) throws -> Data? {
-    if let data = audio.data {
+/// Resolves the raw media data from any `LocalMediaPayload` (audio, video),
+/// reading from disk if needed.
+func resolveMediaData(_ payload: some LocalMediaPayload) throws -> Data? {
+    if let data = payload.data {
         return data
     }
-    if let url = audio.url, url.isFileURL {
+    if let url = payload.url, url.isFileURL {
         return try resolveFileData(from: url)
     }
     return nil
 }
 
+/// Resolves the raw audio data from an `AudioContent`, reading from disk if needed.
+func resolveAudioData(_ audio: AudioContent) throws -> Data? {
+    try resolveMediaData(audio)
+}
+
 /// Resolves the raw video data from a `VideoContent`, reading from disk if needed.
 func resolveVideoData(_ video: VideoContent) throws -> Data? {
-    if let data = video.data {
-        return data
-    }
-    if let url = video.url, url.isFileURL {
-        return try resolveFileData(from: url)
-    }
-    return nil
+    try resolveMediaData(video)
 }
 
 func mediaDataURI(mimeType: String, data: Data) -> String {
@@ -196,6 +196,20 @@ func translateUserContentPartsToOpenAIFormat(
     return out
 }
 
+// MARK: - Tool Parameters Schema
+
+/// Returns the inner JSON-Schema object for a tool's parameters.
+/// Both `translateToolToOpenAIFormat` (wraps under `"parameters"`) and
+/// `AnthropicToolSpecSupport.customToolSpec` (wraps under `"input_schema"`) share this
+/// three-key structure — only the wrapper key differs between providers.
+func toolParametersSchema(_ parameters: ParameterSchema) -> [String: Any] {
+    [
+        "type": parameters.type,
+        "properties": parameters.properties.mapValues { $0.toDictionary() },
+        "required": parameters.required
+    ]
+}
+
 // MARK: - OpenAI-Compatible Tool Translation
 
 /// Translates a `ToolDefinition` into the OpenAI-compatible function calling format.
@@ -207,11 +221,7 @@ func translateToolToOpenAIFormat(_ tool: ToolDefinition) -> [String: Any] {
         "function": [
             "name": tool.name,
             "description": tool.description,
-            "parameters": [
-                "type": tool.parameters.type,
-                "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
-                "required": tool.parameters.required
-            ]
+            "parameters": toolParametersSchema(tool.parameters)
         ]
     ]
 }

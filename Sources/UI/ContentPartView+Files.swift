@@ -50,17 +50,13 @@ extension ContentPartView {
         Divider()
 
         Button {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(url.path, forType: .string)
+            PasteboardSupport.writeString(url.path)
         } label: {
             Label("Copy Path", systemImage: "doc.on.doc")
         }
 
         Button {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(file.filename, forType: .string)
+            PasteboardSupport.writeString(file.filename)
         } label: {
             Label("Copy Filename", systemImage: "doc.on.doc")
         }
@@ -71,9 +67,7 @@ extension ContentPartView {
     @ViewBuilder
     private func filenameOnlyContextMenu(file: RenderedFileContent) -> some View {
         Button {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(file.filename, forType: .string)
+            PasteboardSupport.writeString(file.filename)
         } label: {
             Label("Copy Filename", systemImage: "doc.on.doc")
         }
@@ -111,8 +105,6 @@ extension ContentPartView {
         guard let extracted,
               !extracted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(extracted, forType: .string)
+        PasteboardSupport.writeString(extracted)
     }
 }

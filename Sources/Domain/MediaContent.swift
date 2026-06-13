@@ -1,5 +1,16 @@
 import Foundation
 
+// MARK: - LocalMediaPayload
+
+/// A media payload that carries its content either as in-memory `Data` or a local file `URL`.
+/// Conforming types are `AudioContent`, `VideoContent`.
+protocol LocalMediaPayload {
+    var data: Data? { get }
+    /// The payload's URL when present. May be a local `file://` URL or a remote URL;
+    /// `resolveMediaData(_:)` only reads `file://` URLs (remote URLs resolve to `nil`).
+    var url: URL? { get }
+}
+
 enum MediaAssetDisposition: String, Codable, Equatable, Sendable {
     case managed
     case externalReference
@@ -150,3 +161,8 @@ struct AudioContent: Codable, Sendable {
         self.url = url
     }
 }
+
+// MARK: - LocalMediaPayload Conformances
+
+extension AudioContent: LocalMediaPayload {}
+extension VideoContent: LocalMediaPayload {}

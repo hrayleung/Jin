@@ -140,6 +140,13 @@ enum AppDataLocations {
         }
     }
 
+    /// The SwiftData store file plus its `-shm`/`-wal` sidecars. Single source of
+    /// truth so size accounting, migration, and snapshot copying stay in lockstep
+    /// if the store name ever changes.
+    static var storeFileNames: [String] {
+        [storeFileName, "\(storeFileName)-shm", "\(storeFileName)-wal"]
+    }
+
     static func migrateLegacyDataIfNeeded(fileManager: FileManager = .default) throws {
         try ensureDirectoriesExist(fileManager: fileManager)
 
@@ -147,13 +154,7 @@ enum AppDataLocations {
         let legacyJinRoot = appSupport.appendingPathComponent("Jin", isDirectory: true)
         let targetDatabase = try databaseDirectoryURL(fileManager: fileManager)
 
-        let legacyStoreFiles = [
-            storeFileName,
-            "\(storeFileName)-shm",
-            "\(storeFileName)-wal"
-        ]
-
-        for fileName in legacyStoreFiles {
+        for fileName in storeFileNames {
             let legacyURL = appSupport.appendingPathComponent(fileName, isDirectory: false)
             let targetURL = targetDatabase.appendingPathComponent(fileName, isDirectory: false)
             try moveItemIfNeeded(from: legacyURL, to: targetURL, fileManager: fileManager)

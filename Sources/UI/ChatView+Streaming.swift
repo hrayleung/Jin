@@ -42,8 +42,7 @@ extension ChatView {
         endEditingUI()
 
         guard !conversationEntity.providerID.isEmpty, !conversationEntity.modelID.isEmpty else {
-            errorMessage = "Please choose a model before sending."
-            showingError = true
+            presentError("Please choose a model before sending.")
             return
         }
 
@@ -62,8 +61,7 @@ extension ChatView {
         do {
             remoteVideoURLSnapshot = try resolvedRemoteVideoInputURL(from: draftSnapshot.remoteVideoURLText)
         } catch {
-            errorMessage = error.localizedDescription
-            showingError = true
+            presentError(error.localizedDescription)
             return
         }
 
@@ -196,8 +194,7 @@ extension ChatView {
                         draftQuotes = draftSnapshot.quotes
                     }
                     if !(error is CancellationError) {
-                        errorMessage = error.localizedDescription
-                        showingError = true
+                        presentError(error.localizedDescription)
                     }
                 }
             }

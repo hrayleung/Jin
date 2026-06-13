@@ -108,12 +108,7 @@ actor MistralOCRClient {
         )
 
         let (data, _) = try await networkManager.sendRequest(request)
-        do {
-            return try JSONDecoder().decode(OCRResponse.self, from: data)
-        } catch {
-            let message = String(data: data, encoding: .utf8) ?? error.localizedDescription
-            throw LLMError.decodingError(message: message)
-        }
+        return try JSONDecoder().decodeOrThrowRawBody(OCRResponse.self, from: data)
     }
 }
 

@@ -1,6 +1,8 @@
 import Foundation
 
 extension BuiltinSearchToolHub {
+    private static let tavilyMaxResultsRange = 0...20
+
     func searchTavily(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
         var request = URLRequest(url: try validatedURL("https://api.tavily.com/search"))
         request.httpMethod = "POST"
@@ -9,25 +11,18 @@ extension BuiltinSearchToolHub {
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
         let body = Self.makeTavilyRequestBody(args: args, settings: route.settings, overrides: route.overrides)
-        let clampedMax = args.maxResults.clamped(to: 0...20)
+        let clampedMax = args.maxResults.clamped(to: Self.tavilyMaxResultsRange)
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, _) = try await networkManager.sendRequest(request)
         let json = try parseJSONObject(data)
 
         let rows = parseArray(json["results"]).prefix(clampedMax).compactMap { item -> SearchCitationRow? in
-            guard let url = firstString(in: item, keys: ["url"]) else { return nil }
-            let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
-            let snippet = firstString(
-                in: item,
-                keys: ["raw_content", "content", "text", "snippet", "summary"]
-            )
-            return SearchCitationRow(
-                title: title,
-                url: url,
-                snippet: snippet.map { String($0.prefix(500)) },
-                publishedAt: firstString(in: item, keys: ["published_date", "publishedDate", "published_at", "published"]),
-                source: urlHost(url)
+            citationRow(
+                from: item,
+                urlKeys: ["url"],
+                snippetKeys: ["raw_content", "content", "text", "snippet", "summary"],
+                publishedAtKeys: ["published_date", "publishedDate", "published_at", "published"]
             )
         }
 
@@ -45,7 +40,7 @@ extension BuiltinSearchToolHub {
         settings: WebSearchPluginSettings,
         overrides: SearchPluginControls?
     ) -> [String: Any] {
-        let clampedMax = args.maxResults.clamped(to: 0...20)
+        let clampedMax = args.maxResults.clamped(to: Self.tavilyMaxResultsRange)
         let depth = tavilyDepthValue(overrides?.tavilySearchDepth ?? settings.tavilySearchDepth)
         let topic = tavilyTopicValue(overrides?.tavilyTopic ?? settings.tavilyTopic)
         let shouldAutoTune = settings.tavilyAutoParameters
@@ -180,16 +175,6 @@ extension BuiltinSearchToolHub {
     ]
 
     nonisolated static func tavilyDateString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
-
-    nonisolated static func utcGregorianCalendar() -> Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-        return calendar
+        utcDateString(date, format: "yyyy-MM-dd")
     }
 }

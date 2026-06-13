@@ -106,12 +106,8 @@ struct FirecrawlOCRPluginSettingsView: View {
         let key = trimmedAPIKey
         guard key != lastPersistedAPIKey else { return }
 
-        autoSaveTask = Task {
-            try? await Task.sleep(nanoseconds: 450_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                persistAPIKey(key)
-            }
+        autoSaveTask = PluginAutosave.schedule {
+            persistAPIKey(key)
         }
     }
 

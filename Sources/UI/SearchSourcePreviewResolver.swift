@@ -51,10 +51,6 @@ actor SearchSourcePreviewResolver {
             }
         }
 
-        guard cacheByURL[normalizedURL] == nil else {
-            return cacheByURL[normalizedURL]?.previewText
-        }
-
         if let inFlightTask = inFlightByURL[normalizedURL] {
             return await inFlightTask.value
         }

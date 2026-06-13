@@ -132,10 +132,7 @@ final class DroppableNSTextView: NSTextView {
     }
 
     private func performCustomPaste(using pasteboard: NSPasteboard) -> Bool {
-        if onPerformPasteboard?(pasteboard) == true {
-            return true
-        }
-        return false
+        onPerformPasteboard?(pasteboard) == true
     }
 
     private func submitAfterCurrentEvent() {

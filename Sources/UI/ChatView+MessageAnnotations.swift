@@ -102,8 +102,7 @@ extension ChatView {
                 rebuildMessageCaches()
             }
         } catch {
-            errorMessage = error.localizedDescription
-            showingError = true
+            presentError(error.localizedDescription)
         }
     }
 
@@ -123,8 +122,7 @@ extension ChatView {
                 rebuildMessageCaches()
             }
         } catch {
-            errorMessage = error.localizedDescription
-            showingError = true
+            presentError(error.localizedDescription)
         }
     }
 }

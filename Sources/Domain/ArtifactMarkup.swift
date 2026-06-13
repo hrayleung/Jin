@@ -234,10 +234,6 @@ enum ArtifactMarkupParser {
         parse(text, hidesTrailingIncompleteArtifact: hidesTrailingIncompleteArtifact).visibleText
     }
 
-    static func containsCompleteArtifact(in text: String) -> Bool {
-        !parse(text).artifacts.isEmpty
-    }
-
     static func appendingInstructions(to systemPrompt: String?, enabled: Bool) -> String? {
         guard enabled else {
             return systemPrompt?.trimmedNonEmpty

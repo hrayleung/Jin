@@ -126,12 +126,6 @@ extension ChatMessagePreparationSupport {
         }
 
         output = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        output = "Mistral OCR (Markdown): \(attachment.filename)\n\n\(output)"
-        output = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        if output.count > AttachmentConstants.maxPDFExtractedCharacters {
-            let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
-            output = "\(prefix)\n\n[Truncated]"
-        }
-        return PreparedPDFContent(extractedText: output, additionalParts: imageParts)
+        return finalizedPDFOutput(output, header: "Mistral OCR (Markdown)", filename: attachment.filename, additionalParts: imageParts)
     }
 }

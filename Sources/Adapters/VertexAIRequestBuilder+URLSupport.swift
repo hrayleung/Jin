@@ -3,8 +3,7 @@ import Foundation
 extension VertexAIRequestBuilder {
     func makeRequestURL(modelID: String, streaming: Bool) throws -> URL {
         let method = streaming ? "streamGenerateContent" : "generateContent"
-        let endpoint = "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/publishers/google/models/\(modelID):\(method)"
-        return try validatedURL(endpoint)
+        return try validatedURL(modelEndpoint(modelID: modelID, verb: method))
     }
 
     func normalizedModelID(from rawModelID: String) -> String {
@@ -24,14 +23,14 @@ extension VertexAIRequestBuilder {
         return segments.last ?? trimmed
     }
 
-    var baseURL: String {
-        if location == "global" {
-            return "https://aiplatform.googleapis.com/v1"
-        }
-        return "https://\(location)-aiplatform.googleapis.com/v1"
+    /// Assembles the canonical Vertex AI model endpoint path. The model id is
+    /// normalized here so every caller (chat, video generation) gets the same
+    /// canonical form; normalization is idempotent for already-normalized ids.
+    func modelEndpoint(modelID: String, verb: String) -> String {
+        let canonicalModelID = normalizedModelID(from: modelID)
+        return "\(serviceAccountJSON.vertexBaseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(serviceAccountJSON.resolvedLocation)/publishers/google/models/\(canonicalModelID):\(verb)"
     }
 
-    var location: String {
-        serviceAccountJSON.location ?? "global"
-    }
+    var baseURL: String { serviceAccountJSON.vertexBaseURL }
+    var location: String { serviceAccountJSON.resolvedLocation }
 }

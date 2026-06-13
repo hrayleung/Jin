@@ -195,12 +195,6 @@ extension GeminiAdapter {
         }
     }
 
-    // MARK: - Stream Event Parsing
-
-    func events(from part: GeminiGenerateContentResponse.Part) -> [StreamEvent] {
-        GeminiModelConstants.events(from: part)
-    }
-
     // MARK: - Grounding / Search Activities
 
     func searchActivities(from grounding: GeminiGenerateContentResponse.GroundingMetadata?) -> [StreamEvent] {

@@ -27,10 +27,6 @@ extension ChatStreamingOrchestrator {
         return "Tool \(toolName):\n\(content)"
     }
 
-    static func deniedToolOutputLine(toolName: String) -> String {
-        "Tool \(toolName) denied by user."
-    }
-
     static func toolResult(
         for call: ToolCall,
         content: String,
@@ -112,9 +108,5 @@ extension ChatStreamingOrchestrator {
             call: call,
             providerOverride: builtinRoutes.provider(for: call.name)
         )
-    }
-
-    static func deniedToolResultContent() -> String {
-        "User denied this tool call. Do not retry this exact action without permission."
     }
 }

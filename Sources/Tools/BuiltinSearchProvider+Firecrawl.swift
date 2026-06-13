@@ -1,6 +1,11 @@
 import Foundation
 
 extension BuiltinSearchToolHub {
+    /// Jin caps Firecrawl `/v2/search` results at 50. The API itself accepts 1...100
+    /// (https://docs.firecrawl.dev/api-reference/endpoint/search); 50 is a deliberate
+    /// product cap. Single source of truth for the request limit and the result cap.
+    static let firecrawlMaxResultsRange = 1...50
+
     func searchFirecrawl(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
         var request = URLRequest(url: try validatedURL("https://api.firecrawl.dev/v2/search"))
         request.httpMethod = "POST"
@@ -9,7 +14,7 @@ extension BuiltinSearchToolHub {
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
         let body = Self.makeFirecrawlRequestBody(args: args, settings: route.settings, overrides: route.overrides)
-        let maxResults = args.maxResults.clamped(to: 1...50)
+        let maxResults = args.maxResults.clamped(to: Self.firecrawlMaxResultsRange)
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, _) = try await networkManager.sendRequest(request)
@@ -54,7 +59,7 @@ extension BuiltinSearchToolHub {
         settings: WebSearchPluginSettings,
         overrides: SearchPluginControls?
     ) -> [String: Any] {
-        let maxResults = args.maxResults.clamped(to: 1...50)
+        let maxResults = args.maxResults.clamped(to: firecrawlMaxResultsRange)
         let augmentedQuery = firecrawlAugmentedQuery(
             args.query,
             includeDomains: args.includeDomains,
@@ -105,7 +110,10 @@ extension BuiltinSearchToolHub {
     /// Pure mapper for Firecrawl result rows. Dedupes by URL before applying the cap because
     /// multi-source responses can repeat the same hit across web, news, and image buckets.
     nonisolated static func makeFirecrawlRows(from raw: [[String: Any]], maxResults: Int) -> [SearchCitationRow] {
-        let cap = maxResults.clamped(to: 0...50)
+        // Floor of 0 (not 1) is deliberate: this pure builder is called directly by tests
+        // with arbitrary counts, and 0 must yield an empty list. Production callers always
+        // pass a value already clamped to `firecrawlMaxResultsRange` (>= 1).
+        let cap = maxResults.clamped(to: 0...firecrawlMaxResultsRange.upperBound)
         guard cap > 0 else { return [] }
 
         var seenURLs = Set<String>()
@@ -114,12 +122,12 @@ extension BuiltinSearchToolHub {
 
         for item in raw {
             guard rows.count < cap else { break }
-            guard let url = firstFirecrawlString(in: item, keys: ["url", "link", "imageUrl"]) else { continue }
+            guard let url = firstString(in: item, keys: ["url", "link", "imageUrl"]) else { continue }
             guard seenURLs.insert(url).inserted else { continue }
 
-            let title = firstFirecrawlString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
-            let snippet = firstFirecrawlString(in: item, keys: ["description", "snippet", "markdown", "summary", "content"])
-            let publishedAt = firstFirecrawlString(in: item, keys: ["publishedDate", "published", "date"])
+            let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
+            let snippet = firstString(in: item, keys: ["description", "snippet", "markdown", "summary", "content"])
+            let publishedAt = firstString(in: item, keys: ["publishedDate", "published", "date"])
             rows.append(SearchCitationRow(
                 title: title,
                 url: url,
@@ -130,15 +138,5 @@ extension BuiltinSearchToolHub {
         }
 
         return rows
-    }
-
-    private nonisolated static func firstFirecrawlString(in dictionary: [String: Any], keys: [String]) -> String? {
-        for key in keys {
-            if let value = dictionary[key] as? String,
-               let trimmed = value.trimmedNonEmpty {
-                return trimmed
-            }
-        }
-        return nil
     }
 }

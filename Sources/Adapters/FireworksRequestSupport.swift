@@ -163,16 +163,7 @@ extension FireworksAdapter {
     }
 
     private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
-        switch effort {
-        case .none:
-            return "none"
-        case .minimal, .low:
-            return "low"
-        case .medium:
-            return "medium"
-        case .high, .xhigh, .max:
-            return "high"
-        }
+        mapReasoningEffortNoneDisabled(effort)
     }
 
     private func mapDeepSeekV4ProReasoningEffort(_ effort: ReasoningEffort) -> String {

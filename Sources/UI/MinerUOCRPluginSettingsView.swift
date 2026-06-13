@@ -134,16 +134,12 @@ struct MinerUOCRPluginSettingsView: View {
             return
         }
 
-        autoSaveTask = Task {
-            try? await Task.sleep(nanoseconds: 450_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                persistSettings(
-                    token: nextToken,
-                    userIdentifier: nextUserIdentifier,
-                    language: nextLanguage.isEmpty ? MinerUOCRClient.Constants.defaultLanguage : nextLanguage
-                )
-            }
+        autoSaveTask = PluginAutosave.schedule {
+            persistSettings(
+                token: nextToken,
+                userIdentifier: nextUserIdentifier,
+                language: nextLanguage.isEmpty ? MinerUOCRClient.Constants.defaultLanguage : nextLanguage
+            )
         }
     }
 

@@ -53,11 +53,7 @@ enum XAIResponsesInputSupport {
             "type": "function",
             "name": tool.name,
             "description": tool.description,
-            "parameters": [
-                "type": tool.parameters.type,
-                "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
-                "required": tool.parameters.required
-            ]
+            "parameters": toolParametersSchema(tool.parameters)
         ]
     }
 

@@ -99,13 +99,8 @@ enum SnapshotFileOperations {
         }
 
         let sourceParentDirectory = sourceStoreURL.deletingLastPathComponent()
-        let fileNames = [
-            AppDataLocations.storeFileName,
-            "\(AppDataLocations.storeFileName)-shm",
-            "\(AppDataLocations.storeFileName)-wal"
-        ]
 
-        for fileName in fileNames {
+        for fileName in AppDataLocations.storeFileNames {
             let sourceURL = sourceParentDirectory.appendingPathComponent(fileName, isDirectory: false)
             guard FileManager.default.fileExists(atPath: sourceURL.path) else { continue }
             let destinationURL = destinationDirectory.appendingPathComponent(fileName, isDirectory: false)

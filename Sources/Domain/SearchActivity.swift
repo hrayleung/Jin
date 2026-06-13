@@ -38,7 +38,7 @@ struct SearchActivity: Codable, Identifiable, Sendable {
 }
 
 /// Status for provider-native web-search activity.
-enum SearchActivityStatus: Codable, Sendable, Equatable {
+enum SearchActivityStatus: RawStringCodable, Sendable, Equatable {
     case inProgress
     case searching
     case completed
@@ -73,16 +73,5 @@ enum SearchActivityStatus: Codable, Sendable, Equatable {
         case .unknown(let value):
             return value
         }
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let value = try container.decode(String.self)
-        self = SearchActivityStatus(rawValue: value)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(rawValue)
     }
 }

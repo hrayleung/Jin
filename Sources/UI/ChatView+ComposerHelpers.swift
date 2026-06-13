@@ -135,8 +135,7 @@ extension ChatView {
                 try await speechToTextManager.startRecording()
             } catch {
                 speechToTextManager.cancelAndCleanup()
-                errorMessage = error.localizedDescription
-                showingError = true
+                presentError(error.localizedDescription)
             }
         }
     }

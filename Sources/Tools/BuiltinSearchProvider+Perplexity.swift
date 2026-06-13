@@ -1,14 +1,11 @@
 import Foundation
 
 extension BuiltinSearchToolHub {
+    private static let perplexityMaxResultsRange = 1...20
+
     func searchPerplexity(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
         if args.maxResults == 0 {
-            return BuiltinSearchToolOutput(
-                provider: .perplexity,
-                query: args.query,
-                resultCount: 0,
-                results: []
-            )
+            return .empty(provider: .perplexity, query: args.query)
         }
 
         if !args.includeDomains.isEmpty && !args.excludeDomains.isEmpty {
@@ -24,26 +21,18 @@ extension BuiltinSearchToolHub {
         request.addValue("application/json", forHTTPHeaderField: "Accept")
 
         let body = Self.makePerplexityRequestBody(args: args, settings: route.settings, overrides: route.overrides)
-        let clampedMax = args.maxResults.clamped(to: 1...20)
+        let clampedMax = args.maxResults.clamped(to: Self.perplexityMaxResultsRange)
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, _) = try await networkManager.sendRequest(request)
         let json = try parseJSONObject(data)
 
         let rows = parseArray(json["results"]).prefix(clampedMax).compactMap { item -> SearchCitationRow? in
-            guard let url = firstString(in: item, keys: ["url", "link"]) else { return nil }
-            let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
-            let snippet = firstString(in: item, keys: ["snippet", "content", "text", "summary"])
-            let publishedAt = firstString(
-                in: item,
-                keys: ["date", "last_updated", "published_date", "publishedDate", "published_at", "published"]
-            )
-            return SearchCitationRow(
-                title: title,
-                url: url,
-                snippet: snippet.map { String($0.prefix(500)) },
-                publishedAt: publishedAt,
-                source: urlHost(url)
+            citationRow(
+                from: item,
+                urlKeys: ["url", "link"],
+                snippetKeys: ["snippet", "content", "text", "summary"],
+                publishedAtKeys: ["date", "last_updated", "published_date", "publishedDate", "published_at", "published"]
             )
         }
 
@@ -61,7 +50,7 @@ extension BuiltinSearchToolHub {
         settings: WebSearchPluginSettings,
         overrides: SearchPluginControls?
     ) -> [String: Any] {
-        let clampedMax = args.maxResults.clamped(to: 1...20)
+        let clampedMax = args.maxResults.clamped(to: Self.perplexityMaxResultsRange)
         var body: [String: Any] = [
             "query": args.query,
             "max_results": clampedMax
@@ -96,15 +85,9 @@ extension BuiltinSearchToolHub {
 
     /// Builds the Perplexity `MM/DD/YYYY` UTC date string for `now - daysAgo`.
     nonisolated static func perplexityDateFilter(daysAgo: Int, now: Date = Date()) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let calendar = utcGregorianCalendar()
         let target = calendar.date(byAdding: .day, value: -max(1, daysAgo), to: now) ?? now
-
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "MM/dd/yyyy"
-        return formatter.string(from: target)
+        return utcDateString(target, format: "MM/dd/yyyy")
     }
 
     nonisolated static func perplexityDomainFilter(includeDomains: [String], excludeDomains: [String]) -> [String] {

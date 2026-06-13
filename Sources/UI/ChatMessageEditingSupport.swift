@@ -2,13 +2,6 @@ import Foundation
 
 enum ChatMessageEditingSupport {
 
-    static func editableUserText(from message: Message) -> String? {
-        message.content.compactMap { part in
-            if case .text(let text) = part { return text }
-            return nil
-        }.first
-    }
-
     static func normalizedEditedUserText(_ text: String) -> String? {
         text.trimmedNonEmpty
     }
@@ -45,18 +38,25 @@ enum ChatMessageEditingSupport {
         _ messageEntity: MessageEntity,
         orderedMessages: [MessageEntity]
     ) -> Int? {
-        guard let index = orderedMessages.firstIndex(where: { $0.id == messageEntity.id }) else { return nil }
-        let keepCount = index + 1
-        guard keepCount > 0 else { return nil }
-        return keepCount
+        keepCount(for: messageEntity, orderedMessages: orderedMessages, offset: 1)
     }
 
     static func keepCountForRegeneratingAssistantMessage(
         _ messageEntity: MessageEntity,
         orderedMessages: [MessageEntity]
     ) -> Int? {
+        keepCount(for: messageEntity, orderedMessages: orderedMessages, offset: 0)
+    }
+
+    /// Returns `index + offset` for the given message within `orderedMessages`,
+    /// or `nil` if the message is not found or the result is zero (nothing to keep).
+    private static func keepCount(
+        for messageEntity: MessageEntity,
+        orderedMessages: [MessageEntity],
+        offset: Int
+    ) -> Int? {
         guard let index = orderedMessages.firstIndex(where: { $0.id == messageEntity.id }) else { return nil }
-        let keepCount = index
+        let keepCount = index + offset
         guard keepCount > 0 else { return nil }
         return keepCount
     }
@@ -73,19 +73,10 @@ enum ChatMessageEditingSupport {
         afterUserMessage messageEntity: MessageEntity,
         orderedMessages: [MessageEntity]
     ) -> [MessageEntity]? {
-        guard let index = orderedMessages.firstIndex(where: { $0.id == messageEntity.id }) else { return nil }
-        let startIndex = index + 1
-        guard startIndex < orderedMessages.count else { return nil }
-
-        var result: [MessageEntity] = []
-        for i in startIndex..<orderedMessages.count {
-            let msg = orderedMessages[i]
-            if msg.role == MessageRole.user.rawValue { break }
-            if msg.role == MessageRole.assistant.rawValue || msg.role == MessageRole.tool.rawValue {
-                result.append(msg)
-            }
-        }
-        return result.isEmpty ? nil : result
+        MessageRoleIdentifiableSupport.messagesToDeleteForResponse(
+            afterUserMessage: messageEntity,
+            orderedMessages: orderedMessages
+        )
     }
 
     static func messagesToDeleteForAssistantMessage(

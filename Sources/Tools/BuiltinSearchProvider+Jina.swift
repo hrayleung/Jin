@@ -4,12 +4,7 @@ extension BuiltinSearchToolHub {
     func searchJina(_ args: ResolvedArguments, route: ToolRoute) async throws -> BuiltinSearchToolOutput {
         let resolvedMaxResults = args.maxResults.clamped(to: 0...5)
         if resolvedMaxResults == 0 {
-            return BuiltinSearchToolOutput(
-                provider: .jina,
-                query: args.query,
-                resultCount: 0,
-                results: []
-            )
+            return .empty(provider: .jina, query: args.query)
         }
 
         let request = try Self.makeJinaRequest(
@@ -24,16 +19,11 @@ extension BuiltinSearchToolHub {
         let rawResults = Self.extractJinaResults(from: response)
 
         let rows = rawResults.prefix(resolvedMaxResults).compactMap { item -> SearchCitationRow? in
-            guard let url = firstString(in: item, keys: ["url", "link"]) else { return nil }
-            let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
-            let snippet = firstString(in: item, keys: ["content", "snippet", "summary", "description", "text"])
-            let publishedAt = firstString(in: item, keys: ["publishedDate", "date", "published"])
-            return SearchCitationRow(
-                title: title,
-                url: url,
-                snippet: snippet.map { String($0.prefix(500)) },
-                publishedAt: publishedAt,
-                source: urlHost(url)
+            citationRow(
+                from: item,
+                urlKeys: ["url", "link"],
+                snippetKeys: ["content", "snippet", "summary", "description", "text"],
+                publishedAtKeys: ["publishedDate", "date", "published"]
             )
         }
 

@@ -99,11 +99,9 @@ enum OpenRouterVideoModelSupport {
     }
 
     static func supportedAspectRatios(for modelID: String) -> [OpenRouterVideoAspectRatio] {
-        let lower = modelID.lowercased()
-        if seedanceModelIDs.contains(lower) {
-            return genericAspectRatios
-        }
-        return genericAspectRatios
+        // Currently uniform across models; the parameter is kept for symmetry
+        // with the per-model duration/resolution accessors.
+        genericAspectRatios
     }
 
     static func supportedResolutions(for modelID: String) -> [OpenRouterVideoResolution] {
@@ -126,11 +124,6 @@ enum OpenRouterVideoModelSupport {
     }
 
     static func providerPassthroughSlug(for modelID: String) -> String? {
-        switch modelID.lowercased() {
-        case "bytedance/seedance-1-5-pro", "bytedance/seedance-2.0", "bytedance/seedance-2.0-fast":
-            return "seed"
-        default:
-            return nil
-        }
+        seedanceModelIDs.contains(modelID.lowercased()) ? "seed" : nil
     }
 }

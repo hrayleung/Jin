@@ -189,10 +189,6 @@ extension OpenRouterAdapter {
     func isTrustedOpenRouterURL(_ url: URL) -> Bool {
         OpenRouterProviderSupport.isTrustedURL(url, forBaseURL: baseURL)
     }
-
-    func normalizedPort(for url: URL) -> Int? {
-        OpenRouterProviderSupport.normalizedHTTPPort(for: url)
-    }
 }
 
 enum OpenRouterVideoPollStatus {

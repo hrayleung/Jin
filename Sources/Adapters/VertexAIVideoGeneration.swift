@@ -20,7 +20,8 @@ extension VertexAIAdapter {
             let task = Task {
                 do {
                     // 1. Build and submit the generation request
-                    let endpoint = "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/publishers/google/models/\(modelID):predictLongRunning"
+                    let builder = makeRequestBuilder()
+                    let endpoint = builder.modelEndpoint(modelID: modelID, verb: "predictLongRunning")
 
                     var instance: [String: Any] = ["prompt": prompt]
 
@@ -61,6 +62,8 @@ extension VertexAIAdapter {
                     // 2. Poll using fetchPredictOperation
                     let pollIntervalNanoseconds: UInt64 = 10_000_000_000 // 10 seconds
                     let maxAttempts = 60 // ~10 minutes at 10s intervals
+                    // Vertex uses POST fetchPredictOperation instead of GET on the operation URL
+                    let pollEndpoint = builder.modelEndpoint(modelID: modelID, verb: "fetchPredictOperation")
 
                     for attempt in 0..<maxAttempts {
                         try Task.checkCancellation()
@@ -69,8 +72,6 @@ extension VertexAIAdapter {
                             try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
                         }
 
-                        // Vertex uses POST fetchPredictOperation instead of GET on the operation URL
-                        let pollEndpoint = "\(baseURL)/projects/\(serviceAccountJSON.projectID)/locations/\(location)/publishers/google/models/\(modelID):fetchPredictOperation"
                         let pollBody: [String: Any] = ["operationName": operationName]
                         let pollRequest = try NetworkRequestFactory.makeJSONRequest(
                             url: validatedURL(pollEndpoint),

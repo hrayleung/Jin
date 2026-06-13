@@ -158,16 +158,4 @@ extension ChatView {
             modelID: activeModelID
         )
     }
-
-    @ViewBuilder
-    func effortLevelButtons(for levels: [ReasoningEffort]) -> some View {
-        ForEach(levels, id: \.self) { level in
-            Button { setReasoningEffort(level) } label: {
-                menuItemLabel(
-                    level == .xhigh ? "Extreme" : level.displayName,
-                    isSelected: isReasoningEnabled && controls.reasoning?.effort == level
-                )
-            }
-        }
-    }
 }

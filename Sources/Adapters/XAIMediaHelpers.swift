@@ -8,10 +8,6 @@ extension XAIAdapter {
         try XAIMediaPromptSupport.prompt(from: messages, mode: mode)
     }
 
-    func userTextPrompts(from messages: [Message]) -> [String] {
-        XAIMediaPromptSupport.userTextPrompts(from: messages)
-    }
-
     // MARK: - Image URL Extraction
 
     func imageURLForImageGeneration(from messages: [Message]) throws -> String? {
@@ -26,9 +22,5 @@ extension XAIAdapter {
 
     func resolveImageOutputs(from items: [XAIMediaItem]) -> [ImageContent] {
         XAIMediaImageSupport.resolveImageOutputs(from: items)
-    }
-
-    func inferImageMIMEType(from url: URL) -> String? {
-        XAIMediaImageSupport.inferImageMIMEType(from: url)
     }
 }

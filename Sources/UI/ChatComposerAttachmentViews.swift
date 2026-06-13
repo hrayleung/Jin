@@ -149,9 +149,7 @@ struct DraftAttachmentChip: View {
         }
 
         Button {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(attachment.fileURL.path, forType: .string)
+            PasteboardSupport.writeString(attachment.fileURL.path)
         } label: {
             Label("Copy Path", systemImage: "doc.on.doc")
         }

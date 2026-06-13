@@ -221,9 +221,7 @@ private struct HistoricalMessageImageView: View {
 
         if let fileURL = image.url, fileURL.isFileURL {
             Button {
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(fileURL.path, forType: .string)
+                PasteboardSupport.writeString(fileURL.path)
             } label: {
                 Label("Copy Path", systemImage: "doc.on.doc")
             }

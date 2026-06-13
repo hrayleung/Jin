@@ -14,8 +14,7 @@ extension OpenAIAdapter {
             return nil
         }
 
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let decoder = JSONDecoder.snakeCaseConverting()
 
         switch type {
         case "response.created":

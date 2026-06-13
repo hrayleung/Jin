@@ -143,10 +143,6 @@ enum OpenAICompatibleReasoningSupport {
         return mistralReasoningEffortModelIDs.contains(modelID.lowercased())
     }
 
-    static func isMistralMedium35Model(providerConfig: ProviderConfig, modelID: String) -> Bool {
-        isMistralReasoningEffortModel(providerConfig: providerConfig, modelID: modelID)
-    }
-
     private static let mistralReasoningEffortModelIDs: Set<String> = [
         "mistral-medium-3.5",
         "mistral-small-4-0-26-03",

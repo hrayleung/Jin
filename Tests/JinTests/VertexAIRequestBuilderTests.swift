@@ -347,4 +347,32 @@ final class VertexAIRequestBuilderTests: XCTestCase {
             "https://aiplatform.googleapis.com/v1/projects/project/locations/global/publishers/google/models/gemini-2.5-flash:streamGenerateContent"
         )
     }
+
+    func testModelEndpointNormalizesPathPrefixedModelID() {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        // modelEndpoint normalizes, so video-generation callers (predictLongRunning /
+        // fetchPredictOperation) get the same canonical path the chat path uses.
+        XCTAssertEqual(
+            builder.modelEndpoint(modelID: "publishers/google/models/veo-3.0-generate-001", verb: "predictLongRunning"),
+            "https://aiplatform.googleapis.com/v1/projects/project/locations/global/publishers/google/models/veo-3.0-generate-001:predictLongRunning"
+        )
+        // Already-terminal ids are unchanged (normalization is idempotent).
+        XCTAssertEqual(
+            builder.modelEndpoint(modelID: "veo-3.0-generate-001", verb: "fetchPredictOperation"),
+            "https://aiplatform.googleapis.com/v1/projects/project/locations/global/publishers/google/models/veo-3.0-generate-001:fetchPredictOperation"
+        )
+    }
+
+    func testResolvedLocationFallsBackToGlobalForBlankLocation() {
+        XCTAssertEqual(makeVertexCredentials(location: "").resolvedLocation, "global")
+        XCTAssertEqual(makeVertexCredentials(location: "   ").resolvedLocation, "global")
+        XCTAssertEqual(makeVertexCredentials(location: "us-central1").resolvedLocation, "us-central1")
+        // A blank location must not produce an invalid "https://-aiplatform..." host.
+        XCTAssertEqual(makeVertexCredentials(location: "").vertexBaseURL, "https://aiplatform.googleapis.com/v1")
+    }
 }

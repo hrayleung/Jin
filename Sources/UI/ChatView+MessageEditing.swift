@@ -56,8 +56,7 @@ extension ChatView {
         do {
             try updateUserMessageContent(messageEntity, newText: editedText)
         } catch {
-            errorMessage = error.localizedDescription
-            showingError = true
+            presentError(error.localizedDescription)
             return
         }
 
@@ -167,8 +166,7 @@ extension ChatView {
         do {
             try modelContext.save()
         } catch {
-            errorMessage = error.localizedDescription
-            showingError = true
+            presentError(error.localizedDescription)
         }
         rebuildMessageCaches()
     }

@@ -46,11 +46,9 @@ extension ChatAuxiliaryControlSupport {
             if normalizedContextCacheTextField(draft.cacheKey) != nil {
                 return true
             }
-        }
-
-        if providerType == .xai,
-           normalizedContextCacheTextField(draft.conversationID) != nil {
-            return true
+            if normalizedContextCacheTextField(draft.conversationID) != nil {
+                return true
+            }
         }
 
         return false

@@ -49,6 +49,14 @@ struct VertexAIRequestBuilder {
         accept: String? = nil,
         contentType: String? = nil
     ) -> [String: String] {
+        VertexAIRequestBuilder.makeAuthHeaders(accessToken: accessToken, accept: accept, contentType: contentType)
+    }
+
+    static func makeAuthHeaders(
+        accessToken: String,
+        accept: String? = nil,
+        contentType: String? = nil
+    ) -> [String: String] {
         var headers: [String: String] = ["Authorization": "Bearer \(accessToken)"]
         if let accept {
             headers["Accept"] = accept

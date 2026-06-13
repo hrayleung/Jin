@@ -1,6 +1,27 @@
 import Foundation
 
 extension ChatMessagePreparationSupport {
+    /// Prepends `header: filename`, trims the whole string, truncates to
+    /// `maxPDFExtractedCharacters`, and wraps the result in `PreparedPDFContent`.
+    ///
+    /// `body` should already be trimmed by the caller before being passed in.
+    static func finalizedPDFOutput(
+        _ body: String,
+        header: String,
+        filename: String,
+        additionalParts: [ContentPart] = []
+    ) -> PreparedPDFContent {
+        var output = "\(header): \(filename)\n\n\(body)"
+        output = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if output.count > AttachmentConstants.maxPDFExtractedCharacters {
+            let prefix = output.prefix(AttachmentConstants.maxPDFExtractedCharacters)
+            output = "\(prefix)\n\n[Truncated]"
+        }
+        return PreparedPDFContent(extractedText: output, additionalParts: additionalParts)
+    }
+}
+
+extension ChatMessagePreparationSupport {
     static func preparedContentForPDF(
         _ attachment: DraftAttachment,
         profile: MessagePreparationProfile,
