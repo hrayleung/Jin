@@ -183,12 +183,8 @@ struct CloudflareR2UploadPluginSettingsView: View {
         let configuration = draftConfiguration
         guard configuration != lastPersistedConfiguration else { return }
 
-        autoSaveTask = Task {
-            try? await Task.sleep(nanoseconds: 450_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                persistConfiguration(configuration, showSavedStatus: true)
-            }
+        autoSaveTask = PluginAutosave.schedule {
+            persistConfiguration(configuration, showSavedStatus: true)
         }
     }
 
