@@ -53,32 +53,17 @@ extension AppSnapshotManager {
         _ manifest: SnapshotManifest,
         snapshotDirectory: URL
     ) -> SnapshotManifest {
-        var isHealthy = manifest.isHealthy
+        var result = manifest
 
         if manifest.isLegacy && (manifest.counts.isSeedLike || manifest.counts.isEmpty) {
-            isHealthy = false
+            result.isHealthy = false
         }
 
         if SnapshotFileOperations.snapshotPrimaryStoreURL(in: snapshotDirectory) == nil {
-            isHealthy = false
+            result.isHealthy = false
         }
 
-        return SnapshotManifest(
-            id: manifest.id,
-            createdAt: manifest.createdAt,
-            reason: manifest.reason,
-            appVersion: manifest.appVersion,
-            schemaVersion: manifest.schemaVersion,
-            includesSecrets: manifest.includesSecrets,
-            isAutomatic: manifest.isAutomatic,
-            isHealthy: isHealthy,
-            isLegacy: manifest.isLegacy,
-            integrityDetail: manifest.integrityDetail,
-            counts: manifest.counts,
-            hasAttachments: manifest.hasAttachments,
-            hasPreferences: manifest.hasPreferences,
-            note: manifest.note
-        )
+        return result
     }
 
     static func validateSnapshotDirectory(_ snapshotDirectory: URL) throws -> SnapshotManifest {

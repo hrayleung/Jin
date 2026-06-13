@@ -36,20 +36,20 @@ struct SnapshotCoreCounts: Codable, Equatable, Sendable {
 }
 
 struct SnapshotManifest: Codable, Identifiable, Sendable {
-    let id: String
-    let createdAt: Date
-    let reason: SnapshotReason
-    let appVersion: String
-    let schemaVersion: Int
-    let includesSecrets: Bool
-    let isAutomatic: Bool
-    let isHealthy: Bool
-    let isLegacy: Bool
-    let integrityDetail: String
-    let counts: SnapshotCoreCounts
-    let hasAttachments: Bool
-    let hasPreferences: Bool
-    let note: String?
+    var id: String
+    var createdAt: Date
+    var reason: SnapshotReason
+    var appVersion: String
+    var schemaVersion: Int
+    var includesSecrets: Bool
+    var isAutomatic: Bool
+    var isHealthy: Bool
+    var isLegacy: Bool
+    var integrityDetail: String
+    var counts: SnapshotCoreCounts
+    var hasAttachments: Bool
+    var hasPreferences: Bool
+    var note: String?
 }
 
 struct SnapshotSummary: Identifiable, Sendable {

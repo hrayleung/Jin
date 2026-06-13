@@ -48,14 +48,13 @@ actor CohereAdapter: LLMProviderAdapter {
         let raw = (providerConfig.baseURL ?? providerConfig.type.defaultBaseURL ?? "https://api.cohere.com/v2")
             .trimmed
         var trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
-        let lower = trimmed.lowercased()
 
-        if lower.hasSuffix("/chat") {
-            trimmed = String(trimmed.dropLast(5))
+        if trimmed.lowercased().hasSuffix("/chat") {
+            trimmed = String(trimmed.dropLast("/chat".count))
             trimmed = trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed
         }
 
-        if lower.hasSuffix("/v2") {
+        if trimmed.lowercased().hasSuffix("/v2") {
             return trimmed
         }
 

@@ -66,7 +66,7 @@ actor StorageSizeCalculator {
     func calculateAll() -> [StorageCategorySnapshot] {
         StorageCategory.allCases.compactMap { category in
             let url = directoryURL(for: category)
-            let (bytes, count) = directorySize(at: url)
+            let (bytes, count) = directorySize(for: category, at: url)
             // Hide the legacy speech-models row entirely once the directory is empty
             // so it doesn't clutter Storage for users who never had on-device models.
             if category == .legacySpeechModels, bytes == 0 { return nil }
@@ -142,13 +142,13 @@ actor StorageSizeCalculator {
 
     // MARK: - Size Calculation
 
-    private func directorySize(at url: URL?) -> (bytes: Int64, fileCount: Int) {
+    private func directorySize(for category: StorageCategory, at url: URL?) -> (bytes: Int64, fileCount: Int) {
         guard let url, fileManager.fileExists(atPath: url.path) else {
             return (0, 0)
         }
 
-        // For the database category, only count SwiftData files in Application Support
-        if url == (try? AppDataLocations.databaseDirectoryURL(fileManager: fileManager)) {
+        // For the database category, only count SwiftData files in Application Support.
+        if category == .database {
             return swiftDataFileSize(in: url)
         }
 
@@ -174,16 +174,10 @@ actor StorageSizeCalculator {
     }
 
     private func swiftDataFileSize(in appSupportDir: URL) -> (bytes: Int64, fileCount: Int) {
-        let storeFiles = [
-            "default.store",
-            "default.store-shm",
-            "default.store-wal"
-        ]
-
         var totalBytes: Int64 = 0
         var count = 0
 
-        for filename in storeFiles {
+        for filename in AppDataLocations.storeFileNames {
             let fileURL = appSupportDir.appendingPathComponent(filename)
             if let values = try? fileURL.resourceValues(forKeys: [.fileSizeKey]),
                let size = values.fileSize {
