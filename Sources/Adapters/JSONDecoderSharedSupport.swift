@@ -19,4 +19,10 @@ extension JSONDecoder {
             throw LLMError.decodingError(message: message)
         }
     }
+
+    /// Returns `try? decode(type, from: data)`, or `nil` if `data` is `nil`.
+    func decodeOptional<T: Decodable>(_ type: T.Type, from data: Data?) -> T? {
+        guard let data else { return nil }
+        return try? decode(type, from: data)
+    }
 }

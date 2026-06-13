@@ -268,8 +268,7 @@ enum ChatMessageRenderPipeline {
         from data: Data?,
         using decoder: JSONDecoder
     ) -> Value? {
-        guard let data else { return nil }
-        return try? decoder.decode(type, from: data)
+        decoder.decodeOptional(type, from: data)
     }
 
     private static func isTextPart(_ part: RenderedContentPart) -> Bool {
@@ -281,19 +280,9 @@ enum ChatMessageRenderPipeline {
         afterUserMessage message: PersistedMessageSnapshot,
         orderedMessages: [PersistedMessageSnapshot]
     ) -> [PersistedMessageSnapshot]? {
-        guard let index = orderedMessages.firstIndex(where: { $0.id == message.id }) else { return nil }
-        let startIndex = index + 1
-        guard startIndex < orderedMessages.count else { return nil }
-
-        var result: [PersistedMessageSnapshot] = []
-        for i in startIndex..<orderedMessages.count {
-            let msg = orderedMessages[i]
-            if msg.role == MessageRole.user.rawValue { break }
-            if msg.role == MessageRole.assistant.rawValue || msg.role == MessageRole.tool.rawValue {
-                result.append(msg)
-            }
-        }
-
-        return result.isEmpty ? nil : result
+        MessageRoleIdentifiableSupport.messagesToDeleteForResponse(
+            afterUserMessage: message,
+            orderedMessages: orderedMessages
+        )
     }
 }

@@ -16,8 +16,7 @@ enum ChatMessageActivityMergeSupport {
     }
 
     private static func decoded<T: Decodable>(_ type: T.Type, from data: Data?, using decoder: JSONDecoder) -> T? {
-        guard let data else { return nil }
-        return try? decoder.decode(type, from: data)
+        decoder.decodeOptional(type, from: data)
     }
 
     private static func mergeOrderedByID<Activity>(
