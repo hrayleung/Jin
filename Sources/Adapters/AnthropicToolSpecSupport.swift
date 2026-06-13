@@ -68,11 +68,7 @@ enum AnthropicToolSpecSupport {
         [
             "name": tool.name,
             "description": tool.description,
-            "input_schema": [
-                "type": tool.parameters.type,
-                "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
-                "required": tool.parameters.required
-            ]
+            "input_schema": toolParametersSchema(tool.parameters)
         ]
     }
 

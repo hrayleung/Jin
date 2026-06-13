@@ -217,14 +217,7 @@ enum XAIResponsesRequestSupport {
     }
 
     static func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
-        switch effort {
-        case .none, .minimal, .low:
-            return "low"
-        case .medium:
-            return "medium"
-        case .high, .xhigh, .max:
-            return "high"
-        }
+        mapReasoningEffortNoneAsLow(effort)
     }
 
     static func mapMultiAgentReasoningEffort(_ effort: ReasoningEffort) -> String {

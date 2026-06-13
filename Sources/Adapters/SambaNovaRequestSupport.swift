@@ -81,14 +81,7 @@ extension SambaNovaAdapter {
     }
 
     private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
-        switch effort {
-        case .none, .minimal, .low:
-            return "low"
-        case .medium:
-            return "medium"
-        case .high, .xhigh, .max:
-            return "high"
-        }
+        mapReasoningEffortNoneAsLow(effort)
     }
 
     private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {

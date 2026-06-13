@@ -96,6 +96,46 @@ func stripTrailingV1(_ rawURL: String) -> String {
     return trimmed
 }
 
+// MARK: - Reasoning Effort String Mapping
+
+/// Maps a `ReasoningEffort` to the wire string used by providers whose API accepts
+/// `low`, `medium`, or `high`, with an explicit `none` option to disable reasoning.
+///
+/// `.none` → `"none"`, `.minimal`/`.low` → `"low"`, `.medium` → `"medium"`,
+/// `.high`/`.xhigh`/`.max` → `"high"`.
+///
+/// Used by Fireworks and OpenCodeGo adapters.
+func mapReasoningEffortNoneDisabled(_ effort: ReasoningEffort) -> String {
+    switch effort {
+    case .none:
+        return "none"
+    case .minimal, .low:
+        return "low"
+    case .medium:
+        return "medium"
+    case .high, .xhigh, .max:
+        return "high"
+    }
+}
+
+/// Maps a `ReasoningEffort` to the wire string used by providers that always use at
+/// least `low` (i.e. `.none` is treated as `"low"` rather than disabling reasoning).
+///
+/// `.none`/`.minimal`/`.low` → `"low"`, `.medium` → `"medium"`,
+/// `.high`/`.xhigh`/`.max` → `"high"`.
+///
+/// Used by SambaNova and xAI adapters.
+func mapReasoningEffortNoneAsLow(_ effort: ReasoningEffort) -> String {
+    switch effort {
+    case .none, .minimal, .low:
+        return "low"
+    case .medium:
+        return "medium"
+    case .high, .xhigh, .max:
+        return "high"
+    }
+}
+
 // MARK: - Audio Model ID Detection
 
 /// Detects whether a model ID (lowercased) supports audio input.

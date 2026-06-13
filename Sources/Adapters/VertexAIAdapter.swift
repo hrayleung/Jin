@@ -92,11 +92,7 @@ actor VertexAIAdapter: LLMProviderAdapter {
         [
             "name": tool.name,
             "description": tool.description,
-            "parametersJsonSchema": [
-                "type": tool.parameters.type,
-                "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
-                "required": tool.parameters.required
-            ]
+            "parametersJsonSchema": toolParametersSchema(tool.parameters)
         ]
     }
 

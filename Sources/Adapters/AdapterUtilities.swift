@@ -266,3 +266,25 @@ func validateAPIKeyViaGET(
         return false
     }
 }
+
+/// Fetches models from a standard OpenAI-compatible `/v1/models` endpoint.
+///
+/// Used by adapters whose fetch logic is: GET `{baseURLRoot}/v1/models` (default Bearer
+/// auth, `Accept: application/json`, `User-Agent: Jin`), decode `OpenAIModelsResponse`,
+/// then map each item ID through a per-adapter `makeModelInfo` closure.
+///
+/// Adapters with custom URL construction, custom headers, custom response shapes, or
+/// additional fallback behaviour (Fireworks, Together, Zyphra, OpenAICompatible) should
+/// NOT use this helper.
+func fetchOpenAICompatibleModels(
+    baseURLRoot: String,
+    apiKey: String,
+    networkManager: NetworkManager,
+    makeModelInfo: (String) -> ModelInfo
+) async throws -> [ModelInfo] {
+    let url = try validatedURL("\(baseURLRoot)/v1/models")
+    let request = makeGETRequest(url: url, apiKey: apiKey)
+    let (data, _) = try await networkManager.sendRequest(request)
+    let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
+    return response.data.map { makeModelInfo($0.id) }
+}

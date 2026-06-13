@@ -10,10 +10,12 @@ extension CerebrasAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
-        let request = makeGETRequest(url: try validatedURL("\(baseURLRoot)/v1/models"), apiKey: apiKey)
-        let (data, _) = try await networkManager.sendRequest(request)
-        let response = try JSONDecoder().decode(OpenAIModelsResponse.self, from: data)
-        return response.data.map { makeModelInfo(id: $0.id) }
+        try await fetchOpenAICompatibleModels(
+            baseURLRoot: baseURLRoot,
+            apiKey: apiKey,
+            networkManager: networkManager,
+            makeModelInfo: makeModelInfo(id:)
+        )
     }
 
     private func makeModelInfo(id: String) -> ModelInfo {

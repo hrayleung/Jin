@@ -196,6 +196,20 @@ func translateUserContentPartsToOpenAIFormat(
     return out
 }
 
+// MARK: - Tool Parameters Schema
+
+/// Returns the inner JSON-Schema object for a tool's parameters.
+/// Both `translateToolToOpenAIFormat` (wraps under `"parameters"`) and
+/// `AnthropicToolSpecSupport.customToolSpec` (wraps under `"input_schema"`) share this
+/// three-key structure — only the wrapper key differs between providers.
+func toolParametersSchema(_ parameters: ParameterSchema) -> [String: Any] {
+    [
+        "type": parameters.type,
+        "properties": parameters.properties.mapValues { $0.toDictionary() },
+        "required": parameters.required
+    ]
+}
+
 // MARK: - OpenAI-Compatible Tool Translation
 
 /// Translates a `ToolDefinition` into the OpenAI-compatible function calling format.
@@ -207,11 +221,7 @@ func translateToolToOpenAIFormat(_ tool: ToolDefinition) -> [String: Any] {
         "function": [
             "name": tool.name,
             "description": tool.description,
-            "parameters": [
-                "type": tool.parameters.type,
-                "properties": tool.parameters.properties.mapValues { $0.toDictionary() },
-                "required": tool.parameters.required
-            ]
+            "parameters": toolParametersSchema(tool.parameters)
         ]
     ]
 }
