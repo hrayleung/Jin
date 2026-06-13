@@ -184,8 +184,7 @@ extension ChatView {
                     schedulePersistenceSave()
                     return entity.id
                 } catch {
-                    errorMessage = error.localizedDescription
-                    showingError = true
+                    presentError(error.localizedDescription)
                     return nil
                 }
             },
@@ -200,8 +199,7 @@ extension ChatView {
                     }
                     schedulePersistenceSave()
                 } catch {
-                    errorMessage = error.localizedDescription
-                    showingError = true
+                    presentError(error.localizedDescription)
                 }
             },
             persistClaudeManagedSessionState: { [self] state in
@@ -225,8 +223,7 @@ extension ChatView {
                 )
             },
             showError: { [self] message in
-                errorMessage = message
-                showingError = true
+                presentError(message)
             },
             endStreamingSession: { [self] in
                 streamingStore.endSession(conversationID: conversationID)
@@ -259,8 +256,7 @@ extension ChatView {
     @MainActor
     private func recordStreamingSetupError(_ message: String) {
         streamingStore.recordError(conversationID: conversationEntity.id, message: message)
-        errorMessage = message
-        showingError = true
+        presentError(message)
     }
 
     // MARK: - Debounced SwiftData persistence
@@ -294,8 +290,7 @@ extension ChatView {
             try modelContext.save()
         } catch {
             let message = "Failed to save chat: \(error.localizedDescription)"
-            errorMessage = message
-            showingError = true
+            presentError(message)
             ChatDiagnosticLogger.log(
                 runId: conversationEntity.id.uuidString,
                 hypothesisId: "persistence",

@@ -131,8 +131,7 @@ extension ChatView {
         case .success(let urls):
             Task { await importAttachments(from: urls) }
         case .failure(let error):
-            errorMessage = error.localizedDescription
-            showingError = true
+            presentError(error.localizedDescription)
         }
     }
 
@@ -146,8 +145,7 @@ extension ChatView {
         guard !uniqueURLs.isEmpty else { return false }
 
         if isBusy {
-            errorMessage = "Stop generating (or wait for PDF processing) to attach files."
-            showingError = true
+            presentError("Stop generating (or wait for PDF processing) to attach files.")
             return true
         }
 
@@ -159,8 +157,7 @@ extension ChatView {
         guard !images.isEmpty else { return false }
 
         if isBusy {
-            errorMessage = "Stop generating (or wait for PDF processing) to attach files."
-            showingError = true
+            presentError("Stop generating (or wait for PDF processing) to attach files.")
             return true
         }
 
@@ -180,8 +177,7 @@ extension ChatView {
         }
 
         if !errors.isEmpty {
-            errorMessage = errors.joined(separator: "\n")
-            showingError = true
+            presentError(errors.joined(separator: "\n"))
         }
 
         return true
@@ -189,8 +185,7 @@ extension ChatView {
 
     func handleDroppedTextChunks(_ textChunks: [String]) -> Bool {
         if isBusy {
-            errorMessage = "Stop generating (or wait for PDF processing) to drop text."
-            showingError = true
+            presentError("Stop generating (or wait for PDF processing) to drop text.")
             return true
         }
         return appendTextChunksToComposer(textChunks)
@@ -210,8 +205,7 @@ extension ChatView {
         isFullPageDropTargeted = false
 
         if isBusy {
-            errorMessage = "Stop generating (or wait for PDF processing) to attach files."
-            showingError = true
+            presentError("Stop generating (or wait for PDF processing) to attach files.")
             return true
         }
 
@@ -253,8 +247,7 @@ extension ChatView {
                 guard !isBusy else { return }
 
                 if !allErrors.isEmpty {
-                    errorMessage = allErrors.joined(separator: "\n")
-                    showingError = true
+                    presentError(allErrors.joined(separator: "\n"))
                 }
             }
         }
@@ -274,8 +267,7 @@ extension ChatView {
                 draftAttachments.append(contentsOf: newAttachments)
             }
             if !errors.isEmpty {
-                errorMessage = errors.joined(separator: "\n")
-                showingError = true
+                presentError(errors.joined(separator: "\n"))
             }
         }
     }
