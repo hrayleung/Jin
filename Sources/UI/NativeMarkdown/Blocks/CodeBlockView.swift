@@ -167,14 +167,25 @@ private struct CodeBlockBody: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 0) {
                 if showLineNumbers {
-                    LineNumberGutter(
-                        count: lines.count,
-                        font: theme.codeFont
-                    )
-                    Rectangle()
-                        .fill(JinSemanticColor.borderSubtle)
-                        .frame(width: 1)
-                        .padding(.vertical, 6)
+                    // The gutter/divider are SwiftUI views with no NSView of
+                    // their own, so a vertical wheel over them would be eaten by
+                    // the trapping horizontal scroll view. Host them in a
+                    // wheel-forwarding NSView so that region scrolls the page
+                    // too. (The code text is a JinMessageTextView, which
+                    // forwards on its own.) Only present when line numbers are
+                    // enabled, so the default code path is untouched.
+                    WheelForwardingContainer {
+                        HStack(alignment: .top, spacing: 0) {
+                            LineNumberGutter(
+                                count: lines.count,
+                                font: theme.codeFont
+                            )
+                            Rectangle()
+                                .fill(JinSemanticColor.borderSubtle)
+                                .frame(width: 1)
+                                .padding(.vertical, 6)
+                        }
+                    }
                 }
                 HighlightedCodeView(
                     source: source,

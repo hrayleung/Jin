@@ -351,6 +351,32 @@ final class JinMessageTextView: NSTextView {
         return ceil(layoutManager.usedRect(for: textContainer).width)
     }
 
+    // MARK: - Wheel forwarding (code-block horizontal-scroll trap escape)
+
+    /// Inside a code block this text view sits in a SwiftUI
+    /// `ScrollView(.horizontal)` whose backing `NSScrollView` consumes
+    /// vertical-dominant wheel events (when the code overflows horizontally)
+    /// instead of letting them reach the chat timeline — so the page can't
+    /// scroll while the pointer is over code. Intercept here and forward
+    /// vertical-dominant events to the enclosing `ChatTimelineScrollView`. For
+    /// prose (no horizontal scroll view in the chain) the router resolves the
+    /// same timeline the default path would reach, so forwarding is equivalent
+    /// — this is safe for every context a `JinMessageTextView` lives in.
+    private var wheelRouter = CodeBlockWheelRouter()
+
+    override func scrollWheel(with event: NSEvent) {
+        switch wheelRouter.route(event: event, from: self) {
+        case .forwardToTimeline(let timeline):
+            // Forward the ORIGINAL event so its delta/phase/momentum drive both
+            // the timeline's unpin hook and natural momentum animation.
+            timeline.scrollWheel(with: event)
+        case .passToSuper:
+            // Horizontal-dominant (or no timeline): let the code's own
+            // horizontal scroll view handle it.
+            super.scrollWheel(with: event)
+        }
+    }
+
     // MARK: - Selection
 
     override func setSelectedRange(_ charRange: NSRange, affinity: NSSelectionAffinity, stillSelecting: Bool) {
