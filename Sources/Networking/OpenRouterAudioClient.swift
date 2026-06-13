@@ -205,6 +205,11 @@ actor OpenRouterAudioClient {
         return try OpenAICompatibleAudioClientSupport.decodeAvailableModels(data)
     }
 
+    /// Intentionally distinct from `OpenRouterProviderSupport.authorizedHeaders(apiKey:)`:
+    /// this returns Alamofire `HTTPHeaders` (the multipart audio upload path needs them)
+    /// and deliberately omits the `Accept: application/json` header that the shared
+    /// `[String: String]` builder adds. Do not "consolidate" the two without confirming
+    /// the audio endpoint tolerates the extra Accept header — it would change the wire request.
     private func authorizedHeaders() -> HTTPHeaders {
         var headers = HTTPHeaders()
         for (name, value) in OpenRouterProviderSupport.appIdentityHeaders {
