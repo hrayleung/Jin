@@ -139,7 +139,7 @@ actor NetworkDebugLogger {
             context: context,
             startedAt: startedAt,
             url: url.absoluteString,
-            requestHeaders: headers ?? [:],
+            requestHeaders: self.headers(from: headers),
             frames: [],
             fileURL: Self.logFileURL(for: context, startedAt: startedAt, requestID: sessionID)
         )
@@ -150,19 +150,7 @@ actor NetworkDebugLogger {
         guard Self.isLoggingEnabled, let sessionID,
               var session = activeWebSocketSessions[sessionID] else { return }
 
-        var frame: [String: Any] = [
-            "ts": timestamp(),
-            "direction": "send"
-        ]
-
-        if let data = message.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: data) {
-            frame["body"] = json
-        } else {
-            frame["body"] = message
-        }
-
-        session.frames.append(frame)
+        session.frames.append(webSocketFrameRecord(direction: "send", message: message))
         activeWebSocketSessions[sessionID] = session
     }
 
@@ -170,19 +158,7 @@ actor NetworkDebugLogger {
         guard Self.isLoggingEnabled, let sessionID,
               var session = activeWebSocketSessions[sessionID] else { return }
 
-        var frame: [String: Any] = [
-            "ts": timestamp(),
-            "direction": "receive"
-        ]
-
-        if let data = message.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: data) {
-            frame["body"] = json
-        } else {
-            frame["body"] = message
-        }
-
-        session.frames.append(frame)
+        session.frames.append(webSocketFrameRecord(direction: "receive", message: message))
         activeWebSocketSessions[sessionID] = session
     }
 
@@ -244,7 +220,48 @@ actor NetworkDebugLogger {
 
     private func headers(from headers: [String: String]?) -> [String: String] {
         guard let headers else { return [:] }
-        return headers
+
+        var out: [String: String] = [:]
+        out.reserveCapacity(headers.count)
+        for (key, value) in headers {
+            out[key] = isSensitiveHeader(key) ? "<redacted>" : value
+        }
+        return out
+    }
+
+    private func isSensitiveHeader(_ key: String) -> Bool {
+        let normalized = key.lowercased()
+        return normalized == "authorization" ||
+            normalized == "proxy-authorization" ||
+            normalized == "x-api-key" ||
+            normalized == "api-key" ||
+            normalized == "openai-api-key" ||
+            normalized == "anthropic-api-key" ||
+            normalized == "x-goog-api-key" ||
+            normalized.contains("token") ||
+            normalized.contains("secret") ||
+            normalized.contains("credential")
+    }
+
+    private func webSocketFrameRecord(direction: String, message: String) -> [String: Any] {
+        var frame: [String: Any] = [
+            "ts": timestamp(),
+            "direction": direction,
+            "body_redacted": true,
+            "byte_count": message.lengthOfBytes(using: .utf8)
+        ]
+
+        if let data = message.data(using: .utf8),
+           let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+            frame["json"] = true
+            if let type = json["type"] as? String, !type.isEmpty {
+                frame["event_type"] = type
+            }
+        } else {
+            frame["json"] = false
+        }
+
+        return frame
     }
 
     private func stringifyHeaders(_ headers: [AnyHashable: Any]) -> [String: String] {
