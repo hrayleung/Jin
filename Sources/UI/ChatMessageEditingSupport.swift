@@ -2,13 +2,6 @@ import Foundation
 
 enum ChatMessageEditingSupport {
 
-    static func editableUserText(from message: Message) -> String? {
-        message.content.compactMap { part in
-            if case .text(let text) = part { return text }
-            return nil
-        }.first
-    }
-
     static func normalizedEditedUserText(_ text: String) -> String? {
         text.trimmedNonEmpty
     }

@@ -54,7 +54,7 @@ extension ChatAuxiliaryControlSupport {
         supportsContextCacheControl: Bool,
         mode: ContextCacheMode
     ) -> String? {
-        guard supportsContextCacheControl, mode != .off else { return nil }
+        guard supportsContextCacheControl else { return nil }
         switch mode {
         case .off:
             return nil

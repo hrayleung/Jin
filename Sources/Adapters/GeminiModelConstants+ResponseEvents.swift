@@ -28,13 +28,8 @@ extension GeminiModelConstants {
         }
     }
 
-    /// Converts a single Google `Part` response into domain `StreamEvent`s.
+    /// Converts Google `Part` responses into domain `StreamEvent`s.
     /// Shared by both GeminiAdapter and VertexAIAdapter stream parsing.
-    static func events(from part: GoogleGenerateContentResponse.Part) -> [StreamEvent] {
-        var codeExecutionState = GoogleCodeExecutionEventState()
-        return events(from: [part], codeExecutionState: &codeExecutionState)
-    }
-
     static func events(
         from parts: [GoogleGenerateContentResponse.Part],
         codeExecutionState: inout GoogleCodeExecutionEventState

@@ -170,7 +170,7 @@ actor BuiltinSearchToolHub {
         return ResolvedArguments(
             query: query,
             maxResults: maxResults,
-            recencyDays: recencyDays.map { $0.clamped(to: 1...365) },
+            recencyDays: recencyDays,
             includeRawContent: includeRaw,
             fetchPageContent: fetchPages,
             includeDomains: includeDomains,

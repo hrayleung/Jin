@@ -211,14 +211,8 @@ struct MCPServerConfigFormView: View {
     }
 
     private func clearTransportBuildError() {
-        switch transportKind {
-        case .stdio:
-            argsError = nil
-            endpointError = nil
-        case .http:
-            argsError = nil
-            endpointError = nil
-        }
+        argsError = nil
+        endpointError = nil
     }
 
     private func verifyTools() {

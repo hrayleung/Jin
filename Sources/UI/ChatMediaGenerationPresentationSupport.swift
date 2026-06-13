@@ -90,11 +90,7 @@ extension ChatModelCapabilitySupport {
         guard supportsVideoGenerationControl else { return nil }
 
         switch providerType {
-        case .gemini, .vertexai:
-            return isVideoGenerationConfigured ? "On" : nil
-        case .xai:
-            return isVideoGenerationConfigured ? "On" : nil
-        case .openrouter:
+        case .gemini, .vertexai, .xai, .openrouter:
             return isVideoGenerationConfigured ? "On" : nil
         default:
             return nil

@@ -109,7 +109,7 @@ extension OpenAICompatibleAdapter {
 
         case .assistant:
             if let thinking = split.thinkingOrNil {
-                if OpenAICompatibleReasoningSupport.isMistralMedium35Model(
+                if OpenAICompatibleReasoningSupport.isMistralReasoningEffortModel(
                     providerConfig: providerConfig,
                     modelID: modelID
                 ) {
@@ -155,7 +155,7 @@ extension OpenAICompatibleAdapter {
     }
 
     private func supportsAudioInput(modelID: String) -> Bool {
-        if OpenAICompatibleReasoningSupport.isMistralMedium35Model(
+        if OpenAICompatibleReasoningSupport.isMistralReasoningEffortModel(
             providerConfig: providerConfig,
             modelID: modelID
         ) {
