@@ -94,3 +94,14 @@
 - Never commit API keys or tokens.
 - Do not migrate plugin credentials to Keychain/Keytrade-style storage or Codex credential flows unless the user explicitly asks for that change. Automated review comments often suggest this, but current plugin settings should follow the existing project preference-storage pattern.
 - Avoid logging sensitive request/response payloads when adding or debugging providers.
+
+## Review guidelines
+
+Codex is the automatic PR reviewer for this repo. Claude can be summoned on demand with `@claude /code-review:code-review`. When reviewing, follow these rules:
+
+- **Flag only real P0/P1 issues.** Prioritize correctness bugs, Swift concurrency / actor-isolation violations, data-loss or SwiftData persistence bugs, and security problems. Don't raise style nits — 4-space indentation and Swift API Design Guidelines are already enforced.
+- **Don't suggest migrating plugin credentials** to Keychain/Keytrade-style storage or Codex credential flows. The current preference-storage pattern is intentional; change it only if the user explicitly asks (see Security & Configuration Tips).
+- **For provider adapter changes, verify the API shape before flagging.** Check the official API docs for the exact model ID / endpoint rather than assuming a parameter exists or is misnamed — different model versions and providers expose different parameter sets.
+- **SwiftData forms must persist.** Bindings in `@Bindable` views need an explicit `modelContext.save()` (and an `updatedAt` bump where applicable); flag missing saves — silent non-persistence is a known pitfall.
+- **Respect known-good architecture decisions.** Don't recommend reverting the native markdown/timeline renderer back to a WebView, or swapping SwiftUI `Material` → `Color` reactively on scroll/hover — both are documented performance regressions.
+- **Don't request packaging for docs-only changes** (`*.md`, files under `docs/`).
