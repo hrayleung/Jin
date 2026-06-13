@@ -60,7 +60,7 @@ struct ChatSingleThreadMessagesView: View {
             allMessageCount: allMessages.count,
             lastMessageID: allMessages.last?.id,
             messageRenderLimit: messageRenderLimit,
-            toolResultCount: toolResultsByCallID.count,
+            toolResultsByCallID: toolResultsByCallID,
             entityCount: messageEntitiesByID.count,
             assistantDisplayName: assistantDisplayName,
             providerType: providerType,

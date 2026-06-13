@@ -126,10 +126,18 @@ struct WebsiteFaviconView: View {
     let fallbackText: String
     let iconSize: CGFloat
     @State private var faviconImage: NSImage?
+    /// Tracks which host the cached `faviconImage` belongs to. Without
+    /// this we can't tell "I'm rendering the same host as last time, keep
+    /// the cached image" apart from "the parent reused this @State for a
+    /// different host, drop the stale image" — and the previous version
+    /// erred on the side of always blanking, which produced a visible
+    /// favicon flicker every time the parent rebuilt the card subtree
+    /// (which happens whenever `sourceEnrichmentState` updates).
+    @State private var loadedFaviconHost: String?
 
     var body: some View {
         Group {
-            if let faviconImage {
+            if let faviconImage, loadedFaviconHost == host {
                 Image(nsImage: faviconImage)
                     .resizable()
                     .scaledToFit()
@@ -139,10 +147,23 @@ struct WebsiteFaviconView: View {
             }
         }
         .task(id: host) {
-            await MainActor.run { faviconImage = nil }
+            // If we already have a cached image for *this* host, do not
+            // reset to the fallback while we re-confirm with the loader —
+            // the loader is in-memory after first hit so the round-trip
+            // would just flicker the icon.
+            if loadedFaviconHost != host {
+                faviconImage = nil
+            }
             let image = await FaviconLoader.shared.favicon(for: host)
             guard !Task.isCancelled else { return }
-            await MainActor.run { faviconImage = image }
+            await MainActor.run {
+                // Re-check after the hop — a newer host change can cancel
+                // this task while we wait for the main actor, in which
+                // case we'd otherwise stomp on the newer task's results.
+                guard !Task.isCancelled else { return }
+                faviconImage = image
+                loadedFaviconHost = host
+            }
         }
     }
 

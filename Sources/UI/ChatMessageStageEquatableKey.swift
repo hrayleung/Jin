@@ -49,7 +49,7 @@ enum ChatMessageStageEquatableKeyBuilder {
         allMessageCount: Int,
         lastMessageID: UUID?,
         messageRenderLimit: Int,
-        toolResultCount: Int,
+        toolResultsByCallID: [String: ToolResult],
         entityCount: Int,
         assistantDisplayName: String,
         providerType: ProviderType?,
@@ -76,7 +76,7 @@ enum ChatMessageStageEquatableKeyBuilder {
             allMessageCount: allMessageCount,
             lastMessageID: lastMessageID,
             messageRenderLimit: messageRenderLimit,
-            toolResultCount: toolResultCount,
+            toolResultsByCallID: toolResultsByCallID,
             entityCount: entityCount,
             assistantDisplayName: assistantDisplayName,
             providerType: providerType,
@@ -105,7 +105,7 @@ struct ChatStageEquatableKey: Equatable {
     let allMessageCount: Int
     let lastMessageID: UUID?
     let messageRenderLimit: Int
-    let toolResultCount: Int
+    let toolResultsByCallID: [String: ToolResult]
     let entityCount: Int
     let assistantDisplayName: String
     let providerType: ProviderType?
@@ -127,7 +127,7 @@ extension ChatThreadRenderContext {
     var equatableKey: ChatThreadContextEquatableKey {
         ChatThreadContextEquatableKey(
             messageIDs: visibleMessages.map(\.id),
-            toolResultIDs: toolResultsByCallID.keys.sorted(),
+            toolResultsByCallID: toolResultsByCallID,
             entityIDs: messageEntitiesByID.keys.sorted { $0.uuidString < $1.uuidString },
             artifactLatestID: artifactCatalog.latestVersion?.artifactID,
             artifactLatestVersion: artifactCatalog.latestVersion?.version
@@ -137,7 +137,7 @@ extension ChatThreadRenderContext {
 
 struct ChatThreadContextEquatableKey: Equatable {
     let messageIDs: [UUID]
-    let toolResultIDs: [String]
+    let toolResultsByCallID: [String: ToolResult]
     let entityIDs: [UUID]
     let artifactLatestID: String?
     let artifactLatestVersion: Int?

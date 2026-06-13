@@ -1,13 +1,5 @@
 import SwiftUI
 
-private struct MessageTimelineContentHeightPreferenceKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
-    }
-}
-
 struct ChatSingleThreadMessagesContentView: View, Equatable {
     let key: ChatStageEquatableKey
     let conversationID: UUID
@@ -44,301 +36,181 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
     @Binding var shouldMaintainPinnedBottomAnchor: Bool
     @Binding var isUserScrollInProgress: Bool
 
-    /// Set while we are driving `proxy.scrollTo(...)` ourselves. During a
-    /// programmatic scroll the scroll-geometry stream emits transient
-    /// off-pin offsets that must not be treated as a user-initiated unpin.
-    /// We do NOT key on `isUserScrollInProgress` because SwiftUI fires
-    /// `onScrollGeometryChange` *before* `onScrollPhaseChange` flips to
-    /// `.tracking` for the first user gesture — that race left the pin stuck
-    /// true and immediately snapped the user's scroll back to bottom.
-    @State private var isExecutingProgrammaticScroll = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
+    @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
+    private static let maxPrewarmItems = 8
+
+    /// Background markdown-parse pre-warm. We hold the `Task` returned by
+    /// `NativeMarkdownCache.prewarm(...)` so a new wave can cancel the
+    /// previous one — without this an in-progress prewarm for the prior
+    /// conversation keeps thrashing the CPU after the user switches.
+    @State private var prewarmTask: Task<Void, Never>?
+
+    /// Bridge so the SwiftUI "scroll to bottom" chevron can drive the AppKit
+    /// table controller without the controller leaking into the view tree.
+    @StateObject private var scrollHandle = ChatTimelineScrollHandle()
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.key == rhs.key
     }
 
-    private var visibleMessages: [MessageRenderItem] {
-        visibleMessagesForWindow
-    }
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                let layout = ChatMessageStagePresentationSupport.SingleThreadLayout(
-                    visibleContainerWidth: visibleContainerWidth
-                )
-                let window = timelineWindow
-
-                Group {
-                    if window.usesLazyStack {
-                        LazyVStack(alignment: .leading, spacing: 16) {
-                            timelineView(
-                                window: window,
-                                bubbleMaxWidth: layout.bubbleMaxWidth
-                            )
-                        }
-                    } else {
-                        VStack(alignment: .leading, spacing: 16) {
-                            timelineView(
-                                window: window,
-                                bubbleMaxWidth: layout.bubbleMaxWidth
-                            )
-                        }
-                    }
-                }
-                .background {
-                    GeometryReader { geometry in
-                        Color.clear.preference(
-                            key: MessageTimelineContentHeightPreferenceKey.self,
-                            value: geometry.size.height
-                        )
-                    }
-                }
-                .frame(width: layout.columnWidth, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .offset(x: layoutCenterOffset)
-                .padding(.top, 24)
-            }
-            .overlayScrollerStyle()
-            .overlay(alignment: .bottomTrailing) {
-                if !isPinnedToBottom {
-                    Button {
-                        shouldMaintainPinnedBottomAnchor = true
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            scrollToBottomIfNeeded(proxy: proxy, allowWhenContentFits: true)
-                        }
-                    } label: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 32, height: 32)
-                            .jinAdaptiveBackground(Circle())
-                            .shadow(color: JinSemanticColor.shadowElevated, radius: 6, y: 2)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 34)
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: isPinnedToBottom)
-            .onScrollPinChange(
-                isPinned: $isPinnedToBottom,
-                bottomTolerance: ChatTimelineScrollCoordinator.pinnedBottomTolerance(
-                    composerHeight: composerHeight
-                ),
-                onChange: handlePinStateChange
-            )
-            .onUserScrollIntentChange { isUserDrivenScroll in
-                isUserScrollInProgress = isUserDrivenScroll
-                // Any user-initiated scroll — even 1 pt, even within
-                // `pinnedBottomTolerance` — is an explicit signal that the
-                // user does NOT want the chat to snap them back to bottom.
-                // Without this, a tiny trackpad nudge keeps `isPinnedToBottom`
-                // true (the 36 pt tolerance window) which keeps anchor true,
-                // and the next content-height change (e.g. tapping to expand
-                // a Web Search / MCP / code-exec card) immediately snaps the
-                // scroll position to the new bottom.
-                if isUserDrivenScroll {
-                    cancelPendingPinnedBottomRefresh()
-                    shouldMaintainPinnedBottomAnchor = false
-                    pinnedBottomRefreshGeneration = ChatTimelineScrollCoordinator.invalidatedRefreshGeneration(
-                        current: pinnedBottomRefreshGeneration
-                    )
-                }
-            }
-            .onChange(of: messageRenderLimit) { _, _ in
-                guard let restoreID = pendingRestoreScrollMessageID else { return }
-                DispatchQueue.main.async {
-                    beginProgrammaticScroll()
-                    proxy.scrollTo(restoreID, anchor: .top)
-                    pendingRestoreScrollMessageID = nil
-                }
-            }
-            .onChange(of: allMessageCount) { _, _ in
-                refreshPinnedBottomIfNeeded(proxy: proxy)
-            }
-            .onChange(of: isStreaming) { wasStreaming, nowStreaming in
-                guard wasStreaming, !nowStreaming else { return }
-                onStreamingFinished()
-                refreshPinnedBottomIfNeeded(proxy: proxy)
-            }
-            .onChange(of: conversationID) { _, _ in
-                cancelPendingPinnedBottomRefresh()
-                lastMeasuredContentHeight = 0
-                shouldMaintainPinnedBottomAnchor = true
-                isUserScrollInProgress = false
-            }
-            .onPreferenceChange(MessageTimelineContentHeightPreferenceKey.self) { newHeight in
-                handleContentHeightChange(newHeight, proxy: proxy)
-            }
-            .onDisappear {
-                cancelPendingPinnedBottomRefresh()
-            }
+    private var rows: [ChatTimelineRow] {
+        var result: [ChatTimelineRow] = []
+        if timelineWindow.canLoadEarlier {
+            result.append(.loadEarlier(
+                hiddenCount: timelineWindow.hiddenCount,
+                pageSize: messageRenderPageSize
+            ))
         }
+        for (index, message) in timelineWindow.visibleMessages.enumerated() {
+            result.append(.message(message, index: index))
+        }
+        if let streamingMessage {
+            result.append(.streaming(streamingMessage))
+        }
+        return result
     }
 
-    private func timelineView(
-        window: ChatMessageStagePresentationSupport.TimelineWindow,
-        bubbleMaxWidth: CGFloat
-    ) -> some View {
-        ChatMessageTimelineView(
-            visibleMessages: window.visibleMessages,
-            hiddenCount: window.hiddenCount,
-            messageRenderPageSize: messageRenderPageSize,
-            onLoadEarlier: {
-                guard let plan = window.loadEarlierPlan else { return }
-                pendingRestoreScrollMessageID = plan.restoreMessageID
-                messageRenderLimit = plan.nextRenderLimit
-            },
-            bubbleMaxWidth: bubbleMaxWidth,
+    private func makeShared(
+        layout: ChatMessageStagePresentationSupport.SingleThreadLayout
+    ) -> ChatTimelineSharedInputs {
+        ChatTimelineSharedInputs(
+            maxBubbleWidth: layout.bubbleMaxWidth,
+            columnWidth: layout.columnWidth,
+            layoutCenterOffset: layoutCenterOffset,
             assistantDisplayName: assistantDisplayName,
             providerType: providerType,
             providerIconID: providerIconID,
-            eagerCodeHighlightStartIndex: window.eagerCodeHighlightStartIndex,
+            eagerCodeHighlightStartIndex: timelineWindow.eagerCodeHighlightStartIndex,
+            payloadResolver: ChatTimelinePayloadResolverFactory.make(messageEntitiesByID: messageEntitiesByID),
             toolResultsByCallID: toolResultsByCallID,
             messageEntitiesByID: messageEntitiesByID,
             interaction: interaction,
+            onOpenArtifact: onOpenArtifact,
+            effectiveRenderMode: effectiveRenderMode,
+            onExpandCollapsedContent: expandCollapsedContent,
+            colorScheme: colorScheme
+        )
+    }
+
+    var body: some View {
+        let layout = ChatMessageStagePresentationSupport.SingleThreadLayout(
+            visibleContainerWidth: visibleContainerWidth
+        )
+
+        ChatTimelineTableRepresentable(
+            conversationID: conversationID,
+            rows: rows,
+            shared: makeShared(layout: layout),
             streamingMessage: streamingMessage,
             streamingModelLabel: streamingModelLabel,
             streamingModelID: streamingModelID,
-            bottomSpacerHeight: composerHeight + 24,
-            bottomID: ChatMessageStagePresentationSupport.bottomAnchorID(),
-            onOpenArtifact: onOpenArtifact,
-            effectiveRenderMode: effectiveRenderMode,
-            onExpandCollapsedContent: expandCollapsedContent
-        )
-    }
-
-    private func refreshPinnedBottomIfNeeded(proxy: ScrollViewProxy) {
-        guard let plan = ChatTimelineScrollCoordinator.refreshPlan(
-            currentGeneration: pinnedBottomRefreshGeneration,
-            shouldMaintainPinnedBottomAnchor: shouldMaintainPinnedBottomAnchor,
-            delays: pinnedBottomRefreshDelays
-        ) else {
-            return
-        }
-        pinnedBottomRefreshGeneration = plan.generation
-
-        for delay in plan.delays {
-            schedulePinnedBottomRefreshAttempt(
-                after: delay,
-                expectedGeneration: plan.generation,
-                proxy: proxy
-            )
-        }
-    }
-
-    private func schedulePinnedBottomRefresh(
-        proxy: ScrollViewProxy,
-        debounceNanoseconds: UInt64? = nil
-    ) {
-        cancelPendingPinnedBottomRefresh()
-        guard shouldMaintainPinnedBottomAnchor else { return }
-
-        pendingPinnedBottomRefreshTask = Task { @MainActor in
-            if let debounceNanoseconds {
-                try? await Task.sleep(nanoseconds: debounceNanoseconds)
-                guard !Task.isCancelled else { return }
+            topInset: 24,
+            bottomInset: composerHeight + 24,
+            bottomTolerance: ChatTimelineScrollCoordinator.pinnedBottomTolerance(
+                composerHeight: composerHeight
+            ),
+            nextRenderLimit: timelineWindow.nextRenderLimit,
+            canLoadEarlier: timelineWindow.canLoadEarlier,
+            scrollHandle: scrollHandle,
+            isPinnedToBottom: $isPinnedToBottom,
+            messageRenderLimit: $messageRenderLimit,
+            onLoadEarlier: {
+                pendingRestoreScrollMessageID = timelineWindow.loadEarlierPlan?.restoreMessageID
             }
-
-            refreshPinnedBottomIfNeeded(proxy: proxy)
-            pendingPinnedBottomRefreshTask = nil
-        }
-    }
-
-    private func schedulePinnedBottomRefreshAttempt(
-        after delay: TimeInterval,
-        expectedGeneration: Int,
-        proxy: ScrollViewProxy
-    ) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            guard ChatTimelineScrollCoordinator.shouldPerformRefresh(
-                expectedGeneration: expectedGeneration,
-                currentGeneration: pinnedBottomRefreshGeneration,
-                shouldMaintainPinnedBottomAnchor: shouldMaintainPinnedBottomAnchor
-            ) else {
-                return
+        )
+        .overlay(alignment: .bottomTrailing) {
+            if !isPinnedToBottom {
+                scrollToBottomButton
             }
-            scrollToBottomIfNeeded(proxy: proxy)
+        }
+        .animation(.easeInOut(duration: 0.2), value: isPinnedToBottom)
+        .onChange(of: isStreaming) { wasStreaming, nowStreaming in
+            guard wasStreaming, !nowStreaming else { return }
+            onStreamingFinished()
+        }
+        .task(id: PrewarmKey(
+            conversationID: conversationID,
+            // Re-run the prewarm when the visible window grows (load earlier
+            // expands the window, streaming adds the just-finished message).
+            messageCount: visibleMessagesForWindow.count,
+            // Identity of the *last* visible message — catches the
+            // streaming-finished case where messageCount is stable.
+            lastMessageID: visibleMessagesForWindow.last?.id,
+            appFontFamily: appFontFamily,
+            codeFontFamily: codeFontFamily
+        )) {
+            schedulePrewarm()
+        }
+        .onDisappear {
+            prewarmTask?.cancel()
         }
     }
 
-    private func cancelPendingPinnedBottomRefresh() {
-        pendingPinnedBottomRefreshTask?.cancel()
-        pendingPinnedBottomRefreshTask = nil
+    private var scrollToBottomButton: some View {
+        Button {
+            scrollHandle.scrollToBottom(animated: true)
+        } label: {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 32, height: 32)
+                .jinAdaptiveBackground(Circle())
+                .shadow(color: JinSemanticColor.shadowElevated, radius: 6, y: 2)
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 20)
+        .padding(.bottom, 34)
+        .transition(.opacity.combined(with: .scale(scale: 0.8)))
     }
 
-    private func scrollToBottomIfNeeded(
-        proxy: ScrollViewProxy,
-        allowWhenContentFits: Bool = false
-    ) {
-        guard ChatTimelineScrollCoordinator.shouldScrollToBottom(
-            lastMeasuredContentHeight: lastMeasuredContentHeight,
-            viewportHeight: containerSize.height,
-            allowWhenContentFits: allowWhenContentFits
-        ) else {
-            return
-        }
-        beginProgrammaticScroll()
-        proxy.scrollTo("bottom", anchor: .bottom)
+    private struct PrewarmKey: Hashable {
+        let conversationID: UUID
+        let messageCount: Int
+        let lastMessageID: UUID?
+        let appFontFamily: String
+        let codeFontFamily: String
     }
 
-    /// Mark the next ~400 ms as "programmatic scroll territory" so that the
-    /// mid-flight off-pin geometry samples emitted by SwiftUI during the
-    /// snap-down animation don't get interpreted as a user unpin.
-    private func beginProgrammaticScroll() {
-        isExecutingProgrammaticScroll = true
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            isExecutingProgrammaticScroll = false
-        }
-    }
-
-    private func handleContentHeightChange(_ newHeight: CGFloat, proxy: ScrollViewProxy) {
-        guard let action = ChatTimelineScrollCoordinator.contentHeightChangeAction(
-            newHeight: newHeight,
-            previousHeight: lastMeasuredContentHeight,
-            shouldMaintainPinnedBottomAnchor: shouldMaintainPinnedBottomAnchor
-        ) else {
-            return
-        }
-        lastMeasuredContentHeight = action.measuredHeight
-        guard action.shouldScheduleRefresh else { return }
-        // We're already mid-flight of a programmatic scroll-to-bottom; the
-        // animation itself is what's causing this height change to fire over
-        // and over. Letting each frame re-arm a 120 ms task creates a stacked
-        // chain of refresh attempts that fight the user when they try to do
-        // anything during the spring window. Skip until the programmatic
-        // window clears.
-        guard !isExecutingProgrammaticScroll else { return }
-        schedulePinnedBottomRefresh(
-            proxy: proxy,
-            debounceNanoseconds: 120_000_000
+    private func schedulePrewarm() {
+        // Cancel any in-flight prewarm before starting a fresh wave — the
+        // previous wave's queued texts may no longer match what the user is
+        // about to see (e.g., after a conversation switch).
+        prewarmTask?.cancel()
+        // Reverse order so the message closest to the viewport bottom — where
+        // pin-to-bottom puts the user on conversation open — gets parsed first.
+        let items = extractPrewarmItems(from: visibleMessagesForWindow)
+            .reversed()
+            .prefix(Self.maxPrewarmItems)
+        prewarmTask = NativeMarkdownCache.prewarm(
+            items: Array(items),
+            appFontFamily: appFontFamily,
+            codeFontFamily: codeFontFamily
         )
     }
 
-    private func handlePinStateChange(wasPinned: Bool, isPinned: Bool) {
-        guard wasPinned != isPinned else { return }
+    private func extractPrewarmItems(from messages: [MessageRenderItem]) -> [NativeMarkdownCache.PrewarmItem] {
+        var items: [NativeMarkdownCache.PrewarmItem] = []
+        items.reserveCapacity(messages.count)
+        for (index, message) in messages.enumerated() {
+            guard message.isAssistant else { continue }
+            let renderMode = effectiveRenderMode(index: index, message: message)
+            guard renderMode != .collapsedPreview else { continue }
+            let renderPlainText = renderMode == .nativeText
 
-        if isPinned {
-            shouldMaintainPinnedBottomAnchor = true
-            return
+            for block in message.renderedBlocks {
+                guard case .content(_, let part) = block else { continue }
+                guard case .text(let text) = part else { continue }
+                guard !text.isEmpty else { continue }
+                items.append(NativeMarkdownCache.PrewarmItem(
+                    markdownText: text,
+                    renderPlainText: renderPlainText
+                ))
+            }
         }
-
-        // Trust the geometry: when the scroll view is no longer near the
-        // bottom, the pin is broken. The only legitimate reason to *ignore*
-        // an off-pin geometry sample is that we, the code, are mid-flight
-        // of a programmatic scroll-to-bottom animation. We do NOT gate on
-        // `isUserScrollInProgress` because SwiftUI fires the geometry
-        // change before the `.tracking` phase, so the first user gesture
-        // would otherwise be silently dropped.
-        guard !isExecutingProgrammaticScroll else { return }
-        cancelPendingPinnedBottomRefresh()
-        shouldMaintainPinnedBottomAnchor = false
-        pinnedBottomRefreshGeneration = ChatTimelineScrollCoordinator.invalidatedRefreshGeneration(
-            current: pinnedBottomRefreshGeneration
-        )
+        return items
     }
 
     private func effectiveRenderMode(index: Int, message: MessageRenderItem) -> MessageRenderMode {
@@ -346,7 +218,7 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             index: index,
             message: message,
             totalMessageCount: allMessageCount,
-            visibleMessageCount: visibleMessages.count,
+            visibleMessageCount: visibleMessagesForWindow.count,
             expandedIDs: expandedCollapsedMessageIDs.wrappedValue
         )
     }

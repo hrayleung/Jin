@@ -57,6 +57,19 @@ enum MarkdownRenderPreparation {
         }
 
         let repaired = repairMarkdown(markdown, isStreaming: isStreaming)
+        // No change → the result is the input either way; skip the second
+        // full anomaly pass (it's ~11 regexes per line).
+        guard repaired != markdown else {
+            return PreparedMarkdownResult(
+                text: markdown,
+                didChange: false,
+                diagnostics: MarkdownPreparationDiagnostics(
+                    repairMode: .none,
+                    anomalyScoreBefore: scoreBefore,
+                    anomalyScoreAfter: scoreBefore
+                )
+            )
+        }
         let scoreAfter = anomalyScore(
             in: repaired,
             ignoringSmushedBoldTitleInHeading: isStreaming
@@ -83,7 +96,18 @@ enum MarkdownRenderPreparation {
         let repairedLines = transformOutsideProtectedBlocks(in: markdown) { line in
             MarkdownStructuralRepair.repairLine(line)
         }
+        MarkdownRepairInvariant.assertStagePreservesContent(
+            input: markdown, output: repairedLines, stage: "structuralRepair"
+        )
         let completed = MarkdownInlineCompletion.completeUnclosedInlineMarkers(in: repairedLines)
-        return isStreaming ? completed : normalizeBlockSpacing(in: completed)
+        MarkdownRepairInvariant.assertStagePreservesContent(
+            input: repairedLines, output: completed, stage: "inlineCompletion"
+        )
+        guard !isStreaming else { return completed }
+        let spaced = normalizeBlockSpacing(in: completed)
+        MarkdownRepairInvariant.assertStagePreservesContent(
+            input: completed, output: spaced, stage: "blockSpacing"
+        )
+        return spaced
     }
 }

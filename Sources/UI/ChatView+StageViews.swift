@@ -145,13 +145,76 @@ private final class StableBottomFadeGradientNSView: NSView {
     }
 }
 
+/// Manual replacement for the artifact pane's `HSplitView` divider (see the
+/// comment in `conversationStage`). A 1pt separator with a wider invisible
+/// hit area; dragging resizes the trailing artifact pane within the same
+/// bounds `ArtifactWorkspaceView` declares for itself.
+private struct ChatArtifactPaneDivider: View {
+    @Binding var paneWidth: CGFloat
+
+    @State private var dragStartWidth: CGFloat?
+    @State private var isCursorPushed = false
+
+    static let minPaneWidth: CGFloat = 380
+    static let maxPaneWidth: CGFloat = 820
+
+    var body: some View {
+        Rectangle()
+            .fill(JinSemanticColor.separator.opacity(0.6))
+            .frame(width: 1)
+            .frame(maxHeight: .infinity)
+            .overlay {
+                Color.clear
+                    .frame(width: 9)
+                    .contentShape(Rectangle())
+                    .onHover(perform: updateCursor)
+                    .gesture(dragGesture)
+            }
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 1, coordinateSpace: .global)
+            .onChanged { value in
+                let base = dragStartWidth ?? paneWidth
+                if dragStartWidth == nil { dragStartWidth = base }
+                // The pane is trailing: dragging left (negative translation)
+                // grows it.
+                paneWidth = min(
+                    max(base - value.translation.width, Self.minPaneWidth),
+                    Self.maxPaneWidth
+                )
+            }
+            .onEnded { _ in
+                dragStartWidth = nil
+            }
+    }
+
+    private func updateCursor(_ hovering: Bool) {
+        if hovering, !isCursorPushed {
+            NSCursor.resizeLeftRight.push()
+            isCursorPushed = true
+        } else if !hovering, isCursorPushed {
+            NSCursor.pop()
+            isCursorPushed = false
+        }
+    }
+}
+
 extension ChatView {
     var conversationStage: some View {
         Group {
             if isArtifactPaneVisible {
-                HSplitView {
+                // NOT an HSplitView: inside NavigationSplitView's detail on
+                // macOS 26 (Tahoe), Liquid Glass renders HSplitView's trailing
+                // pane as a floating card that overlaps the chat instead of
+                // splitting it, the divider isn't draggable, and the pane
+                // header (with the close button) is clipped. A plain HStack
+                // with a manual drag handle keeps the system chrome out of it.
+                HStack(spacing: 0) {
                     messageStageContainer
+                    ChatArtifactPaneDivider(paneWidth: $artifactPaneWidth)
                     artifactPane
+                        .frame(width: artifactPaneWidth)
                 }
             } else {
                 messageStageContainer

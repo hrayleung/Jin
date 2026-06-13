@@ -17,7 +17,12 @@ let package = Package(
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
         .package(url: "https://github.com/Alamofire/Alamofire.git", from: "5.11.0"),
         .package(url: "https://github.com/onevcat/Kingfisher.git", from: "8.0.0"),
-        .package(url: "https://github.com/apple/swift-collections.git", from: "1.4.0")
+        .package(url: "https://github.com/apple/swift-collections.git", from: "1.4.0"),
+        .package(url: "https://github.com/swiftlang/swift-markdown.git", from: "0.6.0"),
+        .package(url: "https://github.com/smittytone/HighlighterSwift.git", from: "3.0.3"),
+        // Vendored, locally-patched fork of mgriebling/SwiftMath (MIT) for native
+        // Core Text math rendering — see Sources/UI/NativeMarkdown/MathRenderer.swift.
+        .package(path: "Vendor/SwiftMath")
     ],
     targets: [
         .executableTarget(
@@ -27,7 +32,10 @@ let package = Package(
                 .product(name: "Sparkle", package: "Sparkle"),
                 .product(name: "Alamofire", package: "Alamofire"),
                 .product(name: "Kingfisher", package: "Kingfisher"),
-                .product(name: "Collections", package: "swift-collections")
+                .product(name: "Collections", package: "swift-collections"),
+                .product(name: "Markdown", package: "swift-markdown"),
+                .product(name: "Highlighter", package: "HighlighterSwift"),
+                .product(name: "SwiftMath", package: "SwiftMath")
             ],
             path: "Sources",
             resources: [
@@ -36,7 +44,7 @@ let package = Package(
         ),
         .testTarget(
             name: "JinTests",
-            dependencies: ["Jin"],
+            dependencies: ["Jin", .product(name: "SwiftMath", package: "SwiftMath")],
             path: "Tests/JinTests"
         )
     ]

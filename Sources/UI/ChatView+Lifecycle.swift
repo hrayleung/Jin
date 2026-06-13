@@ -11,7 +11,6 @@ extension ChatView {
         if !isComposerHidden {
             isComposerFocused = true
         }
-        installWKWebViewDropForwarder()
         loadControlsFromConversation()
         rebuildMessageCaches()
         syncArtifactSelection()
@@ -135,20 +134,6 @@ extension ChatView {
             errorMessage = error.localizedDescription
             showingError = true
         }
-    }
-
-    /// Install a static drop forwarder on MarkdownWKWebView so files
-    /// dropped directly onto rendered markdown messages are routed to the
-    /// same attachment pipeline used by the SwiftUI `.onDrop` handler.
-    func installWKWebViewDropForwarder() {
-        let coordinator = FileDropCaptureView.Coordinator(
-            isDropTargeted: $isFullPageDropTargeted,
-            onDropFileURLs: handleDroppedFileURLs,
-            onDropImages: handleDroppedImages,
-            onDropTextChunks: handleDroppedTextChunks
-        )
-        dropForwarderRef.onDragTargetChanged = { isTargeted in coordinator.setDropTargeted(isTargeted) }
-        dropForwarderRef.onPerformDrop = { draggingInfo in coordinator.performDrop(draggingInfo) }
     }
 
     // MARK: - Drop Handling

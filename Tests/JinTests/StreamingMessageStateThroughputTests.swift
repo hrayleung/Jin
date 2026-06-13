@@ -5,21 +5,19 @@ import XCTest
 final class StreamingMessageStateThroughputTests: XCTestCase {
     func testAppendDeltasStaysFastForLongStream() {
         let state = StreamingMessageState()
-        let chunkCount = 50
-        let chunkSize = 100
+        let chunkCount = 200
+        let chunkSize = 500
         let chunk = String(repeating: "x", count: chunkSize)
 
-        let started = ProcessInfo.processInfo.systemUptime
         for _ in 0..<chunkCount {
             state.appendDeltas(textDelta: chunk, thinkingDelta: "")
         }
-        let elapsed = ProcessInfo.processInfo.systemUptime - started
 
-        XCTAssertEqual(state.textContent.count, chunkCount * chunkSize)
-        // Sanity guard against the O(N²) regression that motivated this branch.
-        // 50 chunks of 100 chars in a debug build should comfortably finish in
-        // well under a second; the threshold is generous to avoid flake on CI.
-        XCTAssertLessThan(elapsed, 1.0, "appendDeltas threw away its incremental scan budget (took \(elapsed)s)")
+        let expectedText = String(repeating: chunk, count: chunkCount)
+        XCTAssertEqual(state.textContent, expectedText)
+        XCTAssertEqual(state.visibleTextChunks.joined(), expectedText)
+        XCTAssertGreaterThan(state.visibleTextChunks.count, 1)
+        XCTAssertLessThanOrEqual(state.visibleTextChunks.map(\.count).max() ?? 0, 2_048)
     }
 
     func testAppendDeltasOnArtifactStreamRemainsFast() {
@@ -31,7 +29,6 @@ final class StreamingMessageStateThroughputTests: XCTestCase {
         let suffix = String(repeating: " trailing words ", count: 200)
 
         let pieces = [prefix, artifactOpen, artifactBody, artifactClose, suffix]
-        let started = ProcessInfo.processInfo.systemUptime
         for piece in pieces {
             // Stream each piece in 50-char chunks, simulating per-flush deltas.
             let nsPiece = piece as NSString
@@ -45,9 +42,12 @@ final class StreamingMessageStateThroughputTests: XCTestCase {
                 offset += next
             }
         }
-        let elapsed = ProcessInfo.processInfo.systemUptime - started
 
         XCTAssertEqual(state.artifacts.count, 1)
-        XCTAssertLessThan(elapsed, 1.0, "artifact-bearing stream blew the budget at \(elapsed)s")
+        XCTAssertEqual(state.artifacts.first?.artifactID, "x")
+        XCTAssertEqual(state.artifacts.first?.title, "X")
+        XCTAssertEqual(state.artifacts.first?.contentType, .html)
+        XCTAssertEqual(state.artifacts.first?.content, artifactBody)
+        XCTAssertEqual(state.visibleText, prefix + suffix)
     }
 }

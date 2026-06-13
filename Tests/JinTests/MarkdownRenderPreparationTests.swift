@@ -76,6 +76,27 @@ final class MarkdownRenderPreparationTests: XCTestCase {
         XCTAssertTrue(result.text.contains("• **Markets:**"))
     }
 
+    func testUnescapesAllEscapedEmphasisRunsInOneLine() {
+        let input = "- \\*\\*要点一\\*\\*：说明文字，以及 \\*\\*要点二\\*\\*：补充说明。"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertTrue(result.didChange)
+        XCTAssertTrue(result.text.contains("**要点一**"), "first run not unescaped: \(result.text.debugDescription)")
+        XCTAssertTrue(result.text.contains("**要点二**"), "second run not unescaped: \(result.text.debugDescription)")
+        XCTAssertFalse(result.text.contains("\\*"))
+    }
+
+    func testDoesNotUnescapeMidSentenceLiteralAsterisksOnUngatedLine() {
+        // A line that does NOT start with an escaped run means the escapes
+        // are intentional literals (e.g. teaching markdown syntax).
+        let input = "输入 \\*斜体\\* 即可显示星号。"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertEqual(result.text, input)
+    }
+
     func testDoesNotRewriteModelTextQualityIssues() {
         let input = "The result was announced on April24,2026, involved of30 billion rupees, and mentioned age92."
 
@@ -381,6 +402,16 @@ final class MarkdownRenderPreparationTests: XCTestCase {
         XCTAssertEqual(result.text, input)
     }
 
+    func testDoesNotSplitPunctuationLedBoldSubtitleInHeading() {
+        let input = "### 第一部分：MaxLinear**—— subtitle here**"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+        XCTAssertFalse(result.text.contains("MaxLinear\n**"))
+    }
+
     func testDoesNotSplitWhenBoldNotAtEndOfLine() {
         let input = "## Section**Bold word here**More text after"
         let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
@@ -484,6 +515,15 @@ final class MarkdownRenderPreparationTests: XCTestCase {
         )
     }
 
+    func testCJKEmphasisBoundaryDoesNotInsertZeroWidthSpaceBeforeTrailingPunctuation() {
+        let input = "1. **极度集中**：通常将资金集中在5–10只高度确信的股票上"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.text, input)
+    }
+
     func testHeadingOnlyOrderedListRepairDoesNotScanSplitBodyLine() {
         let input = "## 标题- 项目 中概股1. 是普通句子"
 
@@ -529,5 +569,47 @@ final class MarkdownRenderPreparationTests: XCTestCase {
 
         XCTAssertFalse(result.didChange)
         XCTAssertEqual(result.text, input)
+    }
+
+    func testDoesNotSplitTableRowOnEscapedAsteriskBullet() {
+        // Regression: `A\*` (the model escaped the asterisk to print "A*") was
+        // mistaken for an embedded bullet (` * 级别…`), splitting the table row
+        // into a one-cell row plus a stray bullet list. The escaped marker must
+        // stay literal so the row survives intact.
+        let input = """
+        | 维度 | NSDI | MobiHoc |
+        | :--- | :--- | :--- |
+        | **CORE Ranking** | A / A\\* 级别（系统方向公认的殿堂级会议） | B 级别（历史上曾为 A 级，偏重理论） |
+        """
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.text.contains("\n* "), "escaped \\* must not become a bullet; got: \(result.text.debugDescription)")
+        XCTAssertTrue(
+            result.text.contains("| **CORE Ranking** | A / A\\* 级别（系统方向公认的殿堂级会议） | B 级别（历史上曾为 A 级，偏重理论） |"),
+            "table row should remain on one line; got: \(result.text.debugDescription)"
+        )
+    }
+
+    func testDoesNotSplitDigitGluedPlusMarkerInCJKProse() {
+        // Regression: `每年 600+ 篇` — the `+` after a digit is a count, not a
+        // bullet. It was splitting `（每年 600+ 篇）` into a paragraph plus a
+        // stray bullet list (`+ 篇）…`).
+        let input = "虽然近年来随着投稿量激增（每年 600+ 篇），录用论文数量有所增加。"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.didChange)
+        XCTAssertEqual(result.diagnostics.repairMode, .none)
+        XCTAssertEqual(result.text, input)
+        XCTAssertFalse(result.text.contains("\n+ "))
+    }
+
+    func testDoesNotSplitDigitGluedDashMarkerInCJKProse() {
+        let input = "录用率在 600- 篇之间波动。"
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.text.contains("\n- "), "digit-glued dash must not become a bullet; got: \(result.text.debugDescription)")
     }
 }

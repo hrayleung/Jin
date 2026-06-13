@@ -73,7 +73,14 @@ private final class InlineScanner {
         // cannot be repaired by appending a closer at end-of-paragraph; doing
         // so would just add more literal asterisks. Leave them as the model
         // emitted them.
+        //
+        // Operator-shaped asterisk runs are excluded too: `f(x)**2` /
+        // `a**b` / `2**8` are exponent notation whose run is left-flanking
+        // (so it "can open") but has no closer anywhere — appending one at
+        // end-of-paragraph would pair it into a bold span CommonMark itself
+        // would never produce, swallowing the literal asterisks.
         for run in runs where run.length > 0 && run.canOpen {
+            if run.marker == .asterisk, isLiteralOperatorShaped(run) { continue }
             let unit = run.marker == .tilde ? 2 : 1
             var offset = 0
             while offset + unit <= run.length {
@@ -281,6 +288,23 @@ private final class InlineScanner {
                 stack.append(i)
             }
         }
+    }
+
+    /// The Python/maths power-operator shape: `f(x)**2`, `x**2`, `2**8`,
+    /// `arr[i]**2`. Requires a digit after the run, or a closing bracket
+    /// before it — plain `Foo**Bar` does NOT match because that's the
+    /// glued-bold-title pattern completion exists to close (`## Foo**Bar
+    /// Baz` at a stream tail). CJK neighbours never match either:
+    /// `他说**这很重要` is a glued opener that completion should close.
+    private func isLiteralOperatorShaped(_ run: Run) -> Bool {
+        guard run.start > 0, run.start + run.length < chars.count else { return false }
+        let prev = chars[run.start - 1]
+        let next = chars[run.start + run.length]
+        let prevIsBracket = prev == ")" || prev == "]"
+        let prevIsWord = prev.isASCII && (prev.isLetter || prev.isNumber)
+        let nextIsDigit = next.isASCII && next.isNumber
+        let nextIsWord = next.isASCII && (next.isLetter || next.isNumber)
+        return (prevIsBracket && nextIsWord) || (prevIsWord && nextIsDigit)
     }
 
     private func shouldSkipRuleOfThree(opener: Run, closer: Run) -> Bool {

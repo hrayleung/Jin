@@ -45,7 +45,7 @@ struct MessageTextView: View {
     var body: some View {
         switch mode {
         case .markdown:
-            MarkdownWebRenderer(
+            NativeMarkdownView(
                 markdownText: text,
                 deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
                 selectionMessageID: selectionMessageID,
@@ -56,7 +56,7 @@ struct MessageTextView: View {
 
         case .plainText:
             if needsSelectionAwarePlainTextRenderer {
-                MarkdownWebRenderer(
+                NativeMarkdownView(
                     markdownText: text,
                     renderPlainText: true,
                     selectionMessageID: selectionMessageID,

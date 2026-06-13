@@ -115,7 +115,6 @@ final class AppPreferencesSnapshotStoreTests: PreferencesSandboxedTestCase {
             AppPreferenceKeys.sttGroqAPIKey: "stt-restored",
             AppPreferenceKeys.cloudflareR2AccountID: "account-restored",
             AppPreferenceKeys.ttsProvider: "groq",
-            AppPreferenceKeys.codeBlockDisplayMode: "collapsible",
             AppPreferenceKeys.codeBlockShowLineNumbers: true,
             AppPreferenceKeys.chatNamingProviderID: "deepseek",
             AppPreferenceKeys.chatNamingModelID: "deepseek-chat"

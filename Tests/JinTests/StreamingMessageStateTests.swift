@@ -13,6 +13,8 @@ final class StreamingMessageStateTests: XCTestCase {
         XCTAssertEqual(state.textContent, "hello")
         XCTAssertEqual(state.thinkingContent, "world")
         XCTAssertEqual(state.visibleText, "hello")
+        XCTAssertEqual(state.visibleTextChunks, ["hello"])
+        XCTAssertEqual(state.visibleTextCharacterCount, 5)
         XCTAssertTrue(state.artifacts.isEmpty)
     }
 
@@ -59,6 +61,8 @@ final class StreamingMessageStateTests: XCTestCase {
         XCTAssertEqual(state.textContent, "")
         XCTAssertEqual(state.thinkingContent, "")
         XCTAssertEqual(state.visibleText, "")
+        XCTAssertEqual(state.visibleTextChunks, [])
+        XCTAssertEqual(state.visibleTextCharacterCount, 0)
         XCTAssertEqual(state.artifacts, [])
         XCTAssertEqual(state.streamingToolCalls.count, 0)
         XCTAssertEqual(state.toolResultsByCallID.count, 0)
@@ -78,6 +82,7 @@ final class StreamingMessageStateTests: XCTestCase {
         )
 
         XCTAssertEqual(state.visibleText.trimmingCharacters(in: .whitespacesAndNewlines), "Intro")
+        XCTAssertEqual(state.visibleTextChunks.count, 1)
         XCTAssertEqual(state.artifacts.count, 1)
         XCTAssertEqual(state.artifacts.first?.artifactID, "demo")
         XCTAssertTrue(state.hasVisibleText)
@@ -92,8 +97,58 @@ final class StreamingMessageStateTests: XCTestCase {
         )
 
         XCTAssertEqual(state.visibleText, "Before")
+        XCTAssertEqual(state.visibleTextChunks, ["Before"])
         XCTAssertTrue(state.artifacts.isEmpty)
         XCTAssertTrue(state.hasVisibleText)
+    }
+
+    func testAppendDeltasMaintainsVisibleTextChunksForLongPlainStream() {
+        let state = StreamingMessageState()
+        let firstChunk = String(repeating: "a", count: 2_048)
+        let secondChunk = String(repeating: "b", count: 2_048)
+        let tail = "done"
+
+        state.appendDeltas(textDelta: firstChunk, thinkingDelta: "")
+        state.appendDeltas(textDelta: secondChunk, thinkingDelta: "")
+        state.appendDeltas(textDelta: tail, thinkingDelta: "")
+
+        XCTAssertEqual(state.visibleText, firstChunk + secondChunk + tail)
+        XCTAssertEqual(state.visibleTextCharacterCount, 4_100)
+        XCTAssertEqual(state.visibleTextChunks, [firstChunk, secondChunk, tail])
+        XCTAssertTrue(state.hasVisibleText)
+    }
+
+    func testAppendDeltasRebuildsVisibleTextChunksWhenArtifactMarkupBecomesHidden() {
+        let state = StreamingMessageState()
+
+        state.appendDeltas(textDelta: "Before <jinArt", thinkingDelta: "")
+        XCTAssertEqual(state.visibleText, "Before <jinArt")
+
+        state.appendDeltas(
+            textDelta: "ifact artifact_id=\"demo\" title=\"Demo\" contentType=\"text/html\"><div>",
+            thinkingDelta: ""
+        )
+
+        XCTAssertEqual(state.visibleText, "Before ")
+        XCTAssertEqual(state.visibleTextChunks, ["Before "])
+        XCTAssertEqual(state.visibleTextCharacterCount, 7)
+        XCTAssertTrue(state.hasVisibleText)
+    }
+
+    func testAppendDeltasAppendsVisibleChunksAfterCompletedArtifact() {
+        let state = StreamingMessageState()
+        let prefix = "Intro "
+        let artifact = "\(prefix)<jinArtifact artifact_id=\"demo\" title=\"Demo\" contentType=\"text/html\"><div></div></jinArtifact>"
+        let tail = String(repeating: "x", count: 2_050)
+
+        state.appendDeltas(textDelta: artifact, thinkingDelta: "")
+        state.appendDeltas(textDelta: tail, thinkingDelta: "")
+
+        XCTAssertEqual(state.visibleText, prefix + tail)
+        XCTAssertEqual(state.artifacts.count, 1)
+        XCTAssertEqual(state.visibleTextCharacterCount, state.visibleText.count)
+        XCTAssertGreaterThan(state.visibleTextChunks.count, 1)
+        XCTAssertLessThanOrEqual(state.visibleTextChunks.map(\.count).max() ?? 0, 2_048)
     }
 
     func testUpsertSearchActivityMergesByIDAndIncrementsRenderTick() {

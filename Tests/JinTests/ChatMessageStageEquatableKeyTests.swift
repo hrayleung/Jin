@@ -17,7 +17,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             allMessageCount: 1,
             lastMessageID: messageID,
             messageRenderLimit: 50,
-            toolResultCount: 1,
+            toolResultsByCallID: toolResultsFixture(),
             entityCount: 1,
             assistantDisplayName: "Assistant",
             providerType: nil,
@@ -40,7 +40,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             allMessageCount: 1,
             lastMessageID: messageID,
             messageRenderLimit: 50,
-            toolResultCount: 1,
+            toolResultsByCallID: toolResultsFixture(),
             entityCount: 1,
             assistantDisplayName: "Assistant",
             providerType: nil,
@@ -54,6 +54,38 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
         )
 
         XCTAssertEqual(first, second)
+    }
+
+    func testSingleThreadKeyChangesForToolResultPayloadChanges() {
+        let conversationID = UUID()
+        let messageID = UUID()
+
+        func makeKey(resultContent: String) -> ChatStageEquatableKey {
+            ChatMessageStageEquatableKeyBuilder.singleThreadKey(
+                conversationID: conversationID,
+                conversationMessageCount: 1,
+                renderRevision: 1,
+                viewportHeight: 600,
+                layoutWidthBucket: ChatConversationLayoutMetrics.layoutWidthBucket(for: 1_200),
+                layoutCenterOffsetBucket: 0,
+                allMessageCount: 1,
+                lastMessageID: messageID,
+                messageRenderLimit: 50,
+                toolResultsByCallID: toolResultsFixture(content: resultContent),
+                entityCount: 0,
+                assistantDisplayName: "Assistant",
+                providerType: nil,
+                providerIconID: nil,
+                composerHeight: 80,
+                isStreaming: false,
+                streamingObjectID: nil,
+                streamingModelLabel: nil,
+                streamingModelID: nil,
+                expandedCollapsedMessageIDs: []
+            )
+        }
+
+        XCTAssertNotEqual(makeKey(resultContent: "partial"), makeKey(resultContent: "final"))
     }
 
     func testSingleThreadKeyIgnoresWidthOnlyChangesWithinCenteredColumnRange() {
@@ -71,7 +103,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
                 allMessageCount: 1,
                 lastMessageID: messageID,
                 messageRenderLimit: 50,
-                toolResultCount: 0,
+                toolResultsByCallID: [:],
                 entityCount: 0,
                 assistantDisplayName: "Assistant",
                 providerType: nil,
@@ -110,7 +142,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
                 allMessageCount: 1,
                 lastMessageID: messageID,
                 messageRenderLimit: 50,
-                toolResultCount: 0,
+                toolResultsByCallID: [:],
                 entityCount: 0,
                 assistantDisplayName: "Assistant",
                 providerType: nil,
@@ -141,7 +173,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             allMessageCount: 1,
             lastMessageID: messageID,
             messageRenderLimit: 50,
-            toolResultCount: 0,
+            toolResultsByCallID: [:],
             entityCount: 0,
             assistantDisplayName: "Assistant",
             providerType: nil,
@@ -164,7 +196,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             allMessageCount: 2,
             lastMessageID: UUID(),
             messageRenderLimit: 50,
-            toolResultCount: 0,
+            toolResultsByCallID: [:],
             entityCount: 0,
             assistantDisplayName: "Assistant",
             providerType: nil,
@@ -187,7 +219,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
             allMessageCount: 1,
             lastMessageID: messageID,
             messageRenderLimit: 50,
-            toolResultCount: 0,
+            toolResultsByCallID: [:],
             entityCount: 0,
             assistantDisplayName: "Assistant",
             providerType: nil,
@@ -219,7 +251,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
                 allMessageCount: 1,
                 lastMessageID: messageID,
                 messageRenderLimit: messageRenderLimit,
-                toolResultCount: 0,
+                toolResultsByCallID: [:],
                 entityCount: 0,
                 assistantDisplayName: "Assistant",
                 providerType: nil,
@@ -256,7 +288,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
                 allMessageCount: 1,
                 lastMessageID: messageID,
                 messageRenderLimit: 50,
-                toolResultCount: 0,
+                toolResultsByCallID: [:],
                 entityCount: 0,
                 assistantDisplayName: "Assistant",
                 providerType: nil,
@@ -302,7 +334,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
                 allMessageCount: 1,
                 lastMessageID: messageID,
                 messageRenderLimit: 50,
-                toolResultCount: 0,
+                toolResultsByCallID: [:],
                 entityCount: 0,
                 assistantDisplayName: "Assistant",
                 providerType: nil,
@@ -359,7 +391,7 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
                 allMessageCount: 1,
                 lastMessageID: messageID,
                 messageRenderLimit: 50,
-                toolResultCount: 0,
+                toolResultsByCallID: [:],
                 entityCount: 1,
                 assistantDisplayName: "Assistant",
                 providerType: nil,
@@ -407,5 +439,17 @@ final class ChatMessageStageEquatableKeyTests: XCTestCase {
         XCTAssertNotEqual(inactive, editing)
         XCTAssertNotEqual(editing, makeKey(editingUserMessageID: editingMessageID, editSlashCommandKey: activeSlash))
         XCTAssertNotEqual(editing, makeKey(editingUserMessageID: editingMessageID, editSlashCommandKey: withSelectedServer))
+    }
+
+    private func toolResultsFixture(content: String = "done") -> [String: ToolResult] {
+        [
+            "call_1": ToolResult(
+                id: "result_1",
+                toolCallID: "call_1",
+                toolName: "lookup",
+                content: content,
+                isError: false
+            )
+        ]
     }
 }

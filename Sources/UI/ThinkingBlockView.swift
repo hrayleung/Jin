@@ -55,12 +55,25 @@ struct StreamingThinkingBlockView: View {
     let chunks: [String]
     let codeFont: Font
     let isThinkingComplete: Bool
+    /// Fired whenever `isExpanded` changes (manual toggle or the
+    /// auto-collapse on completion). The streaming bubble's
+    /// `ConstrainedWidth` cache is version-gated on `renderTick`, which
+    /// doesn't tick for this row-internal state change — the host must
+    /// bump its layout version or the row keeps the stale height and the
+    /// expanded content is clipped at the old row bottom.
+    let onExpansionChanged: () -> Void
     @State private var isExpanded: Bool
 
-    init(chunks: [String], codeFont: Font, isThinkingComplete: Bool = false) {
+    init(
+        chunks: [String],
+        codeFont: Font,
+        isThinkingComplete: Bool = false,
+        onExpansionChanged: @escaping () -> Void = {}
+    ) {
         self.chunks = chunks
         self.codeFont = codeFont
         self.isThinkingComplete = isThinkingComplete
+        self.onExpansionChanged = onExpansionChanged
         let mode = Self.resolveDisplayMode()
         _isExpanded = State(
             initialValue: ThinkingBlockSupport.initialExpansionForStreamingBlock(
@@ -101,6 +114,9 @@ struct StreamingThinkingBlockView: View {
                     isExpanded = shouldExpand
                 }
             }
+        }
+        .onChange(of: isExpanded) { _, _ in
+            onExpansionChanged()
         }
     }
 

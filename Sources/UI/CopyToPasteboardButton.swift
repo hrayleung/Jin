@@ -6,6 +6,7 @@ struct CopyToPasteboardButton: View {
     var helpText: String = "Copy"
     var copiedHelpText: String = "Copied"
     var useProminentStyle: Bool = true
+    var isDisabled: Bool? = nil
 
     @State private var didCopy = false
     @State private var resetTask: Task<Void, Never>?
@@ -22,7 +23,7 @@ struct CopyToPasteboardButton: View {
         }
         .help(didCopy ? copiedHelpText : helpText)
         // Avoid allocating a trimmed copy of large strings just to check emptiness.
-        .disabled(text.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) == nil)
+        .disabled(isDisabled ?? !text.containsNonWhitespace)
     }
 
     private var baseButton: some View {

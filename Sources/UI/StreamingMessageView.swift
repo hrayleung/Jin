@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct StreamingMessageView: View {
+    private static let richMarkdownCharacterLimit = 4_000
+
     @ObservedObject var state: StreamingMessageState
     let maxBubbleWidth: CGFloat
     let assistantDisplayName: String
@@ -9,13 +11,18 @@ struct StreamingMessageView: View {
     let providerType: ProviderType?
     let providerIconID: String?
     let onContentUpdate: () -> Void
-    @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
+    /// Bumped when row-internal state changes the content's height outside
+    /// of a streaming delta (thinking block expand/collapse). Folded into
+    /// the `ConstrainedWidth` layout version below so the cached measurement
+    /// is invalidated — `renderTick` alone only ticks on deltas, which left
+    /// the row at a stale height and clipped the newly expanded content.
+    @State private var layoutEpoch = 0
 
     var body: some View {
         let hidesManagedAgentInternalUI = ManagedAgentUIVisibilitySupport.hidesInternalUI(providerType: providerType)
         let visibleText = state.visibleText
-        let showsCopyButton = visibleText.trimmedNonEmpty != nil
+        let showsCopyButton = state.hasVisibleText
         let visibleToolCalls = hidesManagedAgentInternalUI ? [] : state.streamingToolCalls.filter { call in
             !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
             && !isGoogleProviderNativeToolName(call.name)
@@ -73,15 +80,13 @@ struct StreamingMessageView: View {
                             StreamingThinkingBlockView(
                                 chunks: visibleThinkingChunks,
                                 codeFont: chatCodeFont,
-                                isThinkingComplete: state.isThinkingComplete
+                                isThinkingComplete: state.isThinkingComplete,
+                                onExpansionChanged: { layoutEpoch &+= 1 }
                             )
                         }
 
                         if !visibleText.isEmpty {
-                            MarkdownWebRenderer(
-                                markdownText: visibleText,
-                                isStreaming: true
-                            )
+                            streamingTextView(visibleText)
                         }
 
                         if !state.artifacts.isEmpty {
@@ -105,14 +110,22 @@ struct StreamingMessageView: View {
 
                     if showsCopyButton {
                         HStack {
-                            CopyToPasteboardButton(text: visibleText, helpText: "Copy message", useProminentStyle: false)
+                            CopyToPasteboardButton(
+                                text: visibleText,
+                                helpText: "Copy message",
+                                useProminentStyle: false,
+                                isDisabled: !state.hasVisibleText
+                            )
                                 .accessibilityLabel("Copy message")
                             Spacer(minLength: 0)
                         }
                         .padding(.top, JinSpacing.xSmall - 2)
                     }
                 }
-                .layoutValue(key: ConstrainedWidthContentVersionKey.self, value: .version(state.renderTick))
+                // Both inputs are monotonically increasing, so any change —
+                // a streaming delta OR a thinking expand/collapse — yields a
+                // version the cache hasn't seen.
+                .layoutValue(key: ConstrainedWidthContentVersionKey.self, value: .version(state.renderTick &+ layoutEpoch))
             }
             .padding(.horizontal, JinSpacing.small)
 
@@ -125,12 +138,63 @@ struct StreamingMessageView: View {
         }
     }
 
-    private var chatBodyFont: Font {
-        JinTypography.chatBodyFont(appFamilyPreference: appFontFamily, scale: JinTypography.defaultChatMessageScale)
+    @ViewBuilder
+    private func streamingTextView(_ visibleText: String) -> some View {
+        if state.visibleTextCharacterCount <= Self.richMarkdownCharacterLimit {
+            NativeMarkdownView(
+                markdownText: visibleText,
+                isStreaming: true
+            )
+        } else {
+            StreamingPlainTextChunksView(chunks: state.visibleTextChunks)
+        }
     }
 
     private var chatCodeFont: Font {
         JinTypography.chatCodeFont(codeFamilyPreference: codeFontFamily, scale: JinTypography.defaultChatMessageScale)
+    }
+}
+
+/// Plain-text fallback shown while a *long* (> `richMarkdownCharacterLimit`)
+/// message is still streaming. The earlier implementation composed a SwiftUI
+/// `Text` tree with `.textSelection(.enabled)`; that re-shaped the entire
+/// growing string on every layout probe (and the streaming bubble is probed
+/// repeatedly per flush by `ConstrainedWidth` + `NSHostingView`'s intrinsic
+/// sizing), which was the dominant on-main cost of the streaming lag.
+///
+/// Routing the text through `AttributedTextBlock` instead reuses the
+/// renderer's `JinMessageTextView`, whose height is memoized by
+/// `(textStorage length, width)` so repeated same-width probes in one layout
+/// pass are free, whose layer-backing keeps scroll compositing cheap, and
+/// which is selectable out of the box. The `contentSignature` (the text's
+/// byte length — monotonic while streaming) gates `setAttributedString` to
+/// once per flush. Attributes mirror the canonical plain-text path in
+/// `NativeMarkdownCache.compute`, so the swap to the fully-rendered message
+/// at stream end stays visually consistent.
+private struct StreamingPlainTextChunksView: View {
+    let chunks: [String]
+
+    @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
+    @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
+
+    var body: some View {
+        let theme = MarkdownTheme.resolved(appFontFamily: appFontFamily, codeFontFamily: codeFontFamily)
+        let text = chunks.joined()
+        AttributedTextBlock(
+            attributedString: NSAttributedString(
+                string: text,
+                attributes: [
+                    .font: theme.bodyFont,
+                    .foregroundColor: theme.baseColor,
+                    // Match the post-stream rich render's body line metrics
+                    // (lineHeightMultiple etc.) so the swap at stream end
+                    // doesn't reflow every line of a >4000-char message.
+                    .paragraphStyle: theme.bodyParagraphStyle,
+                ]
+            ),
+            contentSignature: UInt64(text.utf8.count)
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

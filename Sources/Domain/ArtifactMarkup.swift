@@ -52,6 +52,7 @@ struct ArtifactParseResult: Sendable {
     let visibleTextSegments: [String]
     let artifacts: [ParsedArtifact]
     let hasIncompleteTrailingArtifact: Bool
+    let isPassthroughFullText: Bool
 
     var visibleText: String {
         visibleTextSegments.joined()
@@ -193,7 +194,15 @@ enum ArtifactMarkupParser {
             activeChunkEnd = nsText.length
         }
 
-        if activeChunkEnd > state.committedActiveChunkBase {
+        let isPassthroughFullText = state.committedSegments.isEmpty
+            && state.committedArtifacts.isEmpty
+            && !hasIncompleteTrailingArtifact
+            && state.committedActiveChunkBase == 0
+            && activeChunkEnd == nsText.length
+
+        if isPassthroughFullText {
+            resultSegments.append(text)
+        } else if activeChunkEnd > state.committedActiveChunkBase {
             let active = nsText.substring(with: NSRange(
                 location: state.committedActiveChunkBase,
                 length: activeChunkEnd - state.committedActiveChunkBase
@@ -216,7 +225,8 @@ enum ArtifactMarkupParser {
         return ArtifactParseResult(
             visibleTextSegments: resultSegments,
             artifacts: state.committedArtifacts,
-            hasIncompleteTrailingArtifact: hasIncompleteTrailingArtifact
+            hasIncompleteTrailingArtifact: hasIncompleteTrailingArtifact,
+            isPassthroughFullText: isPassthroughFullText
         )
     }
 

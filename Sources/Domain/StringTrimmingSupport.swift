@@ -13,4 +13,8 @@ extension String {
         let value = trimmed
         return value.isEmpty ? nil : value
     }
+
+    var containsNonWhitespace: Bool {
+        rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted) != nil
+    }
 }
