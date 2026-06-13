@@ -46,19 +46,44 @@ final class JinMarkdownLayoutManager: NSLayoutManager {
             guard let fillColor = value as? NSColor else { return }
             let borderColor = textStorage.attribute(.jinInlineCodeBorder, at: attrRange.location, effectiveRange: nil) as? NSColor
 
+            // Size the pill from the *code* font's metrics, anchored on the
+            // text baseline — not by insetting the enclosing rect. That rect
+            // is the full line-fragment height, which the larger body font
+            // and `lineHeightMultiple` inflate well above the (smaller) code
+            // glyphs; insetting it symmetrically left the fill floating high
+            // with a big gap on top and the descenders clipped at the bottom.
+            let codeFont = textStorage.attribute(.font, at: attrRange.location, effectiveRange: nil) as? NSFont
             let glyphRange = self.glyphRange(forCharacterRange: attrRange, actualCharacterRange: nil)
+            guard glyphRange.length > 0 else { return }
+            // Baseline distance from the line-fragment top. Uniform within a
+            // paragraph, so one sample anchors every enclosing rect.
+            let baselineFromTop = self.location(forGlyphAt: glyphRange.location).y
+
             enumerateEnclosingRects(
                 forGlyphRange: glyphRange,
                 withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
                 in: textContainer
             ) { rect, _ in
-                let inset: CGFloat = 1.5
-                let horizontalPad: CGFloat = 1
+                // `capHeight` clears caps, digits and lowercase ascenders;
+                // `descender` clears the tails. A little breathing room above,
+                // almost none below — the baseline sits low in the line box.
+                let ascent = codeFont?.capHeight ?? rect.height * 0.45
+                let descent = abs(codeFont?.descender ?? 0)
+                let padTop: CGFloat = 2.5
+                let padBottom: CGFloat = 1
+                let horizontalPad: CGFloat = 2.5
+
+                let lineTop = rect.minY + origin.y
+                let lineBottom = rect.maxY + origin.y
+                let baselineY = lineTop + baselineFromTop
+                // Hug the glyphs, but never spill into the neighbouring lines.
+                let top = max(baselineY - ascent - padTop, lineTop)
+                let bottom = min(baselineY + descent + padBottom, lineBottom)
                 let drawRect = NSRect(
-                    x: rect.origin.x + origin.x - horizontalPad,
-                    y: rect.origin.y + origin.y + inset,
-                    width: rect.size.width + 2 * horizontalPad,
-                    height: max(0, rect.size.height - 2 * inset)
+                    x: rect.minX + origin.x - horizontalPad,
+                    y: top,
+                    width: rect.width + 2 * horizontalPad,
+                    height: bottom - top
                 )
                 guard drawRect.height > 0, drawRect.width > 0 else { return }
 
