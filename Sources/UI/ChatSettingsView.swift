@@ -30,7 +30,7 @@ struct ChatSettingsView: View {
     private var networkTraceSection: some View {
         JinSettingsSection("Network Trace") {
             JinSettingsToggleRow("Enable Network Trace", isOn: $networkDebugLoggingEnabled)
-            JinSettingsStatusText(text: "JSON logs in time folders.")
+            JinSettingsStatusText(text: "Stores redacted request/response metadata in JSON time folders. Body contents, API keys, cookies, and sensitive URL parameters are omitted.")
 
             ChatSettingsLogActionsRow(
                 openTitle: "Open Trace Folder",
