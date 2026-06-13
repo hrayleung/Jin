@@ -105,14 +105,7 @@ actor BuiltinSearchToolHub {
         }
 
         let text = prettyJSONString(from: output)
-            ?? prettyJSONString(
-                from: BuiltinSearchToolOutput(
-                    provider: route.provider,
-                    query: resolved.query,
-                    resultCount: 0,
-                    results: []
-                )
-            )
+            ?? prettyJSONString(from: BuiltinSearchToolOutput.empty(provider: route.provider, query: resolved.query))
             ?? #"{"provider":"exa","query":"","resultCount":0,"results":[]}"#
         return MCPToolCallResult(text: text, isError: false)
     }
@@ -208,6 +201,10 @@ struct BuiltinSearchToolOutput: Codable, Sendable {
     let query: String
     let resultCount: Int
     let results: [SearchCitationRow]
+
+    static func empty(provider: SearchPluginProvider, query: String) -> Self {
+        Self(provider: provider, query: query, resultCount: 0, results: [])
+    }
 }
 
 struct SearchCitationRow: Codable, Sendable {

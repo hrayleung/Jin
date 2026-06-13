@@ -44,7 +44,11 @@ extension BuiltinSearchToolHub {
         return []
     }
 
-    func firstString(in dictionary: [String: Any], keys: [String]) -> String? {
+    nonisolated func firstString(in dictionary: [String: Any], keys: [String]) -> String? {
+        Self.firstString(in: dictionary, keys: keys)
+    }
+
+    nonisolated static func firstString(in dictionary: [String: Any], keys: [String]) -> String? {
         for key in keys {
             if let value = dictionary[key] as? String,
                let trimmed = value.trimmedNonEmpty {
@@ -137,6 +141,24 @@ extension BuiltinSearchToolHub {
         return formatter.string(from: date)
     }
 
+    /// Formats `date` using the given `dateFormat` in UTC/POSIX locale.
+    /// Shared by any provider that needs a simple date-only string (e.g. `yyyy-MM-dd`).
+    nonisolated static func utcDateString(_ date: Date, format: String) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = format
+        return formatter.string(from: date)
+    }
+
+    /// Returns a Gregorian calendar whose time zone is UTC. Shared by providers that
+    /// need date arithmetic (e.g. adding days) before formatting.
+    nonisolated static func utcGregorianCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return calendar
+    }
+
     func prettyJSONString<T: Encodable>(from value: T) -> String? {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -172,6 +194,26 @@ extension BuiltinSearchToolHub {
 
     func urlHost(_ urlString: String) -> String? {
         URL(string: urlString)?.host
+    }
+
+    /// Builds a `SearchCitationRow` from a raw JSON dictionary using the supplied key lists.
+    /// Returns `nil` if none of `urlKeys` resolves to a non-empty string.
+    /// Applies the standard 500-character snippet cap and falls back to `host ?? url` for the title.
+    /// Use this for providers whose row shape is: plain url guard → title-with-host-fallback →
+    /// 500-capped snippet → publishedAt → source=host.
+    /// Providers with custom snippet logic (Exa's highlight chain, Brave's multi-field join)
+    /// or a nonisolated-static context (Firecrawl) must keep their own row-building code.
+    func citationRow(
+        from item: [String: Any],
+        urlKeys: [String],
+        snippetKeys: [String],
+        publishedAtKeys: [String]
+    ) -> SearchCitationRow? {
+        guard let url = firstString(in: item, keys: urlKeys) else { return nil }
+        let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
+        let snippet = firstString(in: item, keys: snippetKeys).map { String($0.prefix(500)) }
+        let publishedAt = firstString(in: item, keys: publishedAtKeys)
+        return SearchCitationRow(title: title, url: url, snippet: snippet, publishedAt: publishedAt, source: urlHost(url))
     }
 
     func braveSnippet(from item: [String: Any], includeExtraSnippets: Bool) -> String? {

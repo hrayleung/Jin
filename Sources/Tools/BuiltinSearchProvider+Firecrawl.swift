@@ -114,12 +114,12 @@ extension BuiltinSearchToolHub {
 
         for item in raw {
             guard rows.count < cap else { break }
-            guard let url = firstFirecrawlString(in: item, keys: ["url", "link", "imageUrl"]) else { continue }
+            guard let url = firstString(in: item, keys: ["url", "link", "imageUrl"]) else { continue }
             guard seenURLs.insert(url).inserted else { continue }
 
-            let title = firstFirecrawlString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
-            let snippet = firstFirecrawlString(in: item, keys: ["description", "snippet", "markdown", "summary", "content"])
-            let publishedAt = firstFirecrawlString(in: item, keys: ["publishedDate", "published", "date"])
+            let title = firstString(in: item, keys: ["title"]) ?? URL(string: url)?.host ?? url
+            let snippet = firstString(in: item, keys: ["description", "snippet", "markdown", "summary", "content"])
+            let publishedAt = firstString(in: item, keys: ["publishedDate", "published", "date"])
             rows.append(SearchCitationRow(
                 title: title,
                 url: url,
@@ -130,15 +130,5 @@ extension BuiltinSearchToolHub {
         }
 
         return rows
-    }
-
-    private nonisolated static func firstFirecrawlString(in dictionary: [String: Any], keys: [String]) -> String? {
-        for key in keys {
-            if let value = dictionary[key] as? String,
-               let trimmed = value.trimmedNonEmpty {
-                return trimmed
-            }
-        }
-        return nil
     }
 }
