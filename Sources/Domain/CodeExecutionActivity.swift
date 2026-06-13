@@ -61,7 +61,7 @@ struct CodeExecutionActivity: Codable, Identifiable, Sendable {
 }
 
 /// Status of a code execution activity.
-enum CodeExecutionStatus: Codable, Sendable, Equatable {
+enum CodeExecutionStatus: RawStringCodable, Sendable, Equatable {
     case inProgress
     case writingCode
     case interpreting
@@ -106,17 +106,6 @@ enum CodeExecutionStatus: Codable, Sendable, Equatable {
         case .unknown(let value):
             return value
         }
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let value = try container.decode(String.self)
-        self = CodeExecutionStatus(rawValue: value)
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(rawValue)
     }
 }
 
