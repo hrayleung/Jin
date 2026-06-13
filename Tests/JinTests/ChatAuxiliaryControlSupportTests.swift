@@ -1592,7 +1592,7 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
         }
     }
 
-    func testResolvedMCPServerConfigsUsesPerMessageOverrideWhenConversationMCPDisabled() throws {
+    func testResolvedMCPServerConfigsDoesNotEnableMCPToolsForPerMessageOverride() throws {
         var controls = GenerationControls()
         controls.mcpTools = MCPToolsControls(enabled: false, enabledServerIDs: nil)
 
@@ -1603,7 +1603,7 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
             perMessageOverrideServerIDs: ["beta"]
         )
 
-        XCTAssertEqual(configs.map(\.id), ["beta"])
+        XCTAssertTrue(configs.isEmpty)
     }
 
     func testEligibleMCPServersFiltersAutomaticEnabledServersAndSortsByName() {
@@ -1648,6 +1648,31 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
         )
 
         XCTAssertTrue(configs.isEmpty)
+    }
+
+    func testRestoredVisiblePerMessageMCPServerIDsIgnoresIDsWithoutNames() throws {
+        let encoder = JSONEncoder()
+        let idsData = try encoder.encode(["alpha"])
+
+        let restoredIDs = ChatPerMessageMCPSelectionSupport.restoredVisibleServerIDs(
+            idsData: idsData,
+            namesData: nil
+        )
+
+        XCTAssertTrue(restoredIDs.isEmpty)
+    }
+
+    func testRestoredVisiblePerMessageMCPServerIDsRequiresVisibleNames() throws {
+        let encoder = JSONEncoder()
+        let idsData = try encoder.encode(["alpha"])
+        let namesData = try encoder.encode(["Alpha"])
+
+        let restoredIDs = ChatPerMessageMCPSelectionSupport.restoredVisibleServerIDs(
+            idsData: idsData,
+            namesData: namesData
+        )
+
+        XCTAssertEqual(restoredIDs, ["alpha"])
     }
 
     private func makeServer(
