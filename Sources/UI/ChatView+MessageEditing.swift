@@ -33,12 +33,10 @@ extension ChatView {
 
         editingUserMessageID = messageEntity.id
         editingUserMessageText = editableText
-        if let idsData = messageEntity.perMessageMCPServerIDsData,
-           let savedIDs = try? JSONDecoder().decode([String].self, from: idsData) {
-            perMessageMCPServerIDs = Set(savedIDs)
-        } else {
-            perMessageMCPServerIDs = []
-        }
+        perMessageMCPServerIDs = ChatPerMessageMCPSelectionSupport.restoredVisibleServerIDs(
+            idsData: messageEntity.perMessageMCPServerIDsData,
+            namesData: messageEntity.perMessageMCPServerNamesData
+        )
 
         DispatchQueue.main.async {
             isEditingUserMessageFocused = true
@@ -100,10 +98,11 @@ extension ChatView {
     func regenerateFromUserMessage(_ messageEntity: MessageEntity) {
         guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity) else { return }
         var perMessageMCPSnapshot = perMessageMCPServerIDs
-        if perMessageMCPSnapshot.isEmpty,
-           let idsData = messageEntity.perMessageMCPServerIDsData,
-           let savedIDs = try? JSONDecoder().decode([String].self, from: idsData) {
-            perMessageMCPSnapshot = Set(savedIDs)
+        if perMessageMCPSnapshot.isEmpty {
+            perMessageMCPSnapshot = ChatPerMessageMCPSelectionSupport.restoredVisibleServerIDs(
+                idsData: messageEntity.perMessageMCPServerIDsData,
+                namesData: messageEntity.perMessageMCPServerNamesData
+            )
         }
         perMessageMCPServerIDs = []
         let askedAt = Date()

@@ -92,10 +92,8 @@ extension ChatAuxiliaryControlSupport {
 
         var effectiveControls = controls
         if !perMessageOverrideServerIDs.isEmpty {
-            effectiveControls.mcpTools = MCPToolsControls(
-                enabled: true,
-                enabledServerIDs: Array(perMessageOverrideServerIDs).sorted()
-            )
+            guard effectiveControls.mcpTools?.enabled == true else { return [] }
+            effectiveControls.mcpTools?.enabledServerIDs = Array(perMessageOverrideServerIDs).sorted()
         }
 
         guard effectiveControls.mcpTools?.enabled == true else { return [] }
