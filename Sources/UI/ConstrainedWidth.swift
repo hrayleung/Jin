@@ -37,7 +37,7 @@ struct ConstrainedWidth<Content: View>: View {
             // Use standard frame layout on that OS family to avoid the
             // LayoutSubview.sizeThatFits path entirely.
             content
-                .frame(width: width, alignment: .leading)
+                .frame(maxWidth: width, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
             MeasuringConstrainedWidth(width) {

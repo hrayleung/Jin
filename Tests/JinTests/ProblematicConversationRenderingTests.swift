@@ -109,7 +109,7 @@ final class ProblematicConversationRenderingTests: XCTestCase {
         let size = host.fittingSize
         XCTAssertGreaterThan(size.width, 0)
         XCTAssertGreaterThan(size.height, 0)
-        XCTAssertLessThanOrEqual(size.width, 760)
+        XCTAssertLessThanOrEqual(size.width, 360)
         XCTAssertLessThan(size.height, 800)
     }
 
