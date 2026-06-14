@@ -19,7 +19,40 @@ struct ConstrainedWidthContentVersionKey: LayoutValueKey {
     static let defaultValue: ConstrainedWidthCacheInvalidation = .automatic
 }
 
-struct ConstrainedWidth: Layout {
+struct ConstrainedWidth<Content: View>: View {
+    let maxWidth: CGFloat
+    let content: Content
+
+    init(_ maxWidth: CGFloat, @ViewBuilder content: () -> Content) {
+        self.maxWidth = maxWidth
+        self.content = content()
+    }
+
+    var body: some View {
+        let width = resolvedMaxWidth(maxWidth)
+
+        if #available(macOS 27.0, *) {
+            // macOS 27's SwiftUI stack layout can crash while a custom Layout
+            // probes nested message stacks from NSHostingView intrinsic sizing.
+            // Use standard frame layout on that OS family to avoid the
+            // LayoutSubview.sizeThatFits path entirely.
+            content
+                .frame(maxWidth: width, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            MeasuringConstrainedWidth(width) {
+                content
+            }
+        }
+    }
+
+    private func resolvedMaxWidth(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite, value > 0 else { return 0 }
+        return value
+    }
+}
+
+private struct MeasuringConstrainedWidth: Layout {
     let maxWidth: CGFloat
 
     struct Cache {
