@@ -31,6 +31,8 @@ extension ChatStreamingOrchestrator {
             )
         }
 
-        return history
+        // Replace any attachments whose files were deleted/moved with text
+        // placeholders so a single lost attachment can't abort the whole request.
+        return MissingAttachmentSanitizer.sanitize(history)
     }
 }
