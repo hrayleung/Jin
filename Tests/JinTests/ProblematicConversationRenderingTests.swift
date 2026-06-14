@@ -69,6 +69,50 @@ final class ProblematicConversationRenderingTests: XCTestCase {
         XCTAssertLessThan(size.height, 2_000)
     }
 
+    func testConstrainedWidthMessageLikeStackLayoutCompletes() {
+        let host = NSHostingView(
+            rootView: ConstrainedWidth(360) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "network")
+                        Text("Assistant")
+                        Text("model-preview")
+                            .font(.caption2)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(Self.messageLikeLongText)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack(spacing: 8) {
+                            Text("Tool")
+                            Spacer(minLength: 0)
+                            Text("Complete")
+                        }
+                    }
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.12)))
+
+                    HStack(spacing: 8) {
+                        Text("Copy")
+                        Spacer(minLength: 0)
+                        Text("2:43 PM")
+                    }
+                    .padding(.horizontal, 12)
+                }
+                .layoutValue(key: ConstrainedWidthContentVersionKey.self, value: .version(1))
+            }
+        )
+        host.frame = CGRect(x: 0, y: 0, width: 760, height: 1)
+        host.layoutSubtreeIfNeeded()
+
+        let size = host.fittingSize
+        XCTAssertGreaterThan(size.width, 0)
+        XCTAssertGreaterThan(size.height, 0)
+        XCTAssertLessThanOrEqual(size.width, 760)
+        XCTAssertLessThan(size.height, 800)
+    }
+
     private func markdownGroupsView(_ groups: [NativeMarkdownGroup], theme: MarkdownTheme) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(groups.enumerated()), id: \.offset) { offset, group in
@@ -78,6 +122,12 @@ final class ProblematicConversationRenderingTests: XCTestCase {
         .frame(width: 760, alignment: .leading)
         .environment(\.markdownTheme, theme)
     }
+
+    private static let messageLikeLongText = """
+    This message exercises the same nested stack shape as a chat row: a compact \
+    header, a padded message surface, and a footer with spacers. It is long \
+    enough to require wrapping under the constrained bubble width.
+    """
 
     private static let mobiHocNSDIThinking = """
     **Comparing MobiHoc and NSDI**
