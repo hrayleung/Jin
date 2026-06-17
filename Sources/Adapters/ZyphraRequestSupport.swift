@@ -26,7 +26,7 @@ extension ZyphraAdapter {
             body["max_tokens"] = maxTokens
         }
 
-        applyReasoning(to: &body, controls: controls, modelID: modelID)
+        applyReasoning(to: &body, controls: controls, modelID: resolvedModelID)
 
         if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
             body["tools"] = functionTools

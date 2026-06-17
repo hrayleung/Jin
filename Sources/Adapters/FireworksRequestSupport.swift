@@ -14,6 +14,11 @@ extension FireworksAdapter {
             "stream": streaming
         ]
 
+        if streaming {
+            // Request a trailing usage chunk so input/output token counts populate.
+            body["stream_options"] = ["include_usage": true]
+        }
+
         if let temperature = controls.temperature {
             body["temperature"] = temperature
         }

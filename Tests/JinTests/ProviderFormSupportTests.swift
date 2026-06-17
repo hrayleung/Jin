@@ -37,7 +37,7 @@ final class ProviderFormSupportTests: XCTestCase {
         )
         XCTAssertEqual(
             ProviderFormSupport.providerDetailsText(for: .zhipuCodingPlan),
-            "Use `https://open.bigmodel.cn/api/coding/paas/v4` instead of the generic `/api/paas/v4`. Recommended models: `glm-5`, `glm-4.7`."
+            "Use `https://open.bigmodel.cn/api/coding/paas/v4` instead of the generic `/api/paas/v4`. Recommended models: `glm-5.2`, `glm-5`, `glm-4.7`."
         )
         XCTAssertEqual(
             ProviderFormSupport.providerDetailsText(for: .minimax),

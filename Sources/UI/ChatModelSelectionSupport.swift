@@ -8,12 +8,14 @@ enum ChatModelSelectionSupport {
         "deepseek-v4-pro",
         "deepseek-v3p2",
         "kimi-k2-instruct-0905",
+        "glm-5p2",
         "glm-5",
         "minimax-m2p5",
         "kimi-k2p5",
         "glm-4p7"
     ]
     static let preferredDeepInfraModelOrder: [String] = [
+        "zai-org/GLM-5.2",
         "zai-org/GLM-5.1",
         "Qwen/Qwen3.6-35B-A3B",
         "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning",
@@ -23,6 +25,16 @@ enum ChatModelSelectionSupport {
         "Qwen/Qwen3.5-35B-A3B",
         "Qwen/Qwen3.5-27B",
         "Qwen/Qwen3.5-9B",
+    ]
+    static let preferredTogetherModelOrder: [String] = [
+        "moonshotai/Kimi-K2.5",
+        "zai-org/GLM-5.2",
+        "zai-org/GLM-5",
+        "deepseek-ai/DeepSeek-V3.1",
+        "openai/gpt-oss-120b",
+        "Qwen/Qwen3.5-397B-A17B",
+        "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
+        "Qwen/Qwen3-Coder-Next-FP8",
     ]
 
     static func preferredFireworksModelID(in models: [ModelInfo]) -> String? {
@@ -81,7 +93,9 @@ enum ChatModelSelectionSupport {
             return models.first(where: { $0.id == "deepseek-chat" })?.id
                 ?? models.first(where: { $0.id == "deepseek-reasoner" })?.id
         case .zhipuCodingPlan:
-            return models.first(where: { $0.id.lowercased() == "glm-5" })?.id
+            return models.first(where: { $0.id.lowercased() == "glm-5.2[1m]" })?.id
+                ?? models.first(where: { $0.id.lowercased() == "glm-5.2" })?.id
+                ?? models.first(where: { $0.id.lowercased() == "glm-5" })?.id
                 ?? models.first(where: { $0.id.lowercased() == "glm-4.7" })?.id
         case .minimax, .minimaxCodingPlan:
             return models.first(where: { $0.id == "MiniMax-M2.7" })?.id
@@ -94,13 +108,12 @@ enum ChatModelSelectionSupport {
         case .deepinfra:
             return preferredDeepInfraModelID(in: models)
         case .together:
-            return models.first(where: { $0.id == "moonshotai/Kimi-K2.5" })?.id
-                ?? models.first(where: { $0.id == "zai-org/GLM-5" })?.id
-                ?? models.first(where: { $0.id == "deepseek-ai/DeepSeek-V3.1" })?.id
-                ?? models.first(where: { $0.id == "openai/gpt-oss-120b" })?.id
-                ?? models.first(where: { $0.id == "Qwen/Qwen3.5-397B-A17B" })?.id
-                ?? models.first(where: { $0.id == "Qwen/Qwen3-235B-A22B-Instruct-2507-tput" })?.id
-                ?? models.first(where: { $0.id == "Qwen/Qwen3-Coder-Next-FP8" })?.id
+            for preferredID in preferredTogetherModelOrder {
+                if let modelID = models.first(where: { $0.id == preferredID })?.id {
+                    return modelID
+                }
+            }
+            return nil
         case .fireworks:
             return preferredFireworksModelID(in: models)
         case .cerebras:

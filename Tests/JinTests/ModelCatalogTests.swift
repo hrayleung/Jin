@@ -1021,6 +1021,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(
             seeded,
             [
+                "zai-org/GLM-5.2",
                 "zai-org/GLM-5.1",
                 "Qwen/Qwen3.6-35B-A3B",
                 "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning",
@@ -1424,6 +1425,8 @@ final class ModelCatalogTests: XCTestCase {
                  required: [.streaming, .toolCalling, .vision, .audio, .reasoning], hasReasoning: true, effort: .low),
             Case(id: "openrouter/pareto-code", contextWindow: 2_000_000, maxOutputTokens: nil,
                  required: [.streaming], hasReasoning: false, effort: nil),
+            Case(id: "z-ai/glm-5.2", contextWindow: 1_048_576, maxOutputTokens: 262_144,
+                 required: [.streaming, .toolCalling, .reasoning, .promptCaching], hasReasoning: true, effort: .high),
             Case(id: "z-ai/glm-5.1", contextWindow: 202_752, maxOutputTokens: 131_072,
                  required: [.streaming, .toolCalling, .reasoning, .promptCaching], hasReasoning: true, effort: .high),
             Case(id: "xiaomi/mimo-v2.5", contextWindow: 1_048_576, maxOutputTokens: 131_072,
@@ -1459,7 +1462,7 @@ final class ModelCatalogTests: XCTestCase {
 
     func testNewOpenRouterModelsRequireExactIDs() {
         // Near-miss ids (including `~` aliases) must fall back to conservative defaults.
-        for id in ["~openai/gpt-latest-custom", "minimax/minimax-m3-preview", "z-ai/glm-5.1-custom"] {
+        for id in ["~openai/gpt-latest-custom", "minimax/minimax-m3-preview", "z-ai/glm-5.2-custom", "z-ai/glm-5.1-custom"] {
             let unknown = ModelCatalog.modelInfo(for: id, provider: .openrouter)
             XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
             XCTAssertEqual(unknown.contextWindow, 128_000, id)
