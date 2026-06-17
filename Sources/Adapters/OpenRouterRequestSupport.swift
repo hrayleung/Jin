@@ -25,6 +25,11 @@ extension OpenRouterAdapter {
             "stream": streaming
         ]
 
+        if streaming {
+            // Request a trailing usage chunk so input/output token counts populate.
+            body["stream_options"] = ["include_usage": true]
+        }
+
         let requestShape = ModelCapabilityRegistry.requestShape(for: providerConfig.type, modelID: modelID)
         let shouldOmitSamplingControls = applyReasoning(
             to: &body,

@@ -2780,6 +2780,64 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
     }
 
+    func testOpenAICompatibleStreamingRequestsUsageAndParsesTrailingUsageChunk() async throws {
+        // Regression: streaming requests must set stream_options.include_usage so providers
+        // that don't volunteer usage (e.g. Z.ai/Zhipu GLM) still return token counts, and the
+        // trailing empty-choices usage chunk must be parsed into messageEnd.
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "zhipu-coding-plan",
+            name: "Zhipu Coding Plan",
+            type: .zhipuCodingPlan,
+            apiKey: "ignored",
+            baseURL: "https://open.bigmodel.cn/api/coding/paas/v4"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["stream"] as? Bool, true)
+            let streamOptions = try XCTUnwrap(root["stream_options"] as? [String: Any])
+            XCTAssertEqual(streamOptions["include_usage"] as? Bool, true)
+
+            let sse = """
+            data: {"id":"cmpl_glm","choices":[{"index":0,"delta":{"content":"Hi"}}]}
+
+            data: {"id":"cmpl_glm","choices":[],"usage":{"prompt_tokens":11,"completion_tokens":5,"total_tokens":16}}
+
+            data: [DONE]
+            """
+
+            return (
+                HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "text/event-stream"]
+                )!,
+                Data(sse.utf8)
+            )
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "glm-5.2",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var finalUsage: Usage?
+        for try await event in stream {
+            if case .messageEnd(let usage) = event { finalUsage = usage }
+        }
+        XCTAssertEqual(finalUsage?.inputTokens, 11)
+        XCTAssertEqual(finalUsage?.outputTokens, 5)
+    }
+
     func testOpenRouterImageGenerationModelRejectsNonHTTPRemoteImageURLSchemes() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

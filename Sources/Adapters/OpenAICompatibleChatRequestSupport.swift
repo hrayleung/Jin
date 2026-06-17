@@ -14,6 +14,13 @@ extension OpenAICompatibleAdapter {
             "stream": streaming
         ]
 
+        if streaming {
+            // Ask for a final usage chunk so token counts populate. Several OpenAI-compatible
+            // providers (e.g. Z.ai/Zhipu GLM, DeepInfra) omit `usage` in streaming unless this
+            // is set; the stream parser already tolerates the trailing empty-choices chunk.
+            body["stream_options"] = ["include_usage": true]
+        }
+
         let requestShape = ModelCapabilityRegistry.requestShape(for: providerConfig.type, modelID: modelID)
         let shouldOmitSamplingControls = OpenAICompatibleReasoningSupport.applyReasoning(
             to: &body,
