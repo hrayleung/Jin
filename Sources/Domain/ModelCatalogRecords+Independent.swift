@@ -139,7 +139,7 @@ extension ModelCatalog {
         // Seeded
         Record(id: "zai-org/GLM-5.2", displayName: "GLM-5.2",
                capabilities: [.streaming, .toolCalling, .reasoning],
-               contextWindow: 202_752,
+               contextWindow: 1_048_576,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.1", displayName: "GLM-5.1",
@@ -276,8 +276,8 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.2", displayName: "GLM-5.2",
                capabilities: [.streaming, .toolCalling, .reasoning],
-               contextWindow: 202_752,
-               maxOutputTokens: 128_000,
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5", displayName: "GLM-5",
@@ -487,10 +487,20 @@ extension ModelCatalog {
     // MARK: Zhipu Coding Plan
 
     static let zhipuCodingPlanRecords: [Record] = [
+        // Z.ai exposes GLM-5.2 via a two-ID scheme: plain `glm-5.2` runs the standard
+        // 200K window, and `glm-5.2[1m]` opts into the full 1,000,000-token context.
+        // Both take `reasoning_effort` (high/max). https://docs.z.ai/devpack/latest-model
+        Record(id: "glm-5.2[1m]", displayName: "GLM-5.2 (1M)",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "glm-5.2", displayName: "GLM-5.2",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 200_000,
-               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
         Record(id: "glm-5", displayName: "GLM-5",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
@@ -654,9 +664,9 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: true),
         Record(id: "fireworks/glm-5p2", displayName: "GLM-5.2",
                capabilities: [.streaming, .toolCalling, .reasoning],
-               contextWindow: 202_752,
-               maxOutputTokens: 65_536,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               contextWindow: 1_040_384,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
         Record(id: "fireworks/glm-5p1", displayName: "GLM-5.1",
                capabilities: [.streaming, .toolCalling, .reasoning],
@@ -770,9 +780,9 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
         Record(id: "accounts/fireworks/models/glm-5p2", displayName: "GLM-5.2",
                capabilities: [.streaming, .toolCalling, .reasoning],
-               contextWindow: 202_752,
-               maxOutputTokens: 65_536,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               contextWindow: 1_040_384,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "accounts/fireworks/models/glm-5p1", displayName: "GLM-5.1",
                capabilities: [.streaming, .toolCalling, .reasoning],
@@ -1015,12 +1025,8 @@ extension ModelCatalog {
     // MARK: OpenCode Go
 
     static let opencodeGoRecords: [Record] = [
-        Record(id: "glm-5.2", displayName: "GLM-5.2",
-               capabilities: [.streaming, .toolCalling, .reasoning],
-               contextWindow: 202_752,
-               maxOutputTokens: 65_536,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
-               isFullySupported: true, isSeeded: true),
+        // OpenCode Go's live catalog (models.dev) does not yet serve glm-5.2 — only
+        // glm-5.1 and glm-5 — so no GLM-5.2 record is seeded here.
         Record(id: "glm-5", displayName: "GLM-5",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 202_752,

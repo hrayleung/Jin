@@ -136,8 +136,6 @@ extension ZyphraAdapter {
         switch modelID.lowercased() {
         case "zyphra/zaya1-8b":
             return "zyphra/ZAYA1-8B"
-        case "zai-org/glm-5.2", "zai-org/glm-5.2-fp8":
-            return "zai-org/GLM-5.2-FP8"
         case "zai-org/glm-5.1", "zai-org/glm-5.1-fp8":
             return "zai-org/GLM-5.1-FP8"
         case "moonshotai/kimi-k2.6":

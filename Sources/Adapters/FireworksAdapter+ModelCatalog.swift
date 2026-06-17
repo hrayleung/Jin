@@ -158,7 +158,7 @@ extension FireworksAdapter {
         "minimax-m2p5": FireworksFallbackSpec(name: "MiniMax M2.5", contextWindow: 196_600, reasoning: true),
         "minimax-m2p1": FireworksFallbackSpec(name: "MiniMax M2.1", contextWindow: 204_800, reasoning: true),
         "minimax-m2": FireworksFallbackSpec(name: "MiniMax M2", contextWindow: 196_600, reasoning: true),
-        "glm-5p2": FireworksFallbackSpec(name: "GLM-5.2", contextWindow: 202_752, reasoning: true),
+        "glm-5p2": FireworksFallbackSpec(name: "GLM-5.2", contextWindow: 1_040_384, reasoning: true),
         "glm-5p1": FireworksFallbackSpec(name: "GLM-5.1", contextWindow: 202_752, reasoning: true),
         "glm-5": FireworksFallbackSpec(name: "GLM-5", contextWindow: 202_800, reasoning: true),
         "glm-4p7": FireworksFallbackSpec(name: "GLM-4.7", contextWindow: 202_800, reasoning: true),

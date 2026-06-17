@@ -62,6 +62,9 @@ extension ContentView {
         if providerID == "deepseek", let deepseekChat = models.first(where: { $0.id == "deepseek-chat" }) {
             return deepseekChat.id
         }
+        if providerID == "zhipu-coding-plan", let glm52max = models.first(where: { $0.id.lowercased() == "glm-5.2[1m]" }) {
+            return glm52max.id
+        }
         if providerID == "zhipu-coding-plan", let glm52 = models.first(where: { $0.id.lowercased() == "glm-5.2" }) {
             return glm52.id
         }
@@ -142,7 +145,7 @@ extension ContentView {
         "anthropic": "claude-opus-4-8",
         "xai": "grok-4.3",
         "deepseek": "deepseek-chat",
-        "zhipu-coding-plan": "glm-5.2",
+        "zhipu-coding-plan": "glm-5.2[1m]",
         "minimax": "MiniMax-M2.7",
         "minimax-coding-plan": "MiniMax-M2.7",
         "deepinfra": "zai-org/GLM-5.2",

@@ -93,7 +93,8 @@ enum ChatModelSelectionSupport {
             return models.first(where: { $0.id == "deepseek-chat" })?.id
                 ?? models.first(where: { $0.id == "deepseek-reasoner" })?.id
         case .zhipuCodingPlan:
-            return models.first(where: { $0.id.lowercased() == "glm-5.2" })?.id
+            return models.first(where: { $0.id.lowercased() == "glm-5.2[1m]" })?.id
+                ?? models.first(where: { $0.id.lowercased() == "glm-5.2" })?.id
                 ?? models.first(where: { $0.id.lowercased() == "glm-5" })?.id
                 ?? models.first(where: { $0.id.lowercased() == "glm-4.7" })?.id
         case .minimax, .minimaxCodingPlan:

@@ -1425,7 +1425,7 @@ final class ModelCatalogTests: XCTestCase {
                  required: [.streaming, .toolCalling, .vision, .audio, .reasoning], hasReasoning: true, effort: .low),
             Case(id: "openrouter/pareto-code", contextWindow: 2_000_000, maxOutputTokens: nil,
                  required: [.streaming], hasReasoning: false, effort: nil),
-            Case(id: "z-ai/glm-5.2", contextWindow: 202_752, maxOutputTokens: 131_072,
+            Case(id: "z-ai/glm-5.2", contextWindow: 1_048_576, maxOutputTokens: 262_144,
                  required: [.streaming, .toolCalling, .reasoning, .promptCaching], hasReasoning: true, effort: .high),
             Case(id: "z-ai/glm-5.1", contextWindow: 202_752, maxOutputTokens: 131_072,
                  required: [.streaming, .toolCalling, .reasoning, .promptCaching], hasReasoning: true, effort: .high),
