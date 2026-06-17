@@ -1462,7 +1462,7 @@ final class ModelCatalogTests: XCTestCase {
 
     func testNewOpenRouterModelsRequireExactIDs() {
         // Near-miss ids (including `~` aliases) must fall back to conservative defaults.
-        for id in ["~openai/gpt-latest-custom", "minimax/minimax-m3-preview", "z-ai/glm-5.1-custom"] {
+        for id in ["~openai/gpt-latest-custom", "minimax/minimax-m3-preview", "z-ai/glm-5.2-custom", "z-ai/glm-5.1-custom"] {
             let unknown = ModelCatalog.modelInfo(for: id, provider: .openrouter)
             XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
             XCTAssertEqual(unknown.contextWindow, 128_000, id)
