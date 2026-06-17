@@ -50,7 +50,7 @@ extension ProviderFormSupport {
         case .cloudflareAIGateway:
             return "Recommended: use a Cloudflare API Token (BYOK mode). Keep the `/compat` base URL, configure upstream provider keys in AI Gateway, then use model IDs like `openai/gpt-5` or `anthropic/claude-sonnet-4.5`."
         case .zhipuCodingPlan:
-            return "Use `https://open.bigmodel.cn/api/coding/paas/v4` instead of the generic `/api/paas/v4`. Recommended models: `glm-5`, `glm-4.7`."
+            return "Use `https://open.bigmodel.cn/api/coding/paas/v4` instead of the generic `/api/paas/v4`. Recommended models: `glm-5.2`, `glm-5`, `glm-4.7`."
         case .minimax:
             return "International endpoint: `https://api.minimax.io/v1`. Recommended models: `MiniMax-M2.7`, `MiniMax-M2.5`."
         case .minimaxCodingPlan:

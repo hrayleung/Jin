@@ -62,6 +62,9 @@ extension ContentView {
         if providerID == "deepseek", let deepseekChat = models.first(where: { $0.id == "deepseek-chat" }) {
             return deepseekChat.id
         }
+        if providerID == "zhipu-coding-plan", let glm52 = models.first(where: { $0.id.lowercased() == "glm-5.2" }) {
+            return glm52.id
+        }
         if providerID == "zhipu-coding-plan", let glm5 = models.first(where: { $0.id.lowercased() == "glm-5" }) {
             return glm5.id
         }
@@ -75,6 +78,9 @@ extension ContentView {
         if providerID == "minimax" || providerID == "minimax-coding-plan",
            let m25 = models.first(where: { $0.id == "MiniMax-M2.5" }) {
             return m25.id
+        }
+        if providerID == "deepinfra", let glm52 = models.first(where: { $0.id == "zai-org/GLM-5.2" }) {
+            return glm52.id
         }
         if providerID == "deepinfra", let glm51 = models.first(where: { $0.id == "zai-org/GLM-5.1" }) {
             return glm51.id
@@ -94,6 +100,9 @@ extension ContentView {
         }
         if providerID == "together", let kimiK2p5 = models.first(where: { $0.id == "moonshotai/Kimi-K2.5" }) {
             return kimiK2p5.id
+        }
+        if providerID == "together", let glm52 = models.first(where: { $0.id == "zai-org/GLM-5.2" }) {
+            return glm52.id
         }
         if providerID == "together", let glm5 = models.first(where: { $0.id == "zai-org/GLM-5" }) {
             return glm5.id
@@ -133,10 +142,10 @@ extension ContentView {
         "anthropic": "claude-opus-4-8",
         "xai": "grok-4.3",
         "deepseek": "deepseek-chat",
-        "zhipu-coding-plan": "glm-5",
+        "zhipu-coding-plan": "glm-5.2",
         "minimax": "MiniMax-M2.7",
         "minimax-coding-plan": "MiniMax-M2.7",
-        "deepinfra": "zai-org/GLM-5",
+        "deepinfra": "zai-org/GLM-5.2",
         "fireworks": "fireworks/kimi-k2p6",
         "together": "moonshotai/Kimi-K2.5",
         "cerebras": "qwen-3-235b-a22b-instruct-2507",

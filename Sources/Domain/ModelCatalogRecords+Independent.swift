@@ -137,6 +137,11 @@ extension ModelCatalog {
 
     static let deepInfraRecords: [Record] = [
         // Seeded
+        Record(id: "zai-org/GLM-5.2", displayName: "GLM-5.2",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 202_752,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.1", displayName: "GLM-5.1",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 202_752,
@@ -267,6 +272,12 @@ extension ModelCatalog {
         Record(id: "moonshotai/Kimi-K2.5", displayName: "Kimi K2.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "zai-org/GLM-5.2", displayName: "GLM-5.2",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 202_752,
+               maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5", displayName: "GLM-5",
@@ -476,6 +487,11 @@ extension ModelCatalog {
     // MARK: Zhipu Coding Plan
 
     static let zhipuCodingPlanRecords: [Record] = [
+        Record(id: "glm-5.2", displayName: "GLM-5.2",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 200_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
         Record(id: "glm-5", displayName: "GLM-5",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 200_000,
@@ -636,6 +652,12 @@ extension ModelCatalog {
                contextWindow: 196_608,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
+        Record(id: "fireworks/glm-5p2", displayName: "GLM-5.2",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 202_752,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
         Record(id: "fireworks/glm-5p1", displayName: "GLM-5.1",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 202_752,
@@ -744,6 +766,12 @@ extension ModelCatalog {
         Record(id: "accounts/fireworks/models/minimax-m2p7", displayName: "MiniMax M2.7",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 196_608,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "accounts/fireworks/models/glm-5p2", displayName: "GLM-5.2",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 202_752,
+               maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "accounts/fireworks/models/glm-5p1", displayName: "GLM-5.1",
@@ -987,6 +1015,12 @@ extension ModelCatalog {
     // MARK: OpenCode Go
 
     static let opencodeGoRecords: [Record] = [
+        Record(id: "glm-5.2", displayName: "GLM-5.2",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 202_752,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
         Record(id: "glm-5", displayName: "GLM-5",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 202_752,
