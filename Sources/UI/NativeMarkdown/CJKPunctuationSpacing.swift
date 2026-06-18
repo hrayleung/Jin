@@ -124,27 +124,30 @@ enum CJKPunctuationSpacing {
 
     private static func halfWidthVariant(forBracketUnit unit: unichar, base: NSFont) -> NSFont {
         let key = CacheKey(unit: unit, fontName: base.fontName, pointSize: base.pointSize)
+        if let cached = cache.withLock({ $0[key] }) { return cached.font }
+
+        // Resolve the font layout would actually use for this glyph (the
+        // base font is usually SF, which has no CJK brackets), then add the
+        // half-width feature to THAT font — feature settings do not survive
+        // automatic fallback, so they must live on the glyph's real font.
+        let scalarString = String(utf16CodeUnits: [unit], count: 1) as NSString
+        let renderFont = CTFontCreateForString(
+            base as CTFont,
+            scalarString,
+            CFRange(location: 0, length: scalarString.length)
+        ) as NSFont
+        let descriptor = renderFont.fontDescriptor.addingAttributes([
+            .featureSettings: [[
+                NSFontDescriptor.FeatureKey.typeIdentifier: textSpacingType,
+                NSFontDescriptor.FeatureKey.selectorIdentifier: halfWidthSelector,
+            ]],
+        ])
+        let box = FontBox(font: NSFont(descriptor: descriptor, size: renderFont.pointSize) ?? renderFont)
+
         return cache.withLock { store in
-            if let cached = store[key] { return cached.font }
-            // Resolve the font layout would actually use for this glyph (the
-            // base font is usually SF, which has no CJK brackets), then add the
-            // half-width feature to THAT font — feature settings do not survive
-            // automatic fallback, so they must live on the glyph's real font.
-            let scalarString = String(utf16CodeUnits: [unit], count: 1) as NSString
-            let renderFont = CTFontCreateForString(
-                base as CTFont,
-                scalarString,
-                CFRange(location: 0, length: scalarString.length)
-            ) as NSFont
-            let descriptor = renderFont.fontDescriptor.addingAttributes([
-                .featureSettings: [[
-                    NSFontDescriptor.FeatureKey.typeIdentifier: textSpacingType,
-                    NSFontDescriptor.FeatureKey.selectorIdentifier: halfWidthSelector,
-                ]],
-            ])
-            let variant = NSFont(descriptor: descriptor, size: renderFont.pointSize) ?? renderFont
-            store[key] = FontBox(font: variant)
-            return variant
-        }
+            if let cached = store[key] { return cached }
+            store[key] = box
+            return box
+        }.font
     }
 }

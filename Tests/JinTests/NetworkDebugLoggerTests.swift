@@ -60,7 +60,7 @@ final class NetworkDebugLoggerTests: XCTestCase {
             )
         )
 
-        try await NetworkDebugLogScope.$current.withValue(NetworkDebugLogContext(conversationID: "conversation")) {
+        await NetworkDebugLogScope.$current.withValue(NetworkDebugLogContext(conversationID: "conversation")) {
             let requestID = await NetworkDebugLogger.shared.beginRequest(request, mode: "data")
             await NetworkDebugLogger.shared.endRequest(
                 requestID: requestID,
@@ -92,7 +92,7 @@ final class NetworkDebugLoggerTests: XCTestCase {
     func testWebSocketTraceRedactsHeadersAndOmitsFrameBodies() async throws {
         try await NetworkDebugLogger.shared.clearLogs()
 
-        try await NetworkDebugLogScope.$current.withValue(NetworkDebugLogContext(conversationID: "conversation")) {
+        await NetworkDebugLogScope.$current.withValue(NetworkDebugLogContext(conversationID: "conversation")) {
             let sessionID = await NetworkDebugLogger.shared.beginWebSocketSession(
                 url: URL(string: "wss://user:password@example.com/realtime?token=socket-url-secret")!,
                 headers: ["Authorization": "Bearer socket-secret", "Content-Type": "application/json"]
