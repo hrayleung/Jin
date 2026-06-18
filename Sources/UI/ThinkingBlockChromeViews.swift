@@ -131,13 +131,13 @@ struct ThinkingBlockExpandedTextContent: View {
     }
 
     private var attributedText: NSAttributedString {
-        NSAttributedString(
+        CJKPunctuationSpacing.applied(to: NSAttributedString(
             string: text,
             attributes: [
                 .font: NSFont.preferredFont(forTextStyle: .subheadline),
                 .foregroundColor: NSColor.secondaryLabelColor
             ]
-        )
+        ))
     }
 
     private var contentSignature: UInt64 {

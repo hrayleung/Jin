@@ -177,7 +177,14 @@ private extension MarkdownInlineRenderer {
         }
 
         func makeRun() -> InlineRun {
-            InlineRun(attributedString: attrs, plainText: plain, linkURLs: links)
+            // Tighten fullwidth CJK brackets so they don't render with a half-em
+            // blank floating off their open side (see `CJKPunctuationSpacing`).
+            // Baked in here so every consumer of an `InlineRun` — folded prose
+            // groups, list items, blockquote bodies, table cells, standalone
+            // paragraphs — inherits the fix for free. Heading content is
+            // re-tightened after its font override clobbers these fonts.
+            CJKPunctuationSpacing.apply(to: attrs)
+            return InlineRun(attributedString: attrs, plainText: plain, linkURLs: links)
         }
     }
 }

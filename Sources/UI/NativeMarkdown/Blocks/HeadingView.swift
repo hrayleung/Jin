@@ -39,6 +39,10 @@ struct HeadingView: View {
             value: theme.headingParagraphStyle(forLevel: level),
             range: range
         )
+        // The blanket heading font override above replaces the per-bracket
+        // half-width fonts baked in by the inline renderer, so re-tighten any
+        // fullwidth CJK brackets in the heading.
+        CJKPunctuationSpacing.apply(to: mutable)
         return mutable
     }
 }
