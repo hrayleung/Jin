@@ -23,7 +23,26 @@ extension NSAttributedString.Key {
 /// `NSLayoutManager` subclass that paints rounded backgrounds for runs marked
 /// with `.jinInlineCodeBackground`. Falls through to `super` for highlight
 /// `.backgroundColor` runs and selection painting.
-final class JinMarkdownLayoutManager: NSLayoutManager {
+final class JinMarkdownLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
+    // ponytail: only short bilingual parentheticals are protected; use a real line-breaker if longer phrases matter.
+    private static let protectedParentheticalMaxUTF16Length = 40
+
+    override init() {
+        super.init()
+        delegate = self
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        delegate = self
+    }
+
+    func layoutManager(
+        _ layoutManager: NSLayoutManager,
+        shouldBreakLineByWordBeforeCharacterAt charIndex: Int
+    ) -> Bool {
+        !shouldKeepShortParentheticalWithCJKContext(beforeCharacterAt: charIndex)
+    }
 
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
@@ -136,6 +155,118 @@ final class JinMarkdownLayoutManager: NSLayoutManager {
                 NSBezierPath(roundedRect: barRect, xRadius: 1.5, yRadius: 1.5).fill()
             }
             context.restoreGState()
+        }
+    }
+
+    private func shouldKeepShortParentheticalWithCJKContext(beforeCharacterAt charIndex: Int) -> Bool {
+        guard let rawString = textStorage?.string else {
+            return false
+        }
+        let string = rawString as NSString
+        guard charIndex > 0, charIndex < string.length else {
+            return false
+        }
+
+        let unit = string.character(at: charIndex)
+        if isOpeningParenthesis(unit),
+           hasCJKBeforeSkippingWhitespace(charIndex, in: string),
+           shortASCIIParentheticalEnds(startingAt: charIndex, in: string) != nil {
+            return true
+        }
+
+        guard isCJK(unit),
+              let closeIndex = previousNonWhitespace(before: charIndex, in: string),
+              isClosingParenthesis(string.character(at: closeIndex)),
+              let openIndex = shortASCIIParentheticalStarts(endingAt: closeIndex, in: string)
+        else {
+            return false
+        }
+        return hasCJKBeforeSkippingWhitespace(openIndex, in: string)
+    }
+
+    private func shortASCIIParentheticalEnds(startingAt openIndex: Int, in string: NSString) -> Int? {
+        let open = string.character(at: openIndex)
+        guard let close = matchingCloseParenthesis(for: open) else { return nil }
+        let limit = min(string.length, openIndex + Self.protectedParentheticalMaxUTF16Length)
+        var index = openIndex + 1
+        while index < limit {
+            let unit = string.character(at: index)
+            if unit == close { return index }
+            guard isPrintableASCII(unit) else { return nil }
+            index += 1
+        }
+        return nil
+    }
+
+    private func shortASCIIParentheticalStarts(endingAt closeIndex: Int, in string: NSString) -> Int? {
+        let close = string.character(at: closeIndex)
+        guard let open = matchingOpenParenthesis(for: close) else { return nil }
+        let limit = max(0, closeIndex - Self.protectedParentheticalMaxUTF16Length)
+        var index = closeIndex - 1
+        while index >= limit {
+            let unit = string.character(at: index)
+            if unit == open { return index }
+            guard isPrintableASCII(unit) else { return nil }
+            index -= 1
+        }
+        return nil
+    }
+
+    private func hasCJKBeforeSkippingWhitespace(_ index: Int, in string: NSString) -> Bool {
+        guard let previous = previousNonWhitespace(before: index, in: string) else { return false }
+        return isCJK(string.character(at: previous))
+    }
+
+    private func previousNonWhitespace(before index: Int, in string: NSString) -> Int? {
+        var cursor = index - 1
+        while cursor >= 0 {
+            if !isInlineWhitespace(string.character(at: cursor)) {
+                return cursor
+            }
+            cursor -= 1
+        }
+        return nil
+    }
+
+    private func isOpeningParenthesis(_ unit: unichar) -> Bool {
+        unit == 0x0028 || unit == 0xFF08
+    }
+
+    private func isClosingParenthesis(_ unit: unichar) -> Bool {
+        unit == 0x0029 || unit == 0xFF09
+    }
+
+    private func matchingCloseParenthesis(for open: unichar) -> unichar? {
+        switch open {
+        case 0x0028: return 0x0029
+        case 0xFF08: return 0xFF09
+        default: return nil
+        }
+    }
+
+    private func matchingOpenParenthesis(for close: unichar) -> unichar? {
+        switch close {
+        case 0x0029: return 0x0028
+        case 0xFF09: return 0xFF08
+        default: return nil
+        }
+    }
+
+    private func isPrintableASCII(_ unit: unichar) -> Bool {
+        (0x20...0x7E).contains(unit)
+    }
+
+    private func isInlineWhitespace(_ unit: unichar) -> Bool {
+        unit == 0x20 || unit == 0x09 || unit == 0x00A0
+    }
+
+    private func isCJK(_ unit: unichar) -> Bool {
+        switch unit {
+        case 0x3400...0x4DBF, 0x4E00...0x9FFF, 0xF900...0xFAFF,
+             0x3040...0x30FF, 0xAC00...0xD7AF:
+            return true
+        default:
+            return false
         }
     }
 }
