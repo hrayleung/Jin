@@ -71,7 +71,7 @@ final class BuiltinSearchToolHubTests: XCTestCase {
             "flag": " YES "
         ]
 
-        let text = await hub.firstString(in: dictionary, keys: ["text"])
+        let text = hub.firstString(in: dictionary, keys: ["text"])
         let count = await hub.firstInt(in: dictionary, keys: ["count"])
         let flag = await hub.firstBool(in: dictionary, keys: ["flag"])
 
@@ -87,7 +87,7 @@ final class BuiltinSearchToolHubTests: XCTestCase {
             "fallback": " value "
         ]
 
-        let value = await hub.firstString(in: dictionary, keys: ["blank", "fallback"])
+        let value = hub.firstString(in: dictionary, keys: ["blank", "fallback"])
         XCTAssertEqual(value, "value")
     }
 
