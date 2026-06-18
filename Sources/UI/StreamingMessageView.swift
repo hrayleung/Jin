@@ -181,7 +181,7 @@ private struct StreamingPlainTextChunksView: View {
         let theme = MarkdownTheme.resolved(appFontFamily: appFontFamily, codeFontFamily: codeFontFamily)
         let text = chunks.joined()
         AttributedTextBlock(
-            attributedString: NSAttributedString(
+            attributedString: CJKPunctuationSpacing.applied(to: NSAttributedString(
                 string: text,
                 attributes: [
                     .font: theme.bodyFont,
@@ -191,7 +191,7 @@ private struct StreamingPlainTextChunksView: View {
                     // doesn't reflow every line of a >4000-char message.
                     .paragraphStyle: theme.bodyParagraphStyle,
                 ]
-            ),
+            )),
             contentSignature: UInt64(text.utf8.count)
         )
         .frame(maxWidth: .infinity, alignment: .leading)

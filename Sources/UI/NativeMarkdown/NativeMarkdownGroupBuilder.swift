@@ -197,6 +197,13 @@ enum NativeMarkdownGroupBuilder {
         if let fontOverride {
             attr.addAttribute(.font, value: fontOverride, range: fullRange)
         }
+        // Tighten fullwidth CJK brackets. Markdown runs arrive already tightened
+        // by the inline renderer (the idempotency guard makes that a no-op), but
+        // raw `InlineRun`s built outside that renderer — the plain-text /
+        // native-text message body and AST-walker fallback blocks — reach the
+        // prose group only here; and headings need re-tightening because the
+        // font override above replaced the per-bracket fonts.
+        CJKPunctuationSpacing.apply(to: attr)
         attr.addAttribute(.paragraphStyle, value: paragraphStyle, range: fullRange)
         result.append(attr)
         plainText.append(run.plainText)
