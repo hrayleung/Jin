@@ -103,7 +103,13 @@ enum CJKPunctuationSpacing {
     private static func hasHalfWidthFeature(_ font: NSFont) -> Bool {
         guard let settings = font.fontDescriptor.fontAttributes[.featureSettings]
             as? [[NSFontDescriptor.FeatureKey: Any]] else { return false }
-        return settings.contains { ($0[.typeIdentifier] as? Int) == textSpacingType }
+        // Match both type and selector: a `kTextSpacingType` feature carrying a
+        // different selector (e.g. proportional) is not the half-width variant
+        // we apply, so it must not short-circuit the compression.
+        return settings.contains {
+            ($0[.typeIdentifier] as? Int) == textSpacingType
+                && ($0[.selectorIdentifier] as? Int) == halfWidthSelector
+        }
     }
 
     // MARK: - Font resolution (cached)

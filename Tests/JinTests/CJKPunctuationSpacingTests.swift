@@ -99,6 +99,28 @@ final class CJKPunctuationSpacingTests: XCTestCase {
         XCTAssertTrue(attributed.isEqual(to: once), "second apply should be a no-op")
     }
 
+    func testDoesNotSkipBracketCarryingADifferentTextSpacingSelector() {
+        // A font with kTextSpacingType (22) but the *proportional* selector (0)
+        // is not the half-width variant we apply, so the idempotency guard must
+        // not treat it as already-done — the bracket should still be compressed
+        // to half-width (selector 2).
+        let proportional = NSFont(descriptor: body.fontDescriptor.addingAttributes([
+            .featureSettings: [[
+                NSFontDescriptor.FeatureKey.typeIdentifier: 22,
+                NSFontDescriptor.FeatureKey.selectorIdentifier: 0,
+            ]],
+        ]), size: body.pointSize)!
+        let attributed = NSMutableAttributedString(string: "x（y）", attributes: [.font: body])
+        let ns = "x（y）" as NSString
+        let openIndex = ns.range(of: "（").location
+        attributed.addAttribute(.font, value: proportional, range: NSRange(location: openIndex, length: 1))
+
+        CJKPunctuationSpacing.apply(to: attributed)
+
+        let font = attributed.attribute(.font, at: openIndex, effectiveRange: nil) as? NSFont
+        XCTAssertEqual(halfWidthFeature(of: font!)?.selector, 2, "proportional-selector bracket should still be compressed")
+    }
+
     func testAppliedConvenienceReturnsSameInstanceWhenNoBrackets() {
         let plain = NSAttributedString(string: "no brackets here", attributes: [.font: body])
         XCTAssertTrue(CJKPunctuationSpacing.applied(to: plain) === plain, "should avoid copying bracket-free text")
