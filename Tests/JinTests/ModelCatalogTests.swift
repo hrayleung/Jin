@@ -320,6 +320,32 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(mimoV25.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testOpenCodeGoGLM52CatalogUsesExactProviderIDs() {
+        let glm52 = ModelCatalog.modelInfo(
+            for: "glm-5.2",
+            provider: .opencodeGo
+        )
+        XCTAssertEqual(glm52.contextWindow, 1_000_000)
+        XCTAssertEqual(glm52.maxOutputTokens, 131_072)
+        XCTAssertFalse(glm52.capabilities.contains(.vision))
+        XCTAssertFalse(glm52.capabilities.contains(.audio))
+        XCTAssertTrue(glm52.capabilities.contains(.toolCalling))
+        XCTAssertTrue(glm52.capabilities.contains(.reasoning))
+        XCTAssertEqual(glm52.reasoningConfig?.type, .effort)
+        XCTAssertEqual(glm52.reasoningConfig?.defaultEffort, .high)
+
+        // GLM-5.2 is the seeded flagship and therefore OpenCode Go's first-launch default
+        // (ChatModelSelectionSupport.preferredModelID returns models.first for .opencodeGo).
+        let seeded = ModelCatalog.seededModels(for: .opencodeGo)
+        XCTAssertEqual(seeded.first?.id, "glm-5.2")
+
+        let unknown = ModelCatalog.modelInfo(
+            for: "glm-5.2-custom",
+            provider: .opencodeGo
+        )
+        XCTAssertNil(unknown.maxOutputTokens)
+    }
+
     func testMiMoTokenPlanCatalogUsesExactProviderIDs() {
         let openAIV25Pro = ModelCatalog.modelInfo(
             for: "mimo-v2.5-pro",

@@ -33,12 +33,18 @@ extension OpenCodeGoAdapter {
             body["top_p"] = topP
         }
 
-        if let reasoning = controls.reasoning {
-            if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none {
-                body["reasoning"] = ["effort": "none"]
-            } else if let effort = reasoning.effort {
-                body["reasoning"] = ["effort": mapReasoningEffort(effort)]
-            }
+        // OpenCode Go's gateway is a strict OpenAI-compatible /chat/completions proxy that
+        // rejects unknown top-level fields ("Extra inputs are not permitted"). The nested
+        // {"reasoning": {"effort": …}} object is the OpenAI Responses-API / OpenRouter shape,
+        // not a chat/completions field, so it 400s. Send the standard top-level
+        // `reasoning_effort` STRING instead. These models (GLM, DeepSeek, Kimi, MiMo) reason
+        // by default, so to disable we omit the field entirely rather than send an
+        // unsupported value — `reasoning_content` still streams back in the response.
+        if let reasoning = controls.reasoning,
+           reasoning.enabled,
+           let effort = reasoning.effort,
+           effort != .none {
+            body["reasoning_effort"] = mapReasoningEffort(effort)
         }
 
         var toolObjects: [[String: Any]] = []

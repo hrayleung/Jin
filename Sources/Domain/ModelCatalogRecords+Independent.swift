@@ -1025,8 +1025,16 @@ extension ModelCatalog {
     // MARK: OpenCode Go
 
     static let opencodeGoRecords: [Record] = [
-        // OpenCode Go's live catalog (models.dev) does not yet serve glm-5.2 — only
-        // glm-5.1 and glm-5 — so no GLM-5.2 record is seeded here.
+        // GLM-5.2 leads OpenCode Go's GLM line (verified on models.dev `opencode-go` and
+        // opencode.ai/docs/go): 1M context, 131K output, reasoning via OpenAI-style
+        // reasoning_effort on the OpenAI-compatible /chat/completions endpoint. Seeded
+        // first so it is OpenCode Go's first-launch default (preferredModelID = models.first).
+        Record(id: "glm-5.2", displayName: "GLM-5.2",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "glm-5", displayName: "GLM-5",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 202_752,

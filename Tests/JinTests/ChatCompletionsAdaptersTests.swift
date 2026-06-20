@@ -1532,8 +1532,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertEqual(root["stream"] as? Bool, false)
             XCTAssertEqual(root["max_tokens"] as? Int, 2048)
 
-            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
-            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "medium")
+            XCTAssertNil(root["reasoning"])
 
             let toolObjects = try XCTUnwrap(root["tools"] as? [[String: Any]])
             XCTAssertEqual(toolObjects.count, 2)
@@ -1641,8 +1641,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertEqual(root["stream"] as? Bool, false)
             XCTAssertEqual(root["max_tokens"] as? Int, 2048)
 
-            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
-            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "medium")
+            XCTAssertNil(root["reasoning"])
 
             let toolObjects = try XCTUnwrap(root["tools"] as? [[String: Any]])
             XCTAssertEqual(toolObjects.count, 1)
@@ -2106,8 +2106,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertEqual(root["stream"] as? Bool, false)
             XCTAssertEqual(root["max_tokens"] as? Int, 2048)
 
-            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
-            XCTAssertEqual(reasoning["effort"] as? String, "high")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertNil(root["reasoning"])
 
             let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
             XCTAssertEqual(messages.count, 1)
@@ -2175,6 +2175,56 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd = events[2] else { return XCTFail("Expected messageEnd") }
     }
 
+    func testOpenCodeGoAdapterSendsReasoningEffortStringForGLM52() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(root["model"] as? String, "glm-5.2")
+            // Regression: OpenCode Go's strict gateway 400s on a nested {"reasoning":{…}} object
+            // ("Extra inputs are not permitted, field: 'reasoning'"). Reasoning must be the
+            // top-level OpenAI-standard `reasoning_effort` STRING, with no `reasoning` object.
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_glm52",
+                "choices": [
+                    ["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "glm-5.2",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+        XCTAssertEqual(events.count, 3)
+    }
+
     func testOpenCodeGoAdapterRoutesRingFreeToZenChatCompletionsEndpoint() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -2199,8 +2249,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertEqual(root["model"] as? String, "ring-2.6-1t-free")
             XCTAssertEqual(root["stream"] as? Bool, false)
 
-            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
-            XCTAssertEqual(reasoning["effort"] as? String, "medium")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "medium")
+            XCTAssertNil(root["reasoning"])
 
             let response: [String: Any] = [
                 "id": "cmpl_opencode_ring",

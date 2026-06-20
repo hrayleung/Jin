@@ -271,6 +271,12 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-flash-preview"))
     }
 
+    func testOpenCodeGoGLM52ModelUsesExactFullySupportedIDs() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.2"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.2-custom"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.2-preview"))
+    }
+
     func testGeminiProvider3Point1PreviewIsMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-pro-preview"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-flash-image-preview"))
