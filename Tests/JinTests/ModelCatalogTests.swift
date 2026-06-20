@@ -334,6 +334,13 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(glm52.reasoningConfig?.type, .effort)
         XCTAssertEqual(glm52.reasoningConfig?.defaultEffort, .high)
 
+        // GLM-5.2's reasoning_effort only accepts high/max (Z.AI docs), so the selectable
+        // efforts must be restricted — Low/Medium would be invalid values for the model.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "glm-5.2"),
+            [.high, .max]
+        )
+
         // GLM-5.2 is the seeded flagship and therefore OpenCode Go's first-launch default
         // (ChatModelSelectionSupport.preferredModelID returns models.first for .opencodeGo).
         let seeded = ModelCatalog.seededModels(for: .opencodeGo)

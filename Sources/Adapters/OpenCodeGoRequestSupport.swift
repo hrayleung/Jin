@@ -44,7 +44,7 @@ extension OpenCodeGoAdapter {
            reasoning.enabled,
            let effort = reasoning.effort,
            effort != .none {
-            body["reasoning_effort"] = mapReasoningEffort(effort)
+            body["reasoning_effort"] = mapReasoningEffort(effort, modelID: modelID)
         }
 
         var toolObjects: [[String: Any]] = []
@@ -63,6 +63,9 @@ extension OpenCodeGoAdapter {
         }
 
         for (key, value) in controls.providerSpecific {
+            // Never let a custom param reintroduce the nested `reasoning` object the strict
+            // gateway rejects (HTTP 400); reasoning is controlled via `reasoning_effort` above.
+            guard key != "reasoning" else { continue }
             body[key] = value.value
         }
 
@@ -116,8 +119,15 @@ extension OpenCodeGoAdapter {
         return dict
     }
 
-    private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
-        mapReasoningEffortNoneDisabled(effort)
+    private func mapReasoningEffort(_ effort: ReasoningEffort, modelID: String) -> String {
+        // GLM-5.2 exposes only `high` and `max` (its native default). Honor `max` rather than
+        // clamping it to `high` like the shared none/low/medium/high mapping does, and never
+        // emit the invalid `low`/`medium` strings for it. The model's selectable efforts are
+        // already restricted to [.high, .max] in ModelCapabilityRegistry.
+        if modelID.lowercased() == "glm-5.2" {
+            return (effort == .max || effort == .xhigh) ? "max" : "high"
+        }
+        return mapReasoningEffortNoneDisabled(effort)
     }
 
     private func buildWebSearchTool(from controls: WebSearchControls?) -> [String: Any] {

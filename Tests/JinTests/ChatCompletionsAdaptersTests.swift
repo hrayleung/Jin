@@ -2225,6 +2225,74 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(events.count, 3)
     }
 
+    func testOpenCodeGoAdapterMapsGLM52MaxEffortToMaxReasoningEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            // GLM-5.2 only honors high/max, so .max must serialize to "max" (not clamped to "high").
+            XCTAssertEqual(root["reasoning_effort"] as? String, "max")
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_glm52_max",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "glm-5.2",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testOpenCodeGoAdapterDropsProviderSpecificReasoningObject() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            // A stray providerSpecific `reasoning` object must NOT reach the gateway (it 400s);
+            // the top-level reasoning_effort from controls is preserved.
+            XCTAssertNil(root["reasoning"])
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_glm52_ps",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        var controls = GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high))
+        controls.providerSpecific = ["reasoning": AnyCodable(["effort": "high"])]
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "glm-5.2",
+            controls: controls,
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
     func testOpenCodeGoAdapterRoutesRingFreeToZenChatCompletionsEndpoint() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
