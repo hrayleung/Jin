@@ -33,12 +33,18 @@ extension OpenCodeGoAdapter {
             body["top_p"] = topP
         }
 
-        if let reasoning = controls.reasoning {
-            if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none {
-                body["reasoning"] = ["effort": "none"]
-            } else if let effort = reasoning.effort {
-                body["reasoning"] = ["effort": mapReasoningEffort(effort)]
-            }
+        // OpenCode Go's gateway is a strict OpenAI-compatible /chat/completions proxy that
+        // rejects unknown top-level fields ("Extra inputs are not permitted"). The nested
+        // {"reasoning": {"effort": …}} object is the OpenAI Responses-API / OpenRouter shape,
+        // not a chat/completions field, so it 400s. Send the standard top-level
+        // `reasoning_effort` STRING instead. These models (GLM, DeepSeek, Kimi, MiMo) reason
+        // by default, so to disable we omit the field entirely rather than send an
+        // unsupported value — `reasoning_content` still streams back in the response.
+        if let reasoning = controls.reasoning,
+           reasoning.enabled,
+           let effort = reasoning.effort,
+           effort != .none {
+            body["reasoning_effort"] = mapReasoningEffort(effort, modelID: modelID)
         }
 
         var toolObjects: [[String: Any]] = []
@@ -57,6 +63,9 @@ extension OpenCodeGoAdapter {
         }
 
         for (key, value) in controls.providerSpecific {
+            // Never let a custom param reintroduce the nested `reasoning` object the strict
+            // gateway rejects (HTTP 400); reasoning is controlled via `reasoning_effort` above.
+            guard key != "reasoning" else { continue }
             body[key] = value.value
         }
 
@@ -110,8 +119,15 @@ extension OpenCodeGoAdapter {
         return dict
     }
 
-    private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
-        mapReasoningEffortNoneDisabled(effort)
+    private func mapReasoningEffort(_ effort: ReasoningEffort, modelID: String) -> String {
+        // GLM-5.2 exposes only `high` and `max` (its native default). Honor `max` rather than
+        // clamping it to `high` like the shared none/low/medium/high mapping does, and never
+        // emit the invalid `low`/`medium` strings for it. The model's selectable efforts are
+        // already restricted to [.high, .max] in ModelCapabilityRegistry.
+        if modelID.lowercased() == "glm-5.2" {
+            return (effort == .max || effort == .xhigh) ? "max" : "high"
+        }
+        return mapReasoningEffortNoneDisabled(effort)
     }
 
     private func buildWebSearchTool(from controls: WebSearchControls?) -> [String: Any] {

@@ -151,6 +151,7 @@ extension ContentView {
         "deepinfra": "zai-org/GLM-5.2",
         "fireworks": "fireworks/kimi-k2p6",
         "together": "moonshotai/Kimi-K2.5",
+        "opencode-go": "glm-5.2",
         "cerebras": "qwen-3-235b-a22b-instruct-2507",
         "sambanova": "MiniMax-M2.5",
         "vercel-ai-gateway": "openai/gpt-5.2",

@@ -285,6 +285,11 @@ enum ModelCapabilityRegistry {
         "deepseek-v4-flash",
         "deepseek-v4-pro",
     ]
+    /// OpenCode Go GLM models whose `reasoning_effort` is restricted to `high`/`max`
+    /// (Z.AI documents only these two for GLM-5.2; `max` is the native default).
+    private static let opencodeGoGLMHighMaxReasoningEffortModelIDs: Set<String> = [
+        "glm-5.2",
+    ]
     private static let openRouterDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek/deepseek-v4-flash",
         "deepseek/deepseek-v4-pro",
@@ -380,6 +385,8 @@ enum ModelCapabilityRegistry {
         case .fireworks where fireworksDeepSeekV4ProModelIDs.contains(lowerModelID):
             return [.high, .max]
         case .opencodeGo where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high, .max]
+        case .opencodeGo where opencodeGoGLMHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
         default:
             break
