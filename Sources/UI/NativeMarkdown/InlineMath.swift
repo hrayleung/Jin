@@ -154,16 +154,20 @@ enum InlineMath {
     /// never returned — callers always get something renderable.
     static func attributedString(inner: String, original: String, font: NSFont, color: NSColor) -> NSAttributedString {
         let resolvedColor = resolveForCurrentAppearance(color)
-        let key = "\(font.pointSize)|\(appearanceTag())|\(inner)" as NSString
+        // Key on `original` (delimiters + inner), not bare `inner`: `$x$` and
+        // `\(x\)` share an `inner` but must persist their own delimited source
+        // on the attachment, so an inner-only key would hand back whichever
+        // spelling rendered first and corrupt the copied/quoted LaTeX.
+        let key = "\(font.pointSize)|\(appearanceTag())|\(original)" as NSString
         if let cached = cache.object(forKey: key) { return cached.value }
 
-        let result = makeAttachment(inner: inner, font: font, color: resolvedColor)
+        let result = makeAttachment(inner: inner, original: original, font: font, color: resolvedColor)
             ?? NSAttributedString(string: original, attributes: [.font: font, .foregroundColor: color])
         cache.setObject(Box(result), forKey: key)
         return result
     }
 
-    private static func makeAttachment(inner: String, font: NSFont, color: NSColor) -> NSAttributedString? {
+    private static func makeAttachment(inner: String, original: String, font: NSFont, color: NSColor) -> NSAttributedString? {
         let image = MTMathImage(
             latex: MathRenderer.normalize(inner),
             fontSize: font.pointSize,
@@ -188,6 +192,10 @@ enum InlineMath {
         let string = NSMutableAttributedString(attributedString: NSAttributedString(attachment: attachment))
         // Carry a font so line metrics around the attachment stay consistent.
         string.addAttribute(.font, value: font, range: NSRange(location: 0, length: string.length))
+        // Side-channel the delimited source on the (length-1) attachment glyph
+        // so copy/quote can recover the LaTeX the rendered image otherwise
+        // erases. Layout-inert; length-preserving (see `jinInlineMathSource`).
+        string.addAttribute(.jinInlineMathSource, value: original, range: NSRange(location: 0, length: string.length))
         return string
     }
 

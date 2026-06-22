@@ -12,11 +12,13 @@ struct MathBlockView: View {
     let latex: String
     @Environment(\.markdownTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.markdownMathSourceActions) private var mathActions
 
     var body: some View {
         content
             .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contextMenu { sourceMenu }
     }
 
     @ViewBuilder
@@ -32,6 +34,46 @@ struct MathBlockView: View {
         case .raw(let source):
             RawLatexText(source: source, theme: theme)
         }
+    }
+
+    /// The rendered `MTMathUILabel` is not part of the selectable flat text, so
+    /// (unlike inline math) a display block can't be reached by drag-select —
+    /// only the parse-failure `RawLatexText` is selectable. A context menu
+    /// gives both render states a uniform, discoverable Copy/Quote affordance
+    /// carrying the delimited `$$…$$` source so it round-trips as display math.
+    @ViewBuilder
+    private var sourceMenu: some View {
+        let source = delimitedSource
+        Button("Copy LaTeX") { mathActions.copy(source) }
+        if let quote = mathActions.quote {
+            Button("Quote LaTeX") { quote(source) }
+        }
+    }
+
+    private var delimitedSource: String {
+        let trimmed = latex.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "$$\n\(trimmed)\n$$"
+    }
+}
+
+// MARK: - Math source actions (Copy / Quote)
+
+/// Copy/Quote actions for a standalone math block's raw LaTeX source, injected
+/// by `NativeMarkdownView`. `quote` is nil when the surrounding anchor isn't
+/// quotable (user messages / no selection context), so the menu item hides.
+struct MarkdownMathSourceActions {
+    let copy: (String) -> Void
+    let quote: ((String) -> Void)?
+}
+
+private struct MarkdownMathSourceActionsKey: EnvironmentKey {
+    static let defaultValue = MarkdownMathSourceActions(copy: { _ in }, quote: nil)
+}
+
+extension EnvironmentValues {
+    var markdownMathSourceActions: MarkdownMathSourceActions {
+        get { self[MarkdownMathSourceActionsKey.self] }
+        set { self[MarkdownMathSourceActionsKey.self] = newValue }
     }
 }
 
