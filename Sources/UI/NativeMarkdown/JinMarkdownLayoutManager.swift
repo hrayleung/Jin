@@ -18,6 +18,19 @@ extension NSAttributedString.Key {
     /// dropped by the pasteboard's plain-text flavor, so copy is unaffected.
     static let jinBlockQuoteDepth = NSAttributedString.Key("jin.blockquote.depth")
     static let jinBlockQuoteBarColor = NSAttributedString.Key("jin.blockquote.bar-color")
+
+    /// Carries the original delimited LaTeX source (`$…$` / `\(…\)`) on the
+    /// single `U+FFFC` attachment glyph that an inline-math span renders to
+    /// (see `InlineMath`). The rendered glyph itself has no recoverable text,
+    /// so copy (`JinMessageTextView.writeSelection`) and quote
+    /// (`SelectionAggregator`) read this key to substitute the LaTeX source
+    /// back into the outgoing string. Like the other `jin.*` keys it is
+    /// layout-inert (the layout manager never reads it) and is dropped by the
+    /// pasteboard's plain/RTF flavors — it exists purely as a side-channel.
+    /// Length-preserving: added over the existing length-1 attachment range,
+    /// so it never perturbs the `plainText`↔attributed UTF-16 offset alignment
+    /// that selection/highlight bookkeeping depends on.
+    static let jinInlineMathSource = NSAttributedString.Key("jin.inline-math.source")
 }
 
 /// `NSLayoutManager` subclass that paints rounded backgrounds for runs marked

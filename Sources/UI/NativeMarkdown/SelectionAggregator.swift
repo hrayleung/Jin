@@ -145,12 +145,17 @@ final class SelectionAggregator: ObservableObject {
         let safeLocation = min(localRange.location, blockText.length)
         let safeLength = min(localRange.length, blockText.length - safeLocation)
         let safeRange = NSRange(location: safeLocation, length: safeLength)
-        // The CJK emphasis repair inserts U+200B into the rendered text (and
-        // therefore into plainText/flatText, which offsets index). Strip it
-        // from the OUTGOING text only — quotes and prompts must not carry
-        // invisible characters; offsets stay raw.
-        let selectedText = blockText.substring(with: safeRange)
-            .replacingOccurrences(of: "\u{200B}", with: "")
+        // Prefer the live text view's storage: it holds the inline-math
+        // attachment glyphs tagged with `.jinInlineMathSource`, so the LaTeX
+        // source can be substituted back in (the U+FFFC in `plainText` carries
+        // no recoverable text). Offsets continue to index the raw U+FFFC
+        // `plainText`/`flatText` — only this OUTGOING string is expanded, so
+        // highlight persistence is untouched. U+200B (CJK emphasis repair) is
+        // stripped here too — quotes/prompts must not carry invisible
+        // characters. Falls back to the raw slice when no live view is
+        // registered (e.g. a recycled cell), never worse than before.
+        let selectedText = latexExpandedSelectedText(blockID: blockID, range: safeRange)
+            ?? blockText.substring(with: safeRange).replacingOccurrences(of: "\u{200B}", with: "")
 
         let globalStart = block.offsetInAnchor + safeRange.location
         let globalEnd = globalStart + safeRange.length
@@ -172,10 +177,48 @@ final class SelectionAggregator: ObservableObject {
         lastSnapshot = snapshot
     }
 
+    /// Builds the LaTeX-restored text for `range` (a local NSRange into the
+    /// block's `plainText`, which is length-aligned with the live textStorage)
+    /// by expanding inline-math attachment glyphs to their `.jinInlineMathSource`
+    /// source. Returns nil when the text view is unregistered so the caller
+    /// falls back to the raw `plainText` slice.
+    private func latexExpandedSelectedText(blockID: UUID, range: NSRange) -> String? {
+        guard let storage = blockTextViews[blockID]?.value?.textStorage else { return nil }
+        let safeLocation = min(range.location, storage.length)
+        let safeLength = min(range.length, storage.length - safeLocation)
+        guard safeLength > 0 else { return nil }
+        let substring = storage.attributedSubstring(
+            from: NSRange(location: safeLocation, length: safeLength)
+        )
+        return JinMessageTextView.latexExpandedPlainString(from: substring)
+    }
+
     // MARK: - Context-menu intents
 
     func performQuoteFromCurrentSelection() {
         guard let snapshot = lastSnapshot, !snapshot.isEmpty else { return }
+        actions.onQuote(snapshot)
+    }
+
+    /// Quotes a whole standalone source string — e.g. a display-math block's
+    /// LaTeX — that has no selectable position in any text block (the rendered
+    /// `MTMathUILabel` is not part of the selectable flat text). Offsets are
+    /// irrelevant for a quote (they only gate highlight intersection), so a
+    /// zero range is used; this path never creates highlights. No-op when the
+    /// anchor isn't quotable or the source is blank.
+    func quoteRawSource(_ source: String) {
+        guard let messageID, let anchorID,
+              MessageSelectionSupport.normalizedSelectedText(source) != nil else { return }
+        let snapshot = MessageSelectionSnapshot(
+            messageID: messageID,
+            anchorID: anchorID,
+            selectedText: source,
+            prefixContext: nil,
+            suffixContext: nil,
+            startOffset: 0,
+            endOffset: 0,
+            matchingHighlightIDs: []
+        )
         actions.onQuote(snapshot)
     }
 

@@ -210,18 +210,104 @@ final class JinMessageTextView: NSTextView {
         JinTextViewCensus.decrement()
     }
 
-    /// Strip the invisible U+200B the CJK emphasis repair inserts before
-    /// the selection leaves the app. Offsets/storage stay raw; only the
-    /// plain-string pasteboard flavor is rewritten (RTF keeps the ZWSP —
-    /// it round-trips invisibly there).
+    /// Customizes the pasteboard write so inline math copies as LaTeX and the
+    /// CJK-emphasis-repair ZWSP never leaves the app.
+    ///
+    /// - No math in the selection: the prior behavior — let AppKit write every
+    ///   flavor, then strip U+200B from the plain-text flavor only (RTF keeps
+    ///   it; it round-trips invisibly there).
+    /// - Math in the selection: each rendered attachment glyph (a single
+    ///   U+FFFC, see `InlineMath`) is expanded back to its `.jinInlineMathSource`
+    ///   delimited source, and we write ONLY `.string` + `.rtf` from the
+    ///   resulting attachment-free string. `.rtfd` and any standalone image
+    ///   flavor are deliberately omitted so no receiver — including Jin's own
+    ///   plain-text composer, whose paste path would otherwise import the math
+    ///   PNG as an image — can resurrect the rendered picture instead of the
+    ///   source. Prose styling (bold/links/etc.) survives into the `.rtf`.
+    /// Storage and selection offsets are never mutated; the substitution lives
+    /// entirely on the outgoing copy.
     override func writeSelection(to pboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> Bool {
-        let wrote = super.writeSelection(to: pboard, types: types)
-        if wrote,
-           let plain = pboard.string(forType: .string),
-           plain.contains("\u{200B}") {
-            pboard.setString(plain.replacingOccurrences(of: "\u{200B}", with: ""), forType: .string)
+        guard let textStorage else {
+            return super.writeSelection(to: pboard, types: types)
         }
-        return wrote
+        let ranges = selectedRanges
+            .map { $0.rangeValue }
+            .filter { $0.length > 0 && NSMaxRange($0) <= textStorage.length }
+            .sorted { $0.location < $1.location }
+        guard !ranges.isEmpty else {
+            return super.writeSelection(to: pboard, types: types)
+        }
+
+        let selected = NSMutableAttributedString()
+        for range in ranges {
+            selected.append(textStorage.attributedSubstring(from: range))
+        }
+
+        var hasMath = false
+        selected.enumerateAttribute(
+            .jinInlineMathSource,
+            in: NSRange(location: 0, length: selected.length),
+            options: []
+        ) { value, _, stop in
+            if value is String { hasMath = true; stop.pointee = true }
+        }
+
+        guard hasMath else {
+            let wrote = super.writeSelection(to: pboard, types: types)
+            if wrote,
+               let plain = pboard.string(forType: .string),
+               plain.contains("\u{200B}") {
+                pboard.setString(plain.replacingOccurrences(of: "\u{200B}", with: ""), forType: .string)
+            }
+            return wrote
+        }
+
+        let normalized = Self.latexExpandedAttributedString(from: selected)
+        let plain = normalized.string.replacingOccurrences(of: "\u{200B}", with: "")
+        let rtfData = normalized.rtf(
+            from: NSRange(location: 0, length: normalized.length),
+            documentAttributes: [:]
+        )
+
+        pboard.clearContents()
+        var declared: [NSPasteboard.PasteboardType] = [.string]
+        if rtfData != nil { declared.append(.rtf) }
+        pboard.declareTypes(declared, owner: nil)
+        pboard.setString(plain, forType: .string)
+        if let rtfData { pboard.setData(rtfData, forType: .rtf) }
+        return true
+    }
+
+    /// Returns a copy of `attributed` with every inline-math attachment glyph
+    /// (`.jinInlineMathSource`) replaced by a plain text run of its LaTeX
+    /// source, inheriting the glyph's text attributes minus the attachment.
+    /// Non-math runs pass through verbatim. A coalesced run of N identical
+    /// adjacent glyphs (TextKit merges equal `.jinInlineMathSource` values)
+    /// expands to its source repeated N times — one per glyph. Shared by the
+    /// copy path (this view) and the quote path (`SelectionAggregator`).
+    static func latexExpandedAttributedString(from attributed: NSAttributedString) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let full = NSRange(location: 0, length: attributed.length)
+        attributed.enumerateAttribute(.jinInlineMathSource, in: full, options: []) { value, range, _ in
+            guard let source = value as? String else {
+                result.append(attributed.attributedSubstring(from: range))
+                return
+            }
+            var attrs = attributed.attributes(at: range.location, effectiveRange: nil)
+            attrs.removeValue(forKey: .attachment)
+            attrs.removeValue(forKey: .jinInlineMathSource)
+            let expanded = String(repeating: source, count: max(1, range.length))
+            result.append(NSAttributedString(string: expanded, attributes: attrs))
+        }
+        return result
+    }
+
+    /// Plain-string form of `latexExpandedAttributedString`, with the
+    /// CJK-repair ZWSP stripped — quotes and prompts must not carry invisible
+    /// characters.
+    static func latexExpandedPlainString(from attributed: NSAttributedString) -> String {
+        latexExpandedAttributedString(from: attributed).string
+            .replacingOccurrences(of: "\u{200B}", with: "")
     }
 
     private func configureForBlockRendering() {

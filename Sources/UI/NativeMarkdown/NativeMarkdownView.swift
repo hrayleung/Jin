@@ -133,6 +133,17 @@ struct NativeMarkdownView: View {
             blocks: parsed.layout.aggregatorBlocks,
             persistedHighlights: persistedHighlights
         )
+        // Copy/Quote for standalone display-math blocks. Copy is always
+        // available; Quote routes the raw LaTeX through the live aggregator
+        // (which holds the freshest `onQuote` action), and is offered only when
+        // the anchor is quotable — assistant messages pass a real
+        // messageID/anchorID, user messages render with nil and get Copy-only.
+        let mathActions = MarkdownMathSourceActions(
+            copy: { PasteboardSupport.writeString($0) },
+            quote: (selectionMessageID != nil && selectionAnchorID != nil)
+                ? { [aggregator = aggregatorStore.aggregator] latex in aggregator.quoteRawSource(latex) }
+                : nil
+        )
         VStack(alignment: .leading, spacing: 0) {
             ForEach(parsed.indexedGroups, id: \.id) { item in
                 NativeGroupView(group: item.group, path: [item.position])
@@ -141,6 +152,7 @@ struct NativeMarkdownView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.markdownTheme, theme)
         .environment(\.nativeMarkdownAnchor, anchorContext)
+        .environment(\.markdownMathSourceActions, mathActions)
         // Update the aggregator only when its inputs actually change. The
         // previous `let _ = aggregatorStore.update(...)` inside body ran on
         // every body re-eval, which in turn re-walked every block's
