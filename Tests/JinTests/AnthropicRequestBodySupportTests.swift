@@ -118,6 +118,23 @@ final class AnthropicRequestBodySupportTests: XCTestCase {
         XCTAssertNil(body["top_p"], "Sonnet 5 does not accept sampling params")
     }
 
+    func testApplyThinkingConfigForSonnet5OmitsThinkingWhenReasoningNeverSet() throws {
+        var body: [String: Any] = [:]
+
+        // Regression: `controls.reasoning == nil` (a fresh conversation that never touched
+        // reasoning controls) must NOT be treated as "explicitly disabled" — Sonnet 5 defaults
+        // to adaptive-on when `thinking` is omitted, so sending `{type: "disabled"}` here would
+        // silently kill the model's default reasoning for every untouched conversation.
+        AnthropicRequestBodySupport.applyThinkingConfig(
+            to: &body,
+            controls: GenerationControls(),
+            providerType: .anthropic,
+            modelID: "claude-sonnet-5"
+        )
+
+        XCTAssertNil(body["thinking"], "Sonnet 5 must omit thinking (not send disabled) when no reasoning preference was ever set")
+    }
+
     func testApplyThinkingConfigForFable5DisabledOmitsThinkingAndSampling() throws {
         var body: [String: Any] = [:]
 

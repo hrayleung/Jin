@@ -65,8 +65,14 @@ enum AnthropicRequestBodySupport {
         }
 
         if !thinkingEnabled {
+            // `controls.reasoning == nil` means no preference was ever set (e.g. a fresh
+            // conversation) — leave `thinking` omitted so Sonnet 5 runs its own adaptive-on
+            // default. Only an explicit `enabled == false` means the user turned it off, which
+            // Sonnet 5 requires as an explicit `{type: "disabled"}` (unlike other adaptive
+            // models here, omitting `thinking` on Sonnet 5 does NOT disable it).
+            let explicitlyDisabled = controls.reasoning?.enabled == false
             if AnthropicModelLimits.supportsDeepSeekV4OutputConfigEffort(for: modelID)
-                || AnthropicModelLimits.requiresExplicitThinkingDisabled(for: modelID) {
+                || (explicitlyDisabled && AnthropicModelLimits.requiresExplicitThinkingDisabled(for: modelID)) {
                 body["thinking"] = ["type": "disabled"]
             }
             applySamplingControls(to: &body, controls: controls, modelID: modelID)
