@@ -2,6 +2,14 @@ import Foundation
 import SwiftData
 
 enum ChatModelSelectionSupport {
+    static let preferredAnthropicModelOrder: [String] = [
+        "claude-opus-4-8",
+        "claude-opus-4-7",
+        "claude-opus-4-6",
+        "claude-sonnet-5",
+        "claude-sonnet-4-6",
+        "claude-sonnet-4-5-20250929",
+    ]
     static let preferredFireworksModelOrder: [String] = [
         "kimi-k2p6",
         "qwen3p6-plus",
@@ -81,11 +89,12 @@ enum ChatModelSelectionSupport {
         case .githubCopilot:
             return nil
         case .anthropic, .claudeManagedAgents:
-            return models.first(where: { $0.id == "claude-opus-4-8" })?.id
-                ?? models.first(where: { $0.id == "claude-opus-4-7" })?.id
-                ?? models.first(where: { $0.id == "claude-opus-4-6" })?.id
-                ?? models.first(where: { $0.id == "claude-sonnet-4-6" })?.id
-                ?? models.first(where: { $0.id == "claude-sonnet-4-5-20250929" })?.id
+            for preferredID in preferredAnthropicModelOrder {
+                if let modelID = models.first(where: { $0.id == preferredID })?.id {
+                    return modelID
+                }
+            }
+            return nil
         case .perplexity:
             return models.first(where: { $0.id == "sonar-pro" })?.id
                 ?? models.first(where: { $0.id == "sonar" })?.id

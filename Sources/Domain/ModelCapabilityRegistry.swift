@@ -258,6 +258,7 @@ enum ModelCapabilityRegistry {
         "claude-opus-4-8",
         "claude-opus-4-7",
         "claude-opus-4-6",
+        "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5-20250929",
         "claude-opus-4-5-20251101",
@@ -796,6 +797,7 @@ enum ModelCapabilityRegistry {
         return lower == "claude-opus-4-8"
             || lower == "claude-opus-4-7"
             || lower == "claude-opus-4-6"
+            || lower == "claude-sonnet-5"
             || lower == "claude-sonnet-4-6"
     }
 }

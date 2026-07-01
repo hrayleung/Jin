@@ -73,6 +73,51 @@ final class AnthropicRequestBodySupportTests: XCTestCase {
         XCTAssertEqual(outputConfig["effort"] as? String, "high")
     }
 
+    func testApplyThinkingConfigForSonnet5UsesAdaptiveAndSummarizedDisplayNeverDisabled() throws {
+        var body: [String: Any] = [:]
+
+        AnthropicRequestBodySupport.applyThinkingConfig(
+            to: &body,
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .xhigh)
+            ),
+            providerType: .anthropic,
+            modelID: "claude-sonnet-5"
+        )
+
+        let thinking = try XCTUnwrap(body["thinking"] as? [String: Any])
+        XCTAssertEqual(thinking["type"] as? String, "adaptive")
+        // Raw thinking is never returned on Sonnet 5; default display must be "summarized".
+        XCTAssertEqual(thinking["display"] as? String, "summarized")
+        XCTAssertNil(thinking["budget_tokens"])
+
+        let outputConfig = try XCTUnwrap(body["output_config"] as? [String: Any])
+        XCTAssertEqual(outputConfig["effort"] as? String, "xhigh")
+    }
+
+    func testApplyThinkingConfigForSonnet5DisabledSendsExplicitDisabledTypeAndOmitsSampling() throws {
+        var body: [String: Any] = [:]
+
+        // Unlike Fable 5 (where an explicit "disabled" 400s and the field must be omitted),
+        // Sonnet 5 defaults to adaptive-ON when `thinking` is omitted entirely — so disabling
+        // reasoning on Sonnet 5 requires sending `thinking: {type: "disabled"}` explicitly.
+        AnthropicRequestBodySupport.applyThinkingConfig(
+            to: &body,
+            controls: GenerationControls(
+                temperature: 0.4,
+                topP: 0.8,
+                reasoning: ReasoningControls(enabled: false)
+            ),
+            providerType: .anthropic,
+            modelID: "claude-sonnet-5"
+        )
+
+        let thinking = try XCTUnwrap(body["thinking"] as? [String: Any])
+        XCTAssertEqual(thinking["type"] as? String, "disabled")
+        XCTAssertNil(body["temperature"], "Sonnet 5 does not accept sampling params")
+        XCTAssertNil(body["top_p"], "Sonnet 5 does not accept sampling params")
+    }
+
     func testApplyThinkingConfigForFable5DisabledOmitsThinkingAndSampling() throws {
         var body: [String: Any] = [:]
 

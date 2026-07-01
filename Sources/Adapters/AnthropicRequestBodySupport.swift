@@ -65,7 +65,8 @@ enum AnthropicRequestBodySupport {
         }
 
         if !thinkingEnabled {
-            if AnthropicModelLimits.supportsDeepSeekV4OutputConfigEffort(for: modelID) {
+            if AnthropicModelLimits.supportsDeepSeekV4OutputConfigEffort(for: modelID)
+                || AnthropicModelLimits.requiresExplicitThinkingDisabled(for: modelID) {
                 body["thinking"] = ["type": "disabled"]
             }
             applySamplingControls(to: &body, controls: controls, modelID: modelID)

@@ -180,6 +180,13 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedOpus48.reasoningConfig?.type, .effort)
         XCTAssertEqual(resolvedOpus48.reasoningConfig?.defaultEffort, .high)
 
+        let sonnet5 = ModelCatalog.modelInfo(for: "claude-sonnet-5", provider: .anthropic)
+        let resolvedSonnet5 = ModelSettingsResolver.resolve(model: sonnet5, providerType: .anthropic)
+        XCTAssertEqual(resolvedSonnet5.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedSonnet5.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedSonnet5.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedSonnet5.reasoningConfig?.defaultEffort, .high)
+
         let opus47 = ModelCatalog.modelInfo(for: "claude-opus-4-7", provider: .anthropic)
         let resolvedOpus47 = ModelSettingsResolver.resolve(model: opus47, providerType: .anthropic)
         XCTAssertEqual(resolvedOpus47.contextWindow, 1_000_000)

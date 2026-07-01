@@ -42,6 +42,17 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // Sonnet 5: best speed/intelligence combination in the Sonnet tier, near-Opus quality
+        // on coding and agentic work. Adaptive thinking (with explicit disable — unlike Fable 5,
+        // omitting `thinking` on Sonnet 5 defaults to adaptive-on, not off). Full effort range
+        // low...max (first Sonnet-tier model with xhigh). Unlike Fable 5/Mythos 5, Sonnet 5 DOES
+        // support server-side code execution and web search (incl. dynamic filtering) at launch.
+        Record(id: "claude-sonnet-5", displayName: "Claude Sonnet 5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,

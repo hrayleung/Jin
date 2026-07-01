@@ -73,6 +73,15 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-opus-4-8-custom"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-opus-4-7"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-opus-4-7-custom"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-sonnet-5"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-sonnet-5-custom"))
+    }
+
+    func testSonnet5UsesExactMatchAcrossGateways() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-sonnet-5"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-sonnet-5-custom"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-sonnet-5"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-sonnet-5-custom"))
     }
 
     func testVercelAIGatewayNativePDFSupportStaysDisabledByDefault() {
