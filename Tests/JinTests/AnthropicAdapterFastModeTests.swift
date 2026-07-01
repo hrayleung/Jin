@@ -185,6 +185,8 @@ final class AnthropicAdapterFastModeTests: XCTestCase {
         // Fable 5 / Mythos 5 have no fast-mode variant — docs do not list `speed: "fast"`.
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-fable-5"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-mythos-5"))
+        // Fast mode remains a research preview scoped to Opus 4.8/4.7/4.6 only — Sonnet 5 is not listed.
+        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-sonnet-5"))
     }
 
     func testSupportsFastModeRejectsDateSuffixedAndCustomOpusVariants() {

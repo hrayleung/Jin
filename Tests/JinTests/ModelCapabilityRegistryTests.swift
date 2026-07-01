@@ -142,6 +142,33 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .anthropic, modelID: "claude-mythos-preview"))
     }
 
+    func testSonnet5SupportsFullEffortRangeAndServerSideTools() {
+        // Unlike Fable 5 / Mythos 5, Sonnet 5 DOES support server-side code execution and web
+        // search (including dynamic filtering) at launch per Anthropic's Sonnet 5 docs.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .anthropic, modelID: "claude-sonnet-5"),
+            [.low, .medium, .high, .xhigh, .max],
+            "Sonnet 5 should expose the full effort range (first Sonnet-tier model with xhigh)"
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .anthropic, modelID: "claude-sonnet-5"),
+            .xhigh,
+            "Sonnet 5 supports xhigh natively"
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-sonnet-5"),
+            "Sonnet 5 supports code execution at launch"
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsWebSearch(for: .anthropic, modelID: "claude-sonnet-5"),
+            "Sonnet 5 supports the web search tool at launch"
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(for: .anthropic, modelID: "claude-sonnet-5"),
+            "Sonnet 5 is on the dynamic-filtering (web_search_20260209) list"
+        )
+    }
+
     func testGeminiCodeExecutionUsesExactDocumentedModelIDs() {
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .gemini, modelID: "gemini-3-pro"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .gemini, modelID: "gemini-3.1-pro-preview"))

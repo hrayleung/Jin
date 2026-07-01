@@ -35,6 +35,23 @@ final class AnthropicReasoningNormalizerTests: XCTestCase {
         XCTAssertEqual(maxTokens, 128_000, "Mythos 5 should resolve to model max when unset")
     }
 
+    // MARK: - Sonnet 5 (adaptive thinking + xhigh/max effort)
+
+    func testSonnet5ClearsBudgetTokensAndDefaultsEffort() {
+        var reasoning = ReasoningControls(enabled: true, budgetTokens: 8192)
+        var maxTokens: Int? = nil
+
+        AnthropicReasoningNormalizer.normalize(
+            reasoning: &reasoning,
+            maxTokens: &maxTokens,
+            modelID: "claude-sonnet-5"
+        )
+
+        XCTAssertNil(reasoning.budgetTokens, "budget_tokens must be nil on Sonnet 5")
+        XCTAssertEqual(reasoning.effort, .high, "effort should default to high")
+        XCTAssertEqual(maxTokens, 128_000, "Sonnet 5 should resolve to model max when unset")
+    }
+
     // MARK: - Opus 4.8 (adaptive thinking + xhigh/max effort)
 
     func testOpus48ClearsBudgetTokensAndDefaultsEffort() {

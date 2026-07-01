@@ -27,6 +27,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         "claude-opus-4-6",
         "claude-opus-4-5",
         "claude-opus-4-1",
+        "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5",
         "claude-sonnet-4",
