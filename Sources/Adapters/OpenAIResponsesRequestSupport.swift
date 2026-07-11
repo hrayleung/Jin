@@ -152,8 +152,13 @@ enum OpenAIResponsesRequestSupport {
             return "medium"
         case .high:
             return "high"
-        case .xhigh, .max:
+        case .xhigh:
             return "xhigh"
+        case .max:
+            // `max` is a real API value starting with GPT-5.6; older models reject it.
+            return ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: providerType, modelID: modelID)
+                ? "max"
+                : "xhigh"
         }
     }
 

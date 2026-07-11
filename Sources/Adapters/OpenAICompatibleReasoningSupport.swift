@@ -256,7 +256,16 @@ enum OpenAICompatibleReasoningSupport {
         switch normalized {
         case .none:
             return "none"
-        case .minimal, .low:
+        case .minimal:
+            // "minimal" is a real wire value for models whose band pins it (e.g.
+            // google/gemini-3.1-flash-lite-image on OpenRouter, band minimal/high).
+            // Normalization already clamps .minimal away for every other model on
+            // this path, so the fold to "low" only remains as a defensive tail.
+            return ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: providerConfig.type,
+                modelID: modelID
+            ).contains(.minimal) ? "minimal" : "low"
+        case .low:
             return "low"
         case .medium:
             return "medium"
@@ -265,7 +274,12 @@ enum OpenAICompatibleReasoningSupport {
         case .xhigh:
             return "xhigh"
         case .max:
-            return "xhigh"
+            // `max` is a real API value starting with GPT-5.6 (and for OpenRouter
+            // models whose band includes it, e.g. sakana/fugu-ultra); older models
+            // reject it and stay clamped to xhigh.
+            return ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: providerConfig.type, modelID: modelID)
+                ? "max"
+                : "xhigh"
         }
     }
 

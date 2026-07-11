@@ -722,5 +722,128 @@ extension ModelCatalog {
                maxOutputTokens: 131072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
                isFullySupported: true, isSeeded: false),
+        // MARK: New OpenRouter models (verified against OpenRouter /models + /endpoints, 2026-07-11)
+        // Capability ceiling: the OpenRouter adapter drops video input and text-fallbacks
+        // PDFs, so these records never claim .videoInput/.nativePDF/.codeExecution.
+        // GPT-5.6 Sol/Terra/Luna (created 2026-07-09): 1.05M ctx / 128K out, efforts
+        // none..max default medium; the -pro twins are the same models served with
+        // OpenAI's reasoning.mode=pro at identical listed pricing.
+        Record(id: "openai/gpt-5.6-sol", displayName: "OpenAI: GPT-5.6 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-5.6-sol-pro", displayName: "OpenAI: GPT-5.6 Sol Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-5.6-terra", displayName: "OpenAI: GPT-5.6 Terra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-5.6-terra-pro", displayName: "OpenAI: GPT-5.6 Terra Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-5.6-luna", displayName: "OpenAI: GPT-5.6 Luna",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-5.6-luna-pro", displayName: "OpenAI: GPT-5.6 Luna Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        // Grok 4.5 (created 2026-07-08): 500K ctx, max output unpublished
+        // (max_completion_tokens null), reasoning mandatory low/medium/high default high.
+        Record(id: "x-ai/grok-4.5", displayName: "xAI: Grok 4.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 500000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Claude Sonnet 5 arrived on OpenRouter 2026-06-30 (it was deliberately NOT added
+        // when the native record shipped, pending live confirmation — now confirmed).
+        // OpenRouter reports efforts low..max with default medium.
+        Record(id: "anthropic/claude-sonnet-5", displayName: "Anthropic: Claude Sonnet 5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1000000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "anthropic/claude-fable-5", displayName: "Anthropic: Claude Fable 5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1000000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        // Tencent Hy3 (created 2026-07-06): reasoning default-DISABLED with efforts
+        // high/low/none; paid route publishes no max output, the free route allows the
+        // full 262K. Text-only.
+        Record(id: "tencent/hy3", displayName: "Tencent: Hy3",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "tencent/hy3:free", displayName: "Tencent: Hy3 (Free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262144,
+               maxOutputTokens: 262144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
+               isFullySupported: true, isSeeded: false),
+        // Poolside Laguna XS 2.1 (created 2026-07-02): reasoning is a plain toggle —
+        // no reasoning_effort in supported_parameters.
+        Record(id: "poolside/laguna-xs-2.1", displayName: "Poolside: Laguna XS 2.1",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262144,
+               maxOutputTokens: 32768,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "poolside/laguna-xs-2.1:free", displayName: "Poolside: Laguna XS 2.1 (Free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262144,
+               maxOutputTokens: 32768,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // AionLabs Aion-3.0 (created 2026-07-07): reasoning is mandatory with no effort
+        // control, so no reasoningConfig is exposed.
+        Record(id: "aion-labs/aion-3.0", displayName: "AionLabs: Aion-3.0",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 131072,
+               maxOutputTokens: 32768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Gemini 3.1 Flash Lite Image "Nano Banana 2 Lite" (created 2026-06-30): image
+        // OUTPUT, no tools on OpenRouter, efforts minimal/high default minimal.
+        Record(id: "google/gemini-3.1-flash-lite-image", displayName: "Google: Gemini 3.1 Flash Lite Image",
+               capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
+               contextWindow: 65536,
+               maxOutputTokens: 66000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
+               isFullySupported: true, isSeeded: false),
+        // Sakana Fugu Ultra (created 2026-06-24): learned multi-agent orchestration
+        // system; efforts restricted to high/xhigh/max, default xhigh.
+        Record(id: "sakana/fugu-ultra", displayName: "Sakana: Fugu Ultra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1000000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
+        // Nex AGI Nex-N2-Mini (created 2026-06-24): reasoning is a plain toggle.
+        Record(id: "nex-agi/nex-n2-mini", displayName: "Nex AGI: Nex-N2-Mini",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262144,
+               maxOutputTokens: 262144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
     ]
 }

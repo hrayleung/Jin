@@ -375,6 +375,17 @@ extension ModelCatalog {
 
     static let xAIRecords: [Record] = [
         // Seeded
+        // Grok 4.5 (released 2026-07-08, single SKU — no fast/mini/non-reasoning variants),
+        // verified against docs.x.ai/developers/models/grok-4.5 rather than mirrored from
+        // siblings: 500K context (a REGRESSION vs grok-4.3's 1M), no published max output,
+        // reasoning always-on ("Reasoning cannot be disabled") with effort low/medium/high
+        // defaulting to high. PDF input per models.dev + OpenRouter file modality.
+        // presence/frequency penalties and stop are rejected by xAI reasoning models.
+        Record(id: "grok-4.5", displayName: "Grok 4.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 500_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "grok-4.3", displayName: "Grok 4.3",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,
@@ -1061,6 +1072,19 @@ extension ModelCatalog {
                contextWindow: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
+        // Kimi K2.7 Code (live on the Go /models list since 2026-06-12; verified against
+        // models.dev `opencode-go`): 262,144 context AND output, reasoning always-on with
+        // NO effort control (empty reasoning_options — the gateway ignores reasoning_effort
+        // for it), thinking interleaved via `reasoning_content`. reasoningConfig stays nil
+        // so Jin never sends an effort it can't honor. models.dev also lists video input,
+        // but this model routes through the OpenAI-compatible endpoint whose message
+        // translation has no video part builder, so .videoInput is deliberately not claimed.
+        Record(id: "kimi-k2.7-code", displayName: "Kimi K2.7 Code",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         Record(id: "mimo-v2.5-pro", displayName: "MiMo V2.5 Pro",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,
@@ -1113,6 +1137,20 @@ extension ModelCatalog {
         // reasoning is an Anthropic thinking budget (matches the minimax-* rows below).
         Record(id: "qwen3.7-max", displayName: "Qwen3.7 Max",
                capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 10_000),
+               isFullySupported: true, isSeeded: true),
+        // Qwen3.7 Plus (live on the Go /models list since 2026-06-02; verified against
+        // models.dev `opencode-go`): 1M context / 65,536 output, served via the Anthropic
+        // /messages endpoint (@ai-sdk/anthropic) with a thinking budget like the other
+        // qwen3.7 models — it must also be routed in
+        // OpenCodeGoAdapter.anthropicMessagesModelIDs. models.dev also lists video input,
+        // but the Anthropic /messages translation has no video part builder (it replaces
+        // .video parts with a placeholder notice), so .videoInput is deliberately not
+        // claimed — same rationale as kimi-k2.7-code above.
+        Record(id: "qwen3.7-plus", displayName: "Qwen3.7 Plus",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_000_000,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 10_000),
@@ -1185,6 +1223,26 @@ extension ModelCatalog {
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+    ]
+
+    // MARK: Meta
+
+    // Muse Spark 1.1 — Meta's first paid API model (Meta Model API public preview,
+    // launched 2026-07-09; verified against dev.meta.ai docs): 1,048,576 context /
+    // 131,072 output ("Limits: context 1048576, output 131072" in Meta's overview),
+    // text+image(+video/PDF) input, text output. Reasoning is always-on — sending
+    // reasoning_effort "none" returns HTTP 400 — with minimal..xhigh efforts and a
+    // model-determined default when omitted. Caching is implicit server-side with an
+    // optional prompt_cache_key hint. .videoInput/.nativePDF are deliberately not
+    // claimed: the Chat Completions wire format Jin uses has no verified video/PDF
+    // part encoding, so those attachments go through Jin's extraction paths instead.
+    static let metaRecords: [Record] = [
+        Record(id: "muse-spark-1.1", displayName: "Muse Spark 1.1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
     ]
 
     // MARK: MorphLLM

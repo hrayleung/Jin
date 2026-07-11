@@ -1504,4 +1504,146 @@ final class ModelCatalogTests: XCTestCase {
             XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .openrouter), id)
         }
     }
+
+    // MARK: - July 2026 additions (GPT-5.6, Grok 4.5, OpenCode Go, OpenRouter)
+
+    func testOpenAIGPT56FamilyCatalogUsesDocsVerifiedExactMetadata() {
+        // GPT-5.6 ships as Sol/Terra/Luna (no mini/nano naming, no dated snapshots yet),
+        // all 1,050,000 context / 128,000 output with default medium effort.
+        for id in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
+            let model = ModelCatalog.modelInfo(for: id, provider: .openai)
+            XCTAssertEqual(model.contextWindow, 1_050_000, id)
+            XCTAssertEqual(model.maxOutputTokens, 128_000, id)
+            XCTAssertTrue(model.capabilities.contains(.streaming), id)
+            XCTAssertTrue(model.capabilities.contains(.toolCalling), id)
+            XCTAssertTrue(model.capabilities.contains(.vision), id)
+            XCTAssertTrue(model.capabilities.contains(.reasoning), id)
+            XCTAssertTrue(model.capabilities.contains(.promptCaching), id)
+            XCTAssertTrue(model.capabilities.contains(.nativePDF), id)
+            XCTAssertTrue(model.capabilities.contains(.codeExecution), id)
+            XCTAssertEqual(model.reasoningConfig?.type, .effort, id)
+            XCTAssertEqual(model.reasoningConfig?.defaultEffort, .medium, id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .openai), id)
+
+            // Gateway twins mirror the verified limits under compound IDs.
+            for gateway in [ProviderType.cloudflareAIGateway, .vercelAIGateway] {
+                let gatewayModel = ModelCatalog.modelInfo(for: "openai/\(id)", provider: gateway)
+                XCTAssertEqual(gatewayModel.contextWindow, 1_050_000, "openai/\(id) via \(gateway)")
+                XCTAssertEqual(gatewayModel.maxOutputTokens, 128_000, "openai/\(id) via \(gateway)")
+                XCTAssertEqual(gatewayModel.reasoningConfig?.defaultEffort, .medium, "openai/\(id) via \(gateway)")
+                XCTAssertFalse(gatewayModel.capabilities.contains(.nativePDF), "openai/\(id) via \(gateway)")
+            }
+        }
+
+        // No dated snapshots are published for 5.6 — a guessed dated twin must miss.
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "gpt-5.6-sol-2026-07-09", provider: .openai))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "gpt-5.6", provider: .openai))
+    }
+
+    func testXAIGrok45CatalogUsesDocsVerifiedExactMetadata() {
+        let grok45 = ModelCatalog.modelInfo(for: "grok-4.5", provider: .xai)
+
+        XCTAssertEqual(grok45.name, "Grok 4.5")
+        // 500K is a documented REGRESSION vs grok-4.3's 1M — never mirror siblings.
+        XCTAssertEqual(grok45.contextWindow, 500_000)
+        // xAI publishes no max output for grok-4.5; the catalog must not invent one.
+        XCTAssertNil(grok45.maxOutputTokens)
+        XCTAssertTrue(grok45.capabilities.contains(.streaming))
+        XCTAssertTrue(grok45.capabilities.contains(.toolCalling))
+        XCTAssertTrue(grok45.capabilities.contains(.vision))
+        XCTAssertTrue(grok45.capabilities.contains(.reasoning))
+        XCTAssertTrue(grok45.capabilities.contains(.promptCaching))
+        XCTAssertTrue(grok45.capabilities.contains(.nativePDF))
+        // Code execution is not documented for grok-4.5 — stay conservative.
+        XCTAssertFalse(grok45.capabilities.contains(.codeExecution))
+        XCTAssertEqual(grok45.reasoningConfig?.type, .effort)
+        XCTAssertEqual(grok45.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "grok-4.5", provider: .xai))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.5-custom", provider: .xai))
+
+        // Vercel AI Gateway hosts it as xai/grok-4.5 with the same verified limits.
+        let vercelGrok45 = ModelCatalog.modelInfo(for: "xai/grok-4.5", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelGrok45.contextWindow, 500_000)
+        XCTAssertNil(vercelGrok45.maxOutputTokens)
+        XCTAssertEqual(vercelGrok45.reasoningConfig?.defaultEffort, .high)
+    }
+
+    func testOpenCodeGoJune2026ModelsUseRegistryVerifiedMetadata() {
+        // Seed order stays load-bearing: GLM-5.2 remains the first-launch default.
+        XCTAssertEqual(ModelCatalog.seededModels(for: .opencodeGo).first?.id, "glm-5.2")
+
+        let kimiK27Code = ModelCatalog.modelInfo(for: "kimi-k2.7-code", provider: .opencodeGo)
+        XCTAssertEqual(kimiK27Code.name, "Kimi K2.7 Code")
+        XCTAssertEqual(kimiK27Code.contextWindow, 262_144)
+        XCTAssertEqual(kimiK27Code.maxOutputTokens, 262_144)
+        XCTAssertTrue(kimiK27Code.capabilities.contains(.toolCalling))
+        XCTAssertTrue(kimiK27Code.capabilities.contains(.vision))
+        XCTAssertTrue(kimiK27Code.capabilities.contains(.reasoning))
+        // Reasoning is always-on with no effort control on the gateway (empty
+        // reasoning_options) — no config means Jin never sends an unhonored effort.
+        XCTAssertNil(kimiK27Code.reasoningConfig)
+        XCTAssertFalse(kimiK27Code.capabilities.contains(.videoInput))
+
+        let qwen37Plus = ModelCatalog.modelInfo(for: "qwen3.7-plus", provider: .opencodeGo)
+        XCTAssertEqual(qwen37Plus.name, "Qwen3.7 Plus")
+        XCTAssertEqual(qwen37Plus.contextWindow, 1_000_000)
+        XCTAssertEqual(qwen37Plus.maxOutputTokens, 65_536)
+        XCTAssertTrue(qwen37Plus.capabilities.contains(.vision))
+        // The Anthropic /messages route has no video part builder, so despite the
+        // registry listing video input the capability is deliberately not claimed.
+        XCTAssertFalse(qwen37Plus.capabilities.contains(.videoInput))
+        XCTAssertEqual(qwen37Plus.reasoningConfig?.type, .budget)
+        XCTAssertEqual(qwen37Plus.reasoningConfig?.defaultBudget, 10_000)
+    }
+
+    func testNewOpenRouterJuly2026ModelsExposeVerifiedCatalogMetadata() {
+        struct Expected {
+            let id: String
+            let contextWindow: Int
+            let maxOutputTokens: Int?
+            let reasoningType: ReasoningConfigType?
+            let effort: ReasoningEffort?
+        }
+
+        let cases: [Expected] = [
+            Expected(id: "openai/gpt-5.6-sol", contextWindow: 1_050_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
+            Expected(id: "openai/gpt-5.6-sol-pro", contextWindow: 1_050_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
+            Expected(id: "openai/gpt-5.6-terra", contextWindow: 1_050_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
+            Expected(id: "openai/gpt-5.6-terra-pro", contextWindow: 1_050_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
+            Expected(id: "openai/gpt-5.6-luna", contextWindow: 1_050_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
+            Expected(id: "openai/gpt-5.6-luna-pro", contextWindow: 1_050_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
+            Expected(id: "x-ai/grok-4.5", contextWindow: 500_000, maxOutputTokens: nil, reasoningType: .effort, effort: .high),
+            Expected(id: "anthropic/claude-sonnet-5", contextWindow: 1_000_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
+            Expected(id: "anthropic/claude-fable-5", contextWindow: 1_000_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
+            Expected(id: "tencent/hy3", contextWindow: 262_144, maxOutputTokens: nil, reasoningType: .effort, effort: ReasoningEffort.none),
+            Expected(id: "tencent/hy3:free", contextWindow: 262_144, maxOutputTokens: 262_144, reasoningType: .effort, effort: ReasoningEffort.none),
+            Expected(id: "poolside/laguna-xs-2.1", contextWindow: 262_144, maxOutputTokens: 32_768, reasoningType: .toggle, effort: nil),
+            Expected(id: "poolside/laguna-xs-2.1:free", contextWindow: 262_144, maxOutputTokens: 32_768, reasoningType: .toggle, effort: nil),
+            Expected(id: "aion-labs/aion-3.0", contextWindow: 131_072, maxOutputTokens: 32_768, reasoningType: nil, effort: nil),
+            Expected(id: "google/gemini-3.1-flash-lite-image", contextWindow: 65_536, maxOutputTokens: 66_000, reasoningType: .effort, effort: .minimal),
+            Expected(id: "sakana/fugu-ultra", contextWindow: 1_000_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .xhigh),
+            Expected(id: "nex-agi/nex-n2-mini", contextWindow: 262_144, maxOutputTokens: 262_144, reasoningType: .toggle, effort: nil),
+        ]
+
+        let forbidden: ModelCapability = [.videoInput, .nativePDF, .codeExecution]
+        for c in cases {
+            let model = ModelCatalog.modelInfo(for: c.id, provider: .openrouter)
+            XCTAssertEqual(model.contextWindow, c.contextWindow, c.id)
+            XCTAssertEqual(model.maxOutputTokens, c.maxOutputTokens, c.id)
+            XCTAssertTrue(model.capabilities.isDisjoint(with: forbidden), "\(c.id) must not claim video/PDF/code-exec on OpenRouter")
+            XCTAssertEqual(model.reasoningConfig?.type, c.reasoningType, c.id)
+            XCTAssertEqual(model.reasoningConfig?.defaultEffort, c.effort, c.id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: c.id, provider: .openrouter), c.id)
+        }
+
+        // Nano Banana 2 Lite outputs images but has no tool support on OpenRouter.
+        let flashImage = ModelCatalog.modelInfo(for: "google/gemini-3.1-flash-lite-image", provider: .openrouter)
+        XCTAssertTrue(flashImage.capabilities.contains(.imageGeneration))
+        XCTAssertFalse(flashImage.capabilities.contains(.toolCalling))
+
+        // Hy3 and Laguna are text-only.
+        for id in ["tencent/hy3", "poolside/laguna-xs-2.1"] {
+            XCTAssertFalse(ModelCatalog.modelInfo(for: id, provider: .openrouter).capabilities.contains(.vision), id)
+        }
+    }
 }

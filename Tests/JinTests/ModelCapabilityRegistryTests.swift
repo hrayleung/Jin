@@ -348,4 +348,120 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         // A vendor outside the web-search allowlist stays disabled, matching its canonical id.
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: "~moonshotai/kimi-latest"))
     }
+
+    // MARK: - July 2026 additions
+
+    func testGPT56SupportsFullEffortRangeIncludingNewMaxValue() {
+        // GPT-5.6 introduces the `max` effort; the menu is low..max.
+        for id in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .openai, modelID: id),
+                [.low, .medium, .high, .xhigh, .max],
+                id
+            )
+            XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openai, modelID: id), id)
+        }
+
+        // Gateway/OpenRouter compound IDs inherit via openai/ canonical stripping.
+        for (provider, id) in [
+            (ProviderType.vercelAIGateway, "openai/gpt-5.6-sol"),
+            (.cloudflareAIGateway, "openai/gpt-5.6-terra"),
+            (.openrouter, "openai/gpt-5.6-luna"),
+            (.openrouter, "openai/gpt-5.6-sol-pro"),
+        ] {
+            XCTAssertTrue(
+                ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: provider, modelID: id),
+                "\(id) via \(provider)"
+            )
+        }
+
+        // Older 5.x models must keep rejecting `max` (it clamps to xhigh downstream).
+        XCTAssertFalse(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openai, modelID: "gpt-5.5"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openai, modelID: "gpt-5.2"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openai, modelID: "gpt-5.6-custom"))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openai, modelID: "gpt-5.5"),
+            [.low, .medium, .high, .xhigh]
+        )
+    }
+
+    func testGrok45EffortMenuIsLowMediumHigh() {
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .xai, modelID: "grok-4.5"),
+            [.low, .medium, .high]
+        )
+        // xhigh stays reserved for the multi-agent family and clamps to high for 4.5.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .xai, modelID: "grok-4.5"),
+            .high
+        )
+    }
+
+    func testOpenAICodeInterpreterIncludesGPT56Family() {
+        for id in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
+            XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: id), id)
+        }
+        XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-5.6-custom"))
+    }
+
+    func testNewOpenRouterEffortBandsUseExactIDs() {
+        // Sakana Fugu Ultra only accepts the high/xhigh/max band.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "sakana/fugu-ultra"),
+            [.high, .xhigh, .max]
+        )
+        // Gemini 3.1 Flash Lite Image only accepts minimal/high.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "google/gemini-3.1-flash-lite-image"),
+            [.minimal, .high]
+        )
+        // Tencent Hy3 only accepts low/high (none = reasoning disabled).
+        for id in ["tencent/hy3", "tencent/hy3:free"] {
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: id),
+                [.low, .high],
+                id
+            )
+        }
+        // Near-miss IDs fall back to the default band.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "sakana/fugu-ultra-custom"),
+            [.low, .medium, .high]
+        )
+    }
+
+    func testNewOpenRouterEffortBandsReachTheWireFormat() {
+        let openRouterConfig = ProviderConfig(
+            id: "openrouter",
+            name: "OpenRouter",
+            type: .openrouter
+        )
+
+        // Fugu Ultra's Max menu choice must actually be sent as "max".
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openrouter, modelID: "sakana/fugu-ultra"))
+        XCTAssertEqual(
+            OpenAICompatibleReasoningSupport.mapReasoningEffort(.max, providerConfig: openRouterConfig, modelID: "sakana/fugu-ultra"),
+            "max"
+        )
+
+        // Gemini 3.1 Flash Lite Image's default Minimal must be sent as "minimal".
+        XCTAssertEqual(
+            OpenAICompatibleReasoningSupport.mapReasoningEffort(.minimal, providerConfig: openRouterConfig, modelID: "google/gemini-3.1-flash-lite-image"),
+            "minimal"
+        )
+
+        // Models outside the bands keep the historical folds.
+        XCTAssertEqual(
+            OpenAICompatibleReasoningSupport.mapReasoningEffort(.max, providerConfig: openRouterConfig, modelID: "openai/gpt-5.5"),
+            "xhigh"
+        )
+        XCTAssertEqual(
+            OpenAICompatibleReasoningSupport.mapReasoningEffort(.minimal, providerConfig: openRouterConfig, modelID: "openai/gpt-5.5"),
+            "low"
+        )
+        XCTAssertEqual(
+            OpenAICompatibleReasoningSupport.mapReasoningEffort(.max, providerConfig: openRouterConfig, modelID: "openai/gpt-5.6-sol"),
+            "max"
+        )
+    }
 }

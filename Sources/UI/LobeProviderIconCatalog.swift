@@ -299,6 +299,8 @@ enum LobeProviderIconCatalog {
             return "VertexAI"
         case .zyphra:
             return "Zyphra"
+        case .meta:
+            return "Meta"
         }
     }
 }

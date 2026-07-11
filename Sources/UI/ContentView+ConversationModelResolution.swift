@@ -53,6 +53,9 @@ extension ContentView {
         if providerID == "anthropic", let sonnet45 = models.first(where: { $0.id == "claude-sonnet-4-5-20250929" }) {
             return sonnet45.id
         }
+        if providerID == "xai", let grok45 = models.first(where: { $0.id == "grok-4.5" }) {
+            return grok45.id
+        }
         if providerID == "xai", let grok43 = models.first(where: { $0.id == "grok-4.3" }) {
             return grok43.id
         }
@@ -146,7 +149,7 @@ extension ContentView {
 
     private static let absoluteFallbackModelIDs: [String: String] = [
         "anthropic": "claude-opus-4-8",
-        "xai": "grok-4.3",
+        "xai": "grok-4.5",
         "deepseek": "deepseek-chat",
         "zhipu-coding-plan": "glm-5.2[1m]",
         "minimax": "MiniMax-M2.7",
@@ -159,5 +162,6 @@ extension ContentView {
         "sambanova": "MiniMax-M2.5",
         "vercel-ai-gateway": "openai/gpt-5.2",
         "vertexai": "gemini-3-pro-preview",
+        "meta": "muse-spark-1.1",
     ]
 }

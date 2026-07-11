@@ -8,9 +8,16 @@ enum XAIResponsesRequestSupport {
         "grok-4.20-multi-agent",
         "grok-4.20-multi-agent-0309",
     ]
+    /// Models that accept the documented `reasoning: {"effort": ...}` object with the
+    /// standard low/medium/high values (docs.x.ai reasoning guide; grok-4.5's reasoning
+    /// is always-on, so Jin only ever adjusts the effort — never tries to disable it).
+    private static let standardReasoningEffortModelIDs: Set<String> = [
+        "grok-4.5",
+    ]
     private static let clientFunctionToolsModelIDs: Set<String> = [
         "grok-4",
         "grok-4.3",
+        "grok-4.5",
         "grok-4.20",
         "grok-4-1",
         "grok-4-1-fast",
@@ -20,6 +27,7 @@ enum XAIResponsesRequestSupport {
     private static let maxOutputTokensModelIDs: Set<String> = [
         "grok-4",
         "grok-4.3",
+        "grok-4.5",
         "grok-4.20",
         "grok-4-1",
         "grok-4-1-fast",
@@ -120,6 +128,8 @@ enum XAIResponsesRequestSupport {
 
         if supportsMultiAgentReasoning(modelID: modelID) {
             body["reasoning"] = ["effort": mapMultiAgentReasoningEffort(effort)]
+        } else if supportsStandardReasoningEffort(modelID: modelID) {
+            body["reasoning"] = ["effort": mapStandardReasoningEffort(effort)]
         } else if supportsReasoningEffort(modelID: modelID) {
             body["reasoning_effort"] = mapReasoningEffort(effort)
         }
@@ -208,6 +218,10 @@ enum XAIResponsesRequestSupport {
         multiAgentReasoningModelIDs.contains(modelID.lowercased())
     }
 
+    static func supportsStandardReasoningEffort(modelID: String) -> Bool {
+        standardReasoningEffortModelIDs.contains(modelID.lowercased())
+    }
+
     static func supportsClientFunctionTools(modelID: String) -> Bool {
         clientFunctionToolsModelIDs.contains(modelID.lowercased())
     }
@@ -226,6 +240,19 @@ enum XAIResponsesRequestSupport {
             return "high"
         case .none, .minimal, .low, .medium:
             return "low"
+        }
+    }
+
+    /// grok-4.5 accepts exactly low/medium/high (no none/xhigh); clamp everything else
+    /// so an out-of-range persisted effort never produces a 400.
+    static func mapStandardReasoningEffort(_ effort: ReasoningEffort) -> String {
+        switch effort {
+        case .none, .minimal, .low:
+            return "low"
+        case .medium:
+            return "medium"
+        case .high, .xhigh, .max:
+            return "high"
         }
     }
 }

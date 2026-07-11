@@ -1982,4 +1982,26 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedPro.reasoningConfig?.defaultEffort, .high)
     }
 
+    func testAlwaysOnReasoningModelsCannotDisableReasoning() {
+        // grok-4.5: "Reasoning cannot be disabled" (docs.x.ai); exact-ID only.
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.5"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.3"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.5-custom"))
+
+        // OpenRouter reasoning.mandatory=true models (live metadata, 2026-07-11).
+        for id in ["x-ai/grok-4.5", "anthropic/claude-fable-5", "sakana/fugu-ultra"] {
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: id), id)
+        }
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "anthropic/claude-sonnet-5"))
+
+        // Vercel AI Gateway twins of always-on upstream models.
+        for id in ["xai/grok-4.5", "meta/muse-spark-1.1"] {
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: id), id)
+        }
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "openai/gpt-5.6-sol"))
+
+        // Meta's Muse Spark rejects disabled thinking with HTTP 400.
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .meta, modelID: "muse-spark-1.1"))
+    }
+
 }

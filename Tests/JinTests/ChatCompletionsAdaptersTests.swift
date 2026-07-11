@@ -2406,10 +2406,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     func testOpenCodeGoRoutesMiniMaxAndQwenToAnthropicMessagesEndpoint() {
         // OpenCode Go serves MiniMax + Qwen via the Anthropic /messages endpoint
         // (@ai-sdk/anthropic); DeepSeek/GLM/Kimi/MiMo/Hy3 use OpenAI /chat/completions.
-        for id in ["minimax-m3", "minimax-m2.7", "qwen3.7-max", "qwen3.6-plus", "claude-opus-4-8"] {
+        for id in ["minimax-m3", "minimax-m2.7", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "claude-opus-4-8"] {
             XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /messages")
         }
-        for id in ["deepseek-v4-pro", "glm-5", "kimi-k2.6", "mimo-v2.5-pro", "hy3-preview"] {
+        for id in ["deepseek-v4-pro", "glm-5", "kimi-k2.6", "kimi-k2.7-code", "mimo-v2.5-pro", "hy3-preview"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /chat/completions")
         }
         // Routing is exact-ID, not prefix: unknown minimax-/qwen IDs must NOT auto-route.
@@ -2563,6 +2563,86 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
 
         for try await _ in stream {}
+    }
+
+    func testOpenRouterAdapterSendsBooleanReasoningForToggleOnlyModels() async throws {
+        // Toggle-only models (poolside/laguna-xs-2.1, nex-agi/nex-n2-mini) have a nil
+        // effort by normalization; the adapter must send OpenRouter's boolean form
+        // instead of misreading nil as "none" and silently disabling reasoning.
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stubResponse: [String: Any] = [
+            "id": "cmpl_or_toggle",
+            "choices": [
+                [
+                    "message": ["role": "assistant", "content": "OK"],
+                    "finish_reason": "stop"
+                ]
+            ]
+        ]
+
+        // Enabled toggle (effort nil) -> reasoning: {enabled: true}.
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "poolside/laguna-xs-2.1")
+            XCTAssertEqual(root["include_reasoning"] as? Bool, true)
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["enabled"] as? Bool, true)
+            XCTAssertNil(reasoning["effort"])
+            // Toggle models keep sampling controls (temperature is supported).
+            XCTAssertEqual(root["temperature"] as? Double, 0.7)
+
+            let data = try JSONSerialization.data(withJSONObject: stubResponse)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let enabledStream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "poolside/laguna-xs-2.1",
+            controls: GenerationControls(
+                temperature: 0.7,
+                reasoning: ReasoningControls(enabled: true)
+            ),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in enabledStream {}
+
+        // Disabled toggle -> reasoning: {enabled: false}, no effort string.
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "nex-agi/nex-n2-mini")
+            XCTAssertEqual(root["include_reasoning"] as? Bool, false)
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["enabled"] as? Bool, false)
+            XCTAssertNil(reasoning["effort"])
+
+            let data = try JSONSerialization.data(withJSONObject: stubResponse)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let disabledStream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "nex-agi/nex-n2-mini",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in disabledStream {}
     }
 
     func testOpenRouterAdapterSendsNestedXHighEffortForDeepSeekV4Models() async throws {
