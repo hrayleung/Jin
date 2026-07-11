@@ -177,6 +177,17 @@ extension OpenRouterAdapter {
 
         switch requestShape {
         case .openAIResponses, .openAICompatible:
+            // Toggle-only models (no effort values in supported_parameters, e.g.
+            // poolside/laguna-xs-2.1, nex-agi/nex-n2-mini) carry a nil effort by
+            // normalization; that must not be misread as "none". They use
+            // OpenRouter's documented boolean form instead.
+            if usesToggleOnlyReasoning(modelID: modelID) {
+                let enabled = reasoning.enabled
+                body["include_reasoning"] = enabled
+                body["reasoning"] = ["enabled": enabled]
+                return enabled && requestShape == .openAIResponses
+            }
+
             if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == ReasoningEffort.none {
                 body["include_reasoning"] = false
                 body["reasoning"] = ["effort": "none"]
@@ -203,6 +214,15 @@ extension OpenRouterAdapter {
                 requestShape: requestShape
             )
         }
+    }
+
+    private func usesToggleOnlyReasoning(modelID: String) -> Bool {
+        if let model = findConfiguredModel(in: providerConfig, for: modelID) {
+            let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerConfig.type)
+            return resolved.reasoningConfig?.type == .toggle
+        }
+
+        return ModelCatalog.entry(for: modelID, provider: .openrouter)?.reasoningConfig?.type == .toggle
     }
 
     private func modelSupportsWebSearch(for modelID: String) -> Bool {
