@@ -30,6 +30,7 @@ enum XAIModelSupport {
     private static let chatReasoningModelIDs: Set<String> = [
         "grok-4",
         "grok-4.3",
+        "grok-4.5",
         "grok-4.20",
         "grok-4.20-multi-agent",
         "grok-4.20-multi-agent-0309",

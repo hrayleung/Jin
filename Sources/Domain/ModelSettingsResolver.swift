@@ -93,6 +93,20 @@ enum ModelSettingsResolver {
         if providerType == .sambanova {
             return !isSambaNovaAlwaysOnReasoningModel(modelID)
         }
+        if providerType == .xai {
+            return !xaiAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
+        if providerType == .openrouter {
+            return !openRouterAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
+        if providerType == .vercelAIGateway {
+            return !vercelAIGatewayAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
+        if providerType == .meta {
+            // Muse Spark's reasoning cannot be disabled (Meta docs: thinking
+            // {type:"disabled"} / reasoning_effort "none" both return HTTP 400).
+            return false
+        }
         return true
     }
 
@@ -169,6 +183,27 @@ enum ModelSettingsResolver {
     private static let togetherAlwaysOnReasoningModelIDs: Set<String> = [
         "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
+    ]
+
+    /// xAI models where reasoning is always-on ("Reasoning cannot be disabled" per
+    /// docs.x.ai for grok-4.5); only the effort is adjustable.
+    private static let xaiAlwaysOnReasoningModelIDs: Set<String> = [
+        "grok-4.5",
+    ]
+
+    /// OpenRouter models whose live /models metadata reports reasoning.mandatory=true
+    /// (verified 2026-07-11).
+    private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
+        "x-ai/grok-4.5",
+        "anthropic/claude-fable-5",
+        "sakana/fugu-ultra",
+    ]
+
+    /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.5 and
+    /// Muse Spark both reject disabled reasoning upstream).
+    private static let vercelAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
+        "xai/grok-4.5",
+        "meta/muse-spark-1.1",
     ]
 
     private static func isSambaNovaAlwaysOnReasoningModel(_ modelID: String) -> Bool {

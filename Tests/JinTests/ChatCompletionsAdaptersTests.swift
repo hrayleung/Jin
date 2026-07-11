@@ -2406,10 +2406,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     func testOpenCodeGoRoutesMiniMaxAndQwenToAnthropicMessagesEndpoint() {
         // OpenCode Go serves MiniMax + Qwen via the Anthropic /messages endpoint
         // (@ai-sdk/anthropic); DeepSeek/GLM/Kimi/MiMo/Hy3 use OpenAI /chat/completions.
-        for id in ["minimax-m3", "minimax-m2.7", "qwen3.7-max", "qwen3.6-plus", "claude-opus-4-8"] {
+        for id in ["minimax-m3", "minimax-m2.7", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "claude-opus-4-8"] {
             XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /messages")
         }
-        for id in ["deepseek-v4-pro", "glm-5", "kimi-k2.6", "mimo-v2.5-pro", "hy3-preview"] {
+        for id in ["deepseek-v4-pro", "glm-5", "kimi-k2.6", "kimi-k2.7-code", "mimo-v2.5-pro", "hy3-preview"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /chat/completions")
         }
         // Routing is exact-ID, not prefix: unknown minimax-/qwen IDs must NOT auto-route.

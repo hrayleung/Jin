@@ -146,6 +146,8 @@ enum ChatModelSelectionSupport {
                 ?? models.first(where: { $0.id == "morph-v3-large" })?.id
         case .opencodeGo:
             return models.first?.id
+        case .meta:
+            return models.first(where: { $0.id == "muse-spark-1.1" })?.id
         case .zyphra:
             return models.first(where: { $0.id == "zyphra/ZAYA1-8B" })?.id
                 ?? models.first(where: { $0.id == "moonshotai/Kimi-K2.6" })?.id

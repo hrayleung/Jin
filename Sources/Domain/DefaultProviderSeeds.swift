@@ -37,6 +37,7 @@ enum DefaultProviderSeeds {
             gemini,
             vertexAI,
             zyphra,
+            meta,
         ]
     }
 
@@ -348,6 +349,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .zyphra),
             baseURL: ProviderType.zyphra.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .zyphra)
+        )
+    }
+
+    static var meta: ProviderConfig {
+        ProviderConfig(
+            id: "meta",
+            name: "Meta",
+            type: .meta,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .meta),
+            baseURL: ProviderType.meta.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .meta)
         )
     }
 }

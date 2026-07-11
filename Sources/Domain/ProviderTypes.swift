@@ -65,6 +65,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case gemini
     case githubCopilot
     case groq
+    case meta
     case minimax
     case minimaxCodingPlan
     case mimoTokenPlanAnthropic
@@ -117,6 +118,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .gemini: return "Gemini (AI Studio)"
         case .vertexai: return "Vertex AI"
         case .zyphra: return "Zyphra"
+        case .meta: return "Meta"
         }
     }
 
@@ -180,6 +182,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta"
         case .vertexai: return nil
         case .zyphra: return "https://api.zyphracloud.com/api/v1"
+        case .meta: return "https://api.meta.ai/v1"
         }
     }
 }

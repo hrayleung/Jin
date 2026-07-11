@@ -8,6 +8,30 @@ extension ModelCatalog {
 
     static let openAIRecords: [Record] = [
         // Seeded — appear in the model picker on first launch
+        // GPT-5.6 ships as three tiers — Sol (flagship), Terra (balanced), Luna (fast) —
+        // replacing the mini/nano naming (verified against the live 2026-07-09 model pages:
+        // 1,050,000 context / 128,000 output, reasoning_effort none..max where `max` is new
+        // with 5.6 and `minimal` is no longer accepted, default medium). No dated snapshots
+        // are published yet, so unlike prior 5.x releases there are no date-suffixed twins.
+        // temperature/top_p are rejected; sampling stays denied via the gpt-5* default.
+        Record(id: "gpt-5.6-sol", displayName: "GPT-5.6 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "gpt-5.6-terra", displayName: "GPT-5.6 Terra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "gpt-5.6-luna", displayName: "GPT-5.6 Luna",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
         Record(id: "gpt-5.5", displayName: "GPT-5.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_050_000,
@@ -224,6 +248,26 @@ extension ModelCatalog {
 
     static let cloudflareAIGatewayRecords: [Record] = [
         // OpenAI
+        // Cloudflare AI Gateway is a passthrough to the OpenAI provider, so the GPT-5.6
+        // tiers route with the same `openai/{id}` compound IDs as older 5.x entries.
+        Record(id: "openai/gpt-5.6-sol", displayName: "GPT-5.6 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-5.6-terra", displayName: "GPT-5.6 Terra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-5.6-luna", displayName: "GPT-5.6 Luna",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         Record(id: "openai/gpt-5", displayName: "GPT-5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 400_000,
@@ -475,6 +519,26 @@ extension ModelCatalog {
 
     static let vercelAIGatewayRecords: [Record] = [
         // OpenAI
+        // GPT-5.6 tiers confirmed live on ai-gateway.vercel.sh/v1/models (2026-07-11),
+        // same 1.05M/128K limits as the native OpenAI entries.
+        Record(id: "openai/gpt-5.6-sol", displayName: "GPT-5.6 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-5.6-terra", displayName: "GPT-5.6 Terra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-5.6-luna", displayName: "GPT-5.6 Luna",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         Record(id: "openai/gpt-5", displayName: "GPT-5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 400_000,
@@ -525,6 +589,27 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 262_144,
                maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+
+        // xAI — grok-4.5 confirmed live on ai-gateway.vercel.sh/v1/models (2026-07-11).
+        // 500K context (a regression vs grok-4.3's 1M — verified, not mirrored); xAI
+        // publishes no max output for it, so none is recorded. Reasoning is always-on
+        // upstream (low/medium/high, default high).
+        Record(id: "xai/grok-4.5", displayName: "Grok 4.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 500_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+
+        // Meta — Muse Spark 1.1 confirmed on Vercel AI Gateway (vercel.com model page +
+        // models.dev `vercel` provider, 2026-07-11): 1,048,576 context / 131,072 output
+        // per Meta's own docs. Reasoning is always-on upstream (minimal..xhigh; "none"
+        // is rejected with HTTP 400, so disabling reasoning must omit the field).
+        Record(id: "meta/muse-spark-1.1", displayName: "Muse Spark 1.1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
 

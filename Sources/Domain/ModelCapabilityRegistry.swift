@@ -39,6 +39,12 @@ enum ModelCapabilityRegistry {
     ]
 
     private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
+        "gpt-5.6-sol",
+        "gpt-5.6-sol-pro",
+        "gpt-5.6-terra",
+        "gpt-5.6-terra-pro",
+        "gpt-5.6-luna",
+        "gpt-5.6-luna-pro",
         "gpt-5.5",
         "gpt-5.5-2026-04-23",
         "gpt-5.5-pro",
@@ -58,6 +64,18 @@ enum ModelCapabilityRegistry {
         "gpt-5.2-pro",
         "gpt-5.3-codex",
         "gpt-5.3-codex-spark",
+    ]
+
+    /// Models accepting the `max` reasoning effort value, introduced with GPT-5.6
+    /// (Sol/Terra/Luna support none|low|medium|high|xhigh|max; `minimal` was dropped).
+    /// Older 5.x models reject "max", so it stays clamped to xhigh for them.
+    private static let openAIStyleMaxEffortModelIDs: Set<String> = [
+        "gpt-5.6-sol",
+        "gpt-5.6-sol-pro",
+        "gpt-5.6-terra",
+        "gpt-5.6-terra-pro",
+        "gpt-5.6-luna",
+        "gpt-5.6-luna-pro",
     ]
 
     /// Gemini 3 Flash / 3.5 Flash supports MINIMAL/LOW/MEDIUM/HIGH.
@@ -233,6 +251,9 @@ enum ModelCapabilityRegistry {
         "gpt-4.1-2025-04-14",
         "gpt-5",
         "gpt-5-2025-08-07",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
         "gpt-5.5",
         "gpt-5.5-2026-04-23",
         "gpt-5.5-pro",
@@ -295,6 +316,22 @@ enum ModelCapabilityRegistry {
         "deepseek/deepseek-v4-flash",
         "deepseek/deepseek-v4-pro",
     ]
+    /// Sakana Fugu Ultra only accepts the high/xhigh/max band (OpenRouter
+    /// supported_efforts, verified 2026-07-11).
+    private static let openRouterHighBandEffortModelIDs: Set<String> = [
+        "sakana/fugu-ultra",
+    ]
+    /// Tencent Hy3 accepts only high/low ("none" is expressed by disabling
+    /// reasoning) — OpenRouter supported_efforts, verified 2026-07-11.
+    private static let openRouterLowHighEffortModelIDs: Set<String> = [
+        "tencent/hy3",
+        "tencent/hy3:free",
+    ]
+    /// Gemini 3.1 Flash Lite Image on OpenRouter accepts only minimal/high
+    /// (matches the native gemini31FlashImageEffortModelIDs band).
+    private static let openRouterMinimalHighEffortModelIDs: Set<String> = [
+        "google/gemini-3.1-flash-lite-image",
+    ]
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
     ]
@@ -341,7 +378,7 @@ enum ModelCapabilityRegistry {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .perplexity, .morphllm, .opencodeGo,
-             .zyphra, .none:
+             .zyphra, .meta, .none:
             return .openAICompatible
         }
     }
@@ -357,6 +394,20 @@ enum ModelCapabilityRegistry {
 
         let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
         return openAIStyleExtremeEffortModelIDs.contains(canonicalLowerModelID)
+    }
+
+    static func supportsOpenAIStyleMaxEffort(for providerType: ProviderType?, modelID: String) -> Bool {
+        guard supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) else {
+            return false
+        }
+
+        let lowerModelID = modelID.lowercased()
+        if providerType == .openrouter, openRouterHighBandEffortModelIDs.contains(lowerModelID) {
+            return true
+        }
+
+        let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: lowerModelID)
+        return openAIStyleMaxEffortModelIDs.contains(canonicalLowerModelID)
     }
 
     static func supportedReasoningEfforts(for providerType: ProviderType?, modelID: String) -> [ReasoningEffort] {
@@ -375,6 +426,12 @@ enum ModelCapabilityRegistry {
             return [.high, .xhigh]
         case .openrouter where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .medium, .high, .xhigh]
+        case .openrouter where openRouterHighBandEffortModelIDs.contains(lowerModelID):
+            return [.high, .xhigh, .max]
+        case .openrouter where openRouterMinimalHighEffortModelIDs.contains(lowerModelID):
+            return [.minimal, .high]
+        case .openrouter where openRouterLowHighEffortModelIDs.contains(lowerModelID):
+            return [.low, .high]
         case .together where togetherDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .deepinfra where deepInfraDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
@@ -389,6 +446,10 @@ enum ModelCapabilityRegistry {
             return [.high, .max]
         case .opencodeGo where opencodeGoGLMHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
+        case .meta:
+            // Muse Spark accepts minimal..xhigh ("none" returns HTTP 400 and is handled
+            // by omitting the field; "max" is not accepted).
+            return [.minimal, .low, .medium, .high, .xhigh]
         default:
             break
         }
@@ -400,6 +461,9 @@ enum ModelCapabilityRegistry {
         var efforts = defaultReasoningEfforts
         if supportsOpenAIStyleExtremeEffort(for: providerType, modelID: modelID) {
             efforts.append(.xhigh)
+        }
+        if supportsOpenAIStyleMaxEffort(for: providerType, modelID: modelID) {
+            efforts.append(.max)
         }
         return efforts
     }
@@ -504,7 +568,7 @@ enum ModelCapabilityRegistry {
             return MiMoModelIDs.tokenPlanExactModelIDs.contains(lowerModelID)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .morphllm, .zyphra, .none:
+             .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .morphllm, .zyphra, .meta, .none:
             return false
         }
     }
@@ -736,7 +800,7 @@ enum ModelCapabilityRegistry {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm,
-             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .zyphra, .none:
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .zyphra, .meta, .none:
             return false
         }
     }
@@ -769,7 +833,7 @@ enum ModelCapabilityRegistry {
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo,
-             .zyphra, .none:
+             .zyphra, .meta, .none:
             return false
         }
     }

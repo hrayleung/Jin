@@ -257,4 +257,68 @@ final class XAIResponsesRequestSupportTests: XCTestCase {
 
         XCTAssertNil(body["tool_choice"])
     }
+
+    // MARK: - Grok 4.5
+
+    func testGrok45SendsDocumentedReasoningObjectWithToolsAndMaxTokens() throws {
+        let body = XAIResponsesRequestSupport.responsesBody(
+            modelID: "grok-4.5",
+            input: [["role": "user", "content": []]],
+            streaming: true,
+            controls: GenerationControls(
+                maxTokens: 2_048,
+                reasoning: ReasoningControls(enabled: true, effort: .medium)
+            ),
+            functionTools: [["type": "function", "name": "lookup_status"]],
+            supportsWebSearch: false,
+            supportsClientFunctionTools: true
+        )
+
+        XCTAssertTrue(XAIResponsesRequestSupport.supportsStandardReasoningEffort(modelID: "grok-4.5"))
+        XCTAssertTrue(XAIResponsesRequestSupport.supportsClientFunctionTools(modelID: "grok-4.5"))
+        XCTAssertTrue(XAIResponsesRequestSupport.supportsMaxOutputTokens(modelID: "grok-4.5"))
+
+        let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any])
+        XCTAssertEqual(reasoning["effort"] as? String, "medium")
+        XCTAssertNil(body["reasoning_effort"])
+        XCTAssertEqual(body["max_output_tokens"] as? Int, 2_048)
+
+        let tools = try XCTUnwrap(body["tools"] as? [[String: Any]])
+        XCTAssertEqual(tools.count, 1)
+        XCTAssertEqual(tools.first?["name"] as? String, "lookup_status")
+    }
+
+    func testGrok45ClampsEffortsToDocumentedLowMediumHighBand() throws {
+        // grok-4.5 accepts exactly low/medium/high (docs.x.ai reasoning guide).
+        let clampCases: [(ReasoningEffort, String)] = [
+            (.minimal, "low"),
+            (.low, "low"),
+            (.medium, "medium"),
+            (.high, "high"),
+            (.xhigh, "high"),
+            (.max, "high"),
+        ]
+
+        for (effort, expected) in clampCases {
+            let body = XAIResponsesRequestSupport.responsesBody(
+                modelID: "grok-4.5",
+                input: [["role": "user", "content": []]],
+                streaming: false,
+                controls: GenerationControls(
+                    reasoning: ReasoningControls(enabled: true, effort: effort)
+                ),
+                functionTools: [],
+                supportsWebSearch: false,
+                supportsClientFunctionTools: false
+            )
+            let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any], "effort \(effort)")
+            XCTAssertEqual(reasoning["effort"] as? String, expected, "effort \(effort)")
+        }
+    }
+
+    func testGrok45NearMissDoesNotInheritExactModelSupport() {
+        XCTAssertFalse(XAIResponsesRequestSupport.supportsStandardReasoningEffort(modelID: "grok-4.5-custom"))
+        XCTAssertFalse(XAIResponsesRequestSupport.supportsClientFunctionTools(modelID: "grok-4.5-custom"))
+        XCTAssertFalse(XAIResponsesRequestSupport.supportsMaxOutputTokens(modelID: "grok-4.5-custom"))
+    }
 }

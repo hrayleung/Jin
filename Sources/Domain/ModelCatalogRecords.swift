@@ -50,5 +50,6 @@ extension ModelCatalog {
         .vertexai: vertexAIRecords,
         .openrouter: openRouterRecords,
         .zyphra: zyphraRecords,
+        .meta: metaRecords,
     ]
 }
