@@ -105,30 +105,95 @@ enum XAIImageResolution: String, Codable, CaseIterable {
 
 // MARK: - xAI Video Generation
 
-/// xAI video-generation controls (`/v1/videos/generations`).
+/// xAI video-generation controls (`/v1/videos/generations|edits|extensions`).
+///
+/// Modes map to docs.x.ai video workflows:
+/// - text / image / reference → `POST /videos/generations`
+/// - edit → `POST /videos/edits`
+/// - extend → `POST /videos/extensions`
 struct XAIVideoGenerationControls: Codable {
     var duration: Int?
     var aspectRatio: XAIAspectRatio?
     var resolution: XAIVideoResolution?
+    /// Explicit workflow. Prefer storing `.auto` when the user chooses Auto so the
+    /// selection can show a checkmark and survive persistence (do not map Auto → nil).
+    var mode: XAIVideoMode?
 
     init(
         duration: Int? = nil,
         aspectRatio: XAIAspectRatio? = nil,
-        resolution: XAIVideoResolution? = nil
+        resolution: XAIVideoResolution? = nil,
+        mode: XAIVideoMode? = nil
     ) {
         self.duration = duration
         self.aspectRatio = aspectRatio
         self.resolution = resolution
+        self.mode = mode
+    }
+
+    /// Effective mode for UI / request resolution (`nil` treated as Auto).
+    var resolvedMode: XAIVideoMode {
+        mode ?? .auto
     }
 
     var isEmpty: Bool {
-        duration == nil && aspectRatio == nil && resolution == nil
+        // Any explicit field — including mode = .auto — means the user has configured
+        // video controls. Only a fully default/unset struct is empty.
+        duration == nil
+            && aspectRatio == nil
+            && resolution == nil
+            && mode == nil
     }
+}
+
+/// User-selectable xAI video workflow (docs.x.ai model-capabilities/video/*).
+enum XAIVideoMode: String, Codable, CaseIterable {
+    /// Infer from attachments: video→edit, multi-image→reference, one image→i2v, else t2v.
+    case auto
+    case textToVideo = "text_to_video"
+    case imageToVideo = "image_to_video"
+    case referenceToVideo = "reference_to_video"
+    case editVideo = "edit_video"
+    case extendVideo = "extend_video"
+
+    var displayName: String {
+        switch self {
+        case .auto: return "Auto"
+        case .textToVideo: return "Text to video"
+        case .imageToVideo: return "Image to video"
+        case .referenceToVideo: return "Reference images"
+        case .editVideo: return "Edit video"
+        case .extendVideo: return "Extend video"
+        }
+    }
+
+    var shortBadge: String {
+        switch self {
+        case .auto: return "Auto"
+        case .textToVideo: return "T2V"
+        case .imageToVideo: return "I2V"
+        case .referenceToVideo: return "Ref"
+        case .editVideo: return "Edit"
+        case .extendVideo: return "Ext"
+        }
+    }
+}
+
+/// Resolved wire-level video request mode after attachment inspection.
+enum XAIVideoRequestMode: String, Equatable {
+    case textToVideo
+    case imageToVideo
+    case referenceToVideo
+    case editVideo
+    case extendVideo
 }
 
 enum XAIVideoResolution: String, Codable, CaseIterable {
     case res480p = "480p"
     case res720p = "720p"
+    /// Full HD — only supported on `grok-imagine-video-1.5` image-to-video
+    /// (docs.x.ai video generation).
+    case res1080p = "1080p"
 
     var displayName: String { rawValue }
 }

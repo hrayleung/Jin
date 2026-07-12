@@ -304,6 +304,8 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20-multi-agent"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20-multi-agent-0309"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-build-0.1"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-imagine-video-1.5"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4-1-fast-non-reasoning"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4-1-fast-reasoning"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-imagine-image-pro"))

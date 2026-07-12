@@ -47,6 +47,82 @@ enum XAIMediaRequestSupport {
         )
     }
 
+    /// Builds the video request for the resolved workflow.
+    ///
+    /// Docs (docs.x.ai/developers/model-capabilities/video/*):
+    /// - text / image / reference → `videos/generations`
+    /// - edit → `videos/edits` (inherits duration/aspect/resolution from input video)
+    /// - extend → `videos/extensions` (`duration` = extension length only)
+    /// - `image` and `reference_images` are mutually exclusive
+    static func videoRequestComponents(
+        modelID: String,
+        prompt: String,
+        imageURL: String?,
+        referenceImageURLs: [String]?,
+        videoURL: String?,
+        mode: XAIVideoRequestMode,
+        controls: XAIVideoGenerationControls?
+    ) -> RequestComponents {
+        var body: [String: Any] = [
+            "model": modelID,
+            "prompt": prompt
+        ]
+
+        switch mode {
+        case .textToVideo:
+            applyGenerationShapeControls(
+                to: &body,
+                modelID: modelID,
+                imageURL: nil,
+                controls: controls
+            )
+
+        case .imageToVideo:
+            if let imageURL, !imageURL.isEmpty {
+                body["image"] = ["url": imageURL]
+            }
+            applyGenerationShapeControls(
+                to: &body,
+                modelID: modelID,
+                imageURL: imageURL,
+                controls: controls
+            )
+
+        case .referenceToVideo:
+            let refs = (referenceImageURLs ?? []).filter { !$0.isEmpty }
+            if !refs.isEmpty {
+                body["reference_images"] = refs.map { ["url": $0] }
+            }
+            applyGenerationShapeControls(
+                to: &body,
+                modelID: modelID,
+                imageURL: nil,
+                controls: controls
+            )
+
+        case .editVideo:
+            // Edit inherits duration / aspect / resolution from the source video.
+            if let videoURL, !videoURL.isEmpty {
+                body["video"] = ["url": videoURL]
+            }
+
+        case .extendVideo:
+            // Duration is the length of the *extended portion* only.
+            if let videoURL, !videoURL.isEmpty {
+                body["video"] = ["url": videoURL]
+            }
+            if let duration = controls?.duration {
+                body["duration"] = min(max(duration, 1), 15)
+            }
+        }
+
+        return RequestComponents(
+            endpoint: endpoint(for: mode),
+            body: body
+        )
+    }
+
+    /// Backward-compatible helper used by older call sites/tests (edit vs generation only).
     static func videoRequestComponents(
         modelID: String,
         prompt: String,
@@ -54,34 +130,34 @@ enum XAIMediaRequestSupport {
         videoURL: String?,
         controls: XAIVideoGenerationControls?
     ) -> RequestComponents {
-        let isVideoEdit = videoURL?.isEmpty == false
-        var body: [String: Any] = [
-            "model": modelID,
-            "prompt": prompt
-        ]
-
-        if !isVideoEdit {
-            if let duration = controls?.duration {
-                body["duration"] = min(max(duration, 1), 15)
-            }
-            if let aspectRatio = controls?.aspectRatio, supportedVideoAspectRatios.contains(aspectRatio) {
-                body["aspect_ratio"] = aspectRatio.rawValue
-            }
-            if let resolution = controls?.resolution {
-                body["resolution"] = resolution.rawValue
-            }
+        let mode: XAIVideoRequestMode
+        if videoURL?.isEmpty == false {
+            mode = (controls?.mode == .extendVideo) ? .extendVideo : .editVideo
+        } else if imageURL?.isEmpty == false {
+            mode = .imageToVideo
+        } else {
+            mode = .textToVideo
         }
-
-        if let videoURL, !videoURL.isEmpty {
-            body["video"] = ["url": videoURL]
-        } else if let imageURL, !imageURL.isEmpty {
-            body["image"] = ["url": imageURL]
-        }
-
-        return RequestComponents(
-            endpoint: isVideoEdit ? "videos/edits" : "videos/generations",
-            body: body
+        return videoRequestComponents(
+            modelID: modelID,
+            prompt: prompt,
+            imageURL: imageURL,
+            referenceImageURLs: nil,
+            videoURL: videoURL,
+            mode: mode,
+            controls: controls
         )
+    }
+
+    static func endpoint(for mode: XAIVideoRequestMode) -> String {
+        switch mode {
+        case .textToVideo, .imageToVideo, .referenceToVideo:
+            return "videos/generations"
+        case .editVideo:
+            return "videos/edits"
+        case .extendVideo:
+            return "videos/extensions"
+        }
     }
 
     static let supportedVideoAspectRatios: Set<XAIAspectRatio> = [
@@ -93,4 +169,31 @@ enum XAIMediaRequestSupport {
         .ratio3x2,
         .ratio2x3
     ]
+
+    // MARK: - Private
+
+    private static func applyGenerationShapeControls(
+        to body: inout [String: Any],
+        modelID: String,
+        imageURL: String?,
+        controls: XAIVideoGenerationControls?
+    ) {
+        if let duration = controls?.duration {
+            body["duration"] = min(max(duration, 1), 15)
+        }
+        if let aspectRatio = controls?.aspectRatio, supportedVideoAspectRatios.contains(aspectRatio) {
+            body["aspect_ratio"] = aspectRatio.rawValue
+        }
+        if let resolution = controls?.resolution {
+            // 1080p is only valid for grok-imagine-video-1.5 image-to-video.
+            if resolution == .res1080p {
+                let hasImage = imageURL?.isEmpty == false
+                if XAIModelSupport.supportsFullHDVideoResolution(modelID), hasImage {
+                    body["resolution"] = resolution.rawValue
+                }
+            } else {
+                body["resolution"] = resolution.rawValue
+            }
+        }
+    }
 }

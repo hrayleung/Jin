@@ -344,6 +344,19 @@ enum ModelCapabilityRegistry {
         "grok-4.20-multi-agent-0309",
         "x-ai/grok-4.20-multi-agent",
     ]
+    private static let xAIAlwaysOnStandardEffortModelIDs: Set<String> = [
+        "grok-4.5",
+        "x-ai/grok-4.5",
+        "xai/grok-4.5",
+    ]
+    private static let xAIStandardEffortWithNoneModelIDs: Set<String> = [
+        "grok-4.3",
+        "grok-build-0.1",
+        "x-ai/grok-4.3",
+        "x-ai/grok-build-0.1",
+        "xai/grok-4.3",
+        "xai/grok-build-0.1",
+    ]
     private static let mistralHighOnlyReasoningEffortModelIDs: Set<String> = [
         "mistral-medium-3.5",
         "mistral-small-4-0-26-03",
@@ -437,7 +450,12 @@ enum ModelCapabilityRegistry {
         case .deepinfra where deepInfraDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .xai where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
+            // Multi-agent: low/medium → 4 agents, high/xhigh → 16 agents.
             return [.low, .medium, .high, .xhigh]
+        case .xai where xAIAlwaysOnStandardEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high]
+        case .xai where xAIStandardEffortWithNoneModelIDs.contains(lowerModelID):
+            return [.none, .low, .medium, .high]
         case .mistral where mistralHighOnlyReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .fireworks where fireworksDeepSeekV4ProModelIDs.contains(lowerModelID):

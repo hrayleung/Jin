@@ -16,6 +16,33 @@ enum XAIMediaImageSupport {
         return try firstImageURLString(from: messages, roles: [.user], fileDataResolver: fileDataResolver)
     }
 
+    /// Collects image URLs for video workflows (image-to-video / reference-to-video).
+    /// Prefers the latest user message; falls back to other roles if needed.
+    /// Cap keeps request size bounded (docs allow multiple refs; no hard max published).
+    static func imageURLsForVideoGeneration(
+        from messages: [Message],
+        maxCount: Int = 7,
+        fileDataResolver: (URL) throws -> Data = resolveFileData(from:)
+    ) throws -> [String] {
+        let limit = max(1, maxCount)
+
+        if let latestUserMessage = messages.reversed().first(where: { $0.role == .user }) {
+            let urls = try imageURLStrings(in: latestUserMessage, fileDataResolver: fileDataResolver)
+            if !urls.isEmpty {
+                return Array(urls.prefix(limit))
+            }
+        }
+
+        for role in [MessageRole.assistant, .user] {
+            let urls = try allImageURLStrings(from: messages, role: role, fileDataResolver: fileDataResolver)
+            if !urls.isEmpty {
+                return Array(urls.prefix(limit))
+            }
+        }
+
+        return []
+    }
+
     static func imageURLString(
         _ image: ImageContent,
         fileDataResolver: (URL) throws -> Data = resolveFileData(from:)
@@ -74,13 +101,21 @@ enum XAIMediaImageSupport {
         in message: Message,
         fileDataResolver: (URL) throws -> Data
     ) throws -> String? {
+        try imageURLStrings(in: message, fileDataResolver: fileDataResolver).first
+    }
+
+    private static func imageURLStrings(
+        in message: Message,
+        fileDataResolver: (URL) throws -> Data
+    ) throws -> [String] {
+        var urls: [String] = []
         for part in message.content {
             if case .image(let image) = part,
                let urlString = try imageURLString(image, fileDataResolver: fileDataResolver) {
-                return urlString
+                urls.append(urlString)
             }
         }
-        return nil
+        return urls
     }
 
     private static func firstImageURLString(
@@ -96,5 +131,17 @@ enum XAIMediaImageSupport {
             }
         }
         return nil
+    }
+
+    private static func allImageURLStrings(
+        from messages: [Message],
+        role: MessageRole,
+        fileDataResolver: (URL) throws -> Data
+    ) throws -> [String] {
+        var urls: [String] = []
+        for message in messages.reversed() where message.role == role {
+            urls.append(contentsOf: try imageURLStrings(in: message, fileDataResolver: fileDataResolver))
+        }
+        return urls
     }
 }

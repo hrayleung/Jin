@@ -30,12 +30,21 @@ struct WebSearchControls: Codable {
     var enabled: Bool
     var contextSize: WebSearchContextSize?
     var sources: [WebSearchSource]?
-    // Anthropic-specific fields:
+    // Anthropic-specific fields (also reused as xAI web_search domain filters):
     var maxUses: Int?
     var allowedDomains: [String]?
     var blockedDomains: [String]?
     var userLocation: WebSearchUserLocation?
     var dynamicFiltering: Bool?
+    // xAI server-side tool options (web_search / x_search):
+    var enableImageUnderstanding: Bool?
+    var enableImageSearch: Bool?
+    var enableVideoUnderstanding: Bool?
+    var allowedXHandles: [String]?
+    var excludedXHandles: [String]?
+    /// ISO8601 date `YYYY-MM-DD` for x_search date range.
+    var xSearchFromDate: String?
+    var xSearchToDate: String?
 
     init(
         enabled: Bool = false,
@@ -45,7 +54,14 @@ struct WebSearchControls: Codable {
         allowedDomains: [String]? = nil,
         blockedDomains: [String]? = nil,
         userLocation: WebSearchUserLocation? = nil,
-        dynamicFiltering: Bool? = nil
+        dynamicFiltering: Bool? = nil,
+        enableImageUnderstanding: Bool? = nil,
+        enableImageSearch: Bool? = nil,
+        enableVideoUnderstanding: Bool? = nil,
+        allowedXHandles: [String]? = nil,
+        excludedXHandles: [String]? = nil,
+        xSearchFromDate: String? = nil,
+        xSearchToDate: String? = nil
     ) {
         self.enabled = enabled
         self.contextSize = contextSize
@@ -55,6 +71,13 @@ struct WebSearchControls: Codable {
         self.blockedDomains = blockedDomains
         self.userLocation = userLocation
         self.dynamicFiltering = dynamicFiltering
+        self.enableImageUnderstanding = enableImageUnderstanding
+        self.enableImageSearch = enableImageSearch
+        self.enableVideoUnderstanding = enableVideoUnderstanding
+        self.allowedXHandles = allowedXHandles
+        self.excludedXHandles = excludedXHandles
+        self.xSearchFromDate = xSearchFromDate
+        self.xSearchToDate = xSearchToDate
     }
 }
 

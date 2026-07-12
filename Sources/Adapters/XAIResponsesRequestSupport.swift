@@ -8,17 +8,25 @@ enum XAIResponsesRequestSupport {
         "grok-4.20-multi-agent",
         "grok-4.20-multi-agent-0309",
     ]
-    /// Models that accept the documented `reasoning: {"effort": ...}` object with the
-    /// standard low/medium/high values (docs.x.ai reasoning guide; grok-4.5's reasoning
-    /// is always-on, so Jin only ever adjusts the effort — never tries to disable it).
+    /// Models that accept `reasoning: {"effort": ...}` with low/medium/high only
+    /// (docs.x.ai: grok-4.5 reasoning is always-on and rejects none).
     private static let standardReasoningEffortModelIDs: Set<String> = [
         "grok-4.5",
+    ]
+    /// Models that accept `reasoning.effort` including `"none"` (docs.x.ai migration guide
+    /// for grok-4.3: none/low/medium/high). grok-build-0.1 is treated the same for safety.
+    private static let standardReasoningEffortWithNoneModelIDs: Set<String> = [
+        "grok-4.3",
+        "grok-build-0.1",
     ]
     private static let clientFunctionToolsModelIDs: Set<String> = [
         "grok-4",
         "grok-4.3",
         "grok-4.5",
         "grok-4.20",
+        "grok-4.20-0309-reasoning",
+        "grok-4.20-0309-non-reasoning",
+        "grok-build-0.1",
         "grok-4-1",
         "grok-4-1-fast",
         "grok-4-1-fast-non-reasoning",
@@ -29,6 +37,9 @@ enum XAIResponsesRequestSupport {
         "grok-4.3",
         "grok-4.5",
         "grok-4.20",
+        "grok-4.20-0309-reasoning",
+        "grok-4.20-0309-non-reasoning",
+        "grok-build-0.1",
         "grok-4-1",
         "grok-4-1-fast",
         "grok-4-1-fast-non-reasoning",
@@ -120,17 +131,43 @@ enum XAIResponsesRequestSupport {
         controls: GenerationControls,
         modelID: String
     ) {
-        guard let reasoning = controls.reasoning,
-              reasoning.enabled,
-              let effort = reasoning.effort else {
+        if supportsMultiAgentReasoning(modelID: modelID) {
+            guard let reasoning = controls.reasoning, reasoning.enabled else { return }
+            let effort = reasoning.effort ?? .low
+            body["reasoning"] = ["effort": mapMultiAgentReasoningEffort(effort)]
             return
         }
 
-        if supportsMultiAgentReasoning(modelID: modelID) {
-            body["reasoning"] = ["effort": mapMultiAgentReasoningEffort(effort)]
-        } else if supportsStandardReasoningEffort(modelID: modelID) {
+        if supportsStandardReasoningEffortWithNone(modelID: modelID) {
+            // enabled=false → omit; effort none → explicit `"none"`.
+            guard let reasoning = controls.reasoning, reasoning.enabled else { return }
+            let effort = reasoning.effort ?? .none
+            body["reasoning"] = ["effort": mapReasoningEffortNoneDisabled(effort)]
+            return
+        }
+
+        if supportsStandardReasoningEffort(modelID: modelID) {
+            // Always-on models (e.g. grok-4.5): emit effort even when controls are sparse.
+            // Defaults to high per docs when effort is missing.
+            let effort: ReasoningEffort
+            if let reasoning = controls.reasoning, reasoning.enabled, let explicit = reasoning.effort {
+                effort = explicit
+            } else if controls.reasoning?.enabled == false {
+                // Callers should not disable always-on models; clamp to low rather than omit.
+                effort = .low
+            } else {
+                effort = .high
+            }
             body["reasoning"] = ["effort": mapStandardReasoningEffort(effort)]
-        } else if supportsReasoningEffort(modelID: modelID) {
+            return
+        }
+
+        if supportsReasoningEffort(modelID: modelID) {
+            guard let reasoning = controls.reasoning,
+                  reasoning.enabled,
+                  let effort = reasoning.effort else {
+                return
+            }
             body["reasoning_effort"] = mapReasoningEffort(effort)
         }
     }
@@ -148,11 +185,11 @@ enum XAIResponsesRequestSupport {
             let sources = Set(controls.webSearch?.sources ?? [.web])
 
             if sources.contains(.web) {
-                toolObjects.append(["type": "web_search"])
+                toolObjects.append(webSearchToolObject(from: controls.webSearch))
             }
 
             if sources.contains(.x) {
-                toolObjects.append(["type": "x_search"])
+                toolObjects.append(xSearchToolObject(from: controls.webSearch))
             }
         }
 
@@ -165,6 +202,60 @@ enum XAIResponsesRequestSupport {
         }
 
         return toolObjects
+    }
+
+    /// Builds `web_search` with optional domain filters and image flags
+    /// (docs.x.ai/developers/tools/web-search).
+    static func webSearchToolObject(from controls: WebSearchControls?) -> [String: Any] {
+        var tool: [String: Any] = ["type": "web_search"]
+
+        let allowed = normalizedDomainList(controls?.allowedDomains, maxCount: 5)
+        let excluded = normalizedDomainList(controls?.blockedDomains, maxCount: 5)
+        // allowed and excluded cannot be set together.
+        if !allowed.isEmpty {
+            tool["filters"] = ["allowed_domains": allowed]
+        } else if !excluded.isEmpty {
+            tool["filters"] = ["excluded_domains": excluded]
+        }
+
+        if controls?.enableImageUnderstanding == true {
+            tool["enable_image_understanding"] = true
+        }
+        if controls?.enableImageSearch == true {
+            tool["enable_image_search"] = true
+        }
+
+        return tool
+    }
+
+    /// Builds `x_search` with optional handle filters, date range, and media understanding
+    /// (docs.x.ai/developers/tools/x-search).
+    static func xSearchToolObject(from controls: WebSearchControls?) -> [String: Any] {
+        var tool: [String: Any] = ["type": "x_search"]
+
+        let allowedHandles = normalizedHandleList(controls?.allowedXHandles, maxCount: 20)
+        let excludedHandles = normalizedHandleList(controls?.excludedXHandles, maxCount: 20)
+        if !allowedHandles.isEmpty {
+            tool["allowed_x_handles"] = allowedHandles
+        } else if !excludedHandles.isEmpty {
+            tool["excluded_x_handles"] = excludedHandles
+        }
+
+        if let fromDate = normalizedISODate(controls?.xSearchFromDate) {
+            tool["from_date"] = fromDate
+        }
+        if let toDate = normalizedISODate(controls?.xSearchToDate) {
+            tool["to_date"] = toDate
+        }
+
+        if controls?.enableImageUnderstanding == true {
+            tool["enable_image_understanding"] = true
+        }
+        if controls?.enableVideoUnderstanding == true {
+            tool["enable_video_understanding"] = true
+        }
+
+        return tool
     }
 
     // Grok's auto-orchestrator often skips x_search even when it's the only enabled
@@ -222,6 +313,10 @@ enum XAIResponsesRequestSupport {
         standardReasoningEffortModelIDs.contains(modelID.lowercased())
     }
 
+    static func supportsStandardReasoningEffortWithNone(modelID: String) -> Bool {
+        standardReasoningEffortWithNoneModelIDs.contains(modelID.lowercased())
+    }
+
     static func supportsClientFunctionTools(modelID: String) -> Bool {
         clientFunctionToolsModelIDs.contains(modelID.lowercased())
     }
@@ -234,12 +329,18 @@ enum XAIResponsesRequestSupport {
         mapReasoningEffortNoneAsLow(effort)
     }
 
+    /// Multi-agent effort maps 1:1 to API values: low/medium → 4 agents, high/xhigh → 16
+    /// (docs.x.ai multi-agent).
     static func mapMultiAgentReasoningEffort(_ effort: ReasoningEffort) -> String {
         switch effort {
-        case .high, .xhigh, .max:
-            return "high"
-        case .none, .minimal, .low, .medium:
+        case .none, .minimal, .low:
             return "low"
+        case .medium:
+            return "medium"
+        case .high:
+            return "high"
+        case .xhigh, .max:
+            return "xhigh"
         }
     }
 
@@ -254,5 +355,55 @@ enum XAIResponsesRequestSupport {
         case .high, .xhigh, .max:
             return "high"
         }
+    }
+
+    // MARK: - Normalization helpers
+
+    private static func normalizedDomainList(_ domains: [String]?, maxCount: Int) -> [String] {
+        guard let domains else { return [] }
+        var seen = Set<String>()
+        var result: [String] = []
+        for domain in domains {
+            guard let trimmed = domain.trimmedNonEmpty else { continue }
+            let key = trimmed.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(trimmed)
+            if result.count >= maxCount { break }
+        }
+        return result
+    }
+
+    private static func normalizedHandleList(_ handles: [String]?, maxCount: Int) -> [String] {
+        guard let handles else { return [] }
+        var seen = Set<String>()
+        var result: [String] = []
+        for handle in handles {
+            guard var trimmed = handle.trimmedNonEmpty else { continue }
+            if trimmed.hasPrefix("@") {
+                trimmed = String(trimmed.dropFirst())
+            }
+            guard !trimmed.isEmpty else { continue }
+            let key = trimmed.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(trimmed)
+            if result.count >= maxCount { break }
+        }
+        return result
+    }
+
+    private static func normalizedISODate(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmedNonEmpty else { return nil }
+        // Accept YYYY-MM-DD; reject other shapes so we never send invalid wire values.
+        let parts = raw.split(separator: "-")
+        guard parts.count == 3,
+              parts[0].count == 4,
+              parts[1].count == 2,
+              parts[2].count == 2,
+              parts.allSatisfy({ $0.allSatisfy(\.isNumber) }) else {
+            return nil
+        }
+        return raw
     }
 }

@@ -99,10 +99,18 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
 
 struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
     let isConfigured: Bool
+    let currentMode: XAIVideoMode
     let currentDuration: Int?
     let currentAspectRatio: XAIAspectRatio?
     let currentResolution: XAIVideoResolution?
+    let availableModes: [XAIVideoMode]
+    let availableResolutions: [XAIVideoResolution]
+    let showsDuration: Bool
+    let showsAspectAndResolution: Bool
+    let durationHelpLabel: String
     let menuItemLabel: (String, Bool) -> MenuItemLabel
+    /// Always receive a concrete mode (including `.auto`) so selection can persist + show checkmarks.
+    let onSetMode: (XAIVideoMode) -> Void
     let onSetDuration: (Int?) -> Void
     let onSetAspectRatio: (XAIAspectRatio?) -> Void
     let onSetResolution: (XAIVideoResolution?) -> Void
@@ -115,50 +123,76 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
 
         Divider()
 
-        Menu("Duration") {
-            Button {
-                onSetDuration(nil)
-            } label: {
-                menuItemLabel("Default (8s)", currentDuration == nil)
-            }
-            ForEach([3, 5, 8, 10, 15], id: \.self) { seconds in
+        // Title includes the active mode so the choice is visible even before opening the submenu.
+        Menu("Mode · \(currentMode.displayName)") {
+            ForEach(availableModes, id: \.self) { mode in
                 Button {
-                    onSetDuration(seconds)
+                    onSetMode(mode)
                 } label: {
-                    menuItemLabel("\(seconds)s", currentDuration == seconds)
+                    // Leading checkmark is the reliable macOS menu selection affordance;
+                    // trailing Spacer checkmarks are easy to miss / collapse in nested menus.
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .opacity(mode == currentMode ? 1 : 0)
+                            .frame(width: 14, alignment: .center)
+                        Text(mode.displayName)
+                    }
+                }
+            }
+        }
+        // Force the submenu to rebuild when mode changes so the checkmark updates on re-open.
+        .id("xai-video-mode-\(currentMode.rawValue)")
+
+        if showsDuration {
+            Menu(durationMenuTitle) {
+                Button {
+                    onSetDuration(nil)
+                } label: {
+                    menuItemLabel(durationHelpLabel, currentDuration == nil)
+                }
+                ForEach([3, 5, 8, 10, 15], id: \.self) { seconds in
+                    Button {
+                        onSetDuration(seconds)
+                    } label: {
+                        menuItemLabel("\(seconds)s", currentDuration == seconds)
+                    }
                 }
             }
         }
 
-        Menu("Aspect ratio") {
-            Button {
-                onSetAspectRatio(nil)
-            } label: {
-                menuItemLabel("Default (16:9)", currentAspectRatio == nil)
-            }
-            ForEach(
-                [XAIAspectRatio.ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio3x2, .ratio2x3],
-                id: \.self
-            ) { ratio in
+        if showsAspectAndResolution {
+            Menu(aspectMenuTitle) {
                 Button {
-                    onSetAspectRatio(ratio)
+                    onSetAspectRatio(nil)
                 } label: {
-                    menuItemLabel(ratio.displayName, currentAspectRatio == ratio)
+                    menuItemLabel("Default (16:9)", currentAspectRatio == nil)
+                }
+                ForEach(
+                    [XAIAspectRatio.ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio3x2, .ratio2x3],
+                    id: \.self
+                ) { ratio in
+                    Button {
+                        onSetAspectRatio(ratio)
+                    } label: {
+                        menuItemLabel(ratio.displayName, currentAspectRatio == ratio)
+                    }
                 }
             }
-        }
 
-        Menu("Resolution") {
-            Button {
-                onSetResolution(nil)
-            } label: {
-                menuItemLabel("Default (480p)", currentResolution == nil)
-            }
-            ForEach(XAIVideoResolution.allCases, id: \.self) { resolution in
+            Menu(resolutionMenuTitle) {
                 Button {
-                    onSetResolution(resolution)
+                    onSetResolution(nil)
                 } label: {
-                    menuItemLabel(resolution.displayName, currentResolution == resolution)
+                    menuItemLabel("Default (480p)", currentResolution == nil)
+                }
+                ForEach(availableResolutions, id: \.self) { resolution in
+                    Button {
+                        onSetResolution(resolution)
+                    } label: {
+                        menuItemLabel(resolution.displayName, currentResolution == resolution)
+                    }
                 }
             }
         }
@@ -167,6 +201,27 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
             Divider()
             Button("Reset", role: .destructive, action: onReset)
         }
+    }
+
+    private var durationMenuTitle: String {
+        if let currentDuration {
+            return "Duration · \(currentDuration)s"
+        }
+        return "Duration"
+    }
+
+    private var aspectMenuTitle: String {
+        if let currentAspectRatio {
+            return "Aspect ratio · \(currentAspectRatio.displayName)"
+        }
+        return "Aspect ratio"
+    }
+
+    private var resolutionMenuTitle: String {
+        if let currentResolution {
+            return "Resolution · \(currentResolution.displayName)"
+        }
+        return "Resolution"
     }
 }
 

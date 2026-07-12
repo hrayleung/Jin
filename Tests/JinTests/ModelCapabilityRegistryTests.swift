@@ -42,9 +42,11 @@ final class ModelCapabilityRegistryTests: XCTestCase {
 
     func testXAICodeExecutionUsesExactCatalogModelsConservatively() {
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.3"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.5"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.20"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.20-multi-agent"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.20-multi-agent-0309"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-build-0.1"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.3-custom"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.20-multi-agent-0310"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-imagine-image"))

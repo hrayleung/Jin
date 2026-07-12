@@ -201,13 +201,43 @@ extension ChatView {
                 }
             )
         case .xai:
+            let mode = controls.xaiVideoGeneration?.resolvedMode ?? .auto
+            let showsDuration = mode != .editVideo
+            let showsAspectAndResolution = mode == .auto
+                || mode == .textToVideo
+                || mode == .imageToVideo
+                || mode == .referenceToVideo
             XAIVideoGenerationMenuView(
                 isConfigured: isVideoGenerationConfigured,
+                currentMode: mode,
                 currentDuration: controls.xaiVideoGeneration?.duration,
                 currentAspectRatio: controls.xaiVideoGeneration?.aspectRatio,
                 currentResolution: controls.xaiVideoGeneration?.resolution,
+                availableModes: XAIModelSupport.availableVideoModes(for: lowerModelID),
+                availableResolutions: XAIModelSupport.availableVideoResolutions(for: lowerModelID),
+                showsDuration: showsDuration,
+                showsAspectAndResolution: showsAspectAndResolution,
+                durationHelpLabel: mode == .extendVideo
+                    ? "Default (extension length)"
+                    : "Default (8s)",
                 menuItemLabel: { title, isSelected in
                     menuItemLabel(title, isSelected: isSelected)
+                },
+                onSetMode: { value in
+                    updateXAIVideoGeneration { draft in
+                        // Always store a concrete mode (including .auto) so the checkmark
+                        // and "Mode · …" title stay in sync after selection.
+                        draft.mode = value
+                        // Edit inherits shape from source video; clear unused fields.
+                        if value == .editVideo {
+                            draft.duration = nil
+                            draft.aspectRatio = nil
+                            draft.resolution = nil
+                        } else if value == .extendVideo {
+                            draft.aspectRatio = nil
+                            draft.resolution = nil
+                        }
+                    }
                 },
                 onSetDuration: { value in
                     updateXAIVideoGeneration { $0.duration = value }
@@ -275,6 +305,7 @@ extension ChatView {
     func updateXAIVideoGeneration(_ mutate: (inout XAIVideoGenerationControls) -> Void) {
         var draft = controls.xaiVideoGeneration ?? XAIVideoGenerationControls()
         mutate(&draft)
+        // Keep mode-only configuration (e.g. mode = .referenceToVideo with default shape).
         controls.xaiVideoGeneration = draft.isEmpty ? nil : draft
         persistControlsToConversation()
     }

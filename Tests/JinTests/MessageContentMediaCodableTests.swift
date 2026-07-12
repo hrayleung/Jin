@@ -177,6 +177,39 @@ final class MessageContentMediaCodableTests: XCTestCase {
         XCTAssertEqual(decoded.xaiImageGeneration?.count, 1)
     }
 
+    func testXAIVideoControlsRoundTripIncludesMode() throws {
+        let controls = GenerationControls(
+            xaiVideoGeneration: XAIVideoGenerationControls(
+                duration: 6,
+                aspectRatio: .ratio16x9,
+                resolution: .res720p,
+                mode: .referenceToVideo
+            )
+        )
+        let encoded = try JSONEncoder().encode(controls)
+        let decoded = try JSONDecoder().decode(GenerationControls.self, from: encoded)
+        XCTAssertEqual(decoded.xaiVideoGeneration?.duration, 6)
+        XCTAssertEqual(decoded.xaiVideoGeneration?.aspectRatio, .ratio16x9)
+        XCTAssertEqual(decoded.xaiVideoGeneration?.resolution, .res720p)
+        XCTAssertEqual(decoded.xaiVideoGeneration?.mode, .referenceToVideo)
+    }
+
+    func testXAIVideoModeOnlyIsNotEmptySoSelectionPersists() {
+        // Selecting Mode without duration/aspect must still persist; previously
+        // isEmpty treated mode == .auto as empty and wiped the selection.
+        let autoOnly = XAIVideoGenerationControls(mode: .auto)
+        XCTAssertFalse(autoOnly.isEmpty)
+        XCTAssertEqual(autoOnly.resolvedMode, .auto)
+
+        let refOnly = XAIVideoGenerationControls(mode: .referenceToVideo)
+        XCTAssertFalse(refOnly.isEmpty)
+        XCTAssertEqual(refOnly.resolvedMode, .referenceToVideo)
+
+        let unset = XAIVideoGenerationControls()
+        XCTAssertTrue(unset.isEmpty)
+        XCTAssertEqual(unset.resolvedMode, .auto)
+    }
+
     func testLegacyXAIImageControlFieldsStillDecode() throws {
         let legacyJSON = """
         {

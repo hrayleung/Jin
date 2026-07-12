@@ -1471,7 +1471,7 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolvedGrok43.capabilities.contains(.reasoning))
         XCTAssertTrue(resolvedGrok43.capabilities.contains(.nativePDF))
         XCTAssertTrue(resolvedGrok43.capabilities.contains(.codeExecution))
-        XCTAssertNil(resolvedGrok43.reasoningConfig)
+        XCTAssertEqual(resolvedGrok43.reasoningConfig?.defaultEffort, ReasoningEffort.none)
 
         let grok420Legacy = ModelInfo(
             id: "grok-4.20",
@@ -1483,7 +1483,7 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
 
         let resolvedGrok420 = ModelSettingsResolver.resolve(model: grok420Legacy, providerType: .xai)
-        XCTAssertEqual(resolvedGrok420.contextWindow, 2_000_000)
+        XCTAssertEqual(resolvedGrok420.contextWindow, 1_000_000)
         XCTAssertTrue(resolvedGrok420.capabilities.contains(.toolCalling))
         XCTAssertTrue(resolvedGrok420.capabilities.contains(.reasoning))
         XCTAssertTrue(resolvedGrok420.capabilities.contains(.nativePDF))
@@ -1499,7 +1499,7 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
 
         let resolvedMultiAgent = ModelSettingsResolver.resolve(model: multiAgentLegacy, providerType: .xai)
-        XCTAssertEqual(resolvedMultiAgent.contextWindow, 2_000_000)
+        XCTAssertEqual(resolvedMultiAgent.contextWindow, 1_000_000)
         XCTAssertEqual(
             resolvedMultiAgent.capabilities,
             [.streaming, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution]
@@ -1517,7 +1517,7 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
 
         let resolvedMultiAgentSnapshot = ModelSettingsResolver.resolve(model: multiAgentSnapshotLegacy, providerType: .xai)
-        XCTAssertEqual(resolvedMultiAgentSnapshot.contextWindow, 2_000_000)
+        XCTAssertEqual(resolvedMultiAgentSnapshot.contextWindow, 1_000_000)
         XCTAssertEqual(
             resolvedMultiAgentSnapshot.capabilities,
             [.streaming, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution]
@@ -1537,7 +1537,7 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
 
         let resolvedMultiAgent = ModelSettingsResolver.resolve(model: multiAgentLegacy, providerType: .openrouter)
-        XCTAssertEqual(resolvedMultiAgent.contextWindow, 2_000_000)
+        XCTAssertEqual(resolvedMultiAgent.contextWindow, 1_000_000)
         XCTAssertEqual(resolvedMultiAgent.capabilities, [.streaming, .vision, .reasoning, .promptCaching, .nativePDF])
         XCTAssertEqual(resolvedMultiAgent.reasoningConfig?.type, .effort)
         XCTAssertEqual(resolvedMultiAgent.reasoningConfig?.defaultEffort, .low)

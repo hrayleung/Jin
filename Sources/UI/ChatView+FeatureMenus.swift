@@ -242,6 +242,9 @@ extension ChatView {
             builtinSearchFirecrawlExtractBinding: builtinSearchFirecrawlExtractBinding,
             xaiWebBinding: webSearchSourceBinding(.web),
             xaiXBinding: webSearchSourceBinding(.x),
+            xaiImageUnderstandingBinding: xaiImageUnderstandingBinding,
+            xaiImageSearchBinding: xaiImageSearchBinding,
+            xaiVideoUnderstandingBinding: xaiVideoUnderstandingBinding,
             anthropicDynamicFilteringBinding: anthropicDynamicFilteringBinding,
             menuItemLabel: { title, isSelected in
                 menuItemLabel(title, isSelected: isSelected)

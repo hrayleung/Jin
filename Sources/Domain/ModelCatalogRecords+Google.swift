@@ -224,18 +224,18 @@ extension ModelCatalog {
 
     static let openRouterRecords: [Record] = [
         Record(id: "x-ai/grok-4.3", displayName: "xAI: Grok 4.3",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                contextWindow: 1_000_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
                isFullySupported: true, isSeeded: false),
         Record(id: "x-ai/grok-4.20", displayName: "xAI: Grok 4.20",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
-               contextWindow: 2_000_000,
+               contextWindow: 1_000_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "x-ai/grok-4.20-multi-agent", displayName: "xAI: Grok 4.20 Multi-Agent",
                capabilities: [.streaming, .vision, .reasoning, .promptCaching, .nativePDF],
-               contextWindow: 2_000_000,
+               contextWindow: 1_000_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
                isFullySupported: true, isSeeded: false),
         Record(id: "xiaomi/mimo-v2-omni", displayName: "MiMo V2 Omni",
@@ -436,7 +436,7 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "x-ai/grok-build-0.1", displayName: "xAI: Grok Build 0.1",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                contextWindow: 256000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
@@ -766,6 +766,7 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
         // Grok 4.5 (created 2026-07-08): 500K ctx, max output unpublished
         // (max_completion_tokens null), reasoning mandatory low/medium/high default high.
+        // nativePDF kept off on OpenRouter (gateway PDF modality is not guaranteed).
         Record(id: "x-ai/grok-4.5", displayName: "xAI: Grok 4.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 500000,

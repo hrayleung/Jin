@@ -46,6 +46,7 @@ extension ChatView {
             supportsCerebrasPreservedThinkingToggle: supportsCerebrasPreservedThinkingToggle,
             cerebrasPreserveThinkingBinding: cerebrasPreserveThinkingBinding,
             availableReasoningEffortLevels: availableReasoningEffortLevels,
+            usesXAIMultiAgentEffortLabels: usesXAIMultiAgentEffortLabels,
             supportsReasoningSummaryControl: supportsReasoningSummaryControl,
             currentReasoningSummary: controls.reasoning?.summary ?? .auto,
             currentReasoningEffort: controls.reasoning?.effort,
@@ -157,5 +158,11 @@ extension ChatView {
             for: providerType,
             modelID: activeModelID
         )
+    }
+
+    var usesXAIMultiAgentEffortLabels: Bool {
+        let lower = activeModelID.lowercased()
+        return providerType == .xai
+            && (lower == "grok-4.20-multi-agent" || lower == "grok-4.20-multi-agent-0309")
     }
 }

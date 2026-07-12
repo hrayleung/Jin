@@ -601,6 +601,16 @@ extension ModelCatalog {
                contextWindow: 500_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        Record(id: "xai/grok-4.3", displayName: "Grok 4.3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "xai/grok-build-0.1", displayName: "Grok Build 0.1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 256_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
 
         // Meta — Muse Spark 1.1 confirmed on Vercel AI Gateway (vercel.com model page +
         // models.dev `vercel` provider, 2026-07-11): 1,048,576 context / 131,072 output

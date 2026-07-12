@@ -90,7 +90,12 @@ extension ChatModelCapabilitySupport {
         guard supportsVideoGenerationControl else { return nil }
 
         switch providerType {
-        case .gemini, .vertexai, .xai, .openrouter:
+        case .xai:
+            if let mode = controls.xaiVideoGeneration?.mode {
+                return mode.shortBadge
+            }
+            return isVideoGenerationConfigured ? "On" : nil
+        case .gemini, .vertexai, .openrouter:
             return isVideoGenerationConfigured ? "On" : nil
         default:
             return nil
@@ -119,6 +124,9 @@ extension ChatModelCapabilitySupport {
             return "Video Generation: \(parts.joined(separator: ", "))"
         case .xai:
             var parts: [String] = []
+            if let mode = controls.xaiVideoGeneration?.mode {
+                parts.append(mode.displayName)
+            }
             if let duration = controls.xaiVideoGeneration?.duration { parts.append("\(duration)s") }
             if let ratio = controls.xaiVideoGeneration?.aspectRatio { parts.append(ratio.displayName) }
             if let resolution = controls.xaiVideoGeneration?.resolution { parts.append(resolution.displayName) }

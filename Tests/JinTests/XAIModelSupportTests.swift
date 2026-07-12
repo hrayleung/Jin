@@ -7,6 +7,7 @@ final class XAIModelSupportTests: XCTestCase {
         XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("grok-imagine-image-quality"))
         XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("GROK-IMAGINE-IMAGE-PRO"))
         XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video"))
+        XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video-1.5"))
         XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video-1.5-preview"))
         XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("GROK-IMAGINE-VIDEO-1.5-PREVIEW"))
         XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video-1.5-2026-05-30"))
@@ -17,12 +18,27 @@ final class XAIModelSupportTests: XCTestCase {
 
     func testImageRequiredVideoModelsRejectTextToVideo() {
         // grok-imagine-video-1.5 is image-to-video only (API rejects text-only).
+        XCTAssertTrue(XAIModelSupport.requiresImageInputForVideoGeneration("grok-imagine-video-1.5"))
         XCTAssertTrue(XAIModelSupport.requiresImageInputForVideoGeneration("grok-imagine-video-1.5-preview"))
         XCTAssertTrue(XAIModelSupport.requiresImageInputForVideoGeneration("GROK-IMAGINE-VIDEO-1.5-PREVIEW"))
         XCTAssertTrue(XAIModelSupport.requiresImageInputForVideoGeneration("grok-imagine-video-1.5-2026-05-30"))
 
         // Base model supports text-to-video, so it must NOT require an image.
         XCTAssertFalse(XAIModelSupport.requiresImageInputForVideoGeneration("grok-imagine-video"))
+    }
+
+    func testFullHDVideoResolutionOnlyOn15Family() {
+        XCTAssertTrue(XAIModelSupport.supportsFullHDVideoResolution("grok-imagine-video-1.5"))
+        XCTAssertTrue(XAIModelSupport.supportsFullHDVideoResolution("grok-imagine-video-1.5-preview"))
+        XCTAssertFalse(XAIModelSupport.supportsFullHDVideoResolution("grok-imagine-video"))
+        XCTAssertEqual(
+            XAIModelSupport.availableVideoResolutions(for: "grok-imagine-video-1.5"),
+            [.res480p, .res720p, .res1080p]
+        )
+        XCTAssertEqual(
+            XAIModelSupport.availableVideoResolutions(for: "grok-imagine-video"),
+            [.res480p, .res720p]
+        )
     }
 
     func testSupportsImageResolutionControlOnlyForQualityAndProTiers() {
