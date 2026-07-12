@@ -24,7 +24,11 @@ extension ChatView {
                 let budgetTokens = controls.reasoning?.budgetTokens ?? anthropicDefaultBudgetTokens
                 return "\(budgetTokens) tokens"
             }
-            return controls.reasoning?.effort?.displayName ?? "On"
+            let effort = controls.reasoning?.effort ?? selectedReasoningConfig?.defaultEffort
+            if let effort, usesXAIMultiAgentEffortLabels {
+                return effort.xAIMultiAgentDisplayName
+            }
+            return effort?.displayName ?? "On"
         case .toggle:
             return "On"
         case .none:
@@ -161,8 +165,9 @@ extension ChatView {
     }
 
     var usesXAIMultiAgentEffortLabels: Bool {
-        let lower = activeModelID.lowercased()
-        return providerType == .xai
-            && (lower == "grok-4.20-multi-agent" || lower == "grok-4.20-multi-agent-0309")
+        ModelCapabilityRegistry.usesXAIMultiAgentEffortLabels(
+            for: providerType,
+            modelID: activeModelID
+        )
     }
 }

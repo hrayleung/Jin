@@ -407,10 +407,11 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
                isFullySupported: true, isSeeded: true),
+        // Reasoning is always-on and non-configurable for Build (no effort control).
         Record(id: "grok-build-0.1", displayName: "Grok Build 0.1",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 256_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
         Record(id: "grok-imagine-image", displayName: "Grok Imagine Image",
                capabilities: [.imageGeneration],

@@ -343,6 +343,7 @@ enum ModelCapabilityRegistry {
         "grok-4.20-multi-agent",
         "grok-4.20-multi-agent-0309",
         "x-ai/grok-4.20-multi-agent",
+        "xai/grok-4.20-multi-agent",
     ]
     private static let xAIAlwaysOnStandardEffortModelIDs: Set<String> = [
         "grok-4.5",
@@ -351,12 +352,19 @@ enum ModelCapabilityRegistry {
     ]
     private static let xAIStandardEffortWithNoneModelIDs: Set<String> = [
         "grok-4.3",
-        "grok-build-0.1",
         "x-ai/grok-4.3",
-        "x-ai/grok-build-0.1",
         "xai/grok-4.3",
-        "xai/grok-build-0.1",
     ]
+
+    /// Whether effort labels should describe multi-agent agent count rather than thinking depth.
+    static func usesXAIMultiAgentEffortLabels(for providerType: ProviderType?, modelID: String) -> Bool {
+        switch providerType {
+        case .xai, .openrouter, .vercelAIGateway:
+            return xAIMultiAgentReasoningEffortModelIDs.contains(modelID.lowercased())
+        default:
+            return false
+        }
+    }
     private static let mistralHighOnlyReasoningEffortModelIDs: Set<String> = [
         "mistral-medium-3.5",
         "mistral-small-4-0-26-03",
@@ -439,6 +447,10 @@ enum ModelCapabilityRegistry {
             return [.high, .xhigh]
         case .openrouter where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .medium, .high, .xhigh]
+        case .openrouter where xAIAlwaysOnStandardEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high]
+        case .openrouter where xAIStandardEffortWithNoneModelIDs.contains(lowerModelID):
+            return [.none, .low, .medium, .high]
         case .openrouter where openRouterHighBandEffortModelIDs.contains(lowerModelID):
             return [.high, .xhigh, .max]
         case .openrouter where openRouterMinimalHighEffortModelIDs.contains(lowerModelID):
@@ -455,6 +467,12 @@ enum ModelCapabilityRegistry {
         case .xai where xAIAlwaysOnStandardEffortModelIDs.contains(lowerModelID):
             return [.low, .medium, .high]
         case .xai where xAIStandardEffortWithNoneModelIDs.contains(lowerModelID):
+            return [.none, .low, .medium, .high]
+        case .vercelAIGateway where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high, .xhigh]
+        case .vercelAIGateway where xAIAlwaysOnStandardEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high]
+        case .vercelAIGateway where xAIStandardEffortWithNoneModelIDs.contains(lowerModelID):
             return [.none, .low, .medium, .high]
         case .mistral where mistralHighOnlyReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]

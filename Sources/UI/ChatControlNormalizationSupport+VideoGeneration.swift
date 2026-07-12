@@ -21,7 +21,8 @@ extension ChatControlNormalizationSupport {
                     controls.xaiVideoGeneration?.resolution = nil
                 }
                 // Edit inherits shape; extend only accepts duration of the extension.
-                switch controls.xaiVideoGeneration?.mode {
+                let mode = controls.xaiVideoGeneration?.resolvedMode ?? .auto
+                switch mode {
                 case .editVideo:
                     controls.xaiVideoGeneration?.duration = nil
                     controls.xaiVideoGeneration?.aspectRatio = nil
@@ -29,6 +30,15 @@ extension ChatControlNormalizationSupport {
                 case .extendVideo:
                     controls.xaiVideoGeneration?.aspectRatio = nil
                     controls.xaiVideoGeneration?.resolution = nil
+                    if let duration = controls.xaiVideoGeneration?.duration {
+                        let range = XAIMediaRequestSupport.extendVideoDurationRange
+                        controls.xaiVideoGeneration?.duration = min(max(duration, range.lowerBound), range.upperBound)
+                    }
+                case .referenceToVideo:
+                    if let duration = controls.xaiVideoGeneration?.duration {
+                        let range = XAIMediaRequestSupport.referenceToVideoDurationRange
+                        controls.xaiVideoGeneration?.duration = min(max(duration, range.lowerBound), range.upperBound)
+                    }
                 default:
                     break
                 }

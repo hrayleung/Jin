@@ -107,6 +107,7 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
     let availableResolutions: [XAIVideoResolution]
     let showsDuration: Bool
     let showsAspectAndResolution: Bool
+    let durationOptions: [Int]
     let durationHelpLabel: String
     let menuItemLabel: (String, Bool) -> MenuItemLabel
     /// Always receive a concrete mode (including `.auto`) so selection can persist + show checkmarks.
@@ -152,7 +153,7 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
                 } label: {
                     menuItemLabel(durationHelpLabel, currentDuration == nil)
                 }
-                ForEach([3, 5, 8, 10, 15], id: \.self) { seconds in
+                ForEach(durationOptions, id: \.self) { seconds in
                     Button {
                         onSetDuration(seconds)
                     } label: {

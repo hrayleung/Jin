@@ -1537,8 +1537,8 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
 
         let resolvedMultiAgent = ModelSettingsResolver.resolve(model: multiAgentLegacy, providerType: .openrouter)
-        XCTAssertEqual(resolvedMultiAgent.contextWindow, 1_000_000)
-        XCTAssertEqual(resolvedMultiAgent.capabilities, [.streaming, .vision, .reasoning, .promptCaching, .nativePDF])
+        XCTAssertEqual(resolvedMultiAgent.contextWindow, 2_000_000)
+        XCTAssertEqual(resolvedMultiAgent.capabilities, [.streaming, .vision, .reasoning, .promptCaching])
         XCTAssertEqual(resolvedMultiAgent.reasoningConfig?.type, .effort)
         XCTAssertEqual(resolvedMultiAgent.reasoningConfig?.defaultEffort, .low)
         XCTAssertTrue(resolvedMultiAgent.supportsWebSearch)

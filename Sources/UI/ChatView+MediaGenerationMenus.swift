@@ -217,8 +217,9 @@ extension ChatView {
                 availableResolutions: XAIModelSupport.availableVideoResolutions(for: lowerModelID),
                 showsDuration: showsDuration,
                 showsAspectAndResolution: showsAspectAndResolution,
+                durationOptions: XAIMediaRequestSupport.durationOptions(for: mode),
                 durationHelpLabel: mode == .extendVideo
-                    ? "Default (extension length)"
+                    ? "Default (6s extension)"
                     : "Default (8s)",
                 menuItemLabel: { title, isSelected in
                     menuItemLabel(title, isSelected: isSelected)

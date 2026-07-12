@@ -609,7 +609,7 @@ extension ModelCatalog {
         Record(id: "xai/grok-build-0.1", displayName: "Grok Build 0.1",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 256_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
 
         // Meta — Muse Spark 1.1 confirmed on Vercel AI Gateway (vercel.com model page +

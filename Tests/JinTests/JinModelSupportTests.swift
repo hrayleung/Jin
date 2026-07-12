@@ -348,8 +348,9 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.20-multi-agent"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.20-multi-agent-0309"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4-1-fast-reasoning"))
-        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "x-ai/grok-4.20"))
-        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "x-ai/grok-4.20-multi-agent"))
+        // OpenRouter Grok twins do not claim native PDF (adapter text-fallbacks files).
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "x-ai/grok-4.20"))
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "x-ai/grok-4.20-multi-agent"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.3-custom"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.2"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-5"))

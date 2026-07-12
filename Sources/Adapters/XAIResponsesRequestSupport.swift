@@ -14,10 +14,9 @@ enum XAIResponsesRequestSupport {
         "grok-4.5",
     ]
     /// Models that accept `reasoning.effort` including `"none"` (docs.x.ai migration guide
-    /// for grok-4.3: none/low/medium/high). grok-build-0.1 is treated the same for safety.
+    /// for grok-4.3: none/low/medium/high).
     private static let standardReasoningEffortWithNoneModelIDs: Set<String> = [
         "grok-4.3",
-        "grok-build-0.1",
     ]
     private static let clientFunctionToolsModelIDs: Set<String> = [
         "grok-4",
@@ -393,9 +392,20 @@ enum XAIResponsesRequestSupport {
         return result
     }
 
-    private static func normalizedISODate(_ raw: String?) -> String? {
+    private static let isoDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        return formatter
+    }()
+
+    /// Accepts only real Gregorian `YYYY-MM-DD` dates (rejects e.g. `2025-02-31`).
+    static func normalizedISODate(_ raw: String?) -> String? {
         guard let raw = raw?.trimmedNonEmpty else { return nil }
-        // Accept YYYY-MM-DD; reject other shapes so we never send invalid wire values.
+        // Fast shape reject before calendar parse.
         let parts = raw.split(separator: "-")
         guard parts.count == 3,
               parts[0].count == 4,
@@ -404,6 +414,11 @@ enum XAIResponsesRequestSupport {
               parts.allSatisfy({ $0.allSatisfy(\.isNumber) }) else {
             return nil
         }
-        return raw
+        guard let date = isoDateFormatter.date(from: raw) else {
+            return nil
+        }
+        // Round-trip to catch values that parsers might coerce.
+        let normalized = isoDateFormatter.string(from: date)
+        return normalized == raw ? normalized : nil
     }
 }

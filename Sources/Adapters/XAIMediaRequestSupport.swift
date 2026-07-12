@@ -74,6 +74,7 @@ enum XAIMediaRequestSupport {
                 to: &body,
                 modelID: modelID,
                 imageURL: nil,
+                durationRange: generationDurationRange,
                 controls: controls
             )
 
@@ -85,6 +86,7 @@ enum XAIMediaRequestSupport {
                 to: &body,
                 modelID: modelID,
                 imageURL: imageURL,
+                durationRange: generationDurationRange,
                 controls: controls
             )
 
@@ -93,10 +95,12 @@ enum XAIMediaRequestSupport {
             if !refs.isEmpty {
                 body["reference_images"] = refs.map { ["url": $0] }
             }
+            // Reference-to-video is capped at 10s (docs.x.ai / provider integrations).
             applyGenerationShapeControls(
                 to: &body,
                 modelID: modelID,
                 imageURL: nil,
+                durationRange: referenceToVideoDurationRange,
                 controls: controls
             )
 
@@ -107,12 +111,12 @@ enum XAIMediaRequestSupport {
             }
 
         case .extendVideo:
-            // Duration is the length of the *extended portion* only.
+            // Duration is the length of the *extended portion* only (docs: 2–10s, default 6).
             if let videoURL, !videoURL.isEmpty {
                 body["video"] = ["url": videoURL]
             }
             if let duration = controls?.duration {
-                body["duration"] = min(max(duration, 1), 15)
+                body["duration"] = clampDuration(duration, to: extendVideoDurationRange)
             }
         }
 
@@ -170,16 +174,37 @@ enum XAIMediaRequestSupport {
         .ratio2x3
     ]
 
+    /// Text / image-to-video: 1–15s (docs.x.ai video generation).
+    static let generationDurationRange: ClosedRange<Int> = 1...15
+    /// Reference-to-video: max 10s (provider integrations + docs examples).
+    static let referenceToVideoDurationRange: ClosedRange<Int> = 1...10
+    /// Extend-video: extension segment only, 2–10s (docs.x.ai video extension).
+    static let extendVideoDurationRange: ClosedRange<Int> = 2...10
+
+    static func durationOptions(for mode: XAIVideoMode) -> [Int] {
+        switch mode {
+        case .extendVideo:
+            return [2, 3, 5, 6, 8, 10]
+        case .referenceToVideo:
+            return [3, 5, 8, 10]
+        case .auto, .textToVideo, .imageToVideo:
+            return [3, 5, 8, 10, 15]
+        case .editVideo:
+            return []
+        }
+    }
+
     // MARK: - Private
 
     private static func applyGenerationShapeControls(
         to body: inout [String: Any],
         modelID: String,
         imageURL: String?,
+        durationRange: ClosedRange<Int>,
         controls: XAIVideoGenerationControls?
     ) {
         if let duration = controls?.duration {
-            body["duration"] = min(max(duration, 1), 15)
+            body["duration"] = clampDuration(duration, to: durationRange)
         }
         if let aspectRatio = controls?.aspectRatio, supportedVideoAspectRatios.contains(aspectRatio) {
             body["aspect_ratio"] = aspectRatio.rawValue
@@ -195,5 +220,9 @@ enum XAIMediaRequestSupport {
                 body["resolution"] = resolution.rawValue
             }
         }
+    }
+
+    private static func clampDuration(_ duration: Int, to range: ClosedRange<Int>) -> Int {
+        min(max(duration, range.lowerBound), range.upperBound)
     }
 }

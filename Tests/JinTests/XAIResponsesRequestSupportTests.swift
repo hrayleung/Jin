@@ -170,6 +170,18 @@ final class XAIResponsesRequestSupportTests: XCTestCase {
         XCTAssertEqual(reasoning["effort"] as? String, "high")
     }
 
+    func testNormalizedISODateRejectsImpossibleCalendarDates() {
+        XCTAssertEqual(XAIResponsesRequestSupport.normalizedISODate("2025-10-01"), "2025-10-01")
+        XCTAssertNil(XAIResponsesRequestSupport.normalizedISODate("2025-02-31"))
+        XCTAssertNil(XAIResponsesRequestSupport.normalizedISODate("2025-13-01"))
+        XCTAssertNil(XAIResponsesRequestSupport.normalizedISODate("not-a-date"))
+    }
+
+    func testGrokBuildDoesNotAcceptStandardReasoningEffort() {
+        XCTAssertFalse(XAIResponsesRequestSupport.supportsStandardReasoningEffort(modelID: "grok-build-0.1"))
+        XCTAssertFalse(XAIResponsesRequestSupport.supportsStandardReasoningEffortWithNone(modelID: "grok-build-0.1"))
+    }
+
     func testSupportedExactModelIncludesMaxTokensAndFunctionTools() throws {
         let body = XAIResponsesRequestSupport.responsesBody(
             modelID: "grok-4-1",

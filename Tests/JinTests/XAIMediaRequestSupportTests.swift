@@ -144,6 +144,19 @@ final class XAIMediaRequestSupportTests: XCTestCase {
         XCTAssertEqual(refs[1]["url"] as? String, "https://example.com/b.png")
     }
 
+    func testReferenceToVideoClampsDurationTo10Seconds() {
+        let components = XAIMediaRequestSupport.videoRequestComponents(
+            modelID: "grok-imagine-video",
+            prompt: "Model walks the runway",
+            imageURL: nil,
+            referenceImageURLs: ["https://example.com/a.png"],
+            videoURL: nil,
+            mode: .referenceToVideo,
+            controls: XAIVideoGenerationControls(duration: 15)
+        )
+        XCTAssertEqual(components.body["duration"] as? Int, 10)
+    }
+
     func testExtendVideoUsesExtensionsEndpointAndDurationOnly() {
         let components = XAIMediaRequestSupport.videoRequestComponents(
             modelID: "grok-imagine-video",
@@ -167,6 +180,30 @@ final class XAIMediaRequestSupportTests: XCTestCase {
         XCTAssertNil(components.body["resolution"])
         XCTAssertNil(components.body["image"])
         XCTAssertNil(components.body["reference_images"])
+    }
+
+    func testExtendVideoClampsDurationTo2Through10() {
+        let tooLow = XAIMediaRequestSupport.videoRequestComponents(
+            modelID: "grok-imagine-video",
+            prompt: "continue",
+            imageURL: nil,
+            referenceImageURLs: nil,
+            videoURL: "https://example.com/clip.mp4",
+            mode: .extendVideo,
+            controls: XAIVideoGenerationControls(duration: 1)
+        )
+        XCTAssertEqual(tooLow.body["duration"] as? Int, 2)
+
+        let tooHigh = XAIMediaRequestSupport.videoRequestComponents(
+            modelID: "grok-imagine-video",
+            prompt: "continue",
+            imageURL: nil,
+            referenceImageURLs: nil,
+            videoURL: "https://example.com/clip.mp4",
+            mode: .extendVideo,
+            controls: XAIVideoGenerationControls(duration: 15)
+        )
+        XCTAssertEqual(tooHigh.body["duration"] as? Int, 10)
     }
 
     func testEditVideoOmitsShapeControls() {

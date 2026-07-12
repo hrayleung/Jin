@@ -48,6 +48,22 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.20-multi-agent-0309"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-build-0.1"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.3-custom"))
+
+        // Proxy IDs must expose the same effort bands as native xAI.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "x-ai/grok-4.3"),
+            [.none, .low, .medium, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vercelAIGateway, modelID: "xai/grok-4.3"),
+            [.none, .low, .medium, .high]
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.usesXAIMultiAgentEffortLabels(
+                for: .xai,
+                modelID: "grok-4.20-multi-agent"
+            )
+        )
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.20-multi-agent-0310"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-imagine-image"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-imagine-video"))
