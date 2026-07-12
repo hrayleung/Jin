@@ -19,6 +19,9 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
     let builtinSearchFirecrawlExtractBinding: Binding<Bool>
     let xaiWebBinding: Binding<Bool>
     let xaiXBinding: Binding<Bool>
+    let xaiImageUnderstandingBinding: Binding<Bool>
+    let xaiImageSearchBinding: Binding<Bool>
+    let xaiVideoUnderstandingBinding: Binding<Bool>
     let anthropicDynamicFilteringBinding: Binding<Bool>
     let menuItemLabel: (String, Bool) -> MenuItemLabel
     let onSetSearchEnginePreference: (Bool) -> Void
@@ -121,6 +124,9 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                     Divider()
                     Toggle("Web", isOn: xaiWebBinding)
                     Toggle("X", isOn: xaiXBinding)
+                    Toggle("Image understanding", isOn: xaiImageUnderstandingBinding)
+                    Toggle("Image search", isOn: xaiImageSearchBinding)
+                    Toggle("X video understanding", isOn: xaiVideoUnderstandingBinding)
 
                     if xaiSourcesAreEmpty {
                         Divider()

@@ -8,6 +8,8 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
     let supportsCerebrasPreservedThinkingToggle: Bool
     let cerebrasPreserveThinkingBinding: Binding<Bool>
     let availableReasoningEffortLevels: [ReasoningEffort]
+    /// When true, effort labels describe multi-agent agent count rather than thinking depth.
+    let usesXAIMultiAgentEffortLabels: Bool
     let supportsReasoningSummaryControl: Bool
     let currentReasoningSummary: ReasoningSummary
     let currentReasoningEffort: ReasoningEffort?
@@ -56,7 +58,7 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
                             onSetReasoningEffort(level)
                         } label: {
                             menuItemLabel(
-                                level == .xhigh ? "Extreme" : level.displayName,
+                                effortLabel(for: level),
                                 isReasoningEnabled && currentReasoningEffort == level
                             )
                         }
@@ -114,5 +116,15 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
             Text("Not supported")
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private func effortLabel(for level: ReasoningEffort) -> String {
+        if usesXAIMultiAgentEffortLabels {
+            return level.xAIMultiAgentDisplayName
+        }
+        if level == .xhigh {
+            return "Extreme"
+        }
+        return level.displayName
     }
 }

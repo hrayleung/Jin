@@ -69,7 +69,8 @@ final class XAIResponsesRequestSupportTests: XCTestCase {
         XCTAssertNil(body["max_tokens"])
 
         let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any])
-        XCTAssertEqual(reasoning["effort"] as? String, "high")
+        // high/xhigh both select the 16-agent band; xhigh is preserved on the wire.
+        XCTAssertEqual(reasoning["effort"] as? String, "xhigh")
 
         let tools = try XCTUnwrap(body["tools"] as? [[String: Any]])
         XCTAssertTrue(tools.contains { ($0["type"] as? String) == "web_search" })
@@ -77,6 +78,108 @@ final class XAIResponsesRequestSupportTests: XCTestCase {
         XCTAssertTrue(tools.contains { ($0["type"] as? String) == "code_interpreter" })
         XCTAssertFalse(tools.contains { ($0["type"] as? String) == "function" })
         XCTAssertEqual(body["include"] as? [String], ["code_interpreter_call.outputs"])
+    }
+
+    func testMultiAgentReasoningEffortMapsAllDocumentedValues() {
+        let cases: [(ReasoningEffort, String)] = [
+            (.low, "low"),
+            (.medium, "medium"),
+            (.high, "high"),
+            (.xhigh, "xhigh"),
+            (.max, "xhigh"),
+            (.minimal, "low"),
+            (.none, "low"),
+        ]
+        for (effort, expected) in cases {
+            XCTAssertEqual(
+                XAIResponsesRequestSupport.mapMultiAgentReasoningEffort(effort),
+                expected,
+                "effort \(effort)"
+            )
+        }
+    }
+
+    func testWebAndXSearchToolParamsAreEncoded() throws {
+        let body = XAIResponsesRequestSupport.responsesBody(
+            modelID: "grok-4.5",
+            input: [["role": "user", "content": []]],
+            streaming: false,
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .low),
+                webSearch: WebSearchControls(
+                    enabled: true,
+                    sources: [.web, .x],
+                    allowedDomains: ["docs.x.ai", "example.com"],
+                    enableImageUnderstanding: true,
+                    enableImageSearch: true,
+                    enableVideoUnderstanding: true,
+                    allowedXHandles: ["@elonmusk", "xai"],
+                    xSearchFromDate: "2025-10-01",
+                    xSearchToDate: "2025-10-10"
+                )
+            ),
+            functionTools: [],
+            supportsWebSearch: true,
+            supportsClientFunctionTools: true
+        )
+
+        let tools = try XCTUnwrap(body["tools"] as? [[String: Any]])
+        let web = try XCTUnwrap(tools.first { ($0["type"] as? String) == "web_search" })
+        let filters = try XCTUnwrap(web["filters"] as? [String: Any])
+        XCTAssertEqual(filters["allowed_domains"] as? [String], ["docs.x.ai", "example.com"])
+        XCTAssertEqual(web["enable_image_understanding"] as? Bool, true)
+        XCTAssertEqual(web["enable_image_search"] as? Bool, true)
+
+        let xSearch = try XCTUnwrap(tools.first { ($0["type"] as? String) == "x_search" })
+        XCTAssertEqual(xSearch["allowed_x_handles"] as? [String], ["elonmusk", "xai"])
+        XCTAssertEqual(xSearch["from_date"] as? String, "2025-10-01")
+        XCTAssertEqual(xSearch["to_date"] as? String, "2025-10-10")
+        XCTAssertEqual(xSearch["enable_image_understanding"] as? Bool, true)
+        XCTAssertEqual(xSearch["enable_video_understanding"] as? Bool, true)
+    }
+
+    func testGrok43SendsNoneEffortWhenSelected() throws {
+        let body = XAIResponsesRequestSupport.responsesBody(
+            modelID: "grok-4.3",
+            input: [["role": "user", "content": []]],
+            streaming: false,
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .none)
+            ),
+            functionTools: [],
+            supportsWebSearch: false,
+            supportsClientFunctionTools: true
+        )
+
+        let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any])
+        XCTAssertEqual(reasoning["effort"] as? String, "none")
+    }
+
+    func testGrok45EmitsDefaultHighWhenReasoningControlsMissing() throws {
+        let body = XAIResponsesRequestSupport.responsesBody(
+            modelID: "grok-4.5",
+            input: [["role": "user", "content": []]],
+            streaming: false,
+            controls: GenerationControls(),
+            functionTools: [],
+            supportsWebSearch: false,
+            supportsClientFunctionTools: true
+        )
+
+        let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any])
+        XCTAssertEqual(reasoning["effort"] as? String, "high")
+    }
+
+    func testNormalizedISODateRejectsImpossibleCalendarDates() {
+        XCTAssertEqual(XAIResponsesRequestSupport.normalizedISODate("2025-10-01"), "2025-10-01")
+        XCTAssertNil(XAIResponsesRequestSupport.normalizedISODate("2025-02-31"))
+        XCTAssertNil(XAIResponsesRequestSupport.normalizedISODate("2025-13-01"))
+        XCTAssertNil(XAIResponsesRequestSupport.normalizedISODate("not-a-date"))
+    }
+
+    func testGrokBuildDoesNotAcceptStandardReasoningEffort() {
+        XCTAssertFalse(XAIResponsesRequestSupport.supportsStandardReasoningEffort(modelID: "grok-build-0.1"))
+        XCTAssertFalse(XAIResponsesRequestSupport.supportsStandardReasoningEffortWithNone(modelID: "grok-build-0.1"))
     }
 
     func testSupportedExactModelIncludesMaxTokensAndFunctionTools() throws {

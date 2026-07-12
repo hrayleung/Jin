@@ -10,6 +10,38 @@ extension ChatControlNormalizationSupport {
         if supportsVideoGenerationControl {
             switch providerType {
             case .xai:
+                if let mode = controls.xaiVideoGeneration?.mode {
+                    let available = XAIModelSupport.availableVideoModes(for: lowerModelID)
+                    if !available.contains(mode) {
+                        controls.xaiVideoGeneration?.mode = nil
+                    }
+                }
+                if let resolution = controls.xaiVideoGeneration?.resolution,
+                   !XAIModelSupport.availableVideoResolutions(for: lowerModelID).contains(resolution) {
+                    controls.xaiVideoGeneration?.resolution = nil
+                }
+                // Edit inherits shape; extend only accepts duration of the extension.
+                let mode = controls.xaiVideoGeneration?.resolvedMode ?? .auto
+                switch mode {
+                case .editVideo:
+                    controls.xaiVideoGeneration?.duration = nil
+                    controls.xaiVideoGeneration?.aspectRatio = nil
+                    controls.xaiVideoGeneration?.resolution = nil
+                case .extendVideo:
+                    controls.xaiVideoGeneration?.aspectRatio = nil
+                    controls.xaiVideoGeneration?.resolution = nil
+                    if let duration = controls.xaiVideoGeneration?.duration {
+                        let range = XAIMediaRequestSupport.extendVideoDurationRange
+                        controls.xaiVideoGeneration?.duration = min(max(duration, range.lowerBound), range.upperBound)
+                    }
+                case .referenceToVideo:
+                    if let duration = controls.xaiVideoGeneration?.duration {
+                        let range = XAIMediaRequestSupport.referenceToVideoDurationRange
+                        controls.xaiVideoGeneration?.duration = min(max(duration, range.lowerBound), range.upperBound)
+                    }
+                default:
+                    break
+                }
                 if controls.xaiVideoGeneration?.isEmpty == true {
                     controls.xaiVideoGeneration = nil
                 }

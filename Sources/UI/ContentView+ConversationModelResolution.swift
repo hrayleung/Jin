@@ -62,8 +62,8 @@ extension ContentView {
         if providerID == "xai", let grok420 = models.first(where: { $0.id == "grok-4.20" }) {
             return grok420.id
         }
-        if providerID == "xai", let grok41Fast = models.first(where: { $0.id == "grok-4-1-fast" }) {
-            return grok41Fast.id
+        if providerID == "xai", let grokBuild = models.first(where: { $0.id == "grok-build-0.1" }) {
+            return grokBuild.id
         }
         if providerID == "deepseek", let deepseekChat = models.first(where: { $0.id == "deepseek-chat" }) {
             return deepseekChat.id

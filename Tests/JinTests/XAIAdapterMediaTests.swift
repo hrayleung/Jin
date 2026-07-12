@@ -509,7 +509,7 @@ final class XAIAdapterMediaTests: XCTestCase {
         }
     }
 
-    func testXAIGrok43OmitsUnsupportedReasoningParameters() async throws {
+    func testXAIGrok43SendsDocumentedReasoningEffortObject() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -529,7 +529,9 @@ final class XAIAdapterMediaTests: XCTestCase {
             let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
 
             XCTAssertEqual(root["model"] as? String, "grok-4.3")
-            XCTAssertNil(root["reasoning"])
+            // grok-4.3 supports reasoning.effort none/low/medium/high (docs.x.ai migration guide).
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "high")
             XCTAssertNil(root["reasoning_effort"])
 
             let response: [String: Any] = [
@@ -581,7 +583,8 @@ final class XAIAdapterMediaTests: XCTestCase {
             XCTAssertNil(root["max_tokens"])
 
             let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
-            XCTAssertEqual(reasoning["effort"] as? String, "high")
+            // Multi-agent preserves xhigh on the wire (16-agent band).
+            XCTAssertEqual(reasoning["effort"] as? String, "xhigh")
 
             let toolObjects = try XCTUnwrap(root["tools"] as? [[String: Any]])
             XCTAssertTrue(toolObjects.contains { ($0["type"] as? String) == "web_search" })
@@ -2437,7 +2440,7 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertTrue(chat.capabilities.contains(.reasoning))
         XCTAssertTrue(chat.capabilities.contains(.promptCaching))
         XCTAssertTrue(chat.capabilities.contains(.nativePDF))
-        XCTAssertEqual(chat.contextWindow, 2_000_000)
+        XCTAssertEqual(chat.contextWindow, 1_000_000)
 
         let grok43 = try XCTUnwrap(byID["grok-4.3"])
         XCTAssertEqual(grok43.name, "Grok 4.3")
@@ -2446,11 +2449,11 @@ final class XAIAdapterMediaTests: XCTestCase {
         XCTAssertTrue(grok43.capabilities.contains(.reasoning))
         XCTAssertTrue(grok43.capabilities.contains(.nativePDF))
         XCTAssertTrue(grok43.capabilities.contains(.codeExecution))
-        XCTAssertNil(grok43.reasoningConfig)
+        XCTAssertEqual(grok43.reasoningConfig?.defaultEffort, ReasoningEffort.none)
 
         let grok420 = try XCTUnwrap(byID["grok-4.20"])
         XCTAssertEqual(grok420.name, "Grok 4.20")
-        XCTAssertEqual(grok420.contextWindow, 2_000_000)
+        XCTAssertEqual(grok420.contextWindow, 1_000_000)
         XCTAssertTrue(grok420.capabilities.contains(.toolCalling))
         XCTAssertTrue(grok420.capabilities.contains(.vision))
         XCTAssertTrue(grok420.capabilities.contains(.reasoning))
@@ -2460,14 +2463,14 @@ final class XAIAdapterMediaTests: XCTestCase {
 
         let multiAgent = try XCTUnwrap(byID["grok-4.20-multi-agent"])
         XCTAssertEqual(multiAgent.name, "Grok 4.20 Multi-Agent")
-        XCTAssertEqual(multiAgent.contextWindow, 2_000_000)
+        XCTAssertEqual(multiAgent.contextWindow, 1_000_000)
         XCTAssertFalse(multiAgent.capabilities.contains(.toolCalling))
         XCTAssertTrue(multiAgent.capabilities.contains(.reasoning))
         XCTAssertEqual(multiAgent.reasoningConfig?.defaultEffort, .low)
 
         let multiAgentSnapshot = try XCTUnwrap(byID["grok-4.20-multi-agent-0309"])
         XCTAssertEqual(multiAgentSnapshot.name, "Grok 4.20 Multi-Agent 0309")
-        XCTAssertEqual(multiAgentSnapshot.contextWindow, 2_000_000)
+        XCTAssertEqual(multiAgentSnapshot.contextWindow, 1_000_000)
         XCTAssertFalse(multiAgentSnapshot.capabilities.contains(.toolCalling))
         XCTAssertTrue(multiAgentSnapshot.capabilities.contains(.reasoning))
         XCTAssertEqual(multiAgentSnapshot.reasoningConfig?.defaultEffort, .low)

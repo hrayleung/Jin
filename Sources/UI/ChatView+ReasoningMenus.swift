@@ -24,7 +24,11 @@ extension ChatView {
                 let budgetTokens = controls.reasoning?.budgetTokens ?? anthropicDefaultBudgetTokens
                 return "\(budgetTokens) tokens"
             }
-            return controls.reasoning?.effort?.displayName ?? "On"
+            let effort = controls.reasoning?.effort ?? selectedReasoningConfig?.defaultEffort
+            if let effort, usesXAIMultiAgentEffortLabels {
+                return effort.xAIMultiAgentDisplayName
+            }
+            return effort?.displayName ?? "On"
         case .toggle:
             return "On"
         case .none:
@@ -46,6 +50,7 @@ extension ChatView {
             supportsCerebrasPreservedThinkingToggle: supportsCerebrasPreservedThinkingToggle,
             cerebrasPreserveThinkingBinding: cerebrasPreserveThinkingBinding,
             availableReasoningEffortLevels: availableReasoningEffortLevels,
+            usesXAIMultiAgentEffortLabels: usesXAIMultiAgentEffortLabels,
             supportsReasoningSummaryControl: supportsReasoningSummaryControl,
             currentReasoningSummary: controls.reasoning?.summary ?? .auto,
             currentReasoningEffort: controls.reasoning?.effort,
@@ -154,6 +159,13 @@ extension ChatView {
 
     var availableReasoningEffortLevels: [ReasoningEffort] {
         ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: providerType,
+            modelID: activeModelID
+        )
+    }
+
+    var usesXAIMultiAgentEffortLabels: Bool {
+        ModelCapabilityRegistry.usesXAIMultiAgentEffortLabels(
             for: providerType,
             modelID: activeModelID
         )

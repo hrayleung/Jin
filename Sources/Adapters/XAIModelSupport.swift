@@ -14,6 +14,7 @@ enum XAIModelSupport {
     ]
     static let videoGenerationModelIDs: Set<String> = [
         "grok-imagine-video",
+        "grok-imagine-video-1.5",
         "grok-imagine-video-1.5-preview",
         "grok-imagine-video-1.5-2026-05-30",
     ]
@@ -23,6 +24,15 @@ enum XAIModelSupport {
     /// returns `400 {"error":"Text-to-video is not supported for this model."}`
     /// for these IDs. The base `grok-imagine-video` does support text-to-video.
     static let imageRequiredVideoGenerationModelIDs: Set<String> = [
+        "grok-imagine-video-1.5",
+        "grok-imagine-video-1.5-preview",
+        "grok-imagine-video-1.5-2026-05-30",
+    ]
+
+    /// 1080p is only supported on `grok-imagine-video-1.5` for image-to-video
+    /// (docs.x.ai video generation).
+    static let fullHDVideoGenerationModelIDs: Set<String> = [
+        "grok-imagine-video-1.5",
         "grok-imagine-video-1.5-preview",
         "grok-imagine-video-1.5-2026-05-30",
     ]
@@ -34,6 +44,8 @@ enum XAIModelSupport {
         "grok-4.20",
         "grok-4.20-multi-agent",
         "grok-4.20-multi-agent-0309",
+        "grok-4.20-0309-reasoning",
+        "grok-build-0.1",
         "grok-4-1",
         "grok-4-1-fast",
         "grok-4-1-fast-non-reasoning",
@@ -104,6 +116,55 @@ enum XAIModelSupport {
 
     static func supportsImageResolutionControl(_ modelID: String) -> Bool {
         resolutionCapableImageModelIDs.contains(modelID.lowercased())
+    }
+
+    static func supportsFullHDVideoResolution(_ modelID: String) -> Bool {
+        fullHDVideoGenerationModelIDs.contains(modelID.lowercased())
+    }
+
+    static func availableVideoResolutions(for modelID: String) -> [XAIVideoResolution] {
+        if supportsFullHDVideoResolution(modelID) {
+            return [.res480p, .res720p, .res1080p]
+        }
+        return [.res480p, .res720p]
+    }
+
+    /// Base Imagine Video supports text/image/video inputs. The 1.5 family is
+    /// image→video only (docs.x.ai model pages).
+    static func supportsTextToVideo(_ modelID: String) -> Bool {
+        !requiresImageInputForVideoGeneration(modelID)
+    }
+
+    static func supportsReferenceToVideo(_ modelID: String) -> Bool {
+        // Documented on grok-imagine-video; 1.5 is first-frame image→video only.
+        !requiresImageInputForVideoGeneration(modelID)
+    }
+
+    static func supportsVideoEdit(_ modelID: String) -> Bool {
+        !requiresImageInputForVideoGeneration(modelID)
+    }
+
+    static func supportsVideoExtension(_ modelID: String) -> Bool {
+        !requiresImageInputForVideoGeneration(modelID)
+    }
+
+    /// Modes exposed in the composer menu for a given model ID.
+    static func availableVideoModes(for modelID: String) -> [XAIVideoMode] {
+        var modes: [XAIVideoMode] = [.auto]
+        if supportsTextToVideo(modelID) {
+            modes.append(.textToVideo)
+        }
+        modes.append(.imageToVideo)
+        if supportsReferenceToVideo(modelID) {
+            modes.append(.referenceToVideo)
+        }
+        if supportsVideoEdit(modelID) {
+            modes.append(.editVideo)
+        }
+        if supportsVideoExtension(modelID) {
+            modes.append(.extendVideo)
+        }
+        return modes
     }
 
     static func supportsNativePDF(_ modelID: String) -> Bool {

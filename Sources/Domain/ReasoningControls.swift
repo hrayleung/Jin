@@ -45,6 +45,21 @@ enum ReasoningEffort: String, Codable, CaseIterable {
         }
     }
 
+    /// Labels for xAI multi-agent models where effort controls agent count
+    /// (low/medium → 4 agents, high/xhigh → 16 agents).
+    var xAIMultiAgentDisplayName: String {
+        switch self {
+        case .none, .minimal, .low:
+            return "4 agents (low)"
+        case .medium:
+            return "4 agents (medium)"
+        case .high:
+            return "16 agents (high)"
+        case .xhigh, .max:
+            return "16 agents (xhigh)"
+        }
+    }
+
     var anthropicDisplayName: String {
         switch self {
         case .xhigh:

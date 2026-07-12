@@ -1096,7 +1096,8 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(grok43.capabilities.contains(.promptCaching))
         XCTAssertTrue(grok43.capabilities.contains(.nativePDF))
         XCTAssertTrue(grok43.capabilities.contains(.codeExecution))
-        XCTAssertNil(grok43.reasoningConfig)
+        XCTAssertEqual(grok43.reasoningConfig?.type, .effort)
+        XCTAssertEqual(grok43.reasoningConfig?.defaultEffort, ReasoningEffort.none)
 
         let multiAgent = ModelCatalog.modelInfo(
             for: "grok-4.20-multi-agent",
@@ -1104,7 +1105,7 @@ final class ModelCatalogTests: XCTestCase {
         )
 
         XCTAssertEqual(multiAgent.name, "Grok 4.20 Multi-Agent")
-        XCTAssertEqual(multiAgent.contextWindow, 2_000_000)
+        XCTAssertEqual(multiAgent.contextWindow, 1_000_000)
         XCTAssertTrue(multiAgent.capabilities.contains(.streaming))
         XCTAssertFalse(multiAgent.capabilities.contains(.toolCalling))
         XCTAssertTrue(multiAgent.capabilities.contains(.vision))
@@ -1121,7 +1122,7 @@ final class ModelCatalogTests: XCTestCase {
         )
 
         XCTAssertEqual(multiAgentSnapshot.name, "Grok 4.20 Multi-Agent 0309")
-        XCTAssertEqual(multiAgentSnapshot.contextWindow, 2_000_000)
+        XCTAssertEqual(multiAgentSnapshot.contextWindow, 1_000_000)
         XCTAssertTrue(multiAgentSnapshot.capabilities.contains(.streaming))
         XCTAssertFalse(multiAgentSnapshot.capabilities.contains(.toolCalling))
         XCTAssertTrue(multiAgentSnapshot.capabilities.contains(.vision))
@@ -1138,7 +1139,7 @@ final class ModelCatalogTests: XCTestCase {
         )
 
         XCTAssertEqual(grok420.name, "Grok 4.20")
-        XCTAssertEqual(grok420.contextWindow, 2_000_000)
+        XCTAssertEqual(grok420.contextWindow, 1_000_000)
         XCTAssertTrue(grok420.capabilities.contains(.streaming))
         XCTAssertTrue(grok420.capabilities.contains(.toolCalling))
         XCTAssertTrue(grok420.capabilities.contains(.vision))
@@ -1147,6 +1148,19 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(grok420.capabilities.contains(.nativePDF))
         XCTAssertTrue(grok420.capabilities.contains(.codeExecution))
         XCTAssertNil(grok420.reasoningConfig)
+
+        let build = ModelCatalog.modelInfo(for: "grok-build-0.1", provider: .xai)
+        XCTAssertEqual(build.contextWindow, 256_000)
+        XCTAssertTrue(build.capabilities.contains(.toolCalling))
+        XCTAssertTrue(build.capabilities.contains(.codeExecution))
+        XCTAssertTrue(build.capabilities.contains(.reasoning))
+        // Build reasoning is always-on and non-configurable — no effort UI/API.
+        XCTAssertNil(build.reasoningConfig)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "grok-build-0.1", provider: .xai))
+
+        let video15 = ModelCatalog.modelInfo(for: "grok-imagine-video-1.5", provider: .xai)
+        XCTAssertTrue(video15.capabilities.contains(.videoGeneration))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "grok-imagine-video-1.5", provider: .xai))
 
         let unknown = ModelCatalog.modelInfo(
             for: "grok-4.3-custom",
@@ -1170,7 +1184,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(grok43.capabilities.contains(.reasoning))
         XCTAssertTrue(grok43.capabilities.contains(.promptCaching))
         XCTAssertFalse(grok43.capabilities.contains(.nativePDF))
-        XCTAssertEqual(grok43.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertEqual(grok43.reasoningConfig?.defaultEffort, .low)
 
         let grok420 = ModelCatalog.modelInfo(
             for: "x-ai/grok-4.20",
@@ -1182,7 +1196,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(grok420.capabilities.contains(.vision))
         XCTAssertTrue(grok420.capabilities.contains(.reasoning))
         XCTAssertTrue(grok420.capabilities.contains(.promptCaching))
-        XCTAssertTrue(grok420.capabilities.contains(.nativePDF))
+        XCTAssertFalse(grok420.capabilities.contains(.nativePDF))
         XCTAssertEqual(grok420.reasoningConfig?.defaultEffort, .medium)
 
         let multiAgent = ModelCatalog.modelInfo(
@@ -1196,7 +1210,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(multiAgent.capabilities.contains(.vision))
         XCTAssertTrue(multiAgent.capabilities.contains(.reasoning))
         XCTAssertTrue(multiAgent.capabilities.contains(.promptCaching))
-        XCTAssertTrue(multiAgent.capabilities.contains(.nativePDF))
+        XCTAssertFalse(multiAgent.capabilities.contains(.nativePDF))
         XCTAssertEqual(multiAgent.reasoningConfig?.type, .effort)
         XCTAssertEqual(multiAgent.reasoningConfig?.defaultEffort, .low)
 
@@ -1554,8 +1568,8 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(grok45.capabilities.contains(.reasoning))
         XCTAssertTrue(grok45.capabilities.contains(.promptCaching))
         XCTAssertTrue(grok45.capabilities.contains(.nativePDF))
-        // Code execution is not documented for grok-4.5 — stay conservative.
-        XCTAssertFalse(grok45.capabilities.contains(.codeExecution))
+        // code_interpreter is documented for grok-4.5 in the tools overview examples.
+        XCTAssertTrue(grok45.capabilities.contains(.codeExecution))
         XCTAssertEqual(grok45.reasoningConfig?.type, .effort)
         XCTAssertEqual(grok45.reasoningConfig?.defaultEffort, .high)
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "grok-4.5", provider: .xai))

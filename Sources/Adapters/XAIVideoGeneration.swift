@@ -10,35 +10,43 @@ extension XAIAdapter {
         controls: GenerationControls
     ) throws -> AsyncThrowingStream<StreamEvent, Error> {
         let videoInput = XAIVideoInputSupport.videoInputForVideoGeneration(from: messages)
-        let imageURL = try imageURLForImageGeneration(from: messages)
-        let isVideoToVideo = videoInput != nil
-        let isImageToVideo = !isVideoToVideo && imageURL?.isEmpty == false
+        let imageURLs = try XAIMediaImageSupport.imageURLsForVideoGeneration(from: messages)
 
-        // Some models (e.g. grok-imagine-video-1.5) reject text-only prompts and
-        // require an image. Fail fast with guidance instead of firing a request
-        // the API will reject with "Text-to-video is not supported for this model."
-        if !isVideoToVideo, !isImageToVideo,
-           XAIModelSupport.requiresImageInputForVideoGeneration(modelID) {
-            throw LLMError.invalidRequest(
-                message: "This model doesn't support text-to-video. Attach a starting image to generate a video (image-to-video)."
+        // Fail fast (before returning a stream / hitting the network) when mode
+        // can already be validated from attachments alone. Video URL resolution
+        // may need async R2 upload, so that path is resolved inside the task.
+        let needsAsyncVideoResolution = videoInput != nil
+            || controls.xaiVideoGeneration?.mode == .editVideo
+            || controls.xaiVideoGeneration?.mode == .extendVideo
+        if !needsAsyncVideoResolution {
+            _ = try XAIVideoModeResolution.resolve(
+                modelID: modelID,
+                controls: controls.xaiVideoGeneration,
+                imageURLs: imageURLs,
+                videoURL: nil
             )
         }
-
-        let prompt = try mediaPrompt(
-            from: messages,
-            mode: isVideoToVideo ? .video : (isImageToVideo ? .image : .none)
-        )
 
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let resolvedVideoURL = try await resolvedVideoURL(for: videoInput)
+                    let resolved = try XAIVideoModeResolution.resolve(
+                        modelID: modelID,
+                        controls: controls.xaiVideoGeneration,
+                        imageURLs: imageURLs,
+                        videoURL: resolvedVideoURL
+                    )
+
+                    let prompt = try mediaPrompt(from: messages, mode: resolved.promptMode)
 
                     let startRequest = try buildVideoGenerationRequest(
                         modelID: modelID,
                         prompt: prompt,
-                        imageURL: isImageToVideo ? imageURL : nil,
-                        videoURL: isVideoToVideo ? resolvedVideoURL : nil,
+                        imageURL: resolved.imageURL,
+                        referenceImageURLs: resolved.referenceImageURLs,
+                        videoURL: resolved.videoURL,
+                        mode: resolved.mode,
                         controls: controls
                     )
                     let decoder = JSONDecoder.snakeCaseConverting()
@@ -181,14 +189,18 @@ extension XAIAdapter {
         modelID: String,
         prompt: String,
         imageURL: String?,
+        referenceImageURLs: [String] = [],
         videoURL: String?,
+        mode: XAIVideoRequestMode,
         controls: GenerationControls
     ) throws -> URLRequest {
         let components = XAIMediaRequestSupport.videoRequestComponents(
             modelID: modelID,
             prompt: prompt,
             imageURL: imageURL,
+            referenceImageURLs: referenceImageURLs,
             videoURL: videoURL,
+            mode: mode,
             controls: controls.xaiVideoGeneration
         )
         var body = components.body
@@ -201,6 +213,33 @@ extension XAIAdapter {
             body: body,
             accept: nil,
             includeUserAgent: false
+        )
+    }
+
+    /// Compatibility shim for older call sites/tests.
+    func buildVideoGenerationRequest(
+        modelID: String,
+        prompt: String,
+        imageURL: String?,
+        videoURL: String?,
+        controls: GenerationControls
+    ) throws -> URLRequest {
+        let mode: XAIVideoRequestMode
+        if videoURL?.isEmpty == false {
+            mode = (controls.xaiVideoGeneration?.mode == .extendVideo) ? .extendVideo : .editVideo
+        } else if imageURL?.isEmpty == false {
+            mode = .imageToVideo
+        } else {
+            mode = .textToVideo
+        }
+        return try buildVideoGenerationRequest(
+            modelID: modelID,
+            prompt: prompt,
+            imageURL: imageURL,
+            referenceImageURLs: [],
+            videoURL: videoURL,
+            mode: mode,
+            controls: controls
         )
     }
 

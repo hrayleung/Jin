@@ -14,6 +14,10 @@ extension XAIAdapter {
         try XAIMediaImageSupport.imageURLForImageGeneration(from: messages)
     }
 
+    func imageURLsForVideoGeneration(from messages: [Message]) throws -> [String] {
+        try XAIMediaImageSupport.imageURLsForVideoGeneration(from: messages)
+    }
+
     func imageURLString(_ image: ImageContent) throws -> String? {
         try XAIMediaImageSupport.imageURLString(image)
     }

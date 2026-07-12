@@ -223,18 +223,20 @@ extension ModelCatalog {
     // MARK: OpenRouter
 
     static let openRouterRecords: [Record] = [
+        // OpenRouter: no native PDF path (adapter text-fallbacks files). Effort default
+        // is `low` per OpenRouter model card; context for 4.20 family is 2M on OR.
         Record(id: "x-ai/grok-4.3", displayName: "xAI: Grok 4.3",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_000_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
                isFullySupported: true, isSeeded: false),
         Record(id: "x-ai/grok-4.20", displayName: "xAI: Grok 4.20",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 2_000_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "x-ai/grok-4.20-multi-agent", displayName: "xAI: Grok 4.20 Multi-Agent",
-               capabilities: [.streaming, .vision, .reasoning, .promptCaching, .nativePDF],
+               capabilities: [.streaming, .vision, .reasoning, .promptCaching],
                contextWindow: 2_000_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
                isFullySupported: true, isSeeded: false),
@@ -438,7 +440,7 @@ extension ModelCatalog {
         Record(id: "x-ai/grok-build-0.1", displayName: "xAI: Grok Build 0.1",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 256000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
         Record(id: "anthropic/claude-opus-4.7-fast", displayName: "Anthropic: Claude Opus 4.7 (Fast)",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
@@ -766,6 +768,7 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
         // Grok 4.5 (created 2026-07-08): 500K ctx, max output unpublished
         // (max_completion_tokens null), reasoning mandatory low/medium/high default high.
+        // nativePDF kept off on OpenRouter (gateway PDF modality is not guaranteed).
         Record(id: "x-ai/grok-4.5", displayName: "xAI: Grok 4.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 500000,
