@@ -28,6 +28,7 @@ struct DataSettingsView: View {
         JinSettingsPage {
             DataSettingsStorageSection(
                 totalBytes: totalBytes,
+                snapshots: snapshots,
                 isCalculating: isCalculating,
                 onRecalculate: recalculate
             )

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DataSettingsStorageSection: View {
     let totalBytes: Int64
+    let snapshots: [StorageCategorySnapshot]
     let isCalculating: Bool
     let onRecalculate: () -> Void
 
@@ -9,6 +10,8 @@ struct DataSettingsStorageSection: View {
         JinSettingsSection("Storage") {
             storageDescription
             totalHeaderRow
+            DataSettingsCompositionBar(snapshots: snapshots, totalBytes: totalBytes)
+                .padding(.vertical, JinSpacing.xSmall)
             DataSettingsTotalStorageRow(totalBytes: totalBytes)
         }
     }
