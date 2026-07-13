@@ -39,7 +39,7 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
         if isWebSearchEnabled {
             if supportsSearchEngineModeSwitch {
                 Divider()
-                Menu("Engine") {
+                Menu(engineMenuTitle) {
                     Button {
                         onSetSearchEnginePreference(false)
                     } label: {
@@ -52,11 +52,12 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                         menuItemLabel("Jin Search", usesBuiltinSearchPlugin)
                     }
                 }
+                .id("web-search-engine-\(usesBuiltinSearchPlugin)")
             }
 
             if usesBuiltinSearchPlugin {
                 Divider()
-                Menu("Provider") {
+                Menu(providerMenuTitle) {
                     ForEach(SearchPluginProvider.allCases) { provider in
                         Button {
                             onSelectSearchProvider(provider)
@@ -65,8 +66,9 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                         }
                     }
                 }
+                .id("web-search-provider-\(effectiveSearchPluginProvider.rawValue)")
 
-                Menu("Max Results") {
+                Menu(maxResultsMenuTitle) {
                     ForEach([3, 5, 8, 10, 20, 30, 50], id: \.self) { value in
                         Button {
                             onSelectBuiltinMaxResults(value)
@@ -75,8 +77,9 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                         }
                     }
                 }
+                .id("web-search-max-results-\(builtinMaxResults)")
 
-                Menu("Recency") {
+                Menu(recencyMenuTitle) {
                     Button {
                         onSelectBuiltinRecencyDays(nil)
                     } label: {
@@ -91,6 +94,7 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                         }
                     }
                 }
+                .id("web-search-recency-\(builtinRecencyDays.map(String.init) ?? "any")")
 
                 Divider()
                 Toggle("Include raw snippets", isOn: builtinSearchIncludeRawBinding)
@@ -136,7 +140,7 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                     }
                 case .mimoTokenPlanOpenAI:
                     Divider()
-                    Menu("Max Keywords") {
+                    Menu(maxKeywordsMenuTitle) {
                         Button {
                             onSelectAnthropicMaxUses(nil)
                         } label: {
@@ -150,9 +154,10 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                             }
                         }
                     }
+                    .id("web-search-max-keywords-\(anthropicMaxUses.map(String.init) ?? "default")")
                 case .anthropic:
                     Divider()
-                    Menu("Max Uses") {
+                    Menu(maxUsesMenuTitle) {
                         Button {
                             onSelectAnthropicMaxUses(nil)
                         } label: {
@@ -166,6 +171,7 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                             }
                         }
                     }
+                    .id("web-search-max-uses-\(anthropicMaxUses.map(String.init) ?? "default")")
                     if supportsAnthropicDynamicFiltering {
                         Toggle("Dynamic Filtering", isOn: anthropicDynamicFilteringBinding)
                     }
@@ -181,5 +187,50 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+    }
+
+    private var engineMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Engine",
+            current: usesBuiltinSearchPlugin ? "Jin Search" : "Native"
+        )
+    }
+
+    private var providerMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Provider",
+            current: effectiveSearchPluginProvider.displayName
+        )
+    }
+
+    private var maxResultsMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Max Results",
+            current: "\(builtinMaxResults)"
+        )
+    }
+
+    private var recencyMenuTitle: String {
+        let current: String
+        if let builtinRecencyDays {
+            current = "Past \(builtinRecencyDays)d"
+        } else {
+            current = "Any time"
+        }
+        return ChatAuxiliaryControlSupport.nestedMenuTitle("Recency", current: current)
+    }
+
+    private var maxKeywordsMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Max Keywords",
+            current: anthropicMaxUses.map(String.init) ?? "Default"
+        )
+    }
+
+    private var maxUsesMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Max Uses",
+            current: anthropicMaxUses.map(String.init) ?? "Default (10)"
+        )
     }
 }

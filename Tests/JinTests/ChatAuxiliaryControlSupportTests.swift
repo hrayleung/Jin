@@ -1160,6 +1160,29 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
         )
     }
 
+    func testNestedMenuTitleShowsCurrentValueWithMiddleDot() {
+        XCTAssertEqual(
+            ChatAuxiliaryControlSupport.nestedMenuTitle("Engine", current: "Native"),
+            "Engine · Native"
+        )
+        XCTAssertEqual(
+            ChatAuxiliaryControlSupport.nestedMenuTitle("Engine", current: "Jin Search"),
+            "Engine · Jin Search"
+        )
+        XCTAssertEqual(
+            ChatAuxiliaryControlSupport.nestedMenuTitle("Max Results", current: "10"),
+            "Max Results · 10"
+        )
+        XCTAssertEqual(
+            ChatAuxiliaryControlSupport.nestedMenuTitle("Duration", current: nil),
+            "Duration"
+        )
+        XCTAssertEqual(
+            ChatAuxiliaryControlSupport.nestedMenuTitle("Duration", current: ""),
+            "Duration"
+        )
+    }
+
     func testWebSearchPresentationMatchesSupportAndEnabledState() {
         XCTAssertEqual(
             ChatAuxiliaryControlSupport.webSearchHelpText(

@@ -146,14 +146,16 @@ extension ChatView {
     }
 
     func menuItemLabel(_ title: String, isSelected: Bool) -> some View {
-        HStack {
+        // Leading checkmark is the reliable macOS menu selection affordance;
+        // trailing Spacer checkmarks collapse / vanish in nested Menu flyouts.
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.primary)
+                .opacity(isSelected ? 1 : 0)
+                .frame(width: 14, alignment: .center)
             Text(title)
                 .fixedSize()
-            if isSelected {
-                Spacer()
-                Image(systemName: "checkmark")
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 

@@ -44,7 +44,7 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
         Divider()
 
-        Menu("Count") {
+        Menu(countMenuTitle) {
             Button {
                 onSetCount(nil)
             } label: {
@@ -58,8 +58,9 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+        .id("openai-image-count-\(currentCount.map(String.init) ?? "default")")
 
-        Menu("Size") {
+        Menu(sizeMenuTitle) {
             Button {
                 onSetSize(nil)
             } label: {
@@ -83,9 +84,10 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+        .id("openai-image-size-\(currentSize?.rawValue ?? "default")")
 
         if !availableQualities.isEmpty {
-            Menu("Quality") {
+            Menu(qualityMenuTitle) {
                 Button {
                     onSetQuality(nil)
                 } label: {
@@ -99,10 +101,11 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("openai-image-quality-\(currentQuality?.rawValue ?? "default")")
         }
 
         if showsStyle {
-            Menu("Style") {
+            Menu(styleMenuTitle) {
                 Button {
                     onSetStyle(nil)
                 } label: {
@@ -116,10 +119,11 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("openai-image-style-\(currentStyle?.rawValue ?? "default")")
         }
 
         if !availableBackgrounds.isEmpty {
-            Menu("Background") {
+            Menu(backgroundMenuTitle) {
                 Button {
                     onSetBackground(nil)
                 } label: {
@@ -133,10 +137,11 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("openai-image-background-\(currentBackground?.rawValue ?? "default")")
         }
 
         if showsOutputFormat {
-            Menu("Output Format") {
+            Menu(outputFormatMenuTitle) {
                 Button {
                     onSetOutputFormat(nil)
                 } label: {
@@ -150,10 +155,11 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("openai-image-output-format-\(currentOutputFormat?.rawValue ?? "default")")
         }
 
         if showsOutputFormat, (currentOutputFormat == .jpeg || currentOutputFormat == .webp) {
-            Menu("Compression") {
+            Menu(compressionMenuTitle) {
                 Button {
                     onSetOutputCompression(nil)
                 } label: {
@@ -167,10 +173,11 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("openai-image-compression-\(currentOutputCompression.map(String.init) ?? "default")")
         }
 
         if showsModeration {
-            Menu("Moderation") {
+            Menu(moderationMenuTitle) {
                 Button {
                     onSetModeration(nil)
                 } label: {
@@ -184,10 +191,11 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("openai-image-moderation-\(currentModeration?.rawValue ?? "default")")
         }
 
         if showsInputFidelity {
-            Menu("Input Fidelity") {
+            Menu(inputFidelityMenuTitle) {
                 Button {
                     onSetInputFidelity(nil)
                 } label: {
@@ -201,11 +209,77 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("openai-image-input-fidelity-\(currentInputFidelity?.rawValue ?? "default")")
         }
 
         if isConfigured {
             Divider()
             Button("Reset", role: .destructive, action: onReset)
         }
+    }
+
+    private var countMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Count",
+            current: currentCount.map(String.init)
+        )
+    }
+
+    private var sizeMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Size",
+            current: currentSizeIsCustom
+                ? "Custom (\(currentSize?.displayName ?? ""))"
+                : currentSize?.displayName
+        )
+    }
+
+    private var qualityMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Quality",
+            current: currentQuality?.displayName
+        )
+    }
+
+    private var styleMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Style",
+            current: currentStyle?.displayName
+        )
+    }
+
+    private var backgroundMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Background",
+            current: currentBackground?.displayName
+        )
+    }
+
+    private var outputFormatMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Output Format",
+            current: currentOutputFormat?.displayName
+        )
+    }
+
+    private var compressionMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Compression",
+            current: currentOutputCompression.map { "\($0)%" }
+        )
+    }
+
+    private var moderationMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Moderation",
+            current: currentModeration?.displayName
+        )
+    }
+
+    private var inputFidelityMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Input Fidelity",
+            current: currentInputFidelity?.displayName
+        )
     }
 }

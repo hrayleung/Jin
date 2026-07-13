@@ -19,7 +19,7 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
         Divider()
 
-        Menu("Count") {
+        Menu(countMenuTitle) {
             Button {
                 onSetCount(nil)
             } label: {
@@ -33,8 +33,9 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+        .id("xai-image-count-\(currentCount.map(String.init) ?? "default")")
 
-        Menu("Aspect ratio") {
+        Menu(aspectMenuTitle) {
             Button {
                 onSetAspectRatio(nil)
             } label: {
@@ -48,9 +49,10 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+        .id("xai-image-aspect-\(selectedAspectRatio?.rawValue ?? "default")")
 
         if supportsResolution {
-            Menu("Resolution") {
+            Menu(resolutionMenuTitle) {
                 Button {
                     onSetResolution(nil)
                 } label: {
@@ -64,11 +66,33 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("xai-image-resolution-\(currentResolution?.rawValue ?? "default")")
         }
 
         if isConfigured {
             Divider()
             Button("Reset", role: .destructive, action: onReset)
         }
+    }
+
+    private var countMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Count",
+            current: currentCount.map(String.init)
+        )
+    }
+
+    private var aspectMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Aspect ratio",
+            current: selectedAspectRatio?.displayName
+        )
+    }
+
+    private var resolutionMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Resolution",
+            current: currentResolution?.displayName
+        )
     }
 }
