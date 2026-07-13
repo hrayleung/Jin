@@ -109,4 +109,27 @@ final class DataSettingsSupportTests: XCTestCase {
         XCTAssertEqual(DataSettingsSupport.shellQuoted("/tmp/Jin's.app"), "'/tmp/Jin'\\''s.app'")
         XCTAssertEqual(DataSettingsSupport.shellQuoted(""), "''")
     }
+
+    func testShareFractionHandlesZeroAndPositiveTotals() {
+        XCTAssertEqual(DataSettingsFormatting.shareFraction(bytes: 50, total: 0), 0)
+        XCTAssertEqual(DataSettingsFormatting.shareFraction(bytes: 0, total: 100), 0)
+        XCTAssertEqual(DataSettingsFormatting.shareFraction(bytes: 25, total: 100), 0.25, accuracy: 0.000_001)
+        XCTAssertEqual(DataSettingsFormatting.shareFraction(bytes: 267, total: 304), 267.0 / 304.0, accuracy: 0.000_001)
+    }
+
+    func testSharePercentOmitsZeroAndRoundsTinyNonZeroShares() {
+        XCTAssertNil(DataSettingsFormatting.sharePercent(bytes: 0, total: 100))
+        XCTAssertNil(DataSettingsFormatting.sharePercent(bytes: 10, total: 0))
+        XCTAssertEqual(DataSettingsFormatting.sharePercent(bytes: 88, total: 100), 88)
+        // 7 / 3_040_000_000 would round to 0% — surface as 1% so non-zero usage is visible.
+        XCTAssertEqual(DataSettingsFormatting.sharePercent(bytes: 7, total: 3_040_000_000), 1)
+        XCTAssertEqual(DataSettingsFormatting.sharePercent(bytes: 2_670_000_000, total: 3_040_000_000), 88)
+    }
+
+    func testFormattedShareMatchesPercentRules() {
+        XCTAssertNil(DataSettingsFormatting.formattedShare(bytes: 0, total: 100))
+        XCTAssertNil(DataSettingsFormatting.formattedShare(bytes: 10, total: 0))
+        XCTAssertEqual(DataSettingsFormatting.formattedShare(bytes: 88, total: 100), "88%")
+        XCTAssertEqual(DataSettingsFormatting.formattedShare(bytes: 7, total: 3_040_000_000), "1%")
+    }
 }

@@ -24,11 +24,73 @@ struct DataSettingsTotalStorageRow: View {
     }
 }
 
+/// macOS System Settings–style stacked bar: each segment is a storage category’s share of total.
+struct DataSettingsCompositionBar: View {
+    let snapshots: [StorageCategorySnapshot]
+    let totalBytes: Int64
+
+    private var segments: [(id: String, category: StorageCategory, fraction: Double)] {
+        guard totalBytes > 0 else { return [] }
+        return snapshots.compactMap { snapshot in
+            let fraction = DataSettingsFormatting.shareFraction(
+                bytes: snapshot.byteCount,
+                total: totalBytes
+            )
+            guard fraction > 0 else { return nil }
+            return (snapshot.id, snapshot.category, fraction)
+        }
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(JinSemanticColor.subtleSurface)
+
+                if !segments.isEmpty {
+                    HStack(spacing: 1) {
+                        ForEach(segments, id: \.id) { segment in
+                            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                .fill(segment.category.chartColor)
+                                .frame(width: max(2, width * segment.fraction))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                }
+            }
+        }
+        .frame(height: 8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Storage breakdown")
+        .accessibilityValue(accessibilitySummary)
+    }
+
+    private var accessibilitySummary: String {
+        guard totalBytes > 0 else {
+            return "No storage used"
+        }
+        let summary = snapshots.compactMap { snapshot -> String? in
+            guard let share = DataSettingsFormatting.formattedShare(
+                bytes: snapshot.byteCount,
+                total: totalBytes
+            ) else { return nil }
+            return "\(snapshot.category.label) \(share)"
+        }
+        return summary.isEmpty ? "No storage used" : summary.joined(separator: ", ")
+    }
+}
+
 struct DataSettingsStorageCategoryRow: View {
     let snapshot: StorageCategorySnapshot
     let totalBytes: Int64
     let onReveal: (StorageCategorySnapshot) -> Void
     let onRequestClear: (StorageCategory) -> Void
+
+    private var shareText: String? {
+        DataSettingsFormatting.formattedShare(bytes: snapshot.byteCount, total: totalBytes)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
@@ -38,15 +100,13 @@ struct DataSettingsStorageCategoryRow: View {
                 } icon: {
                     Image(systemName: snapshot.category.systemImage)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(snapshot.category.chartColor)
                         .frame(width: 16)
                 }
 
                 Spacer()
 
-                Text(DataSettingsFormatting.formattedSize(snapshot.byteCount))
-                    .font(.system(.callout, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                sizeLabel
             }
 
             HStack(spacing: JinSpacing.small) {
@@ -82,30 +142,41 @@ struct DataSettingsStorageCategoryRow: View {
                     .help(snapshot.byteCount > 0 ? "Clear \(snapshot.category.label)" : "Nothing to clear")
                 }
             }
-
-            if totalBytes > 0 && snapshot.byteCount > 0 {
-                DataSettingsStorageBar(fraction: Double(snapshot.byteCount) / Double(totalBytes))
-            }
         }
         .padding(.vertical, JinSpacing.xSmall)
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var sizeLabel: some View {
+        HStack(spacing: 4) {
+            Text(DataSettingsFormatting.formattedSize(snapshot.byteCount))
+                .font(.system(.callout, design: .monospaced))
+                .foregroundStyle(.secondary)
+
+            if let shareText {
+                Text("·")
+                    .font(.system(.callout, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+
+                Text(shareText)
+                    .font(.system(.callout, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+        }
     }
 }
 
-private struct DataSettingsStorageBar: View {
-    let fraction: Double
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(JinSemanticColor.subtleSurface)
-                    .frame(height: 3)
-
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.6))
-                    .frame(width: max(3, geometry.size.width * fraction), height: 3)
-            }
+extension StorageCategory {
+    /// Distinct chart color for the composition bar and breakdown list swatches.
+    var chartColor: Color {
+        switch self {
+        case .attachments: return .blue
+        case .database: return .purple
+        case .networkLogs: return .orange
+        case .chatDiagnostics: return .teal
+        case .mcpData: return .green
+        case .legacySpeechModels: return .gray
         }
-        .frame(height: 3)
     }
 }
