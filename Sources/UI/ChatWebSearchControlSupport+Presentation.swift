@@ -1,6 +1,13 @@
 import Foundation
 
 extension ChatAuxiliaryControlSupport {
+    /// Nested composer control menus: show the current value on the parent row.
+    /// Example: `("Engine", "Native")` → `"Engine · Native"`; `current == nil` keeps the base title.
+    static func nestedMenuTitle(_ base: String, current: String?) -> String {
+        guard let current, !current.isEmpty else { return base }
+        return "\(base) · \(current)"
+    }
+
     static func webSearchHelpText(
         supportsWebSearchControl: Bool,
         isWebSearchEnabled: Bool,

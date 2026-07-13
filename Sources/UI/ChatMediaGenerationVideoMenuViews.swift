@@ -24,7 +24,7 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
 
         Divider()
 
-        Menu("Duration") {
+        Menu(durationMenuTitle) {
             Button {
                 onSetDurationSeconds(nil)
             } label: {
@@ -38,8 +38,9 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+        .id("google-video-duration-\(currentDurationSeconds.map(String.init) ?? "default")")
 
-        Menu("Aspect ratio") {
+        Menu(aspectMenuTitle) {
             Button {
                 onSetAspectRatio(nil)
             } label: {
@@ -53,9 +54,10 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+        .id("google-video-aspect-\(currentAspectRatio?.rawValue ?? "default")")
 
         if isVeo3 {
-            Menu("Resolution") {
+            Menu(resolutionMenuTitle) {
                 Button {
                     onSetResolution(nil)
                 } label: {
@@ -69,9 +71,10 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("google-video-resolution-\(currentResolution?.rawValue ?? "default")")
         }
 
-        Menu("Person generation") {
+        Menu(personGenerationMenuTitle) {
             Button {
                 onSetPersonGeneration(nil)
             } label: {
@@ -85,6 +88,7 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+        .id("google-video-person-\(currentPersonGeneration?.rawValue ?? "default")")
 
         if isVertexProvider, isVeo3 {
             Toggle("Generate audio", isOn: generateAudioBinding)
@@ -94,6 +98,34 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
             Divider()
             Button("Reset", role: .destructive, action: onReset)
         }
+    }
+
+    private var durationMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Duration",
+            current: currentDurationSeconds.map { "\($0)s" }
+        )
+    }
+
+    private var aspectMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Aspect ratio",
+            current: currentAspectRatio?.displayName
+        )
+    }
+
+    private var resolutionMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Resolution",
+            current: currentResolution?.displayName
+        )
+    }
+
+    private var personGenerationMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Person generation",
+            current: currentPersonGeneration?.displayName
+        )
     }
 }
 
@@ -125,21 +157,12 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
         Divider()
 
         // Title includes the active mode so the choice is visible even before opening the submenu.
-        Menu("Mode · \(currentMode.displayName)") {
+        Menu(ChatAuxiliaryControlSupport.nestedMenuTitle("Mode", current: currentMode.displayName)) {
             ForEach(availableModes, id: \.self) { mode in
                 Button {
                     onSetMode(mode)
                 } label: {
-                    // Leading checkmark is the reliable macOS menu selection affordance;
-                    // trailing Spacer checkmarks are easy to miss / collapse in nested menus.
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .opacity(mode == currentMode ? 1 : 0)
-                            .frame(width: 14, alignment: .center)
-                        Text(mode.displayName)
-                    }
+                    menuItemLabel(mode.displayName, mode == currentMode)
                 }
             }
         }
@@ -161,6 +184,7 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("xai-video-duration-\(currentDuration.map(String.init) ?? "default")")
         }
 
         if showsAspectAndResolution {
@@ -181,6 +205,7 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("xai-video-aspect-\(currentAspectRatio?.rawValue ?? "default")")
 
             Menu(resolutionMenuTitle) {
                 Button {
@@ -196,6 +221,7 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
                     }
                 }
             }
+            .id("xai-video-resolution-\(currentResolution?.rawValue ?? "default")")
         }
 
         if isConfigured {
@@ -205,24 +231,24 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
     }
 
     private var durationMenuTitle: String {
-        if let currentDuration {
-            return "Duration · \(currentDuration)s"
-        }
-        return "Duration"
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Duration",
+            current: currentDuration.map { "\($0)s" }
+        )
     }
 
     private var aspectMenuTitle: String {
-        if let currentAspectRatio {
-            return "Aspect ratio · \(currentAspectRatio.displayName)"
-        }
-        return "Aspect ratio"
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Aspect ratio",
+            current: currentAspectRatio?.displayName
+        )
     }
 
     private var resolutionMenuTitle: String {
-        if let currentResolution {
-            return "Resolution · \(currentResolution.displayName)"
-        }
-        return "Resolution"
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Resolution",
+            current: currentResolution?.displayName
+        )
     }
 }
 
@@ -253,7 +279,7 @@ struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
 
         Divider()
 
-        Menu("Duration") {
+        Menu(durationMenuTitle) {
             Button {
                 onSetDurationSeconds(nil)
             } label: {
@@ -267,8 +293,9 @@ struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+        .id("openrouter-video-duration-\(currentDurationSeconds.map(String.init) ?? "default")")
 
-        Menu("Aspect ratio") {
+        Menu(aspectMenuTitle) {
             Button {
                 onSetAspectRatio(nil)
             } label: {
@@ -282,8 +309,9 @@ struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+        .id("openrouter-video-aspect-\(currentAspectRatio?.rawValue ?? "default")")
 
-        Menu("Resolution") {
+        Menu(resolutionMenuTitle) {
             Button {
                 onSetResolution(nil)
             } label: {
@@ -297,8 +325,9 @@ struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+        .id("openrouter-video-resolution-\(currentResolution?.rawValue ?? "default")")
 
-        Menu("Image mode") {
+        Menu(imageModeMenuTitle) {
             Button {
                 onSetImageInputMode(nil)
             } label: {
@@ -312,6 +341,7 @@ struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
                 }
             }
         }
+        .id("openrouter-video-image-mode-\(currentImageInputMode?.rawValue ?? "default")")
 
         if showsAudioToggle {
             Toggle("Generate audio", isOn: generateAudioBinding)
@@ -325,5 +355,33 @@ struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
             Divider()
             Button("Reset", role: .destructive, action: onReset)
         }
+    }
+
+    private var durationMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Duration",
+            current: currentDurationSeconds.map { "\($0)s" }
+        )
+    }
+
+    private var aspectMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Aspect ratio",
+            current: currentAspectRatio?.displayName
+        )
+    }
+
+    private var resolutionMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Resolution",
+            current: currentResolution?.displayName
+        )
+    }
+
+    private var imageModeMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Image mode",
+            current: currentImageInputMode?.displayName
+        )
     }
 }
