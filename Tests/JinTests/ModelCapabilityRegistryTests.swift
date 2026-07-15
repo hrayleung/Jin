@@ -137,19 +137,19 @@ final class ModelCapabilityRegistryTests: XCTestCase {
                 "\(modelID) supports xhigh natively"
             )
 
-            // Per Anthropic's launch docs, Fable 5 / Mythos 5 do NOT support server-side
-            // web search, web fetch, or code execution at launch.
-            XCTAssertFalse(
+            // Official Supported features (2026-07) list code execution for Fable/Mythos 5.
+            // Web search dynamic filtering is also documented for Fable 5 / Mythos 5.
+            XCTAssertTrue(
                 ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: modelID),
-                "\(modelID) does not support code execution at launch"
+                "\(modelID) supports code execution"
             )
-            XCTAssertFalse(
+            XCTAssertTrue(
                 ModelCapabilityRegistry.supportsWebSearch(for: .anthropic, modelID: modelID),
-                "\(modelID) does not support the web search tool at launch"
+                "\(modelID) supports the web search tool"
             )
-            XCTAssertFalse(
+            XCTAssertTrue(
                 ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(for: .anthropic, modelID: modelID),
-                "\(modelID) is not on the dynamic-filtering list (only Mythos Preview is, not Mythos 5)"
+                "\(modelID) supports web search dynamic filtering"
             )
         }
 
@@ -210,7 +210,7 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-2.5-flash-preview"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-2.5-flash-lite-preview"))
 
-        XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-3.1-flash-lite"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-3.1-flash-lite"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-3"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-3-pro-image-preview"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-2.5-flash-image"))
@@ -245,7 +245,7 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "gemini-2.5-flash-preview"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "gemini-2.5-flash-lite-preview"))
 
-        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "gemini-3.1-flash-lite"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "gemini-3.1-flash-lite"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "gemini-2.0-flash-lite"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "veo-2"))
     }
@@ -301,7 +301,10 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.0-flash-lite"))
 
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3-pro-preview"))
-        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3-pro-image-preview"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.1-pro-preview"))
+        // Image models do not support Maps grounding.
+        XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3-pro-image-preview"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3-pro-image"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-2.5-flash"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-2.5-flash-preview-09-2025"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-2.5-flash-lite-preview-09-2025"))
@@ -311,7 +314,6 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-2.0-flash-001"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3-flash-preview"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.5-flash"))
-        XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.1-pro-preview"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .openai, modelID: "gpt-5"))
     }
 

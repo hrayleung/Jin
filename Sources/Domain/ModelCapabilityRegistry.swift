@@ -39,6 +39,7 @@ enum ModelCapabilityRegistry {
     ]
 
     private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
+        "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
         "gpt-5.6-terra",
@@ -70,12 +71,44 @@ enum ModelCapabilityRegistry {
     /// (Sol/Terra/Luna support none|low|medium|high|xhigh|max; `minimal` was dropped).
     /// Older 5.x models reject "max", so it stays clamped to xhigh for them.
     private static let openAIStyleMaxEffortModelIDs: Set<String> = [
+        "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
         "gpt-5.6-terra",
         "gpt-5.6-terra-pro",
         "gpt-5.6-luna",
         "gpt-5.6-luna-pro",
+    ]
+
+    /// Models that accept Responses API `reasoning.mode = "pro"` (GPT-5.6 family).
+    /// Pro is a request-time mode on the same model ID, not a separate OpenAI slug.
+    private static let openAIStyleProModeModelIDs: Set<String> = [
+        "gpt-5.6",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+    ]
+
+    /// Models that accept Responses API `text.verbosity`.
+    private static let openAIStyleVerbosityModelIDs: Set<String> = [
+        "gpt-5.6",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-5.5",
+        "gpt-5.5-2026-04-23",
+        "gpt-5.5-pro",
+        "gpt-5.5-pro-2026-04-23",
+        "gpt-5.4",
+        "gpt-5.4-2026-03-05",
+        "gpt-5.4-pro",
+        "gpt-5.4-pro-2026-03-05",
+        "gpt-5.4-mini",
+        "gpt-5.4-mini-2026-03-17",
+        "gpt-5.4-nano",
+        "gpt-5.4-nano-2026-03-17",
+        "gpt-5.2",
+        "gpt-5.2-2025-12-11",
     ]
 
     /// Gemini 3 Flash / 3.5 Flash supports MINIMAL/LOW/MEDIUM/HIGH.
@@ -86,6 +119,7 @@ enum ModelCapabilityRegistry {
 
     /// Gemini 3.1 Flash Image supports MINIMAL/HIGH.
     private static let gemini31FlashImageEffortModelIDs: Set<String> = [
+        "gemini-3.1-flash-image",
         "gemini-3.1-flash-image-preview",
     ]
 
@@ -99,6 +133,7 @@ enum ModelCapabilityRegistry {
         "gemini-3",
         "gemini-3-pro",
         "gemini-3-pro-preview",
+        "gemini-3-pro-image",
         "gemini-3-pro-image-preview",
     ]
 
@@ -108,7 +143,9 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
         "gemini-3-flash-preview",
+        "gemini-3-pro-image",
         "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image",
         "gemini-3.1-flash-image-preview",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.1-flash-lite",
@@ -128,8 +165,11 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
         "gemini-3-flash-preview",
+        "gemini-3-pro-image",
         "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image",
         "gemini-3.1-flash-image-preview",
+        "gemini-3.1-flash-lite",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.5-flash",
         "gemini-2.5-pro",
@@ -146,7 +186,9 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
         "gemini-3-flash-preview",
+        "gemini-3-pro-image",
         "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image",
         "gemini-3.1-flash-image-preview",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.1-flash-lite",
@@ -178,6 +220,8 @@ enum ModelCapabilityRegistry {
         "gemini-2.0-flash-001",
     ]
 
+    // Note: image-generation models intentionally omitted from Maps (docs: not supported).
+
     /// Models supporting grounding with Google Maps in Vertex AI.
     /// Vertex documentation's Google Maps grounding pages list these exact model IDs
     /// or exact model families as supported as of May 21, 2026. Keep this list
@@ -191,8 +235,9 @@ enum ModelCapabilityRegistry {
     ///   (for example `gemini-2.5-flash-preview`) so previously-saved conversations
     ///   do not silently lose the Maps UI toggle.
     private static let vertexGoogleMapsSupportedModelIDs: Set<String> = [
+        // Keep constrained to Vertex-documented Maps IDs; do not broaden from AI Studio lists.
         "gemini-3-pro-preview",
-        "gemini-3-pro-image-preview",
+        "gemini-3.1-pro-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -233,6 +278,7 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-pro-preview",
         "gemini-3-flash",
         "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.5-flash",
         "gemini-2.5-pro",
@@ -244,6 +290,8 @@ enum ModelCapabilityRegistry {
         "gemini-2.0-flash-001",
     ]
 
+    // Note: OpenAI code interpreter set continues below.
+
     /// Exact model IDs that OpenAI currently documents as supporting the built-in Code interpreter tool.
     /// Keep this conservative: do not broaden to unlisted realtime/audio families.
     private static let openAICodeInterpreterSupportedModelIDs: Set<String> = [
@@ -251,6 +299,7 @@ enum ModelCapabilityRegistry {
         "gpt-4.1-2025-04-14",
         "gpt-5",
         "gpt-5-2025-08-07",
+        "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
@@ -275,7 +324,10 @@ enum ModelCapabilityRegistry {
     ]
 
     /// Exact model IDs that Anthropic currently documents as supporting the code execution tool.
+    /// Includes Fable 5 / Mythos 5 (restored 2026-07 docs list code execution under Supported features).
     private static let anthropicCodeExecutionSupportedModelIDs: Set<String> = [
+        "claude-fable-5",
+        "claude-mythos-5",
         "claude-opus-4-8",
         "claude-opus-4-7",
         "claude-opus-4-6",
@@ -431,6 +483,28 @@ enum ModelCapabilityRegistry {
         return openAIStyleMaxEffortModelIDs.contains(canonicalLowerModelID)
     }
 
+    /// GPT-5.6 Responses API `reasoning.mode = "pro"` (not a separate model slug on OpenAI).
+    static func supportsOpenAIStyleProMode(for providerType: ProviderType?, modelID: String) -> Bool {
+        guard supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) else {
+            return false
+        }
+        let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
+        return openAIStyleProModeModelIDs.contains(canonicalLowerModelID)
+    }
+
+    /// Responses API `text.verbosity` support (exact IDs).
+    /// Limited to native OpenAI / OpenAI WebSocket providers — gateways may not forward the field.
+    static func supportsOpenAIStyleVerbosity(for providerType: ProviderType?, modelID: String) -> Bool {
+        switch providerType {
+        case .openai, .openaiWebSocket, .none:
+            break
+        default:
+            return false
+        }
+        let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
+        return openAIStyleVerbosityModelIDs.contains(canonicalLowerModelID)
+    }
+
     static func supportedReasoningEfforts(for providerType: ProviderType?, modelID: String) -> [ReasoningEffort] {
         let lowerModelID = modelID.lowercased()
 
@@ -582,12 +656,9 @@ enum ModelCapabilityRegistry {
         case .openrouter:
             return supportsOpenRouterWebSearch(lowerModelID: lowerModelID)
         case .anthropic:
-            // Fable 5 / Mythos 5 do not support the server-side web search tool at launch —
-            // Anthropic's "Introducing Claude Fable 5 and Claude Mythos 5" supported-features
-            // list, the web-search-tool model list, and the code-execution model list all omit
-            // them (only the older Mythos Preview is listed for dynamic filtering).
+            // Server-side web search is available on current Claude models including Fable 5 /
+            // Mythos 5 (dynamic filtering docs list them as of 2026-07).
             return isAnthropicModelID(lowerModelID)
-                && !AnthropicModelLimits.isFableMythos5(lowerModelID)
         case .claudeManagedAgents:
             return false
         case .perplexity:
@@ -891,10 +962,13 @@ enum ModelCapabilityRegistry {
     }
 
     /// Models that support the `web_search_20260209` tool with dynamic filtering.
+    /// Documented list includes Fable 5, Mythos 5, Opus 4.8/4.7/4.6, Sonnet 5/4.6.
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
         let lower = modelID.lowercased()
-        return lower == "claude-opus-4-8"
+        return lower == "claude-fable-5"
+            || lower == "claude-mythos-5"
+            || lower == "claude-opus-4-8"
             || lower == "claude-opus-4-7"
             || lower == "claude-opus-4-6"
             || lower == "claude-sonnet-5"

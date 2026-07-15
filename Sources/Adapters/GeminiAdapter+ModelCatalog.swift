@@ -105,7 +105,7 @@ extension GeminiAdapter {
         var reasoningConfig: ModelReasoningConfig?
         if supportsThinking(id) && isGeminiModel {
             caps.insert(.reasoning)
-            if lower == "gemini-3.1-flash-image-preview"
+            if GeminiModelConstants.isFlashImageGenerationModel(id)
                 || lower == "gemini-3.1-flash-lite-preview"
                 || lower == "gemini-3.1-flash-lite" {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .minimal)
@@ -139,9 +139,9 @@ extension GeminiAdapter {
         let contextWindow: Int
         if let inputTokenLimit = model.inputTokenLimit {
             contextWindow = inputTokenLimit
-        } else if lower == "gemini-3-pro-image-preview" {
+        } else if GeminiModelConstants.isProImageGenerationModel(id) {
             contextWindow = 65_536
-        } else if lower == "gemini-3.1-flash-image-preview" {
+        } else if GeminiModelConstants.isFlashImageGenerationModel(id) {
             contextWindow = 131_072
         } else if lower == "gemini-2.5-flash-image" {
             contextWindow = 32_768

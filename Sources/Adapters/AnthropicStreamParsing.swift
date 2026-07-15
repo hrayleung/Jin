@@ -200,6 +200,13 @@ extension AnthropicAdapter {
         case "message_delta":
             if let usage = event.usage {
                 usageAccumulator.merge(usage)
+            }
+            // Claude Fable 5 safety classifiers decline with stop_reason "refusal"
+            // on a successful HTTP 200 stream (not an error status). Surface clearly.
+            if event.delta?.stopReason == "refusal" {
+                return .error(.contentFiltered)
+            }
+            if event.usage != nil {
                 return .messageEnd(usage: usageAccumulator.toUsage())
             }
 

@@ -288,7 +288,10 @@ final class JinModelSupportTests: XCTestCase {
 
     func testGeminiProvider3Point1PreviewIsMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-pro-preview"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-flash-image-preview"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-flash-image"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3-pro-image"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-flash-image-preview"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3-pro-preview"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemma-4-26b-a4b-it"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemma-4-31b-it"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemma-4-31b-it-custom"))
@@ -296,7 +299,9 @@ final class JinModelSupportTests: XCTestCase {
 
     func testVertexAIProvider3Point1PreviewIsMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-3.1-pro-preview"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-3.1-flash-image-preview"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-3.1-flash-image"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-3-pro-image"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-3.1-flash-image-preview"))
     }
 
     func testXAIGrok41FastVariantsUseExactMatch() {
@@ -358,16 +363,42 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testNanoBanana2NativePDFSupportUsesExactMatch() {
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .gemini, modelID: "gemini-3.1-flash-image"))
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .vertexai, modelID: "gemini-3.1-flash-image"))
+        // Retired preview still recognized for legacy chats
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .gemini, modelID: "gemini-3.1-flash-image-preview"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .vertexai, modelID: "gemini-3.1-flash-image-preview"))
     }
 
     func testDeepSeekUsesExactMatchForFullySupportedTag() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-pro"))
+        // Legacy aliases remain fully-supported catalog entries until post-deprecation cleanup.
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-chat"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-reasoner"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v3.2-exp"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-flash"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-pro"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-pro-custom"))
+
+        let seeded = Set(ModelCatalog.seededModels(for: .deepseek).map(\.id))
+        XCTAssertTrue(seeded.contains("deepseek-v4-flash"))
+        XCTAssertTrue(seeded.contains("deepseek-v4-pro"))
+        XCTAssertFalse(seeded.contains("deepseek-chat"))
+        XCTAssertFalse(seeded.contains("deepseek-reasoner"))
+    }
+
+    func testGPT56AliasAndProModeSupport() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openai, modelID: "gpt-5.6"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openai, modelID: "gpt-5.6-sol"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleProMode(for: .openai, modelID: "gpt-5.6-sol"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openai, modelID: "gpt-5.6"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleVerbosity(for: .openai, modelID: "gpt-5.6-terra"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsOpenAIStyleProMode(for: .openai, modelID: "gpt-5.5"))
+    }
+
+    func testClaudeFable5CodeExecutionCapability() {
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-fable-5"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-mythos-5"))
+        let fable = ModelCatalog.modelInfo(for: "claude-fable-5", provider: .anthropic)
+        XCTAssertTrue(fable.capabilities.contains(.codeExecution))
     }
 }

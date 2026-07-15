@@ -697,8 +697,9 @@ final class ModelCatalogTests: XCTestCase {
     }
 
     func testNanoBanana2CatalogMetadataUsesExactIDs() {
+        // Stable GA IDs (seeded)
         let proImage = ModelCatalog.modelInfo(
-            for: "gemini-3-pro-image-preview",
+            for: "gemini-3-pro-image",
             provider: .gemini
         )
         XCTAssertEqual(proImage.contextWindow, 65_536)
@@ -707,7 +708,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(proImage.reasoningConfig)
 
         let gemini = ModelCatalog.modelInfo(
-            for: "gemini-3.1-flash-image-preview",
+            for: "gemini-3.1-flash-image",
             provider: .gemini
         )
         XCTAssertEqual(gemini.contextWindow, 131_072)
@@ -718,7 +719,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(gemini.reasoningConfig?.defaultEffort, .minimal)
 
         let vertex = ModelCatalog.modelInfo(
-            for: "gemini-3.1-flash-image-preview",
+            for: "gemini-3.1-flash-image",
             provider: .vertexai
         )
         XCTAssertEqual(vertex.contextWindow, 131_072)
@@ -727,6 +728,10 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(vertex.capabilities.contains(.reasoning))
         XCTAssertFalse(vertex.capabilities.contains(.toolCalling))
         XCTAssertEqual(vertex.reasoningConfig?.defaultEffort, .minimal)
+
+        // Retired preview IDs remain catalog-only for persisted chats.
+        XCTAssertNotNil(ModelCatalog.entry(for: "gemini-3.1-flash-image-preview", provider: .gemini))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "gemini-3.1-flash-image-preview", provider: .gemini))
     }
 
     func testOpenAIImage2CatalogUsesExactIDs() {
@@ -810,13 +815,20 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(gemini.reasoningConfig?.type, .effort)
         XCTAssertEqual(gemini.reasoningConfig?.defaultEffort, .minimal)
 
-        XCTAssertNil(ModelCatalog.entry(for: "gemini-3.1-flash-lite", provider: .vertexai))
+        XCTAssertNotNil(ModelCatalog.entry(for: "gemini-3.1-flash-lite", provider: .vertexai))
 
         let geminiSeeded = Set(ModelCatalog.seededModels(for: .gemini).map(\.id))
         XCTAssertTrue(geminiSeeded.contains("gemini-3.1-flash-lite"))
+        XCTAssertFalse(geminiSeeded.contains("gemini-3.1-flash-lite-preview"))
+        XCTAssertFalse(geminiSeeded.contains("gemini-3-pro-preview"))
+        XCTAssertTrue(geminiSeeded.contains("gemini-3.1-flash-image"))
+        XCTAssertTrue(geminiSeeded.contains("gemini-3-pro-image"))
         let vertexSeeded = Set(ModelCatalog.seededModels(for: .vertexai).map(\.id))
-        XCTAssertFalse(vertexSeeded.contains("gemini-3.1-flash-lite"))
-        XCTAssertTrue(vertexSeeded.contains("gemini-3.1-flash-lite-preview"))
+        XCTAssertTrue(vertexSeeded.contains("gemini-3.1-flash-lite"))
+        XCTAssertFalse(vertexSeeded.contains("gemini-3.1-flash-lite-preview"))
+        XCTAssertFalse(vertexSeeded.contains("gemini-3-pro-preview"))
+        XCTAssertTrue(vertexSeeded.contains("gemini-3.1-flash-image"))
+        XCTAssertTrue(vertexSeeded.contains("gemini-3-pro-image"))
     }
 
     func testGemini31FlashLiteGAGatewayCatalogMetadata() {
@@ -1551,7 +1563,8 @@ final class ModelCatalogTests: XCTestCase {
 
         // No dated snapshots are published for 5.6 — a guessed dated twin must miss.
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "gpt-5.6-sol-2026-07-09", provider: .openai))
-        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "gpt-5.6", provider: .openai))
+        // Official `gpt-5.6` alias routes to Sol and is catalog-recognized.
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "gpt-5.6", provider: .openai))
     }
 
     func testXAIGrok45CatalogUsesDocsVerifiedExactMetadata() {

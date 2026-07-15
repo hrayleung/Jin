@@ -13,6 +13,10 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
     let supportsReasoningSummaryControl: Bool
     let currentReasoningSummary: ReasoningSummary
     let currentReasoningEffort: ReasoningEffort?
+    let supportsProMode: Bool
+    let isProModeEnabled: Bool
+    let supportsTextVerbosity: Bool
+    let currentTextVerbosity: TextVerbosity?
     let supportsFireworksReasoningHistoryToggle: Bool
     let fireworksReasoningHistoryOptions: [String]
     let fireworksReasoningHistory: String?
@@ -24,6 +28,8 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
     let onOpenThinkingBudgetEditor: () -> Void
     let onSetReasoningEffort: (ReasoningEffort) -> Void
     let onSetReasoningSummary: (ReasoningSummary) -> Void
+    let onSetProMode: (Bool) -> Void
+    let onSetTextVerbosity: (TextVerbosity?) -> Void
     let onSetFireworksReasoningHistory: (String?) -> Void
 
     @ViewBuilder
@@ -76,6 +82,43 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
                             onSetReasoningSummary(summary)
                         } label: {
                             menuItemLabel(summary.displayName, currentReasoningSummary == summary)
+                        }
+                    }
+                }
+
+                if supportsProMode {
+                    Divider()
+                    Text("Mode")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        onSetProMode(false)
+                    } label: {
+                        menuItemLabel("Standard", !isProModeEnabled)
+                    }
+                    Button {
+                        onSetProMode(true)
+                    } label: {
+                        menuItemLabel("Pro", isProModeEnabled)
+                    }
+                    .help("Uses more model work for higher reliability (GPT-5.6 reasoning.mode=pro).")
+                }
+
+                if supportsTextVerbosity {
+                    Divider()
+                    Text("Verbosity")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        onSetTextVerbosity(nil)
+                    } label: {
+                        menuItemLabel("Default", currentTextVerbosity == nil)
+                    }
+                    ForEach(TextVerbosity.allCases, id: \.self) { level in
+                        Button {
+                            onSetTextVerbosity(level)
+                        } label: {
+                            menuItemLabel(level.displayName, currentTextVerbosity == level)
                         }
                     }
                 }

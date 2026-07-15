@@ -7,19 +7,17 @@ extension ModelCatalog {
     // MARK: Anthropic
 
     static let anthropicRecords: [Record] = [
-        // Fable/Mythos 5 generation: most capable widely released model. Adaptive thinking is
-        // always on (no disabled config), no sampling params, effort low…max. Server-side
-        // tools (web search, web fetch, code execution) are not supported at launch, so
-        // `.codeExecution` is intentionally omitted. Mythos 5 shares the exact surface but is
-        // limited-availability (Project Glasswing), so it is recognized-but-not-seeded.
+        // Fable/Mythos 5: adaptive thinking always on, effort low…max, no sampling params.
+        // Official Supported features (2026-07) include code execution, memory tool, and PTC.
+        // Fable may return stop_reason=refusal (HTTP 200). Mythos 5 is Project Glasswing only.
         Record(id: "claude-fable-5", displayName: "Claude Fable 5",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
         Record(id: "claude-mythos-5", displayName: "Claude Mythos 5",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
@@ -120,7 +118,7 @@ extension ModelCatalog {
                capabilities: [.streaming, .vision, .nativePDF],
                contextWindow: 128_000,
                reasoningConfig: nil,
-               isFullySupported: false, isSeeded: true),
+               isFullySupported: true, isSeeded: true),
         Record(id: "sonar-pro", displayName: "Sonar Pro",
                capabilities: [.streaming, .toolCalling, .vision, .nativePDF],
                contextWindow: 200_000,
@@ -489,22 +487,10 @@ extension ModelCatalog {
 
     // MARK: DeepSeek
 
+    // Official Models & Pricing (2026-07): primary IDs are deepseek-v4-flash / deepseek-v4-pro.
+    // deepseek-chat / deepseek-reasoner are aliases of V4 Flash non/thinking modes and are
+    // deprecated 2026-07-24 15:59 UTC — keep catalog-only for persisted chats.
     static let deepSeekRecords: [Record] = [
-        Record(id: "deepseek-chat", displayName: "DeepSeek Chat",
-               capabilities: [.streaming, .toolCalling],
-               contextWindow: 128_000,
-               reasoningConfig: nil,
-               isFullySupported: true, isSeeded: true),
-        Record(id: "deepseek-reasoner", displayName: "DeepSeek Reasoner",
-               capabilities: [.streaming, .toolCalling, .reasoning],
-               contextWindow: 128_000,
-               reasoningConfig: ModelReasoningConfig(type: .toggle),
-               isFullySupported: true, isSeeded: true),
-        Record(id: "deepseek-v3.2-exp", displayName: "DeepSeek V3.2 Exp",
-               capabilities: [.streaming, .toolCalling],
-               contextWindow: 128_000,
-               reasoningConfig: nil,
-               isFullySupported: true, isSeeded: true),
         Record(id: "deepseek-v4-flash", displayName: "DeepSeek V4 Flash",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 1_000_000,
@@ -517,6 +503,24 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // Legacy aliases (deprecated 2026-07-24)
+        Record(id: "deepseek-chat", displayName: "DeepSeek Chat (Legacy)",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "deepseek-reasoner", displayName: "DeepSeek Reasoner (Legacy)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "deepseek-v3.2-exp", displayName: "DeepSeek V3.2 Exp",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: Zhipu Coding Plan

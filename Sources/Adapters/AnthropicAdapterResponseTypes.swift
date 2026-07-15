@@ -106,6 +106,9 @@ struct AnthropicStreamEvent: Decodable {
         let thinking: String?
         let signature: String?
         let partialJson: String?
+        /// Present on `message_delta` events (`end_turn`, `max_tokens`, `refusal`, …).
+        let stopReason: String?
+        let stopSequence: String?
     }
 
     struct UsageInfo: Decodable {

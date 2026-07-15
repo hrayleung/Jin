@@ -9,17 +9,21 @@ struct VertexAIModelSupport {
     }
 
     let knownModels: [(id: String, name: String, contextWindow: Int)] = [
-        ("gemini-3-pro-preview", "Gemini 3 Pro Preview", 1_048_576),
         ("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview", 1_048_576),
         ("gemini-3-flash-preview", "Gemini 3 Flash Preview", 1_048_576),
         ("gemini-3.5-flash", "Gemini 3.5 Flash", 1_048_576),
-        ("gemini-3-pro-image-preview", "Gemini 3 Pro Image Preview", 65_536),
-        ("gemini-3.1-flash-image-preview", "Gemini 3.1 Flash Image Preview", 131_072),
-        ("gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash-Lite Preview", 1_048_576),
+        ("gemini-3-pro-image", "Gemini 3 Pro Image", 65_536),
+        ("gemini-3.1-flash-image", "Gemini 3.1 Flash Image", 131_072),
+        ("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite", 1_048_576),
         ("gemini-2.5-pro", "Gemini 2.5 Pro", 1_048_576),
         ("gemini-2.5-flash", "Gemini 2.5 Flash", 1_048_576),
         ("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite", 1_048_576),
         ("gemini-2.5-flash-image", "Gemini 2.5 Flash Image", 32_768),
+        // Legacy / retired discovery IDs (still routable if the endpoint accepts them)
+        ("gemini-3-pro-preview", "Gemini 3 Pro Preview", 1_048_576),
+        ("gemini-3-pro-image-preview", "Gemini 3 Pro Image Preview", 65_536),
+        ("gemini-3.1-flash-image-preview", "Gemini 3.1 Flash Image Preview", 131_072),
+        ("gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash-Lite Preview", 1_048_576),
         ("gemini-2.0-flash", "Gemini 2.0 Flash", 1_048_576),
         ("gemini-2.0-flash-lite", "Gemini 2.0 Flash Lite", 1_048_576),
         ("gemini-1.5-pro", "Gemini 1.5 Pro", 2_097_152),
@@ -41,9 +45,9 @@ struct VertexAIModelSupport {
         GeminiModelConstants.imageGenerationModelIDs
     }
 
-    private let nonRoutableVertexGeminiModelIDs: Set<String> = [
-        "gemini-3.1-flash-lite"
-    ]
+    /// IDs present in the shared Gemini constants that Vertex cannot route.
+    /// Keep empty when Vertex supports the same stable IDs as AI Studio.
+    private let nonRoutableVertexGeminiModelIDs: Set<String> = []
 
     func supportsImageGeneration(_ modelID: String) -> Bool {
         switch classify(modelID) {
@@ -78,13 +82,13 @@ struct VertexAIModelSupport {
     }
 
     func supportsImageSize(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        return lower == "gemini-3-pro-image-preview" || lower == "gemini-3.1-flash-image-preview"
+        GeminiModelConstants.isProImageGenerationModel(modelID)
+            || GeminiModelConstants.isFlashImageGenerationModel(modelID)
     }
 
     func supportsImageSize(_ modelID: String, imageSize: ImageOutputSize) -> Bool {
         guard supportsImageSize(modelID) else { return false }
-        if modelID.lowercased() == "gemini-3-pro-image-preview" {
+        if GeminiModelConstants.isProImageGenerationModel(modelID) {
             return imageSize != .size512px
         }
         return true
@@ -112,17 +116,19 @@ struct VertexAIModelSupport {
     func supportsThinking(_ modelID: String) -> Bool {
         switch classify(modelID) {
         case .knownGemini:
-            return modelID.lowercased() != "gemini-2.5-flash-image"
+            let lower = modelID.lowercased()
+            return lower != "gemini-2.5-flash-image" && lower != "gemini-3.1-flash-lite-image"
         case .knownImagen, .unknownImagen, .unknown:
             return false
         }
     }
 
     func supportsThinkingConfig(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        return supportsThinking(modelID)
-            && lower != "gemini-3-pro-image-preview"
-            && lower != "gemini-3.1-flash-image-preview"
+        // Pro Image models do not accept thinkingConfig generation fields.
+        // Flash Image models accept thinking level but not full thinkingConfig budgets.
+        supportsThinking(modelID)
+            && !GeminiModelConstants.isProImageGenerationModel(modelID)
+            && !GeminiModelConstants.isFlashImageGenerationModel(modelID)
     }
 
     func supportsThinkingLevel(_ modelID: String) -> Bool {
@@ -216,6 +222,9 @@ struct VertexAIModelSupport {
             return ModelReasoningConfig(type: .budget, defaultBudget: 2048)
         }
         if lower == "gemini-3.1-flash-lite-preview" || lower == "gemini-3.1-flash-lite" {
+            return ModelReasoningConfig(type: .effort, defaultEffort: .minimal)
+        }
+        if GeminiModelConstants.isFlashImageGenerationModel(modelID) {
             return ModelReasoningConfig(type: .effort, defaultEffort: .minimal)
         }
         if supportsThinkingConfig(modelID) {

@@ -7,19 +7,66 @@ struct ReasoningControls: Codable, Equatable {
     var budgetTokens: Int?
     var anthropicThinkingDisplay: AnthropicThinkingDisplay?
     var summary: ReasoningSummary?
+    /// OpenAI Responses API `reasoning.mode` (`pro` for GPT-5.6 quality mode).
+    var mode: ReasoningMode?
+    /// OpenAI Responses API `reasoning.context` for multi-turn reasoning reuse.
+    var context: ReasoningContextMode?
 
     init(
         enabled: Bool = true,
         effort: ReasoningEffort? = nil,
         budgetTokens: Int? = nil,
         anthropicThinkingDisplay: AnthropicThinkingDisplay? = nil,
-        summary: ReasoningSummary? = nil
+        summary: ReasoningSummary? = nil,
+        mode: ReasoningMode? = nil,
+        context: ReasoningContextMode? = nil
     ) {
         self.enabled = enabled
         self.effort = effort
         self.budgetTokens = budgetTokens
         self.anthropicThinkingDisplay = anthropicThinkingDisplay
         self.summary = summary
+        self.mode = mode
+        self.context = context
+    }
+}
+
+/// OpenAI Responses API reasoning execution mode.
+enum ReasoningMode: String, Codable, CaseIterable {
+    case standard
+    case pro
+
+    var displayName: String {
+        switch self {
+        case .standard: return "Standard"
+        case .pro: return "Pro"
+        }
+    }
+}
+
+/// OpenAI Responses API reasoning context reuse across turns.
+enum ReasoningContextMode: String, Codable, CaseIterable {
+    case auto
+    case allTurns = "all_turns"
+    case currentTurn = "current_turn"
+
+    var displayName: String {
+        switch self {
+        case .auto: return "Auto"
+        case .allTurns: return "All turns"
+        case .currentTurn: return "Current turn"
+        }
+    }
+}
+
+/// OpenAI Responses API `text.verbosity`.
+enum TextVerbosity: String, Codable, CaseIterable {
+    case low
+    case medium
+    case high
+
+    var displayName: String {
+        rawValue.capitalized
     }
 }
 

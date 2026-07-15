@@ -19,6 +19,8 @@ struct GenerationControls: Codable {
     var maxTokens: Int?
     var topP: Double?
     var reasoning: ReasoningControls?
+    /// OpenAI Responses API `text.verbosity` (low/medium/high).
+    var textVerbosity: TextVerbosity?
     var webSearch: WebSearchControls?
     var openAIServiceTier: OpenAIServiceTier?
     var anthropicSpeed: AnthropicSpeed?
@@ -42,6 +44,7 @@ struct GenerationControls: Codable {
         maxTokens: Int? = nil,
         topP: Double? = nil,
         reasoning: ReasoningControls? = nil,
+        textVerbosity: TextVerbosity? = nil,
         webSearch: WebSearchControls? = nil,
         openAIServiceTier: OpenAIServiceTier? = nil,
         anthropicSpeed: AnthropicSpeed? = nil,
@@ -64,6 +67,7 @@ struct GenerationControls: Codable {
         self.maxTokens = maxTokens
         self.topP = topP
         self.reasoning = reasoning
+        self.textVerbosity = textVerbosity
         self.webSearch = webSearch
         self.openAIServiceTier = openAIServiceTier
         self.anthropicSpeed = anthropicSpeed

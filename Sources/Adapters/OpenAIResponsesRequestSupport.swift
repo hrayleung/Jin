@@ -38,19 +38,51 @@ enum OpenAIResponsesRequestSupport {
         reasoningEnabled: Bool,
         reasoningEffort: ReasoningEffort?
     ) {
-        guard reasoningEnabled, let reasoningEffort else { return }
+        var reasoningDict: [String: Any] = [:]
 
-        var reasoningDict: [String: Any] = [
-            "effort": mappedReasoningEffort(
+        if reasoningEnabled, let reasoningEffort {
+            reasoningDict["effort"] = mappedReasoningEffort(
                 reasoningEffort,
                 providerType: providerType,
                 modelID: modelID
             )
-        ]
+        }
         if let summary = controls.reasoning?.summary {
             reasoningDict["summary"] = summary.rawValue
         }
-        body["reasoning"] = reasoningDict
+
+        // GPT-5.6 Pro mode: `reasoning.mode = "pro"` (independent of effort).
+        if ModelCapabilityRegistry.supportsOpenAIStyleProMode(for: providerType, modelID: modelID),
+           controls.reasoning?.mode == .pro {
+            reasoningDict["mode"] = "pro"
+        }
+
+        // Multi-turn reasoning reuse: `reasoning.context`.
+        if let context = controls.reasoning?.context {
+            reasoningDict["context"] = context.rawValue
+        }
+
+        if !reasoningDict.isEmpty {
+            body["reasoning"] = reasoningDict
+        }
+
+        applyTextVerbosity(to: &body, controls: controls, providerType: providerType, modelID: modelID)
+    }
+
+    static func applyTextVerbosity(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        providerType: ProviderType?,
+        modelID: String
+    ) {
+        guard ModelCapabilityRegistry.supportsOpenAIStyleVerbosity(for: providerType, modelID: modelID),
+              let verbosity = controls.textVerbosity else {
+            return
+        }
+
+        var textDict = body["text"] as? [String: Any] ?? [:]
+        textDict["verbosity"] = verbosity.rawValue
+        body["text"] = textDict
     }
 
     static func toolObjects(

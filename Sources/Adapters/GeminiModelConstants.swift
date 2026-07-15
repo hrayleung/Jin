@@ -11,10 +11,13 @@ enum GeminiModelConstants {
         "gemini-3-pro",
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
+        "gemini-3.1-flash-image",
         "gemini-3.1-flash-image-preview",
+        "gemini-3.1-flash-lite-image",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.1-flash-lite",
         "gemini-3-flash-preview",
+        "gemini-3-pro-image",
         "gemini-3-pro-image-preview",
         "gemini-3.5-flash",
         "gemini-2.5",
@@ -34,19 +37,39 @@ enum GeminiModelConstants {
         "gemini-3-pro",
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
+        "gemini-3.1-flash-image",
         "gemini-3.1-flash-image-preview",
+        "gemini-3.1-flash-lite-image",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.1-flash-lite",
         "gemini-3-flash-preview",
+        "gemini-3-pro-image",
         "gemini-3-pro-image-preview",
         "gemini-3.5-flash",
     ]
 
     /// Gemini models that support native image generation (lowercased).
+    /// Includes retired preview IDs so legacy persisted chats still classify correctly.
     static let imageGenerationModelIDs: Set<String> = [
+        "gemini-3-pro-image",
         "gemini-3-pro-image-preview",
+        "gemini-3.1-flash-image",
         "gemini-3.1-flash-image-preview",
+        "gemini-3.1-flash-lite-image",
         "gemini-2.5-flash-image",
+    ]
+
+    /// Pro-class image models: 1K/2K/4K (no 512px).
+    static let proImageGenerationModelIDs: Set<String> = [
+        "gemini-3-pro-image",
+        "gemini-3-pro-image-preview",
+    ]
+
+    /// Flash-class image models that accept 512px + 1K/2K/4K and Nano Banana 2 aspect ratios.
+    static let flashImageGenerationModelIDs: Set<String> = [
+        "gemini-3.1-flash-image",
+        "gemini-3.1-flash-image-preview",
+        "gemini-3.1-flash-lite-image",
     ]
 
     /// Gemini 2.5 text-only models (lowercased). Used to suppress certain
@@ -66,6 +89,7 @@ enum GeminiModelConstants {
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
         "gemini-3-flash-preview",
+        "gemini-3.1-flash-image",
         "gemini-3.1-flash-image-preview",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.1-flash-lite",
@@ -89,6 +113,14 @@ enum GeminiModelConstants {
 
     static func isImageGenerationModel(_ modelID: String) -> Bool {
         imageGenerationModelIDs.contains(modelID.lowercased())
+    }
+
+    static func isProImageGenerationModel(_ modelID: String) -> Bool {
+        proImageGenerationModelIDs.contains(modelID.lowercased())
+    }
+
+    static func isFlashImageGenerationModel(_ modelID: String) -> Bool {
+        flashImageGenerationModelIDs.contains(modelID.lowercased())
     }
 
     static func isGemini25TextModel(_ modelID: String) -> Bool {
