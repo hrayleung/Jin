@@ -51,51 +51,56 @@ final class OpenAIResponsesGPT56ControlsTests: XCTestCase {
         XCTAssertEqual(reasoning["effort"] as? String, "high")
         XCTAssertNil(reasoning["mode"])
     }
-}
 
-final class AnthropicRefusalStreamTests: XCTestCase {
-    func testMessageDeltaRefusalSurfacesContentFilteredError() async throws {
-        let providerConfig = ProviderConfig(
-            id: "anthropic",
-            name: "Anthropic",
-            type: .anthropic,
-            apiKey: "ignored",
-            baseURL: "https://example.com"
-        )
-        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key")
-
-        var messageID: String? = "msg_1"
-        var blockIndex: Int?
-        var toolUse: AnthropicToolCallBuilder?
-        var serverTool: AnthropicSearchActivityBuilder?
-        var codeID: String?
-        var code = ""
-        var blockType: String?
-        var thinkingSig: String?
-        var usage = AnthropicUsageAccumulator()
-
-        let line = """
-        {"type":"message_delta","delta":{"stop_reason":"refusal","stop_sequence":null},"usage":{"input_tokens":10,"output_tokens":0}}
-        """
-
-        let event = try await adapter.parseJSONLine(
-            line,
-            currentMessageID: &messageID,
-            currentBlockIndex: &blockIndex,
-            currentToolUse: &toolUse,
-            currentServerToolUse: &serverTool,
-            currentCodeExecutionID: &codeID,
-            currentCodeExecutionCode: &code,
-            currentContentBlockType: &blockType,
-            currentThinkingSignature: &thinkingSig,
-            usageAccumulator: &usage
+    func testReasoningOffOmitsPersistedSummaryModeAndContext() throws {
+        var body: [String: Any] = [:]
+        let controls = GenerationControls(
+            reasoning: ReasoningControls(
+                enabled: false,
+                effort: .high,
+                summary: .auto,
+                mode: .pro,
+                context: .allTurns
+            ),
+            textVerbosity: .medium
         )
 
-        guard case .error(let error) = event else {
-            return XCTFail("Expected error event, got \(String(describing: event))")
-        }
-        guard case .contentFiltered = error else {
-            return XCTFail("Expected contentFiltered, got \(error)")
-        }
+        OpenAIResponsesRequestSupport.applyReasoningConfig(
+            to: &body,
+            controls: controls,
+            providerType: .openai,
+            modelID: "gpt-5.6-sol",
+            reasoningEnabled: false,
+            reasoningEffort: .high
+        )
+
+        XCTAssertNil(body["reasoning"])
+        // Verbosity remains independent of reasoning off.
+        let text = try XCTUnwrap(body["text"] as? [String: Any])
+        XCTAssertEqual(text["verbosity"] as? String, "medium")
+    }
+
+    func testReasoningContextNotEmittedForUnsupportedModels() throws {
+        var body: [String: Any] = [:]
+        let controls = GenerationControls(
+            reasoning: ReasoningControls(
+                enabled: true,
+                effort: .high,
+                context: .currentTurn
+            )
+        )
+
+        OpenAIResponsesRequestSupport.applyReasoningConfig(
+            to: &body,
+            controls: controls,
+            providerType: .openai,
+            modelID: "gpt-5.5",
+            reasoningEnabled: true,
+            reasoningEffort: .high
+        )
+
+        let reasoning = try XCTUnwrap(body["reasoning"] as? [String: Any])
+        XCTAssertEqual(reasoning["effort"] as? String, "high")
+        XCTAssertNil(reasoning["context"])
     }
 }

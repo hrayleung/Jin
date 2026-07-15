@@ -88,6 +88,9 @@ struct VertexAIModelSupport {
 
     func supportsImageSize(_ modelID: String, imageSize: ImageOutputSize) -> Bool {
         guard supportsImageSize(modelID) else { return false }
+        if GeminiModelConstants.isFlashLiteImageGenerationModel(modelID) {
+            return imageSize == .size1K
+        }
         if GeminiModelConstants.isProImageGenerationModel(modelID) {
             return imageSize != .size512px
         }
@@ -116,8 +119,8 @@ struct VertexAIModelSupport {
     func supportsThinking(_ modelID: String) -> Bool {
         switch classify(modelID) {
         case .knownGemini:
-            let lower = modelID.lowercased()
-            return lower != "gemini-2.5-flash-image" && lower != "gemini-3.1-flash-lite-image"
+            // Gemini 2.5 Flash Image has no thinking; Flash-Lite Image supports minimal/high.
+            return modelID.lowercased() != "gemini-2.5-flash-image"
         case .knownImagen, .unknownImagen, .unknown:
             return false
         }

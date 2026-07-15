@@ -150,7 +150,11 @@ enum GeminiRequestSupport {
 
     static func supportsImageSize(_ modelID: String, imageSize: ImageOutputSize) -> Bool {
         guard supportsImageSize(modelID) else { return false }
-        // Pro Image: 1K/2K/4K only. Flash Image family: 512px + 1K/2K/4K.
+        // Pro Image: 1K/2K/4K only. Flash Image: 512px + 1K/2K/4K.
+        // Flash-Lite Image: 1K only (docs: 1024px / 1K).
+        if GeminiModelConstants.isFlashLiteImageGenerationModel(modelID) {
+            return imageSize == .size1K
+        }
         if GeminiModelConstants.isProImageGenerationModel(modelID) {
             return imageSize != .size512px
         }
@@ -158,8 +162,8 @@ enum GeminiRequestSupport {
     }
 
     static func supportsThinking(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        return lower != "gemini-2.5-flash-image" && lower != "gemini-3.1-flash-lite-image"
+        // Gemini 2.5 Flash Image has no thinking; Flash-Lite Image supports minimal/high.
+        modelID.lowercased() != "gemini-2.5-flash-image"
     }
 
     static func supportsThinkingConfig(_ modelID: String) -> Bool {

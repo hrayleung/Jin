@@ -89,6 +89,15 @@ enum ModelCapabilityRegistry {
         "gpt-5.6-luna",
     ]
 
+    /// Models that accept Responses API `reasoning.context` (multi-turn reasoning reuse).
+    /// Keep conservative to GPT-5.6 family until broader model docs list the field.
+    private static let openAIStyleReasoningContextModelIDs: Set<String> = [
+        "gpt-5.6",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+    ]
+
     /// Models that accept Responses API `text.verbosity`.
     private static let openAIStyleVerbosityModelIDs: Set<String> = [
         "gpt-5.6",
@@ -121,6 +130,7 @@ enum ModelCapabilityRegistry {
     private static let gemini31FlashImageEffortModelIDs: Set<String> = [
         "gemini-3.1-flash-image",
         "gemini-3.1-flash-image-preview",
+        "gemini-3.1-flash-lite-image",
     ]
 
     /// Gemini 3.1 Pro supports LOW/MEDIUM/HIGH.
@@ -490,6 +500,15 @@ enum ModelCapabilityRegistry {
         }
         let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
         return openAIStyleProModeModelIDs.contains(canonicalLowerModelID)
+    }
+
+    /// Responses API `reasoning.context` support (exact IDs).
+    static func supportsOpenAIStyleReasoningContext(for providerType: ProviderType?, modelID: String) -> Bool {
+        guard supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) else {
+            return false
+        }
+        let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
+        return openAIStyleReasoningContextModelIDs.contains(canonicalLowerModelID)
     }
 
     /// Responses API `text.verbosity` support (exact IDs).

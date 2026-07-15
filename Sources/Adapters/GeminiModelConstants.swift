@@ -72,6 +72,11 @@ enum GeminiModelConstants {
         "gemini-3.1-flash-lite-image",
     ]
 
+    /// Flash-Lite Image is 1K-only (docs: 1024px).
+    static let flashLiteImageGenerationModelIDs: Set<String> = [
+        "gemini-3.1-flash-lite-image",
+    ]
+
     /// Gemini 2.5 text-only models (lowercased). Used to suppress certain
     /// VertexAI generation config fields (e.g., `thinkingLevel`).
     static let gemini25TextModelIDs: Set<String> = [
@@ -121,6 +126,10 @@ enum GeminiModelConstants {
 
     static func isFlashImageGenerationModel(_ modelID: String) -> Bool {
         flashImageGenerationModelIDs.contains(modelID.lowercased())
+    }
+
+    static func isFlashLiteImageGenerationModel(_ modelID: String) -> Bool {
+        flashLiteImageGenerationModelIDs.contains(modelID.lowercased())
     }
 
     static func isGemini25TextModel(_ modelID: String) -> Bool {

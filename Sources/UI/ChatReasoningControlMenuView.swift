@@ -15,6 +15,8 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
     let currentReasoningEffort: ReasoningEffort?
     let supportsProMode: Bool
     let isProModeEnabled: Bool
+    let supportsReasoningContext: Bool
+    let currentReasoningContext: ReasoningContextMode?
     let supportsTextVerbosity: Bool
     let currentTextVerbosity: TextVerbosity?
     let supportsFireworksReasoningHistoryToggle: Bool
@@ -29,6 +31,7 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
     let onSetReasoningEffort: (ReasoningEffort) -> Void
     let onSetReasoningSummary: (ReasoningSummary) -> Void
     let onSetProMode: (Bool) -> Void
+    let onSetReasoningContext: (ReasoningContextMode?) -> Void
     let onSetTextVerbosity: (TextVerbosity?) -> Void
     let onSetFireworksReasoningHistory: (String?) -> Void
 
@@ -102,6 +105,26 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
                         menuItemLabel("Pro", isProModeEnabled)
                     }
                     .help("Uses more model work for higher reliability (GPT-5.6 reasoning.mode=pro).")
+                }
+
+                if supportsReasoningContext {
+                    Divider()
+                    Text("Reasoning context")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        onSetReasoningContext(nil)
+                    } label: {
+                        menuItemLabel("Default", currentReasoningContext == nil)
+                    }
+                    ForEach(ReasoningContextMode.allCases, id: \.self) { mode in
+                        Button {
+                            onSetReasoningContext(mode)
+                        } label: {
+                            menuItemLabel(mode.displayName, currentReasoningContext == mode)
+                        }
+                    }
+                    .help("Controls multi-turn reuse of prior reasoning items (Responses API reasoning.context).")
                 }
 
                 if supportsTextVerbosity {

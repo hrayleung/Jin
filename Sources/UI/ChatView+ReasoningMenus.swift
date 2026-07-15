@@ -60,6 +60,8 @@ extension ChatView {
             currentReasoningEffort: controls.reasoning?.effort,
             supportsProMode: supportsOpenAIProMode,
             isProModeEnabled: controls.reasoning?.mode == .pro,
+            supportsReasoningContext: supportsOpenAIReasoningContext,
+            currentReasoningContext: controls.reasoning?.context,
             supportsTextVerbosity: supportsOpenAITextVerbosity,
             currentTextVerbosity: controls.textVerbosity,
             supportsFireworksReasoningHistoryToggle: supportsFireworksReasoningHistoryToggle,
@@ -90,6 +92,9 @@ extension ChatView {
             onSetProMode: { enabled in
                 setOpenAIProMode(enabled)
             },
+            onSetReasoningContext: { mode in
+                setOpenAIReasoningContext(mode)
+            },
             onSetTextVerbosity: { verbosity in
                 setTextVerbosity(verbosity)
             },
@@ -106,6 +111,13 @@ extension ChatView {
         )
     }
 
+    var supportsOpenAIReasoningContext: Bool {
+        ModelCapabilityRegistry.supportsOpenAIStyleReasoningContext(
+            for: providerType,
+            modelID: activeModelID
+        )
+    }
+
     var supportsOpenAITextVerbosity: Bool {
         ModelCapabilityRegistry.supportsOpenAIStyleVerbosity(
             for: providerType,
@@ -117,6 +129,16 @@ extension ChatView {
         var reasoning = controls.reasoning ?? ReasoningControls(enabled: true)
         reasoning.mode = enabled ? .pro : .standard
         if reasoning.enabled == false {
+            reasoning.enabled = true
+        }
+        controls.reasoning = reasoning
+        persistControlsToConversation()
+    }
+
+    func setOpenAIReasoningContext(_ mode: ReasoningContextMode?) {
+        var reasoning = controls.reasoning ?? ReasoningControls(enabled: true)
+        reasoning.context = mode
+        if mode != nil, reasoning.enabled == false {
             reasoning.enabled = true
         }
         controls.reasoning = reasoning

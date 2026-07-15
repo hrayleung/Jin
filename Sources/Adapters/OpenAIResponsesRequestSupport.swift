@@ -38,34 +38,40 @@ enum OpenAIResponsesRequestSupport {
         reasoningEnabled: Bool,
         reasoningEffort: ReasoningEffort?
     ) {
-        var reasoningDict: [String: Any] = [:]
+        // When reasoning is Off, omit the entire `reasoning` object so persisted
+        // summary/mode/context cannot re-enable or alter reasoning behavior.
+        if reasoningEnabled {
+            var reasoningDict: [String: Any] = [:]
 
-        if reasoningEnabled, let reasoningEffort {
-            reasoningDict["effort"] = mappedReasoningEffort(
-                reasoningEffort,
-                providerType: providerType,
-                modelID: modelID
-            )
-        }
-        if let summary = controls.reasoning?.summary {
-            reasoningDict["summary"] = summary.rawValue
+            if let reasoningEffort {
+                reasoningDict["effort"] = mappedReasoningEffort(
+                    reasoningEffort,
+                    providerType: providerType,
+                    modelID: modelID
+                )
+            }
+            if let summary = controls.reasoning?.summary {
+                reasoningDict["summary"] = summary.rawValue
+            }
+
+            // GPT-5.6 Pro mode: `reasoning.mode = "pro"` (independent of effort level).
+            if ModelCapabilityRegistry.supportsOpenAIStyleProMode(for: providerType, modelID: modelID),
+               controls.reasoning?.mode == .pro {
+                reasoningDict["mode"] = "pro"
+            }
+
+            // Multi-turn reasoning reuse: only when the model accepts `reasoning.context`.
+            if ModelCapabilityRegistry.supportsOpenAIStyleReasoningContext(for: providerType, modelID: modelID),
+               let context = controls.reasoning?.context {
+                reasoningDict["context"] = context.rawValue
+            }
+
+            if !reasoningDict.isEmpty {
+                body["reasoning"] = reasoningDict
+            }
         }
 
-        // GPT-5.6 Pro mode: `reasoning.mode = "pro"` (independent of effort).
-        if ModelCapabilityRegistry.supportsOpenAIStyleProMode(for: providerType, modelID: modelID),
-           controls.reasoning?.mode == .pro {
-            reasoningDict["mode"] = "pro"
-        }
-
-        // Multi-turn reasoning reuse: `reasoning.context`.
-        if let context = controls.reasoning?.context {
-            reasoningDict["context"] = context.rawValue
-        }
-
-        if !reasoningDict.isEmpty {
-            body["reasoning"] = reasoningDict
-        }
-
+        // Verbosity is independent of reasoning on/off.
         applyTextVerbosity(to: &body, controls: controls, providerType: providerType, modelID: modelID)
     }
 
