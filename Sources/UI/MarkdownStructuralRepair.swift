@@ -130,6 +130,12 @@ enum MarkdownStructuralRepair {
         _ line: String,
         _ ranges: [Range<String.Index>]
     ) -> String {
+        // Intact GFM table rows must stay on one line. Cell text often has
+        // operator-like `+`/`-` after CJK closers (`（NUMA）+ 更多策略`) that
+        // match the bullet pattern below; inserting a newline shatters the
+        // row, ends the table early, and dumps the rest as pipe prose.
+        if MarkdownRenderPreparation.looksLikeTableRow(line) { return line }
+
         // Two lookbehinds keep a marker that isn't really a bullet literal:
         //   `(?<!\\)` — an escaped `A\*`/`\-` (the model meant a literal `*`,
         //     common inside table cells); splitting it shatters the table row.
@@ -150,6 +156,9 @@ enum MarkdownStructuralRepair {
         _ line: String,
         _ ranges: [Range<String.Index>]
     ) -> String {
+        // Same shatter risk as bullets: cells like `| 步骤 | 1. 初始化 |`
+        // must not gain a mid-row newline before the ordered marker.
+        if MarkdownRenderPreparation.looksLikeTableRow(line) { return line }
         guard line.rangeOfCharacter(from: .decimalDigits) != nil else { return line }
         return MarkdownRenderPreparation.replacingOutsideRanges(
             pattern: #"(?<=[\.:：;；\)])\s*(\d{1,2}[.)])\s+(?=[\p{L}\p{N}])"#,
