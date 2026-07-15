@@ -612,4 +612,74 @@ final class MarkdownRenderPreparationTests: XCTestCase {
 
         XCTAssertFalse(result.text.contains("\n- "), "digit-glued dash must not become a bullet; got: \(result.text.debugDescription)")
     }
+
+    func testDoesNotSplitTableRowOnCJKClosingParenPlusOperator() {
+        // Regression: cell text `（NUMA）+ 更多策略` matches the embedded-bullet
+        // pattern (`）+ 更多`). Splitting mid-row ends the GFM table early and
+        // dumps later rows as pipe prose under a stray list item.
+        let controlRow = "| **控制范围** | 仅 CPU affinity | CPU + 内存节点（NUMA）+ 更多策略 |"
+        let mandatoryRow = "| **强制性** | 较弱（进程可自行修改） | 强（覆盖 affinity 设置） |"
+        let structureRow = "| **层次/结构** | 无 | 支持嵌套、exclusive 等 |"
+        let input = """
+        | 方面 | taskset | cpuset |
+        | --- | --- | --- |
+        \(controlRow)
+        \(mandatoryRow)
+        \(structureRow)
+        """
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.didChange, "intact table must not open repair; got: \(result.text.debugDescription)")
+        XCTAssertEqual(result.diagnostics.repairMode, .none)
+        XCTAssertFalse(result.text.contains("\n+ "), "CJK ）+ operator must not become a bullet; got: \(result.text.debugDescription)")
+        XCTAssertTrue(result.text.contains(controlRow), "control-range row must stay on one line; got: \(result.text.debugDescription)")
+        XCTAssertTrue(result.text.contains(mandatoryRow), "mandatory row must remain; got: \(result.text.debugDescription)")
+        XCTAssertTrue(result.text.contains(structureRow), "structure row must remain; got: \(result.text.debugDescription)")
+    }
+
+    func testDoesNotSplitTableRowOnOrderedListLikeCell() {
+        let row = "| 步骤 | 说明 | 1. 初始化缓存后继续 |"
+        let input = """
+        | A | B | C |
+        | --- | --- | --- |
+        \(row)
+        """
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.text.contains("\n1. "), "ordered marker inside table cell must not split; got: \(result.text.debugDescription)")
+        XCTAssertTrue(result.text.contains(row), "ordered-list-like cell row must stay intact; got: \(result.text.debugDescription)")
+    }
+
+    func testDoesNotSplitTableRowWithoutEdgePipesOnCJKPlusOperator() {
+        // GFM allows rows without leading/trailing pipes. The shatter guard
+        // must still treat them as table rows so `）+ ` is not bullet-split.
+        let controlRow = "控制范围 | 仅 CPU affinity | CPU + 内存节点（NUMA）+ 更多策略"
+        let mandatoryRow = "强制性 | 较弱（进程可自行修改） | 强（覆盖 affinity 设置）"
+        let input = """
+        方面 | taskset | cpuset
+        --- | --- | ---
+        \(controlRow)
+        \(mandatoryRow)
+        """
+
+        let result = MarkdownRenderPreparation.prepareForRender(input, isStreaming: false)
+
+        XCTAssertFalse(result.text.contains("\n+ "), "no-edge-pipe table row must not bullet-split; got: \(result.text.debugDescription)")
+        XCTAssertTrue(result.text.contains(controlRow), "control row must stay on one line; got: \(result.text.debugDescription)")
+        XCTAssertTrue(result.text.contains(mandatoryRow), "mandatory row must remain; got: \(result.text.debugDescription)")
+        XCTAssertTrue(
+            MarkdownRenderPreparation.looksLikeTableRow(controlRow),
+            "no-edge-pipe control row should be detected as a table row"
+        )
+    }
+
+    func testOrdinaryPipeProseIsNotTreatedAsTableRow() {
+        let prose = "This paragraph talks about CLI | REST API | MCP Server usage without a table."
+        XCTAssertFalse(
+            MarkdownRenderPreparation.looksLikeTableRow(prose),
+            "sentence-like pipe prose must not be classified as a table row"
+        )
+    }
 }

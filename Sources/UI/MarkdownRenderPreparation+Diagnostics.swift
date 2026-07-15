@@ -44,14 +44,20 @@ extension MarkdownRenderPreparation {
                     score += 2
                 }
             }
-            // Mirror the `(?<!\\)`/`(?<!\d)` guards in
-            // `insertBreaksBeforeEmbeddedBullets`: escaped markers and
+            // Mirror the table-row short-circuit and `(?<!\\)`/`(?<!\d)`
+            // guards in `insertBreaksBeforeEmbeddedBullets`: intact GFM
+            // table rows (e.g. cells with `）+ 更多`), escaped markers, and
             // digit-glued `+`/`-` (`600+ 篇`) are not bullets, so they must
             // not score as anomalies and open the repair gate.
-            if hasBulletChar, matches(#"(?<=\S)(?<![*+-])(?<!\\)(?<!\d)(?:-\s+(?=(?:\*\*)?[\p{L}\p{N}])|\*\s+(?=[\p{L}\p{N}])|\+\s+(?=[\p{L}\p{N}]))"#, in: protectedLine) {
+            let isTableRow = looksLikeTableRow(protectedLine)
+            if hasBulletChar,
+               !isTableRow,
+               matches(#"(?<=\S)(?<![*+-])(?<!\\)(?<!\d)(?:-\s+(?=(?:\*\*)?[\p{L}\p{N}])|\*\s+(?=[\p{L}\p{N}])|\+\s+(?=[\p{L}\p{N}]))"#, in: protectedLine) {
                 score += 2
             }
-            if hasDigit, matches(#"(?<=[\.:：;；\)])\s*(\d{1,2}[.)])\s+(?=[\p{L}\p{N}])"#, in: protectedLine) {
+            if hasDigit,
+               !isTableRow,
+               matches(#"(?<=[\.:：;；\)])\s*(\d{1,2}[.)])\s+(?=[\p{L}\p{N}])"#, in: protectedLine) {
                 score += 1
             }
             if hasHash, hasDigit, matches(#"^ {0,3}#{1,6} .*\p{Han}\d{1,2}[.)]\s+(?:\*\*)?[\p{L}\p{N}]"#, in: protectedLine) {

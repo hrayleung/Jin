@@ -91,6 +91,32 @@ final class NativeMarkdownASTWalkerTests: XCTestCase {
         XCTAssertEqual(rows[0][1].plainText, "A / A* 级别")
     }
 
+    func testPrepareAndWalkKeepsCJKPlusOperatorTableIntact() {
+        // End-to-end: prepareForRender must not shatter a table whose cell
+        // contains `）+ `, and the walker must still emit one multi-row table.
+        let markdown = """
+        | 方面 | taskset | cpuset |
+        | --- | --- | --- |
+        | **控制范围** | 仅 CPU affinity | CPU + 内存节点（NUMA）+ 更多策略 |
+        | **强制性** | 较弱（进程可自行修改） | 强（覆盖 affinity 设置） |
+        | **层次/结构** | 无 | 支持嵌套、exclusive 等 |
+        """
+        let prepared = MarkdownRenderPreparation.prepareForRender(markdown, isStreaming: false)
+        let document = Document(parsing: prepared.text)
+        let blocks = MarkdownASTWalker(theme: theme).walk(document: document)
+
+        XCTAssertEqual(blocks.count, 1, "expected a single table block, got \(blocks)")
+        guard case let .table(header, _, rows) = blocks[0] else {
+            return XCTFail("expected table block, got \(blocks[0])")
+        }
+        XCTAssertEqual(header.count, 3)
+        XCTAssertEqual(rows.count, 3)
+        XCTAssertTrue(
+            rows[0].map(\.plainText).joined(separator: " | ").contains("更多策略"),
+            "third cell of first body row must keep '+ 更多策略' inside the table"
+        )
+    }
+
     func testProseGroupSignatureIncludesStylingAndLinks() {
         XCTAssertEqual(proseSignature(for: "[docs](https://example.com/a)"), proseSignature(for: "[docs](https://example.com/a)"))
         XCTAssertNotEqual(proseSignature(for: "[docs](https://example.com/a)"), proseSignature(for: "[docs](https://example.com/b)"))
