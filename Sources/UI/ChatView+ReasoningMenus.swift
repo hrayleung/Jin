@@ -128,8 +128,14 @@ extension ChatView {
     func setOpenAIProMode(_ enabled: Bool) {
         var reasoning = controls.reasoning ?? ReasoningControls(enabled: true)
         reasoning.mode = enabled ? .pro : .standard
-        if reasoning.enabled == false {
-            reasoning.enabled = true
+        if enabled {
+            // Adapter only emits `reasoning` when enabled && effort != none.
+            // Seed a default effort so Pro mode alone still produces reasoning.mode=pro.
+            ChatReasoningSupport.ensureOpenAIReasoningActive(
+                &reasoning,
+                defaultEffort: selectedReasoningConfig?.defaultEffort ?? .medium,
+                supportsReasoningSummaryControl: supportsReasoningSummaryControl
+            )
         }
         controls.reasoning = reasoning
         persistControlsToConversation()
@@ -138,8 +144,12 @@ extension ChatView {
     func setOpenAIReasoningContext(_ mode: ReasoningContextMode?) {
         var reasoning = controls.reasoning ?? ReasoningControls(enabled: true)
         reasoning.context = mode
-        if mode != nil, reasoning.enabled == false {
-            reasoning.enabled = true
+        if mode != nil {
+            ChatReasoningSupport.ensureOpenAIReasoningActive(
+                &reasoning,
+                defaultEffort: selectedReasoningConfig?.defaultEffort ?? .medium,
+                supportsReasoningSummaryControl: supportsReasoningSummaryControl
+            )
         }
         controls.reasoning = reasoning
         persistControlsToConversation()
