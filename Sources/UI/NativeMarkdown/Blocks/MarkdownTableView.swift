@@ -11,8 +11,11 @@ struct MarkdownTableView: View {
     let rows: [[InlineRun]]
     @Environment(\.markdownTheme) private var theme
 
+    private var columnCount: Int {
+        max(header.count, rows.map(\.count).max() ?? 0)
+    }
+
     var body: some View {
-        let columnCount = max(header.count, rows.map(\.count).max() ?? 0)
         VStack(spacing: 0) {
             tableRow(cells: header, isHeader: true, columnCount: columnCount)
                 .background(JinSemanticColor.subtleSurface)
@@ -35,10 +38,10 @@ struct MarkdownTableView: View {
     @ViewBuilder
     private var tableContextMenu: some View {
         Button("Copy as Markdown") {
-            PasteboardSupport.writeString(markdownPlainText(columnCount: max(header.count, rows.map(\.count).max() ?? 0)))
+            PasteboardSupport.writeString(markdownPlainText(columnCount: columnCount))
         }
         Button("Copy as TSV") {
-            PasteboardSupport.writeString(tsvPlainText())
+            PasteboardSupport.writeString(tsvPlainText(columnCount: columnCount))
         }
     }
 
@@ -166,19 +169,19 @@ struct MarkdownTableView: View {
             .replacingOccurrences(of: "|", with: "\\|")
     }
 
-    private func tsvPlainText() -> String {
+    private func tsvPlainText(columnCount: Int) -> String {
         var lines: [String] = []
-        lines.append(tsvRow(cells: header))
+        lines.append(tsvRow(cells: header, columnCount: columnCount))
         for row in rows {
-            lines.append(tsvRow(cells: row))
+            lines.append(tsvRow(cells: row, columnCount: columnCount))
         }
         return lines.joined(separator: "\n")
     }
 
-    private func tsvRow(cells: [InlineRun]) -> String {
-        cells
-            .map { cell in
-                cell.plainText
+    private func tsvRow(cells: [InlineRun], columnCount: Int) -> String {
+        (0..<columnCount)
+            .map { col in
+                (col < cells.count ? cells[col].plainText : "")
                     .replacingOccurrences(of: "\t", with: " ")
                     .replacingOccurrences(of: "\n", with: " ")
             }

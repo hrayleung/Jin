@@ -390,8 +390,10 @@ enum MarkdownStructuralRepair {
            !currentRanges.contains(where: { $0.contains(firstPipeIndex) }) {
             let prefix = normalized[..<firstPipeIndex].trimmingCharacters(in: .whitespaces)
             let suffix = String(normalized[firstPipeIndex...])
+            // Edge-pipe only: broader no-edge-pipe detection would treat
+            // `方面 | taskset | cpuset` as prose+table and shatter valid rows.
             if !prefix.isEmpty,
-               MarkdownRenderPreparation.looksLikeTableRow(suffix),
+               MarkdownRenderPreparation.looksLikeEdgePipeTableRow(suffix),
                !MarkdownRenderPreparation.looksLikeParagraphWithPipes(prefix) {
                 normalized = String(prefix) + "\n" + suffix
                 currentRanges = protectedRanges(in: normalized)
