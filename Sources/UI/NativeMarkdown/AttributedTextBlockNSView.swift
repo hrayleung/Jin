@@ -465,10 +465,73 @@ final class JinMessageTextView: NSTextView {
 
     // MARK: - Selection
 
+    /// Read-only message text must still take focus so selection can be live
+    /// (system accent color) and cleared on resign. SwiftUI hosting sometimes
+    /// leaves an unfocused `selectedRange` that paints the unemphasized gray
+    /// “shadow” permanently.
+    override var acceptsFirstResponder: Bool { isSelectable }
+
+    /// Clears residual inactive (gray) selection highlights. Chat messages
+    /// host many independent `JinMessageTextView`s (prose groups + table
+    /// cells). AppKit keeps `selectedRange` after resign, which paints the
+    /// unemphasized selection color — a sticky gray “shadow” that survives
+    /// mouse-up / click-away. Clearing here is intentional for read-only
+    /// message text: copy/quote still work while first responder; context
+    /// menu actions read the aggregator snapshot captured before resign.
+    override func resignFirstResponder() -> Bool {
+        let didResign = super.resignFirstResponder()
+        if didResign {
+            clearSelectionHighlightIfNeeded()
+        }
+        return didResign
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // Only one message-text selection at a time. Without this, selecting
+        // in cell B leaves cell A's inactive gray highlight behind.
+        clearSiblingSelectionsInWindow()
+        // Ensure we own first responder before drag-select begins; otherwise
+        // AppKit paints unemphasized selection that looks stuck after mouse-up.
+        if acceptsFirstResponder, window?.firstResponder !== self {
+            window?.makeFirstResponder(self)
+        }
+        super.mouseDown(with: event)
+    }
+
     override func setSelectedRange(_ charRange: NSRange, affinity: NSSelectionAffinity, stillSelecting: Bool) {
         super.setSelectedRange(charRange, affinity: affinity, stillSelecting: stillSelecting)
+        // Layer-backed views (`wantsLayer` + `.duringViewResize`) can retain a
+        // stale selection raster unless we dirty the view when the range
+        // settles (mouse-up) or is cleared.
+        if !stillSelecting {
+            needsDisplay = true
+        }
         guard !stillSelecting, let blockID else { return }
         aggregator?.selectionDidChange(blockID: blockID, localRange: charRange)
+    }
+
+    /// Collapse a non-empty selection without moving the viewport.
+    func clearSelectionHighlightIfNeeded() {
+        let range = selectedRange()
+        guard range.length > 0 else { return }
+        setSelectedRange(NSRange(location: range.location, length: 0))
+    }
+
+    private func clearSiblingSelectionsInWindow() {
+        guard let root = window?.contentView else { return }
+        Self.enumerateJinMessageTextViews(in: root) { other in
+            guard other !== self else { return }
+            other.clearSelectionHighlightIfNeeded()
+        }
+    }
+
+    private static func enumerateJinMessageTextViews(in view: NSView, _ body: (JinMessageTextView) -> Void) {
+        if let textView = view as? JinMessageTextView {
+            body(textView)
+        }
+        for subview in view.subviews {
+            enumerateJinMessageTextViews(in: subview, body)
+        }
     }
 
     // MARK: - Context menu
