@@ -28,7 +28,11 @@ extension ChatView {
             if let effort, usesXAIMultiAgentEffortLabels {
                 return effort.xAIMultiAgentDisplayName
             }
-            return effort?.displayName ?? "On"
+            let base = effort?.displayName ?? "On"
+            if controls.reasoning?.mode == .pro {
+                return "\(base) · Pro"
+            }
+            return base
         case .toggle:
             return "On"
         case .none:
@@ -54,6 +58,12 @@ extension ChatView {
             supportsReasoningSummaryControl: supportsReasoningSummaryControl,
             currentReasoningSummary: controls.reasoning?.summary ?? .auto,
             currentReasoningEffort: controls.reasoning?.effort,
+            supportsProMode: supportsOpenAIProMode,
+            isProModeEnabled: controls.reasoning?.mode == .pro,
+            supportsReasoningContext: supportsOpenAIReasoningContext,
+            currentReasoningContext: controls.reasoning?.context,
+            supportsTextVerbosity: supportsOpenAITextVerbosity,
+            currentTextVerbosity: controls.textVerbosity,
             supportsFireworksReasoningHistoryToggle: supportsFireworksReasoningHistoryToggle,
             fireworksReasoningHistoryOptions: fireworksReasoningHistoryOptions,
             fireworksReasoningHistory: fireworksReasoningHistory,
@@ -79,10 +89,75 @@ extension ChatView {
             onSetReasoningSummary: { summary in
                 setReasoningSummary(summary)
             },
+            onSetProMode: { enabled in
+                setOpenAIProMode(enabled)
+            },
+            onSetReasoningContext: { mode in
+                setOpenAIReasoningContext(mode)
+            },
+            onSetTextVerbosity: { verbosity in
+                setTextVerbosity(verbosity)
+            },
             onSetFireworksReasoningHistory: { value in
                 setFireworksReasoningHistory(value)
             }
         )
+    }
+
+    var supportsOpenAIProMode: Bool {
+        ModelCapabilityRegistry.supportsOpenAIStyleProMode(
+            for: providerType,
+            modelID: activeModelID
+        )
+    }
+
+    var supportsOpenAIReasoningContext: Bool {
+        ModelCapabilityRegistry.supportsOpenAIStyleReasoningContext(
+            for: providerType,
+            modelID: activeModelID
+        )
+    }
+
+    var supportsOpenAITextVerbosity: Bool {
+        ModelCapabilityRegistry.supportsOpenAIStyleVerbosity(
+            for: providerType,
+            modelID: activeModelID
+        )
+    }
+
+    func setOpenAIProMode(_ enabled: Bool) {
+        var reasoning = controls.reasoning ?? ReasoningControls(enabled: true)
+        reasoning.mode = enabled ? .pro : .standard
+        if enabled {
+            // Adapter only emits `reasoning` when enabled && effort != none.
+            // Seed a default effort so Pro mode alone still produces reasoning.mode=pro.
+            ChatReasoningSupport.ensureOpenAIReasoningActive(
+                &reasoning,
+                defaultEffort: selectedReasoningConfig?.defaultEffort ?? .medium,
+                supportsReasoningSummaryControl: supportsReasoningSummaryControl
+            )
+        }
+        controls.reasoning = reasoning
+        persistControlsToConversation()
+    }
+
+    func setOpenAIReasoningContext(_ mode: ReasoningContextMode?) {
+        var reasoning = controls.reasoning ?? ReasoningControls(enabled: true)
+        reasoning.context = mode
+        if mode != nil {
+            ChatReasoningSupport.ensureOpenAIReasoningActive(
+                &reasoning,
+                defaultEffort: selectedReasoningConfig?.defaultEffort ?? .medium,
+                supportsReasoningSummaryControl: supportsReasoningSummaryControl
+            )
+        }
+        controls.reasoning = reasoning
+        persistControlsToConversation()
+    }
+
+    func setTextVerbosity(_ verbosity: TextVerbosity?) {
+        controls.textVerbosity = verbosity
+        persistControlsToConversation()
     }
 
     var supportsFireworksReasoningHistoryToggle: Bool {

@@ -140,11 +140,12 @@ final class VertexAIModelSupportTests: XCTestCase {
         XCTAssertEqual(info.reasoningConfig?.defaultEffort, .medium)
     }
 
-    func testStableGemini31FlashLiteIsNotExposedForVertexAI() {
+    func testStableGemini31FlashLiteIsExposedForVertexAI() {
         let support = VertexAIModelSupport()
 
+        // Stable Flash-Lite is preferred over the retired preview ID (shut down 2026-05-25).
+        XCTAssertTrue(support.knownModels.contains { $0.id == "gemini-3.1-flash-lite" })
         XCTAssertTrue(support.knownModels.contains { $0.id == "gemini-3.1-flash-lite-preview" })
-        XCTAssertFalse(support.knownModels.contains { $0.id == "gemini-3.1-flash-lite" })
 
         let info = support.makeModelInfo(
             id: "gemini-3.1-flash-lite",
@@ -152,10 +153,12 @@ final class VertexAIModelSupportTests: XCTestCase {
             contextWindow: 1_048_576
         )
 
-        XCTAssertTrue(info.capabilities.isEmpty)
-        XCTAssertNil(info.reasoningConfig)
-        XCTAssertFalse(support.supportsFunctionCalling("gemini-3.1-flash-lite"))
-        XCTAssertFalse(support.supportsThinking("gemini-3.1-flash-lite"))
-        XCTAssertFalse(support.supportsNativePDF("gemini-3.1-flash-lite"))
+        XCTAssertTrue(info.capabilities.contains(.streaming))
+        XCTAssertTrue(info.capabilities.contains(.toolCalling))
+        XCTAssertTrue(info.capabilities.contains(.reasoning))
+        XCTAssertEqual(info.reasoningConfig?.defaultEffort, .minimal)
+        XCTAssertTrue(support.supportsFunctionCalling("gemini-3.1-flash-lite"))
+        XCTAssertTrue(support.supportsThinking("gemini-3.1-flash-lite"))
+        XCTAssertTrue(support.supportsNativePDF("gemini-3.1-flash-lite"))
     }
 }

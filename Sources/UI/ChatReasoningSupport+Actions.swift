@@ -66,6 +66,22 @@ extension ChatReasoningSupport {
         }
     }
 
+    /// Ensures Responses-style reasoning controls will emit a `reasoning` object:
+    /// enabled + non-none effort (and optional default summary).
+    static func ensureOpenAIReasoningActive(
+        _ reasoning: inout ReasoningControls,
+        defaultEffort: ReasoningEffort,
+        supportsReasoningSummaryControl: Bool
+    ) {
+        reasoning.enabled = true
+        if reasoning.effort == nil || reasoning.effort == ReasoningEffort.none {
+            reasoning.effort = defaultEffort
+        }
+        if supportsReasoningSummaryControl, reasoning.summary == nil {
+            reasoning.summary = .auto
+        }
+    }
+
     static func setAnthropicThinkingBudget(
         controls: inout GenerationControls,
         budgetTokens: Int,

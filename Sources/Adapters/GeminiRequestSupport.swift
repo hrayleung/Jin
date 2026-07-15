@@ -143,27 +143,32 @@ enum GeminiRequestSupport {
     }
 
     static func supportsImageSize(_ modelID: String) -> Bool {
-        // imageSize is documented for Gemini 3 Pro Image and Gemini 3.1 Flash Image.
-        let lower = modelID.lowercased()
-        return lower == "gemini-3-pro-image-preview" || lower == "gemini-3.1-flash-image-preview"
+        // imageSize is documented for Gemini 3 Pro Image and Gemini 3.1 Flash Image families.
+        GeminiModelConstants.isProImageGenerationModel(modelID)
+            || GeminiModelConstants.isFlashImageGenerationModel(modelID)
     }
 
     static func supportsImageSize(_ modelID: String, imageSize: ImageOutputSize) -> Bool {
         guard supportsImageSize(modelID) else { return false }
-        let lower = modelID.lowercased()
-        if lower == "gemini-3-pro-image-preview" {
+        // Pro Image: 1K/2K/4K only. Flash Image: 512px + 1K/2K/4K.
+        // Flash-Lite Image: 1K only (docs: 1024px / 1K).
+        if GeminiModelConstants.isFlashLiteImageGenerationModel(modelID) {
+            return imageSize == .size1K
+        }
+        if GeminiModelConstants.isProImageGenerationModel(modelID) {
             return imageSize != .size512px
         }
         return true
     }
 
     static func supportsThinking(_ modelID: String) -> Bool {
+        // Gemini 2.5 Flash Image has no thinking; Flash-Lite Image supports minimal/high.
         modelID.lowercased() != "gemini-2.5-flash-image"
     }
 
     static func supportsThinkingConfig(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        return supportsThinking(modelID) && lower != "gemini-3-pro-image-preview"
+        // Pro Image models do not accept thinkingConfig generation fields.
+        supportsThinking(modelID) && !GeminiModelConstants.isProImageGenerationModel(modelID)
     }
 
     static func supportsThinkingLevel(_ modelID: String) -> Bool {

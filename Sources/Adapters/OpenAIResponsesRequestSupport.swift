@@ -38,19 +38,57 @@ enum OpenAIResponsesRequestSupport {
         reasoningEnabled: Bool,
         reasoningEffort: ReasoningEffort?
     ) {
-        guard reasoningEnabled, let reasoningEffort else { return }
+        // When reasoning is Off, omit the entire `reasoning` object so persisted
+        // summary/mode/context cannot re-enable or alter reasoning behavior.
+        if reasoningEnabled {
+            var reasoningDict: [String: Any] = [:]
 
-        var reasoningDict: [String: Any] = [
-            "effort": mappedReasoningEffort(
-                reasoningEffort,
-                providerType: providerType,
-                modelID: modelID
-            )
-        ]
-        if let summary = controls.reasoning?.summary {
-            reasoningDict["summary"] = summary.rawValue
+            if let reasoningEffort {
+                reasoningDict["effort"] = mappedReasoningEffort(
+                    reasoningEffort,
+                    providerType: providerType,
+                    modelID: modelID
+                )
+            }
+            if let summary = controls.reasoning?.summary {
+                reasoningDict["summary"] = summary.rawValue
+            }
+
+            // GPT-5.6 Pro mode: `reasoning.mode = "pro"` (independent of effort level).
+            if ModelCapabilityRegistry.supportsOpenAIStyleProMode(for: providerType, modelID: modelID),
+               controls.reasoning?.mode == .pro {
+                reasoningDict["mode"] = "pro"
+            }
+
+            // Multi-turn reasoning reuse: only when the model accepts `reasoning.context`.
+            if ModelCapabilityRegistry.supportsOpenAIStyleReasoningContext(for: providerType, modelID: modelID),
+               let context = controls.reasoning?.context {
+                reasoningDict["context"] = context.rawValue
+            }
+
+            if !reasoningDict.isEmpty {
+                body["reasoning"] = reasoningDict
+            }
         }
-        body["reasoning"] = reasoningDict
+
+        // Verbosity is independent of reasoning on/off.
+        applyTextVerbosity(to: &body, controls: controls, providerType: providerType, modelID: modelID)
+    }
+
+    static func applyTextVerbosity(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        providerType: ProviderType?,
+        modelID: String
+    ) {
+        guard ModelCapabilityRegistry.supportsOpenAIStyleVerbosity(for: providerType, modelID: modelID),
+              let verbosity = controls.textVerbosity else {
+            return
+        }
+
+        var textDict = body["text"] as? [String: Any] ?? [:]
+        textDict["verbosity"] = verbosity.rawValue
+        body["text"] = textDict
     }
 
     static func toolObjects(
