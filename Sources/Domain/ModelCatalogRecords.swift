@@ -45,6 +45,7 @@ extension ModelCatalog {
         .groq: groqRecords,
         .cerebras: cerebrasRecords,
         .sambanova: sambaNovaRecords,
+        .databricks: databricksRecords,
         .morphllm: morphLLMRecords,
         .opencodeGo: opencodeGoRecords,
         .gemini: geminiRecords,

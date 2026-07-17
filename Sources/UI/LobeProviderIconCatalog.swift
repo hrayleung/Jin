@@ -291,6 +291,8 @@ enum LobeProviderIconCatalog {
             return "Cerebras"
         case .sambanova:
             return "SambaNova"
+        case .databricks:
+            return "Dbrx"
         case .morphllm:
             return "Morph"
         case .opencodeGo:

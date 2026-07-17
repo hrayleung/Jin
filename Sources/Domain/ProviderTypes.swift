@@ -59,6 +59,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case cerebras
     case cloudflareAIGateway
     case cohere
+    case databricks
     case deepinfra
     case deepseek
     case fireworks
@@ -116,6 +117,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .fireworks: return "Fireworks"
         case .cerebras: return "Cerebras"
         case .sambanova: return "SambaNova"
+        case .databricks: return "Databricks"
         case .morphllm: return "MorphLLM"
         case .gemini: return "Gemini (AI Studio)"
         case .vertexai: return "Vertex AI"
@@ -181,6 +183,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .fireworks: return "https://api.fireworks.ai/inference/v1"
         case .cerebras: return "https://api.cerebras.ai/v1"
         case .sambanova: return "https://api.sambanova.ai/v1"
+        case .databricks: return "https://dbc-00000000-0000.cloud.databricks.com/serving-endpoints"
         case .morphllm: return "https://api.morphllm.com/v1"
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta"
         case .vertexai: return nil

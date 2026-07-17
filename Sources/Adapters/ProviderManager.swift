@@ -83,6 +83,14 @@ actor ProviderManager {
         case .sambanova:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return SambaNovaAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .databricks:
+            let apiKey = requiredAPIKey(from: credentials, for: config.type)
+            // A Databricks AI Gateway *anthropic* provider service speaks the Anthropic Messages
+            // API (not OpenAI chat completions), so route it through the Anthropic adapter.
+            if DatabricksGateway.isAnthropicGateway(config.baseURL) {
+                return AnthropicAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+            }
+            return DatabricksAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .morphllm:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return MorphLLMAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)

@@ -17,7 +17,7 @@ extension ProviderFormSupport {
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini, .zyphra, .meta, .kimiForCoding:
+             .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .gemini, .zyphra, .meta, .kimiForCoding:
             return .apiKey
         case .vertexai:
             return .serviceAccountJSON
@@ -61,6 +61,8 @@ extension ProviderFormSupport {
             return "Use the Anthropic-compatible Token Plan Base URL from the MiMo subscription page. Jin accepts Xiaomi's displayed `/anthropic` URL and sends requests to `/anthropic/v1/messages`; Token Plan keys start with `tp-`."
         case .kimiForCoding:
             return "Anthropic-compatible endpoint at `https://api.kimi.com/coding` (requests go to `/v1/messages`). Use an API key from the Kimi Code Console. Models: `k3`, `kimi-for-coding`, `kimi-for-coding-highspeed`."
+        case .databricks:
+            return "Use a Databricks workspace personal access token (starts with `dapi…`, from Settings → Developer → Access tokens — not an account-level or narrow-scoped token, or you'll get a 403 `model-serving` scope error). The Base URL selects the surface, auto-detected: (1) Foundation Model APIs — workspace host `https://dbc-xxxx.cloud.databricks.com`; Jin queries `/serving-endpoints/chat/completions` and lists models via `/api/2.0/serving-endpoints` (e.g. `databricks-claude-sonnet-4-6`). (2) Unity AI Gateway, your own OpenAI key — base `https://dbc-xxxx.cloud.databricks.com/ai-gateway/openai/v1`. (3) Unity AI Gateway, your own Anthropic key — base `https://dbc-xxxx.cloud.databricks.com/ai-gateway/anthropic/v1`. For gateway modes, Fetch Models offers a curated set of current models (Databricks doesn't expose your provider's allowed list) — remove any your gateway rejects, or add others by ID. Providers must live at location `workspace.default`."
         case .githubCopilot:
             return "Uses GitHub Models at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access."
         default:

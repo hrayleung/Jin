@@ -18,7 +18,7 @@ extension ChatModelCapabilitySupport {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .anthropic, .claudeManagedAgents, .perplexity,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
+             .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
     }
@@ -53,7 +53,7 @@ extension ChatModelCapabilitySupport {
             break
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo,
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo,
              .zyphra, .meta, .kimiForCoding:
             return false
         }
@@ -122,7 +122,7 @@ extension ChatModelCapabilitySupport {
         case .fireworks:
             return fireworksAudioInputModelIDs.contains(lowerModelID)
         case .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .xai, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
+             .mimoTokenPlanAnthropic, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
     }
