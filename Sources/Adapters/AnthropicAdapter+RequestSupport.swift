@@ -15,6 +15,15 @@ extension AnthropicAdapter {
         let raw = (providerConfig.baseURL ?? "https://api.anthropic.com/v1").trimmed
         let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
 
+        if providerConfig.type == .kimiForCoding {
+            // Kimi for Coding documents `https://api.kimi.com/coding` as the base URL
+            // with requests served from `/v1/messages`.
+            if trimmed.lowercased().hasSuffix("/v1") {
+                return trimmed
+            }
+            return "\(trimmed)/v1"
+        }
+
         guard providerConfig.type == .mimoTokenPlanAnthropic else {
             return trimmed
         }

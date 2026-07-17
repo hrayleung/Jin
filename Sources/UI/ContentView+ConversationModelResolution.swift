@@ -88,6 +88,12 @@ extension ContentView {
            let m25 = models.first(where: { $0.id == "MiniMax-M2.5" }) {
             return m25.id
         }
+        if providerID == "kimi-for-coding", let k3 = models.first(where: { $0.id == "k3" }) {
+            return k3.id
+        }
+        if providerID == "kimi-for-coding", let kimiForCoding = models.first(where: { $0.id == "kimi-for-coding" }) {
+            return kimiForCoding.id
+        }
         if providerID == "deepinfra", let glm52 = models.first(where: { $0.id == "zai-org/GLM-5.2" }) {
             return glm52.id
         }
@@ -152,6 +158,7 @@ extension ContentView {
         "xai": "grok-4.5",
         "deepseek": "deepseek-chat",
         "zhipu-coding-plan": "glm-5.2[1m]",
+        "kimi-for-coding": "k3",
         "minimax": "MiniMax-M2.7",
         "minimax-coding-plan": "MiniMax-M2.7",
         "deepinfra": "zai-org/GLM-5.2",

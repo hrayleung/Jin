@@ -65,6 +65,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case gemini
     case githubCopilot
     case groq
+    case kimiForCoding
     case meta
     case minimax
     case minimaxCodingPlan
@@ -100,6 +101,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .claudeManagedAgents: return "Claude Managed Agents"
         case .perplexity: return "Perplexity"
         case .groq: return "Groq"
+        case .kimiForCoding: return "Kimi for Coding"
         case .cohere: return "Cohere"
         case .mistral: return "Mistral"
         case .deepinfra: return "DeepInfra"
@@ -164,6 +166,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .claudeManagedAgents: return "https://api.anthropic.com"
         case .perplexity: return "https://api.perplexity.ai"
         case .groq: return "https://api.groq.com/openai/v1"
+        case .kimiForCoding: return "https://api.kimi.com/coding"
         case .cohere: return "https://api.cohere.com/v2"
         case .mistral: return "https://api.mistral.ai/v1"
         case .deepinfra: return "https://api.deepinfra.com/v1/openai"

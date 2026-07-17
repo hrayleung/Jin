@@ -1061,6 +1061,41 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: true),
     ]
 
+    // MARK: Kimi for Coding
+
+    // Model IDs verified against the official Kimi Code docs (kimi.com/code/docs):
+    // exactly three IDs exist — the 1M context is an entitlement of `k3`
+    // (Allegretto+), not a separate model ID, so no `k3[1m]` record is seeded.
+    // `k3` context stays at the Moderato-tier 262,144 (docs: "up to 1M" only on
+    // higher tiers). Thinking is always on for the whole lineup: K2.7 Code
+    // requests without thinking are silently routed to K2.6, and K3 supports
+    // only effort "max" — which the endpoint applies when `thinking` is omitted
+    // (docs: null/undefined → max) — so `k3` keeps reasoningConfig nil and Jin
+    // sends no thinking shape for it (same pattern as the `kimi-k2.7-code`
+    // OpenCode Go record). The K2.7 IDs keep a toggle that the resolver locks
+    // on (reasoningCanDisable = false). K2.7 Code vision + 262,144 max output
+    // match the repo's existing `kimi-k2.7-code` record (models.dev); K3 vision
+    // and max output are undocumented, so they stay conservative.
+    static let kimiForCodingRecords: [Record] = [
+        Record(id: "k3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+        Record(id: "kimi-for-coding", displayName: "Kimi K2.7 Code",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "kimi-for-coding-highspeed", displayName: "Kimi K2.7 Code HighSpeed",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+    ]
+
     // MARK: OpenCode Go
 
     static let opencodeGoRecords: [Record] = [

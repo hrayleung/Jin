@@ -88,6 +88,13 @@ enum AnthropicModelLimits {
             return 65_536
         }
 
+        // Kimi K2.7 Code (Kimi for Coding provider): 262,144 max output per the
+        // model catalog. K3's max output is undocumented, so it intentionally
+        // falls through to the resolver fallback.
+        if lower == "kimi-for-coding" || lower == "kimi-for-coding-highspeed" {
+            return 262_144
+        }
+
         if isSonnet46(lower)
             || isModelFamily(lower, prefix: "claude-opus-4-5")
             || isModelFamily(lower, prefix: "claude-sonnet-4-5")

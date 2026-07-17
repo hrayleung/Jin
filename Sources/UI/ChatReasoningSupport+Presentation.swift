@@ -8,7 +8,7 @@ extension ChatReasoningSupport {
     ) -> String {
         guard supportsReasoningControl else { return "Reasoning: Not supported" }
         switch providerType {
-        case .anthropic, .claudeManagedAgents, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .gemini, .vertexai:
+        case .anthropic, .claudeManagedAgents, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .gemini, .vertexai, .kimiForCoding:
             return "Thinking: \(label)"
         case .perplexity:
             return "Reasoning: \(label)"

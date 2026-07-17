@@ -17,7 +17,7 @@ extension ProviderFormSupport {
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini, .zyphra, .meta:
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .gemini, .zyphra, .meta, .kimiForCoding:
             return .apiKey
         case .vertexai:
             return .serviceAccountJSON
@@ -59,6 +59,8 @@ extension ProviderFormSupport {
             return "Use the OpenAI-compatible Token Plan Base URL from the MiMo subscription page. The Singapore default is `https://token-plan-sgp.xiaomimimo.com/v1`; Token Plan keys start with `tp-`."
         case .mimoTokenPlanAnthropic:
             return "Use the Anthropic-compatible Token Plan Base URL from the MiMo subscription page. Jin accepts Xiaomi's displayed `/anthropic` URL and sends requests to `/anthropic/v1/messages`; Token Plan keys start with `tp-`."
+        case .kimiForCoding:
+            return "Anthropic-compatible endpoint at `https://api.kimi.com/coding` (requests go to `/v1/messages`). Use an API key from the Kimi Code Console. Models: `k3`, `kimi-for-coding`, `kimi-for-coding-highspeed`."
         case .githubCopilot:
             return "Uses GitHub Models at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access."
         default:

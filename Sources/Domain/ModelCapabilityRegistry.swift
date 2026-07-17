@@ -454,7 +454,7 @@ enum ModelCapabilityRegistry {
         switch providerType {
         case .openai, .openaiWebSocket:
             return .openAIResponses
-        case .anthropic, .claudeManagedAgents, .mimoTokenPlanAnthropic:
+        case .anthropic, .claudeManagedAgents, .mimoTokenPlanAnthropic, .kimiForCoding:
             return .anthropic
         case .gemini, .vertexai:
             return .gemini
@@ -694,7 +694,7 @@ enum ModelCapabilityRegistry {
             return MiMoModelIDs.tokenPlanExactModelIDs.contains(lowerModelID)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .morphllm, .zyphra, .meta, .none:
+             .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .morphllm, .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
     }
@@ -926,7 +926,7 @@ enum ModelCapabilityRegistry {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm,
-             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .zyphra, .meta, .none:
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
     }
@@ -959,7 +959,7 @@ enum ModelCapabilityRegistry {
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo,
-             .zyphra, .meta, .none:
+             .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
     }

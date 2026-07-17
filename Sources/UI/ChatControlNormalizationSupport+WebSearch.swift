@@ -34,7 +34,7 @@ extension ChatControlNormalizationSupport {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .meta, .none:
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
         }
     }
@@ -74,7 +74,7 @@ extension ChatControlNormalizationSupport {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
-             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .meta, .none:
+             .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             controls.webSearch?.contextSize = nil
             controls.webSearch?.sources = nil
         }

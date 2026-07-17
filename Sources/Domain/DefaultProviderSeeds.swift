@@ -30,6 +30,7 @@ enum DefaultProviderSeeds {
             minimaxCodingPlan,
             mimoTokenPlanOpenAI,
             mimoTokenPlanAnthropic,
+            kimiForCoding,
             fireworks,
             sambaNova,
             morphLLM,
@@ -273,6 +274,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .mimoTokenPlanAnthropic),
             baseURL: ProviderType.mimoTokenPlanAnthropic.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .mimoTokenPlanAnthropic)
+        )
+    }
+
+    static var kimiForCoding: ProviderConfig {
+        ProviderConfig(
+            id: "kimi-for-coding",
+            name: "Kimi for Coding",
+            type: .kimiForCoding,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .kimiForCoding),
+            baseURL: ProviderType.kimiForCoding.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .kimiForCoding)
         )
     }
 
