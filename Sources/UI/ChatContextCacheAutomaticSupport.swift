@@ -24,7 +24,7 @@ extension ChatAuxiliaryControlSupport {
         switch providerType {
         case .openai, .openaiWebSocket:
             return ContextCacheControls(mode: .implicit)
-        case .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI:
+        case .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .kimiForCoding:
             return nil
         case .xai:
             return ContextCacheControls(

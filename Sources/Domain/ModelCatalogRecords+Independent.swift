@@ -1057,6 +1057,41 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: true),
     ]
 
+    // MARK: Kimi for Coding
+
+    // Model IDs and context windows verified against the official Kimi Code docs
+    // (kimi.com/code/docs): the Anthropic-compatible endpoint is
+    // `https://api.kimi.com/coding/v1/messages`; K2.7 Code requires Thinking mode
+    // (requests without it are routed to K2.6), and K3 runs deep thinking by
+    // default — so both expose a thinking toggle. `k3[1m]` is the documented
+    // 1M-context K3 variant. K2.7 Code vision + 262,144 max output match the
+    // repo's existing `kimi-k2.7-code` record (models.dev). K3 vision and max
+    // output are undocumented, so they stay conservative.
+    static let kimiForCodingRecords: [Record] = [
+        Record(id: "k3[1m]", displayName: "Kimi K3 (1M)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "k3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "kimi-for-coding", displayName: "Kimi K2.7 Code",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "kimi-for-coding-highspeed", displayName: "Kimi K2.7 Code HighSpeed",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+    ]
+
     // MARK: OpenCode Go
 
     static let opencodeGoRecords: [Record] = [

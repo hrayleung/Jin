@@ -283,6 +283,8 @@ enum LobeProviderIconCatalog {
             return "MiniMax"
         case .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI:
             return "XiaomiMiMo"
+        case .kimiForCoding:
+            return "Kimi"
         case .fireworks:
             return "Fireworks"
         case .cerebras:

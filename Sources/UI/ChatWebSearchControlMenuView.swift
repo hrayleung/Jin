@@ -182,7 +182,7 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                 case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
                      .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
                      .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
-                     .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .meta, .none:
+                     .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
                     EmptyView()
                 }
             }

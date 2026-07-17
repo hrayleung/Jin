@@ -40,6 +40,7 @@ extension ModelCatalog {
         .minimaxCodingPlan: minimaxCodingPlanRecords,
         .mimoTokenPlanOpenAI: mimoTokenPlanOpenAIRecords,
         .mimoTokenPlanAnthropic: mimoTokenPlanAnthropicRecords,
+        .kimiForCoding: kimiForCodingRecords,
         .fireworks: fireworksRecords,
         .groq: groqRecords,
         .cerebras: cerebrasRecords,

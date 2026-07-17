@@ -114,6 +114,9 @@ enum ChatModelSelectionSupport {
                 ?? models.first(where: { $0.id == "mimo-v2.5" })?.id
                 ?? models.first(where: { $0.id == "mimo-v2-pro" })?.id
                 ?? models.first(where: { $0.id == "mimo-v2-omni" })?.id
+        case .kimiForCoding:
+            return models.first(where: { $0.id == "k3" })?.id
+                ?? models.first(where: { $0.id == "kimi-for-coding" })?.id
         case .deepinfra:
             return preferredDeepInfraModelID(in: models)
         case .together:

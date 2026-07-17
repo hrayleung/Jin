@@ -47,7 +47,7 @@ actor ProviderManager {
         case .openrouter:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return OpenRouterAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
-        case .anthropic, .mimoTokenPlanAnthropic:
+        case .anthropic, .mimoTokenPlanAnthropic, .kimiForCoding:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return AnthropicAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .claudeManagedAgents:
