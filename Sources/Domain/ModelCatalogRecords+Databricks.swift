@@ -22,16 +22,20 @@ extension ModelCatalog {
     static let databricksRecords: [Record] = [
         // MARK: Seeded — appear in the model picker on first launch
 
-        // Anthropic Claude (vision + reasoning via reasoning_effort)
+        // Anthropic Claude — exposed as vision chat models. Reasoning is intentionally omitted:
+        // Databricks Claude hybrid reasoning is enabled with `thinking`/`budget_tokens`, not the
+        // `reasoning_effort` the OpenAI-compatible adapter emits, so an effort control here would
+        // send the wrong request shape. (The AI Gateway anthropic path routes through
+        // AnthropicAdapter, which handles thinking natively.)
         Record(id: "databricks-claude-sonnet-4-6", displayName: "Claude Sonnet 4.6",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
         Record(id: "databricks-claude-opus-4-8", displayName: "Claude Opus 4.8",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
 
         // OpenAI GPT-OSS (reasoning, text-only)
@@ -79,29 +83,29 @@ extension ModelCatalog {
 
         // Anthropic Claude
         Record(id: "databricks-claude-sonnet-5", displayName: "Claude Sonnet 5",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
         Record(id: "databricks-claude-sonnet-4-5", displayName: "Claude Sonnet 4.5",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
         Record(id: "databricks-claude-opus-4-7", displayName: "Claude Opus 4.7",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
         Record(id: "databricks-claude-opus-4-6", displayName: "Claude Opus 4.6",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
         Record(id: "databricks-claude-opus-4-5", displayName: "Claude Opus 4.5",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
         Record(id: "databricks-claude-haiku-4-5", displayName: "Claude Haiku 4.5",
                capabilities: [.streaming, .toolCalling, .vision],

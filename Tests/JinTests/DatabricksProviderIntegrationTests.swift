@@ -65,12 +65,14 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
     // MARK: - Catalog metadata
 
     func testDatabricksCatalogCapabilities() {
-        // Claude: vision + reasoning (effort), 200K context.
+        // Claude via FMAPI: vision, 200K context. Reasoning is intentionally NOT exposed —
+        // Databricks Claude uses thinking/budget_tokens, not the reasoning_effort the OpenAI-compat
+        // adapter emits.
         let sonnet = ModelCatalog.modelInfo(for: "databricks-claude-sonnet-4-6", provider: .databricks)
         XCTAssertEqual(sonnet.contextWindow, 200_000)
         XCTAssertTrue(sonnet.capabilities.contains(.vision))
-        XCTAssertTrue(sonnet.capabilities.contains(.reasoning))
-        XCTAssertEqual(sonnet.reasoningConfig?.type, .effort)
+        XCTAssertFalse(sonnet.capabilities.contains(.reasoning))
+        XCTAssertNil(sonnet.reasoningConfig)
 
         // GPT-OSS: reasoning, no vision.
         let gptOSS = ModelCatalog.modelInfo(for: "databricks-gpt-oss-120b", provider: .databricks)
@@ -97,7 +99,7 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
         // Databricks documents reasoning_effort as low/medium/high only — no xhigh/max.
         let efforts = ModelCapabilityRegistry.supportedReasoningEfforts(
             for: .databricks,
-            modelID: "databricks-claude-sonnet-4-6"
+            modelID: "databricks-gpt-oss-120b"
         )
         XCTAssertEqual(efforts, [.low, .medium, .high])
 
@@ -357,28 +359,21 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
         XCTAssertFalse(chatEndpoints.contains { $0.name == "fraud-model" })
     }
 
-    // MARK: - Vision heuristics (for dynamically fetched, uncatalogued endpoints)
+    // MARK: - Conservative capabilities for uncataloged endpoints
 
-    func testDatabricksVisionHeuristics() {
-        XCTAssertTrue(DatabricksModelHeuristics.supportsVision("databricks-claude-sonnet-4-9"))
-        XCTAssertTrue(DatabricksModelHeuristics.supportsVision("databricks-gemini-4-pro"))
-        XCTAssertTrue(DatabricksModelHeuristics.supportsVision("databricks-llama-4-scout"))
-        XCTAssertTrue(DatabricksModelHeuristics.supportsVision("databricks-gemma-3-27b"))
-        XCTAssertFalse(DatabricksModelHeuristics.supportsVision("databricks-gpt-oss-120b"))
-        XCTAssertFalse(DatabricksModelHeuristics.supportsVision("databricks-gte-large-en"))
-        // Text-only Gemma variants must not claim vision (else image_url parts hit a text model).
-        XCTAssertFalse(DatabricksModelHeuristics.supportsVision("databricks-gemma-2-9b"))
-        XCTAssertFalse(DatabricksModelHeuristics.supportsVision("databricks-gemma-3-1b"))
-    }
-
-    func testDatabricksReasoningHeuristics() {
-        XCTAssertTrue(DatabricksModelHeuristics.supportsReasoning("databricks-claude-sonnet-4-9"))
-        XCTAssertTrue(DatabricksModelHeuristics.supportsReasoning("databricks-gpt-oss-120b"))
-        XCTAssertTrue(DatabricksModelHeuristics.supportsReasoning("databricks-qwen3-max-thinking"))
-        // Non-thinking `-instruct` Qwen and pre-4 / 3.5 Claude generations must not claim reasoning.
-        XCTAssertFalse(DatabricksModelHeuristics.supportsReasoning("databricks-qwen3-next-80b-a3b-instruct"))
-        XCTAssertFalse(DatabricksModelHeuristics.supportsReasoning("databricks-claude-3-5-sonnet"))
-        XCTAssertFalse(DatabricksModelHeuristics.supportsReasoning("databricks-claude-3-opus"))
-        XCTAssertFalse(DatabricksModelHeuristics.supportsReasoning("databricks-claude-haiku-4-5"))
+    func testUncatalogedModelsStayConservative() async {
+        let adapter = DatabricksAdapter(
+            providerConfig: ProviderConfig(
+                id: "databricks", name: "Databricks", type: .databricks, apiKey: "dapi-test",
+                baseURL: "https://dbc-1234.cloud.databricks.com"
+            ),
+            apiKey: "dapi-test"
+        )
+        // A cataloged vision model reports vision; an uncataloged endpoint is treated
+        // conservatively (no vision) rather than guessed from the name.
+        let cataloged = await adapter.modelSupportsVision("databricks-claude-sonnet-4-6")
+        let unknown = await adapter.modelSupportsVision("databricks-some-future-model-xyz")
+        XCTAssertTrue(cataloged)
+        XCTAssertFalse(unknown)
     }
 }

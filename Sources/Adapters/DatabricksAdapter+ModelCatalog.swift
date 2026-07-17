@@ -38,17 +38,15 @@ extension DatabricksAdapter {
             }
     }
 
-    /// Whether the given serving-endpoint name supports image input. Prefers the configured /
-    /// catalog capability, then falls back to a conservative family heuristic for endpoints
-    /// discovered dynamically that are not in the catalog.
+    /// Whether the given serving-endpoint name supports image input, from its configured or
+    /// cataloged capabilities. Uncataloged endpoints are treated conservatively (no vision)
+    /// rather than guessing from the name.
     func modelSupportsVision(_ modelID: String) -> Bool {
         if let configured = findConfiguredModel(in: providerConfig, for: modelID) {
             return configured.capabilities.contains(.vision)
         }
-        if let entry = ModelCatalog.entry(for: modelID, provider: .databricks) {
-            return entry.capabilities.contains(.vision)
-        }
-        return DatabricksModelHeuristics.supportsVision(modelID)
+        return ModelCatalog.entry(for: modelID, provider: .databricks)?
+            .capabilities.contains(.vision) ?? false
     }
 
     private func makeModelInfo(id: String, displayName: String?) -> ModelInfo {
@@ -56,9 +54,17 @@ extension DatabricksAdapter {
             return ModelCatalog.modelInfo(for: id, provider: .databricks, name: displayName)
         }
 
-        var fallback = DatabricksFallbackModelInfo(id: id, displayName: displayName)
-        fallback.applyCapabilityHeuristics()
-        return fallback.modelInfo
+        // Uncataloged serving endpoint: keep capabilities conservative rather than inferring from
+        // the name. Vision/reasoning stay off and the context window uses a safe default until the
+        // exact model is added to `ModelCatalogRecords+Databricks.swift` with verified capabilities.
+        // TODO: catalog additional Databricks-hosted models as they are verified.
+        return ModelInfo(
+            id: id,
+            name: displayName?.trimmedNonEmpty ?? id,
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil
+        )
     }
 }
 
@@ -101,94 +107,3 @@ struct DatabricksServingEndpointsResponse: Decodable {
     }
 }
 
-// MARK: - Fallback Heuristics
-
-/// Conservative capability heuristics for serving endpoints discovered dynamically that are
-/// not in the seeded catalog. Databricks proxies many model families under `databricks-*`
-/// endpoint names, so family detection drives vision/reasoning defaults.
-enum DatabricksModelHeuristics {
-    static func supportsVision(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        if lower.contains("gpt-oss") { return false }
-        if lower.contains("embedding") || lower.contains("-embed") { return false }
-        return lower.contains("claude")
-            || (lower.contains("gemini") && !lower.contains("embedding"))
-            // Gemma multimodal variants only: Gemma 3 (4B/12B/27B) and Gemma 4 have vision;
-            // Gemma 1, Gemma 2 (all sizes) and Gemma 3 1B are text-only.
-            || (lower.contains("gemma-3") && !lower.contains("gemma-3-1b"))
-            || lower.contains("gemma-4")
-            || lower.contains("llama-4") || lower.contains("maverick") || lower.contains("scout")
-            || lower.contains("gpt-5")
-            || lower.contains("pixtral")
-    }
-
-    static func supportsReasoning(_ modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        if lower.contains("embedding") || lower.contains("-embed") { return false }
-        // Claude Haiku is non-reasoning across generations.
-        if lower.contains("haiku") { return false }
-        if lower.contains("claude") {
-            // Extended thinking exists on Claude 3.7 and 4.x/5.x; Claude 2.x, instant, 3.0
-            // and 3.5 do not reason.
-            if lower.contains("claude-2") || lower.contains("claude-instant")
-                || lower.contains("claude-3-opus") || lower.contains("claude-3-sonnet")
-                || lower.contains("claude-3-5") || lower.contains("claude-3.5") {
-                return false
-            }
-            return true
-        }
-        if lower.contains("qwen3") || lower.contains("qwen35") {
-            // Non-thinking `-instruct` variants don't reason; explicit thinking variants are
-            // caught by the keyword check below.
-            return !lower.contains("instruct")
-        }
-        return lower.contains("gpt-oss")
-            || lower.contains("gpt-5")
-            || lower.contains("gemini-3")
-            || lower.contains("gemini-2-5") || lower.contains("gemini-2.5")
-            || lower.contains("deepseek-r1")
-            || lower.contains("reasoning") || lower.contains("thinking")
-    }
-}
-
-private struct DatabricksFallbackModelInfo {
-    let id: String
-    let displayName: String?
-    private let lowerID: String
-    private var capabilities: ModelCapability = [.streaming, .toolCalling]
-    private var contextWindow = 128_000
-    private var reasoningConfig: ModelReasoningConfig?
-
-    init(id: String, displayName: String?) {
-        self.id = id
-        self.displayName = displayName
-        self.lowerID = id.lowercased()
-    }
-
-    var modelInfo: ModelInfo {
-        ModelInfo(
-            id: id,
-            name: displayName?.trimmedNonEmpty ?? id,
-            capabilities: capabilities,
-            contextWindow: contextWindow,
-            reasoningConfig: reasoningConfig
-        )
-    }
-
-    mutating func applyCapabilityHeuristics() {
-        if DatabricksModelHeuristics.supportsVision(id) {
-            capabilities.insert(.vision)
-        }
-        if DatabricksModelHeuristics.supportsReasoning(id) {
-            capabilities.insert(.reasoning)
-            reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-        }
-
-        // Widen context for known large-context families.
-        if lowerID.contains("gemini") || lowerID.contains("gpt-5") {
-            contextWindow = 1_000_000
-        } else if lowerID.contains("qwen") {
-            contextWindow = 256_000
-        }
-    }
-}

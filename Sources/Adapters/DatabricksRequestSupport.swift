@@ -14,8 +14,11 @@ extension DatabricksAdapter {
             "stream": streaming
         ]
 
-        if streaming {
-            // Request a trailing usage chunk so input/output token counts populate.
+        if streaming, isOpenAIGateway {
+            // The AI Gateway OpenAI surface forwards to native OpenAI, which returns a trailing
+            // usage chunk when asked. The Foundation Model APIs chat schema does not document
+            // `stream_options`, so it is omitted there to avoid request rejection (FMAPI streaming
+            // simply reports no usage).
             body["stream_options"] = ["include_usage": true]
         }
 
