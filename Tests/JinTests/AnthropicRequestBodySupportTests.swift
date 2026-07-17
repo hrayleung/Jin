@@ -176,6 +176,60 @@ final class AnthropicRequestBodySupportTests: XCTestCase {
         XCTAssertEqual(body["top_p"] as? Double, 0.8)
     }
 
+    func testApplyThinkingConfigForKimiK27ForcesThinkingEvenWhenDisabled() throws {
+        var body: [String: Any] = [:]
+
+        AnthropicRequestBodySupport.applyThinkingConfig(
+            to: &body,
+            controls: GenerationControls(
+                temperature: 0.4,
+                reasoning: ReasoningControls(enabled: false)
+            ),
+            providerType: .kimiForCoding,
+            modelID: "kimi-for-coding"
+        )
+
+        // K2.7 Code is thinking-always-on; omitting `thinking` silently routes to K2.6.
+        let thinking = try XCTUnwrap(body["thinking"] as? [String: Any])
+        XCTAssertEqual(thinking["type"] as? String, "enabled")
+        XCTAssertEqual(thinking["budget_tokens"] as? Int, 2048)
+        XCTAssertEqual(body["temperature"] as? Double, 0.4)
+    }
+
+    func testApplyThinkingConfigForKimiK27HighspeedForcesThinkingWhenReasoningUnset() throws {
+        var body: [String: Any] = [:]
+
+        AnthropicRequestBodySupport.applyThinkingConfig(
+            to: &body,
+            controls: GenerationControls(),
+            providerType: .kimiForCoding,
+            modelID: "kimi-for-coding-highspeed"
+        )
+
+        let thinking = try XCTUnwrap(body["thinking"] as? [String: Any])
+        XCTAssertEqual(thinking["type"] as? String, "enabled")
+        XCTAssertEqual(thinking["budget_tokens"] as? Int, 2048)
+    }
+
+    func testApplyThinkingConfigForKimiK3OmitsThinkingEvenWhenReasoningEnabled() throws {
+        var body: [String: Any] = [:]
+
+        AnthropicRequestBodySupport.applyThinkingConfig(
+            to: &body,
+            controls: GenerationControls(
+                temperature: 0.4,
+                reasoning: ReasoningControls(enabled: true)
+            ),
+            providerType: .kimiForCoding,
+            modelID: "k3"
+        )
+
+        // K3 supports only effort "max", applied server-side when `thinking` is
+        // omitted — Jin must not send an undocumented budget shape for it.
+        XCTAssertNil(body["thinking"])
+        XCTAssertEqual(body["temperature"] as? Double, 0.4)
+    }
+
     func testApplyProviderSpecificOverridesFiltersSamplingWhenUnsupportedAndMergesOutputConfig() throws {
         var body: [String: Any] = [
             "output_config": ["effort": "xhigh"]

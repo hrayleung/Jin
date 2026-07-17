@@ -107,6 +107,12 @@ enum ModelSettingsResolver {
             // {type:"disabled"} / reasoning_effort "none" both return HTTP 400).
             return false
         }
+        if providerType == .kimiForCoding {
+            // Kimi K2.7 Code is thinking-always-on (Kimi Code docs: "Thinking: ON";
+            // requests without thinking are silently routed to K2.6). K3 keeps its
+            // reasoningConfig nil so this default is moot for it.
+            return !kimiForCodingAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
         return true
     }
 
@@ -204,6 +210,13 @@ enum ModelSettingsResolver {
     private static let vercelAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
         "xai/grok-4.5",
         "meta/muse-spark-1.1",
+    ]
+
+    /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list
+    /// "Thinking: ON" for both K2.7 Code variants).
+    private static let kimiForCodingAlwaysOnReasoningModelIDs: Set<String> = [
+        "kimi-for-coding",
+        "kimi-for-coding-highspeed",
     ]
 
     private static func isSambaNovaAlwaysOnReasoningModel(_ modelID: String) -> Bool {

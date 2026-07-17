@@ -37,28 +37,52 @@ final class KimiForCodingProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(provider.baseURL, ProviderType.kimiForCoding.defaultBaseURL)
         XCTAssertEqual(
             provider.models.map(\.id),
-            ["k3[1m]", "k3", "kimi-for-coding", "kimi-for-coding-highspeed"]
+            ["k3", "kimi-for-coding", "kimi-for-coding-highspeed"]
         )
     }
 
     func testKimiForCodingCatalogMetadata() {
-        let k3Large = ModelCatalog.modelInfo(for: "k3[1m]", provider: .kimiForCoding)
-        XCTAssertEqual(k3Large.contextWindow, 1_048_576)
+        // Exactly the three documented model IDs are seeded; the 1M context is an
+        // entitlement of `k3`, not a separate `k3[1m]` model ID.
+        XCTAssertNil(ModelCatalog.entry(for: "k3[1m]", provider: .kimiForCoding))
 
+        // K3 supports only effort "max", applied server-side when `thinking` is
+        // omitted — so the record exposes no reasoning control shape at all.
         let k3 = ModelCatalog.modelInfo(for: "k3", provider: .kimiForCoding)
         XCTAssertEqual(k3.contextWindow, 262_144)
         XCTAssertTrue(k3.capabilities.contains(.reasoning))
+        XCTAssertNil(k3.reasoningConfig)
 
         let kimiForCoding = ModelCatalog.modelInfo(for: "kimi-for-coding", provider: .kimiForCoding)
         XCTAssertEqual(kimiForCoding.contextWindow, 262_144)
         XCTAssertEqual(kimiForCoding.maxOutputTokens, 262_144)
         XCTAssertTrue(kimiForCoding.capabilities.contains(.vision))
         XCTAssertTrue(kimiForCoding.capabilities.contains(.reasoning))
+        XCTAssertEqual(kimiForCoding.reasoningConfig?.type, .toggle)
 
         let highspeed = ModelCatalog.modelInfo(for: "kimi-for-coding-highspeed", provider: .kimiForCoding)
         XCTAssertEqual(highspeed.contextWindow, 262_144)
         XCTAssertEqual(highspeed.maxOutputTokens, 262_144)
         XCTAssertTrue(highspeed.capabilities.contains(.reasoning))
+        XCTAssertEqual(highspeed.reasoningConfig?.type, .toggle)
+    }
+
+    func testKimiForCodingReasoningDisableLockAndMaxOutput() {
+        let kimiForCoding = ModelCatalog.modelInfo(for: "kimi-for-coding", provider: .kimiForCoding)
+        let resolvedK27 = ModelSettingsResolver.resolve(model: kimiForCoding, providerType: .kimiForCoding)
+        XCTAssertFalse(resolvedK27.reasoningCanDisable)
+
+        let highspeed = ModelCatalog.modelInfo(for: "kimi-for-coding-highspeed", provider: .kimiForCoding)
+        let resolvedHighspeed = ModelSettingsResolver.resolve(model: highspeed, providerType: .kimiForCoding)
+        XCTAssertFalse(resolvedHighspeed.reasoningCanDisable)
+
+        let k3 = ModelCatalog.modelInfo(for: "k3", provider: .kimiForCoding)
+        let resolvedK3 = ModelSettingsResolver.resolve(model: k3, providerType: .kimiForCoding)
+        XCTAssertTrue(resolvedK3.reasoningCanDisable)
+
+        XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "kimi-for-coding"), 262_144)
+        XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "kimi-for-coding-highspeed"), 262_144)
+        XCTAssertEqual(AnthropicModelLimits.resolvedMaxTokens(requested: nil, for: "kimi-for-coding"), 262_144)
     }
 
     func testKimiForCodingBaseURLNormalizationAppendsV1() async {
