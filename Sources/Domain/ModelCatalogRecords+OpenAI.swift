@@ -601,8 +601,9 @@ extension ModelCatalog {
         // Kimi K3 (verified against ai-gateway.vercel.sh/v1/models, 2026-07-18): the
         // gateway lists 1,000,000 context / 131,072 output and tags reasoning /
         // tool-use / vision / implicit-caching. Thinking is always-on upstream with
-        // max-only effort, so reasoningConfig stays nil (Jin sends no reasoning
-        // shape) and the ID joins vercelAIGatewayAlwaysOnReasoningModelIDs.
+        // max-only effort, so reasoningConfig stays nil and Jin sends no reasoning
+        // shape (same pattern as the `k3` Kimi for Coding record, including leaving
+        // the always-on resolver default moot).
         Record(id: "moonshotai/kimi-k3", displayName: "Kimi K3",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_000_000,

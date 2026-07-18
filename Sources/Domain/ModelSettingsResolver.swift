@@ -201,22 +201,23 @@ enum ModelSettingsResolver {
     ]
 
     /// OpenRouter models whose live /models metadata reports reasoning.mandatory=true
-    /// (grok-4.5, fable-5, and fugu-ultra verified 2026-07-11; kimi-k3 verified 2026-07-18).
+    /// (verified 2026-07-11). Kimi K3 is deliberately NOT listed: it is mandatory too,
+    /// but its catalog record keeps reasoningConfig nil (no reasoning UI, no reasoning
+    /// shape sent), making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
         "x-ai/grok-4.5",
         "anthropic/claude-fable-5",
         "sakana/fugu-ultra",
-        "moonshotai/kimi-k3",
     ]
 
-    /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.5,
-    /// Muse Spark, and Kimi K3 — whose thinking is always-on with max-only effort
-    /// per Moonshot's K3 docs, verified 2026-07-18 — all reject disabled reasoning
-    /// upstream).
+    /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.5 and
+    /// Muse Spark both reject disabled reasoning upstream). Kimi K3 is deliberately
+    /// NOT listed: thinking is always-on upstream too, but its catalog record keeps
+    /// reasoningConfig nil (no reasoning UI, no reasoning shape sent), making this
+    /// default moot — same precedent as `k3` on Kimi for Coding.
     private static let vercelAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
         "xai/grok-4.5",
         "meta/muse-spark-1.1",
-        "moonshotai/kimi-k3",
     ]
 
     /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list

@@ -423,8 +423,8 @@ extension ModelCatalog {
         // 1,048,576 context, text+image->text, cached-input pricing. Reasoning is
         // mandatory with supported_efforts = ["max"] only, so reasoningConfig stays
         // nil — Jin sends no reasoning shape and OpenRouter applies its default max
-        // effort (same pattern as the `k3` Kimi for Coding record); the resolver's
-        // always-on list documents the mandatory flag. Moonshot documents
+        // effort (same pattern as the `k3` Kimi for Coding record, including leaving
+        // the always-on resolver default moot). Moonshot documents
         // max_completion_tokens up to the full window with a 131,072 default while
         // OpenRouter reports no provider cap, so maxOutputTokens stays conservative.
         Record(id: "moonshotai/kimi-k3", displayName: "Kimi K3",
