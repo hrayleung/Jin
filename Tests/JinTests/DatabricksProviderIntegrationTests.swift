@@ -193,8 +193,56 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
         XCTAssertNil(DatabricksGateway.providerServiceName(from: ws))
         XCTAssertNil(DatabricksGateway.providerServiceName(from: "\(ws)/ai-gateway/mlflow/v1"))
 
+        // Explicit ?service= override for non-default service locations/names.
+        XCTAssertEqual(
+            DatabricksGateway.providerServiceName(from: "\(ws)/ai-gateway/openai/v1?service=main.default.openai_prod"),
+            "main.default.openai_prod"
+        )
+        XCTAssertEqual(
+            DatabricksGateway.providerServiceName(from: "\(ws)/ai-gateway/anthropic/v1?service=main.default.claude_prod"),
+            "main.default.claude_prod"
+        )
+        // A query string must not disturb protocol detection or the workspace root.
+        XCTAssertTrue(DatabricksGateway.isOpenAIGateway("\(ws)/ai-gateway/openai/v1?service=main.default.openai_prod"))
+        XCTAssertEqual(DatabricksGateway.workspaceRoot(from: "\(ws)/ai-gateway/openai/v1?service=main.default.x"), ws)
+
         XCTAssertEqual(DatabricksGateway.workspaceRoot(from: "\(ws)/ai-gateway/anthropic/v1"), ws)
         XCTAssertEqual(DatabricksGateway.workspaceRoot(from: ws), ws)
+    }
+
+    func testGatewayServiceOverrideReachesRequests() async throws {
+        // OpenAI gateway: override flows into the Databricks-Model-Provider-Service header, and the
+        // chat URL stays clean (no query string).
+        let openai = DatabricksAdapter(
+            providerConfig: ProviderConfig(
+                id: "databricks", name: "Databricks", type: .databricks, apiKey: "dapi-test",
+                baseURL: "https://dbc-1234.cloud.databricks.com/ai-gateway/openai/v1?service=main.default.openai_prod"
+            ),
+            apiKey: "dapi-test"
+        )
+        let req = try await openai.buildRequest(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-4o", controls: GenerationControls(), tools: [], streaming: false
+        )
+        XCTAssertEqual(
+            req.value(forHTTPHeaderField: "Databricks-Model-Provider-Service"),
+            "main.default.openai_prod"
+        )
+        XCTAssertEqual(
+            req.url?.absoluteString,
+            "https://dbc-1234.cloud.databricks.com/ai-gateway/openai/v1/chat/completions"
+        )
+
+        // Anthropic gateway: override flows into the header via AnthropicAdapter.
+        let anthropic = AnthropicAdapter(
+            providerConfig: ProviderConfig(
+                id: "databricks", name: "Databricks", type: .databricks, apiKey: "dapi-test",
+                baseURL: "https://dbc-1234.cloud.databricks.com/ai-gateway/anthropic/v1?service=main.default.claude_prod"
+            ),
+            apiKey: "dapi-test"
+        )
+        let headers = await anthropic.anthropicHeaders(apiKey: "dapi-test", contentType: "application/json")
+        XCTAssertEqual(headers["Databricks-Model-Provider-Service"], "main.default.claude_prod")
     }
 
     func testProviderManagerRoutesGatewaysToCorrectAdapters() async throws {

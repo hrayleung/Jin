@@ -19,11 +19,20 @@ enum DatabricksGateway {
     }
 
     static func isOpenAIGateway(_ baseURL: String?) -> Bool {
-        normalized(baseURL).contains("/ai-gateway/openai")
+        gatewayProtocol(baseURL) == "openai"
     }
 
     static func isAnthropicGateway(_ baseURL: String?) -> Bool {
-        normalized(baseURL).contains("/ai-gateway/anthropic")
+        gatewayProtocol(baseURL) == "anthropic"
+    }
+
+    /// The `/ai-gateway/<protocol>/…` surface segment (openai, anthropic, mlflow, …), or nil.
+    /// Reads only the path segment, so a `?service=` query value can't be mistaken for it.
+    private static func gatewayProtocol(_ baseURL: String?) -> String? {
+        let lower = normalized(baseURL)
+        guard let range = lower.range(of: "/ai-gateway/") else { return nil }
+        let segment = lower[range.upperBound...].prefix { $0 != "/" && $0 != "?" }
+        return segment.isEmpty ? nil : String(segment)
     }
 
     /// The Databricks workspace root (`scheme://host[:port]`) from any Databricks URL — the
@@ -48,19 +57,36 @@ enum DatabricksGateway {
         return trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed
     }
 
-    /// The three-part provider service name for the `Databricks-Model-Provider-Service` header,
-    /// derived from the `/ai-gateway/<provider>/…` path segment (default location
-    /// `workspace.default`, which is where AI Gateway providers live by default). Returns nil for
-    /// non-gateway URLs or the unified `mlflow` surface (which does not accept registered providers).
+    /// The three-part model provider service name for the `Databricks-Model-Provider-Service`
+    /// header.
+    ///
+    /// An explicit `?service=<catalog.schema.name>` query parameter on the base URL takes
+    /// precedence — required when the service is not at the default location (e.g.
+    /// `main.default.openai_prod`). Otherwise defaults to `workspace.default.<protocol>`, which
+    /// covers the common case where the service name matches the surface and lives in the default
+    /// workspace catalog/schema. Returns nil for non-gateway URLs or the unified `mlflow` surface.
     static func providerServiceName(from baseURL: String?) -> String? {
-        let lower = normalized(baseURL)
-        guard let range = lower.range(of: "/ai-gateway/") else { return nil }
-        let after = lower[range.upperBound...]
-        guard let name = after.split(separator: "/").first.map(String.init),
-              !name.isEmpty, name != "mlflow", name != "v1" else {
+        guard isGateway(baseURL) else { return nil }
+        if let override = serviceOverride(from: baseURL) {
+            return override
+        }
+        guard let proto = gatewayProtocol(baseURL), proto != "mlflow", proto != "v1" else {
             return nil
         }
-        return "workspace.default.\(name)"
+        return "workspace.default.\(proto)"
+    }
+
+    /// Explicit service name from a `?service=` (or `model_provider_service=`) query parameter.
+    private static func serviceOverride(from baseURL: String?) -> String? {
+        guard let raw = baseURL?.trimmedNonEmpty else { return nil }
+        let withScheme = raw.contains("://") ? raw : "https://\(raw)"
+        guard let items = URLComponents(string: withScheme)?.queryItems else { return nil }
+        for key in ["service", "model_provider_service", "model-provider-service"] {
+            if let value = items.first(where: { $0.name.lowercased() == key })?.value?.trimmedNonEmpty {
+                return value
+            }
+        }
+        return nil
     }
 
     private static func normalized(_ baseURL: String?) -> String {
