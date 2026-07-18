@@ -15,6 +15,12 @@ extension AnthropicAdapter {
         let raw = (providerConfig.baseURL ?? "https://api.anthropic.com/v1").trimmed
         let trimmed = raw.hasSuffix("/") ? String(raw.dropLast()) : raw
 
+        if providerConfig.type == .databricks {
+            // Databricks Unity AI Gateway Anthropic provider service; requests hit
+            // `{workspace}/ai-gateway/anthropic/v1/messages` regardless of the pasted path.
+            return "\(DatabricksGateway.workspaceRoot(from: trimmed))/ai-gateway/anthropic/v1"
+        }
+
         if providerConfig.type == .kimiForCoding {
             // Kimi for Coding documents `https://api.kimi.com/coding` as the base URL
             // with requests served from `/v1/messages`.
@@ -43,6 +49,23 @@ extension AnthropicAdapter {
     }
 
     func anthropicHeaders(apiKey: String, contentType: String? = nil, betaHeader: String? = nil) -> [String: String] {
+        if providerConfig.type == .databricks {
+            // Unity AI Gateway authenticates with a Databricks token via Bearer and routes to the
+            // registered provider service via the Databricks-Model-Provider-Service header (not
+            // x-api-key). Beta feature headers are omitted — the gateway forwards a standard body.
+            var headers: [String: String] = [
+                "Authorization": "Bearer \(apiKey)",
+                "anthropic-version": anthropicVersion
+            ]
+            if let service = DatabricksGateway.providerServiceName(from: providerConfig.baseURL) {
+                headers[DatabricksGateway.modelProviderServiceHeader] = service
+            }
+            if let contentType {
+                headers["Content-Type"] = contentType
+            }
+            return headers
+        }
+
         if providerConfig.type == .mimoTokenPlanAnthropic {
             var headers: [String: String] = ["api-key": apiKey]
             if let contentType {

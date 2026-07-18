@@ -44,6 +44,15 @@ enum ChatModelSelectionSupport {
         "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
         "Qwen/Qwen3-Coder-Next-FP8",
     ]
+    static let preferredDatabricksModelOrder: [String] = [
+        "databricks-claude-sonnet-4-6",
+        "databricks-claude-opus-4-8",
+        "databricks-gpt-oss-120b",
+        "databricks-gemini-3-1-pro",
+        "databricks-meta-llama-3-3-70b-instruct",
+        "databricks-llama-4-maverick",
+        "databricks-qwen35-122b-a10b",
+    ]
 
     static func preferredFireworksModelID(in models: [ModelInfo]) -> String? {
         for canonicalID in preferredFireworksModelOrder {
@@ -137,6 +146,13 @@ enum ChatModelSelectionSupport {
                 ?? models.first(where: { $0.id == "DeepSeek-V3.1" })?.id
                 ?? models.first(where: { $0.id == "gpt-oss-120b" })?.id
                 ?? models.first(where: { $0.id == "Qwen3-235B-A22B-Instruct-2507" })?.id
+        case .databricks:
+            for preferredID in preferredDatabricksModelOrder {
+                if let modelID = models.first(where: { $0.id == preferredID })?.id {
+                    return modelID
+                }
+            }
+            return nil
         case .gemini:
             for preferredID in geminiPreferredModelOrder {
                 if let exact = models.first(where: { $0.id.lowercased() == preferredID }) {

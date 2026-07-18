@@ -14,7 +14,7 @@ extension ChatReasoningSupport {
             return "Reasoning: \(label)"
         case .openai, .openaiWebSocket, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .morphllm, .opencodeGo,
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo,
              .zyphra, .meta, .none:
             return "Reasoning: \(label)"
         }

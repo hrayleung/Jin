@@ -2,6 +2,22 @@ import Foundation
 
 extension AnthropicAdapter {
     func validateAPIKey(_ key: String) async throws -> Bool {
+        if providerConfig.type == .databricks {
+            // The Databricks AI Gateway anthropic surface answers `GET /v1/models` (200) for any
+            // valid workspace token; a minimal message could 403 on the allowed-models list.
+            var extraHeaders: [String: String] = [:]
+            if let service = DatabricksGateway.providerServiceName(from: providerConfig.baseURL) {
+                extraHeaders[DatabricksGateway.modelProviderServiceHeader] = service
+            }
+            return await validateAPIKeyViaGET(
+                url: try validatedURL("\(baseURL)/models"),
+                apiKey: key,
+                networkManager: networkManager,
+                authHeader: (key: "Authorization", value: "Bearer \(key)"),
+                additionalHeaders: extraHeaders
+            )
+        }
+
         if !supportsModelsEndpoint {
             return await validateAPIKeyViaMinimalMessage(key)
         }
@@ -20,6 +36,12 @@ extension AnthropicAdapter {
     }
 
     func fetchAvailableModels() async throws -> [ModelInfo] {
+        if providerConfig.type == .databricks {
+            // The gateway's `/models` route returns the Databricks system catalog, not this BYOK
+            // provider's allowed models (those only surface via a 403). Offer a curated Claude set.
+            return DatabricksGateway.curatedAnthropicModels()
+        }
+
         if !supportsModelsEndpoint {
             return (ModelCatalog.orderedRecords[providerConfig.type] ?? []).map { r in
                 ModelInfo(

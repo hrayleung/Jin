@@ -135,6 +135,12 @@ extension ContentView {
         if providerID == "sambanova", let deepSeekV31 = models.first(where: { $0.id == "DeepSeek-V3.1" }) {
             return deepSeekV31.id
         }
+        if providerID == "databricks", let sonnet46 = models.first(where: { $0.id == "databricks-claude-sonnet-4-6" }) {
+            return sonnet46.id
+        }
+        if providerID == "databricks", let opus48 = models.first(where: { $0.id == "databricks-claude-opus-4-8" }) {
+            return opus48.id
+        }
         if providerID == "vertexai", let gemini3Pro = models.first(where: { $0.id == "gemini-3-pro-preview" }) {
             return gemini3Pro.id
         }
@@ -167,6 +173,7 @@ extension ContentView {
         "opencode-go": "glm-5.2",
         "cerebras": "qwen-3-235b-a22b-instruct-2507",
         "sambanova": "MiniMax-M2.5",
+        "databricks": "databricks-claude-sonnet-4-6",
         "vercel-ai-gateway": "openai/gpt-5.2",
         "vertexai": "gemini-3-pro-preview",
         "meta": "muse-spark-1.1",

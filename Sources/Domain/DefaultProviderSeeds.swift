@@ -33,6 +33,7 @@ enum DefaultProviderSeeds {
             kimiForCoding,
             fireworks,
             sambaNova,
+            databricks,
             morphLLM,
             opencodeGo,
             gemini,
@@ -307,6 +308,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .sambanova),
             baseURL: ProviderType.sambanova.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .sambanova)
+        )
+    }
+
+    static var databricks: ProviderConfig {
+        ProviderConfig(
+            id: "databricks",
+            name: "Databricks",
+            type: .databricks,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .databricks),
+            baseURL: ProviderType.databricks.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .databricks)
         )
     }
 
