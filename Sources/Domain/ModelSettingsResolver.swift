@@ -198,11 +198,12 @@ enum ModelSettingsResolver {
     ]
 
     /// OpenRouter models whose live /models metadata reports reasoning.mandatory=true
-    /// (verified 2026-07-11).
+    /// (grok-4.5, fable-5, and fugu-ultra verified 2026-07-11; kimi-k3 verified 2026-07-18).
     private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
         "x-ai/grok-4.5",
         "anthropic/claude-fable-5",
         "sakana/fugu-ultra",
+        "moonshotai/kimi-k3",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.5 and

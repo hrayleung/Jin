@@ -443,6 +443,12 @@ final class ModelCapabilityRegistryTests: XCTestCase {
                 id
             )
         }
+        // Thinking Machines Inkling accepts the full none…max band except xhigh
+        // (OpenRouter supported_efforts, verified 2026-07-18).
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "thinkingmachines/inkling"),
+            [.none, .minimal, .low, .medium, .high, .max]
+        )
         // Near-miss IDs fall back to the default band.
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "sakana/fugu-ultra-custom"),
@@ -462,6 +468,18 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertEqual(
             OpenAICompatibleReasoningSupport.mapReasoningEffort(.max, providerConfig: openRouterConfig, modelID: "sakana/fugu-ultra"),
             "max"
+        )
+
+        // Inkling's Max and Minimal choices must reach the wire verbatim — its band
+        // ends at max with no xhigh, and OpenRouter accepts both literal values.
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openrouter, modelID: "thinkingmachines/inkling"))
+        XCTAssertEqual(
+            OpenAICompatibleReasoningSupport.mapReasoningEffort(.max, providerConfig: openRouterConfig, modelID: "thinkingmachines/inkling"),
+            "max"
+        )
+        XCTAssertEqual(
+            OpenAICompatibleReasoningSupport.mapReasoningEffort(.minimal, providerConfig: openRouterConfig, modelID: "thinkingmachines/inkling"),
+            "minimal"
         )
 
         // Gemini 3.1 Flash Lite Image's default Minimal must be sent as "minimal".

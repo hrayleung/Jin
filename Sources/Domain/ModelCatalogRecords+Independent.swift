@@ -1114,6 +1114,22 @@ extension ModelCatalog {
                contextWindow: 202_752,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
+        // Kimi K3 (live on the Go /models list since 2026-07-16; verified against
+        // models.dev `opencode-go` and Moonshot's K3 docs): 1,048,576 context /
+        // 131,072 output, text+image input. Thinking is always-on and
+        // reasoning_effort accepts only "max" (models.dev reasoning_options;
+        // Moonshot docs) — the endpoint applies max when the field is omitted, so
+        // reasoningConfig stays nil and Jin sends no reasoning shape (same pattern
+        // as the `k3` Kimi for Coding record). models.dev also lists video input,
+        // but this model routes through the OpenAI-compatible endpoint whose message
+        // translation has no video part builder, so .videoInput is deliberately not
+        // claimed — same rationale as kimi-k2.7-code below.
+        Record(id: "kimi-k3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         Record(id: "kimi-k2.5", displayName: "Kimi K2.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 262_144,

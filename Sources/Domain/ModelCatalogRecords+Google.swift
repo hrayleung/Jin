@@ -419,6 +419,32 @@ extension ModelCatalog {
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Kimi K3 (verified against live OpenRouter /models metadata, 2026-07-18):
+        // 1,048,576 context, text+image->text, cached-input pricing. Reasoning is
+        // mandatory with supported_efforts = ["max"] only, so reasoningConfig stays
+        // nil — Jin sends no reasoning shape and OpenRouter applies its default max
+        // effort (same pattern as the `k3` Kimi for Coding record); the resolver's
+        // always-on list documents the mandatory flag. Moonshot documents
+        // max_completion_tokens up to the full window with a 131,072 default while
+        // OpenRouter reports no provider cap, so maxOutputTokens stays conservative.
+        Record(id: "moonshotai/kimi-k3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Thinking Machines Inkling (open-weight MoE; verified against live OpenRouter
+        // /models metadata, 2026-07-18): 1,048,576 model-level context (the sole
+        // inference provider currently caps requests at 524,288), text+image+audio->text,
+        // cached-input pricing. Reasoning is on by default (default_effort "high") with
+        // a none/minimal/low/medium/high/max band and no xhigh — see
+        // ModelCapabilityRegistry.openRouterMinimalMaxEffortModelIDs. Max output is
+        // undocumented by both Thinking Machines and OpenRouter, so it stays unset.
+        Record(id: "thinkingmachines/inkling", displayName: "Thinking Machines: Inkling",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "google/gemma-4-31b-it", displayName: "Gemma 4 31B",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 262_144,
