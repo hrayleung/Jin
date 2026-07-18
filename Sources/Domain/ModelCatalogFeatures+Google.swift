@@ -8,8 +8,9 @@ extension ModelCatalog {
     /// Keys are bare model IDs (`gemini-3.5-flash`). Prefixed forms
     /// (`models/…`, `google/…`) are normalized via `canonicalGoogleModelID`.
     static let geminiDeclaredFeaturesByID: [String: ModelFeatures] = [
-        "gemini-2.0-flash": .init(webSearch: true, googleMaps: true, codeExecution: true),
-        "gemini-2.0-flash-001": .init(webSearch: true, googleMaps: true, codeExecution: true),
+        // Gemini API Maps grounding docs (2026-07) list 2.5+ / 3.x — not Gemini 2.0 Flash.
+        "gemini-2.0-flash": .init(webSearch: true, googleMaps: false, codeExecution: true),
+        "gemini-2.0-flash-001": .init(webSearch: true, googleMaps: false, codeExecution: true),
         "gemini-2.5-flash": .init(webSearch: true, googleMaps: true, codeExecution: true),
         "gemini-2.5-flash-lite": .init(webSearch: true, googleMaps: true, codeExecution: true),
         "gemini-2.5-pro": .init(webSearch: true, googleMaps: true, codeExecution: true),

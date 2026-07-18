@@ -248,20 +248,11 @@ struct ChatView: View {
         nonmutating set { session.showingError = newValue }
     }
 
-    /// Binding into `@Observable` session state (SwiftUI `$property` needs `@State` storage).
-    func sessionBinding<Value>(
-        _ keyPath: ReferenceWritableKeyPath<ChatSessionModel, Value>
-    ) -> Binding<Value> {
-        Binding(
-            get: { self.session[keyPath: keyPath] },
-            set: { self.session[keyPath: keyPath] = $0 }
-        )
-    }
-
-    var draftAttachmentsBinding: Binding<[DraftAttachment]> { sessionBinding(\.draftAttachments) }
-    var draftQuotesBinding: Binding<[DraftQuote]> { sessionBinding(\.draftQuotes) }
-    var remoteVideoInputURLTextBinding: Binding<String> { sessionBinding(\.remoteVideoInputURLText) }
-    var showingErrorBinding: Binding<Bool> { sessionBinding(\.showingError) }
+    /// Bindings into `@Observable` session state stored in `@State`.
+    var draftAttachmentsBinding: Binding<[DraftAttachment]> { $session.draftAttachments }
+    var draftQuotesBinding: Binding<[DraftQuote]> { $session.draftQuotes }
+    var remoteVideoInputURLTextBinding: Binding<String> { $session.remoteVideoInputURLText }
+    var showingErrorBinding: Binding<Bool> { $session.showingError }
 
     // MARK: - Bridging Computed Properties
 

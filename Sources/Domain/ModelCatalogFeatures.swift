@@ -11,15 +11,10 @@ extension ModelCatalog {
     ///
     /// Returns `nil` only when neither a record nor a declared table row exists.
     static func features(for modelID: String, provider: ProviderType) -> ModelFeatures? {
-        let lower = modelID.lowercased()
-        let lookupKey = featureLookupKey(for: modelID, provider: provider)
+        let lookupKey = catalogLookupKey(for: modelID, provider: provider)
         let table = declaredFeaturesTable(for: provider)?[lookupKey]
-        let recordFeatures = lookup[provider]?[lower]?.features
-            ?? (provider == .openaiWebSocket ? lookup[.openai]?[lower]?.features : nil)
-            // Google records use bare IDs; accept prefixed lookup keys via canonical form.
-            ?? ((provider == .gemini || provider == .vertexai)
-                ? lookup[provider]?[lookupKey]?.features
-                : nil)
+        let recordFeatures = lookup[provider]?[lookupKey]?.features
+            ?? (provider == .openaiWebSocket ? lookup[.openai]?[lookupKey]?.features : nil)
 
         switch (table, recordFeatures) {
         case let (table?, record?):
@@ -33,7 +28,9 @@ extension ModelCatalog {
         }
     }
 
-    private static func featureLookupKey(for modelID: String, provider: ProviderType) -> String {
+    /// Provider-aware bare model ID for catalog records and feature tables.
+    /// Strips gateway / resource prefixes (`openai/`, `models/`, `anthropic/`, …).
+    static func catalogLookupKey(for modelID: String, provider: ProviderType) -> String {
         let lower = modelID.lowercased()
         switch provider {
         case .gemini, .vertexai:
@@ -43,7 +40,7 @@ extension ModelCatalog {
                 return String(lower.dropFirst("openai/".count))
             }
             return lower
-        case .anthropic:
+        case .anthropic, .claudeManagedAgents:
             if lower.hasPrefix("anthropic/") {
                 return String(lower.dropFirst("anthropic/".count))
             }
@@ -51,6 +48,10 @@ extension ModelCatalog {
         default:
             return lower
         }
+    }
+
+    private static func featureLookupKey(for modelID: String, provider: ProviderType) -> String {
+        catalogLookupKey(for: modelID, provider: provider)
     }
 
     private static func declaredFeaturesTable(for provider: ProviderType) -> [String: ModelFeatures]? {

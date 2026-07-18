@@ -437,6 +437,12 @@ private struct NewlineParser: StreamParser {
         guard !pendingEvents.isEmpty else { return nil }
         return pendingEvents.removeFirst()
     }
+
+    mutating func finish() {
+        guard !buffer.isEmpty else { return }
+        pendingEvents.append(String(decoding: buffer, as: UTF8.self))
+        buffer.removeAll(keepingCapacity: true)
+    }
 }
 
 private final class MockURLProtocol: URLProtocol {

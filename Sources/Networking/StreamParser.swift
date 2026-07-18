@@ -12,6 +12,9 @@ protocol StreamParser: Sendable {
     mutating func append(_ data: Data)
 
     mutating func nextEvent() -> Event?
+
+    /// Flush any buffered terminal event at EOF. Implementations must decide
+    /// whether a delimiter-less tail is a complete event (emit) or incomplete (drop).
     mutating func finish()
 }
 
@@ -21,6 +24,4 @@ extension StreamParser {
             append(byte)
         }
     }
-
-    mutating func finish() {}
 }

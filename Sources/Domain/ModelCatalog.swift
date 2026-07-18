@@ -77,10 +77,11 @@ enum ModelCatalog {
     // MARK: - Public API
 
     /// Returns the catalog entry for a known (provider, modelID) pair, or nil for unknown models.
+    /// Accepts bare IDs and common prefixed forms (`openai/…`, `models/…`, `anthropic/…`).
     static func entry(for modelID: String, provider: ProviderType) -> ModelCatalogEntry? {
-        let lower = modelID.lowercased()
+        let key = catalogLookupKey(for: modelID, provider: provider)
         if provider == .openaiWebSocket {
-            guard let record = lookup[.openai]?[lower] else { return nil }
+            guard let record = lookup[.openai]?[key] else { return nil }
             let isFullySupported = record.isFullySupported && isOpenAIWebSocketAdapterCompatible(record)
             let mergedFeatures = features(for: modelID, provider: provider) ?? record.features
             return ModelCatalogEntry(
@@ -93,7 +94,7 @@ enum ModelCatalog {
                 features: mergedFeatures
             )
         }
-        guard let record = lookup[provider]?[lower] else { return nil }
+        guard let record = lookup[provider]?[key] else { return nil }
         let mergedFeatures = features(for: modelID, provider: provider) ?? record.features
         return ModelCatalogEntry(
             capabilities: record.capabilities,

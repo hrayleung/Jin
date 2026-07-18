@@ -76,8 +76,13 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-sonnet-4-6"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-sonnet-4-5-20250929"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-haiku-4-5-20251001"))
-        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-3-7-sonnet-20250219"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-opus-4-1-20250805"))
 
+        // Legacy / unlisted IDs stay off the code-execution allowlist.
+        XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-3-7-sonnet-20250219"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-3-5-haiku-latest"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-opus-4-20250514"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-sonnet-4-20250514"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-haiku-4"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-sonnet-4-5"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-opus-4-6-20260128"))
@@ -296,7 +301,9 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3-flash-preview"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.5-pro"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.5-flash"))
-        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.0-flash-001"))
+        // Gemini API Maps docs list 2.5+ / 3.x only — not Gemini 2.0 Flash.
+        XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.0-flash-001"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.0-flash"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3-pro-preview"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.0-flash-lite"))
 

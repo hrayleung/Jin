@@ -154,11 +154,16 @@ final class ModelCatalogConsistencyTests: XCTestCase {
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "gemma-4-31b-it"))
 
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .gemini, modelID: "gemini-2.0-flash-001"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-2.0-flash-001"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-2.5-flash-preview"))
 
-        // Prefixed IDs normalize to bare keys.
+        // Prefixed IDs normalize to bare keys for features and full catalog entry.
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .gemini, modelID: "models/gemini-3.5-flash"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "google/gemini-3-pro-preview"))
+        let prefixed = ModelCatalog.entry(for: "models/gemini-3.5-flash", provider: .gemini)
+        XCTAssertNotNil(prefixed)
+        XCTAssertEqual(prefixed?.displayName, "Gemini 3.5 Flash")
+        XCTAssertTrue(prefixed?.capabilities.contains(.codeExecution) == true)
     }
 
     func testGoogleFeatureTableDeniesImageModelsMapsAndCode() {
