@@ -2,9 +2,14 @@ import SwiftUI
 import AppKit
 
 private enum DraftAttachmentThumbnailProvider {
+    /// Long-edge pixel budget for 26×26 chips (retina headroom without full-res decode).
+    static let maxPixelSize = 96
+
     static let cache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 64
+        // Approximate cost: one entry ≈ maxPixelSize² RGBA ≈ 36 KB; cap ~6 MB.
+        cache.totalCostLimit = 6 * 1024 * 1024
         return cache
     }()
 
@@ -17,7 +22,8 @@ private enum DraftAttachmentThumbnailProvider {
     }
 
     static func store(_ image: NSImage, for url: URL) {
-        cache.setObject(image, forKey: cacheKey(for: url))
+        let pixelCount = Int(max(image.size.width, 1) * max(image.size.height, 1))
+        cache.setObject(image, forKey: cacheKey(for: url), cost: pixelCount * 4)
     }
 }
 
@@ -71,13 +77,13 @@ private struct DraftAttachmentThumbnailView: View {
         }
 
         let url = attachment.fileURL
-        let data = await Task.detached(priority: .utility) {
-            try? Data(contentsOf: url)
+        let maxPixelSize = DraftAttachmentThumbnailProvider.maxPixelSize
+        // ImageIO thumbnail path — never materialize full-resolution bitmaps for 26×26 chips.
+        let loadedImage = await Task.detached(priority: .utility) {
+            ImageThumbnailSupport.downsampledImage(at: url, maxPixelSize: maxPixelSize)
         }.value
 
-        guard !Task.isCancelled,
-              let data,
-              let loadedImage = NSImage(data: data) else {
+        guard !Task.isCancelled, let loadedImage else {
             image = nil
             return
         }

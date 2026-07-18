@@ -11,15 +11,19 @@ import Foundation
 /// format and return merged code. No tool calling support.
 actor MorphLLMAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming]
+    let capabilities: ModelCapability
+    private let profile: OpenAICompatibleProfile
 
     let networkManager: NetworkManager
     let apiKey: String
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
+        let profile = OpenAICompatibleProfile.profile(for: .morphllm) ?? .default
         self.providerConfig = providerConfig
         self.apiKey = apiKey
         self.networkManager = networkManager
+        self.profile = profile
+        self.capabilities = profile.capabilities
     }
 
     func sendMessage(
@@ -39,7 +43,7 @@ actor MorphLLMAdapter: LLMProviderAdapter {
         return try await sendOpenAICompatibleMessage(
             request: request,
             streaming: streaming,
-            reasoningField: .reasoning,
+            reasoningField: profile.reasoningField,
             networkManager: networkManager
         )
     }

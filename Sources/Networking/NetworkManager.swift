@@ -118,11 +118,11 @@ actor NetworkManager {
 
                     guard let httpResponse = response, httpResponse.statusCode < 400 else { return }
 
-                    for byte in chunk {
-                        parserCopy.append(byte)
-                        while let event = parserCopy.nextEvent() {
-                            continuation.yield(event)
-                        }
+                    // Feed whole network chunks; high-throughput parsers scan ranges
+                    // instead of per-byte append loops (see SSEParser / JSONLineParser).
+                    parserCopy.append(chunk)
+                    while let event = parserCopy.nextEvent() {
+                        continuation.yield(event)
                     }
 
                 case .complete(let completion):

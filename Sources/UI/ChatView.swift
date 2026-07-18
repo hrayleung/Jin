@@ -65,7 +65,11 @@ struct ChatView: View {
 
     // MARK: - State Properties
 
-    @State var controls: GenerationControls = GenerationControls()
+    /// Session-owned high-churn state (controls, drafts, errors). Extensions access
+    /// via computed properties so call sites stay unchanged while Observation
+    /// can isolate invalidation from pure sheet-flag `@State`.
+    // swiftlint:disable:next private_swiftui_state
+    @State var session = ChatSessionModel()
     // Composer text lives in an @Observable store so per-keystroke writes do
     // not invalidate ChatView's body. Read `composerTextStore.text` only from
     // action handlers (or via the `messageText` accessor); body-context reads
@@ -73,11 +77,6 @@ struct ChatView: View {
     // so the dependency is scoped to those small wrapper views.
     // swiftlint:disable:next private_swiftui_state
     @State var composerTextStore = ComposerTextStore()
-    @State var remoteVideoInputURLText = ""
-    @State var draftAttachments: [DraftAttachment] = []
-    // swiftlint:disable:next private_swiftui_state
-    @State var draftQuotes: [DraftQuote] = []
-    @State var currentContextUsageEstimate: ChatContextUsageEstimate?
     @State var contextUsageRefreshTask: Task<Void, Never>?
     @State var contextUsageRefreshGeneration: UInt = 0
     // swiftlint:disable:next private_swiftui_state
@@ -115,8 +114,6 @@ struct ChatView: View {
     @State var selectedArtifactVersion: Int?
     @ObservedObject var favoriteModelsStore = FavoriteModelsStore.shared
 
-    @State var errorMessage: String?
-    @State var showingError = false
     @State var showingThinkingBudgetSheet = false
     @State var thinkingBudgetDraft = ""
     @State var maxTokensDraft = ""
@@ -147,7 +144,6 @@ struct ChatView: View {
     @State var slashMCPFilterText = ""
     @State var slashMCPHighlightedIndex = 0
     @State var slashCommandTarget: SlashCommandTarget = .composer
-    @State var perMessageMCPServerIDs: Set<String> = []
 
     @State var showingContextCacheSheet = false
     @State var showingAnthropicWebSearchSheet = false
@@ -209,6 +205,63 @@ struct ChatView: View {
     @StateObject var speechToTextManager = SpeechToTextManager()
 
     let conversationTitleGenerator = ConversationTitleGenerator()
+
+    // MARK: - Session bridges (compat for ChatView+* extensions)
+
+    var controls: GenerationControls {
+        get { session.controls }
+        nonmutating set { session.controls = newValue }
+    }
+
+    var draftAttachments: [DraftAttachment] {
+        get { session.draftAttachments }
+        nonmutating set { session.draftAttachments = newValue }
+    }
+
+    var draftQuotes: [DraftQuote] {
+        get { session.draftQuotes }
+        nonmutating set { session.draftQuotes = newValue }
+    }
+
+    var remoteVideoInputURLText: String {
+        get { session.remoteVideoInputURLText }
+        nonmutating set { session.remoteVideoInputURLText = newValue }
+    }
+
+    var perMessageMCPServerIDs: Set<String> {
+        get { session.perMessageMCPServerIDs }
+        nonmutating set { session.perMessageMCPServerIDs = newValue }
+    }
+
+    var currentContextUsageEstimate: ChatContextUsageEstimate? {
+        get { session.currentContextUsageEstimate }
+        nonmutating set { session.currentContextUsageEstimate = newValue }
+    }
+
+    var errorMessage: String? {
+        get { session.errorMessage }
+        nonmutating set { session.errorMessage = newValue }
+    }
+
+    var showingError: Bool {
+        get { session.showingError }
+        nonmutating set { session.showingError = newValue }
+    }
+
+    /// Binding into `@Observable` session state (SwiftUI `$property` needs `@State` storage).
+    func sessionBinding<Value>(
+        _ keyPath: ReferenceWritableKeyPath<ChatSessionModel, Value>
+    ) -> Binding<Value> {
+        Binding(
+            get: { self.session[keyPath: keyPath] },
+            set: { self.session[keyPath: keyPath] = $0 }
+        )
+    }
+
+    var draftAttachmentsBinding: Binding<[DraftAttachment]> { sessionBinding(\.draftAttachments) }
+    var draftQuotesBinding: Binding<[DraftQuote]> { sessionBinding(\.draftQuotes) }
+    var remoteVideoInputURLTextBinding: Binding<String> { sessionBinding(\.remoteVideoInputURLText) }
+    var showingErrorBinding: Binding<Bool> { sessionBinding(\.showingError) }
 
     // MARK: - Bridging Computed Properties
 

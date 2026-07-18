@@ -16,6 +16,8 @@ struct ModelCatalogEntry {
     let reasoningConfig: ModelReasoningConfig?
     let isFullySupported: Bool
     let displayName: String
+    /// Wire/UI features declared on the catalog record (dual-read with `ModelCapabilityRegistry`).
+    let features: ModelFeatures
 }
 
 enum ModelCatalog {
@@ -34,6 +36,8 @@ enum ModelCatalog {
         let isFullySupported: Bool
         /// Whether this model appears in the first-launch seed list.
         let isSeeded: Bool
+        /// Optional wire/UI features. Unspecified fields fall back to `ModelCapabilityRegistry`.
+        let features: ModelFeatures
 
         init(
             id: String,
@@ -43,7 +47,8 @@ enum ModelCatalog {
             maxOutputTokens: Int? = nil,
             reasoningConfig: ModelReasoningConfig?,
             isFullySupported: Bool,
-            isSeeded: Bool
+            isSeeded: Bool,
+            features: ModelFeatures = .unspecified
         ) {
             self.id = id
             self.displayName = displayName
@@ -53,6 +58,7 @@ enum ModelCatalog {
             self.reasoningConfig = reasoningConfig
             self.isFullySupported = isFullySupported
             self.isSeeded = isSeeded
+            self.features = features
         }
 
         var entry: ModelCatalogEntry {
@@ -62,7 +68,8 @@ enum ModelCatalog {
                 maxOutputTokens: maxOutputTokens,
                 reasoningConfig: reasoningConfig,
                 isFullySupported: isFullySupported,
-                displayName: displayName
+                displayName: displayName,
+                features: features
             )
         }
     }
@@ -75,16 +82,28 @@ enum ModelCatalog {
         if provider == .openaiWebSocket {
             guard let record = lookup[.openai]?[lower] else { return nil }
             let isFullySupported = record.isFullySupported && isOpenAIWebSocketAdapterCompatible(record)
+            let mergedFeatures = features(for: modelID, provider: provider) ?? record.features
             return ModelCatalogEntry(
                 capabilities: record.capabilities,
                 contextWindow: record.contextWindow,
                 maxOutputTokens: record.maxOutputTokens,
                 reasoningConfig: record.reasoningConfig,
                 isFullySupported: isFullySupported,
-                displayName: record.displayName
+                displayName: record.displayName,
+                features: mergedFeatures
             )
         }
-        return lookup[provider]?[lower]?.entry
+        guard let record = lookup[provider]?[lower] else { return nil }
+        let mergedFeatures = features(for: modelID, provider: provider) ?? record.features
+        return ModelCatalogEntry(
+            capabilities: record.capabilities,
+            contextWindow: record.contextWindow,
+            maxOutputTokens: record.maxOutputTokens,
+            reasoningConfig: record.reasoningConfig,
+            isFullySupported: record.isFullySupported,
+            displayName: record.displayName,
+            features: mergedFeatures
+        )
     }
 
     /// Returns a ModelInfo for the given model ID. Uses catalog data for known models;

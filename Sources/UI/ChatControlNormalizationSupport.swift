@@ -5,11 +5,10 @@ enum ChatControlNormalizationSupport {
         controls: inout GenerationControls,
         modelMaxOutputTokens: Int?
     ) {
-        if let modelMaxOutputTokens,
-           let requested = controls.maxTokens,
-           requested > modelMaxOutputTokens {
-            controls.maxTokens = modelMaxOutputTokens
-        }
+        GenerationControlsNormalizer.normalizeMaxTokensForModel(
+            controls: &controls,
+            modelMaxOutputTokens: modelMaxOutputTokens
+        )
     }
 
     static func normalizeMediaGenerationOverrides(
@@ -18,14 +17,11 @@ enum ChatControlNormalizationSupport {
         supportsReasoningControl: Bool,
         supportsWebSearchControl: Bool
     ) {
-        guard supportsMediaGenerationControl else { return }
-        if !supportsReasoningControl {
-            controls.reasoning = nil
-        }
-        if !supportsWebSearchControl {
-            controls.webSearch = nil
-        }
-        controls.searchPlugin = nil
-        controls.mcpTools = nil
+        GenerationControlsNormalizer.normalizeMediaGenerationOverrides(
+            controls: &controls,
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            supportsReasoningControl: supportsReasoningControl,
+            supportsWebSearchControl: supportsWebSearchControl
+        )
     }
 }

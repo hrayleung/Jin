@@ -27,7 +27,12 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
-               isFullySupported: true, isSeeded: true),
+               isFullySupported: true, isSeeded: true,
+               features: ModelFeatures(
+                   webSearch: true,
+                   codeExecution: true,
+                   webSearchDynamicFiltering: true
+               )),
         Record(id: "claude-opus-4-7", displayName: "Claude Opus 4.7",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,
@@ -50,7 +55,12 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
-               isFullySupported: true, isSeeded: true),
+               isFullySupported: true, isSeeded: true,
+               features: ModelFeatures(
+                   webSearch: true,
+                   codeExecution: true,
+                   webSearchDynamicFiltering: true
+               )),
         Record(id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,
@@ -93,21 +103,25 @@ extension ModelCatalog {
                maxOutputTokens: 64_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: false, isSeeded: false),
+        // Alias IDs are not on Anthropic's code-execution allowlist (dated snapshots are).
         Record(id: "claude-opus-4", displayName: "Claude Opus 4",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                contextWindow: 200_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
-               isFullySupported: true, isSeeded: false),
+               isFullySupported: true, isSeeded: false,
+               features: ModelFeatures(webSearch: true, codeExecution: false)),
         Record(id: "claude-sonnet-4", displayName: "Claude Sonnet 4",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                contextWindow: 200_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
-               isFullySupported: true, isSeeded: false),
+               isFullySupported: true, isSeeded: false,
+               features: ModelFeatures(webSearch: true, codeExecution: false)),
         Record(id: "claude-haiku-4", displayName: "Claude Haiku 4",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
                contextWindow: 200_000,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 1024),
-               isFullySupported: true, isSeeded: false),
+               isFullySupported: true, isSeeded: false,
+               features: ModelFeatures(webSearch: true, codeExecution: false)),
     ]
 
     // MARK: Perplexity

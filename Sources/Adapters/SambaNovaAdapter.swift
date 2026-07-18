@@ -14,15 +14,19 @@ import Foundation
 /// - Reasoning content is returned in `<think>` tags within content deltas.
 actor SambaNovaAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+    let capabilities: ModelCapability
+    private let profile: OpenAICompatibleProfile
 
     let networkManager: NetworkManager
     let apiKey: String
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
+        let profile = OpenAICompatibleProfile.profile(for: .sambanova) ?? .chatWithVision
         self.providerConfig = providerConfig
         self.apiKey = apiKey
         self.networkManager = networkManager
+        self.profile = profile
+        self.capabilities = profile.capabilities
     }
 
     func sendMessage(
@@ -43,7 +47,7 @@ actor SambaNovaAdapter: LLMProviderAdapter {
         return try await sendOpenAICompatibleMessage(
             request: request,
             streaming: streaming,
-            reasoningField: .reasoningOrReasoningContent,
+            reasoningField: profile.reasoningField,
             networkManager: networkManager
         )
     }

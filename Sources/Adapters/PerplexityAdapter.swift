@@ -4,15 +4,19 @@ import Foundation
 actor PerplexityAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     /// Perplexity supports streaming, vision, and web-grounded search. Function calling is OpenAI-compatible.
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+    let capabilities: ModelCapability
+    private let profile: OpenAICompatibleProfile
 
     let networkManager: NetworkManager
     let apiKey: String
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
+        let profile = OpenAICompatibleProfile.profile(for: .perplexity) ?? .chatWithVision
         self.providerConfig = providerConfig
         self.apiKey = apiKey
         self.networkManager = networkManager
+        self.profile = profile
+        self.capabilities = profile.capabilities
     }
 
     func sendMessage(
@@ -33,7 +37,7 @@ actor PerplexityAdapter: LLMProviderAdapter {
         return try await sendOpenAICompatibleMessage(
             request: request,
             streaming: streaming,
-            reasoningField: .reasoningOrReasoningContent,
+            reasoningField: profile.reasoningField,
             networkManager: networkManager
         )
     }

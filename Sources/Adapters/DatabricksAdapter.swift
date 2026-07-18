@@ -18,15 +18,19 @@ import Foundation
 /// Docs: docs.databricks.com/machine-learning/foundation-model-apis/api-reference
 actor DatabricksAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+    let capabilities: ModelCapability
+    private let profile: OpenAICompatibleProfile
 
     let networkManager: NetworkManager
     let apiKey: String
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
+        let profile = OpenAICompatibleProfile.profile(for: .databricks) ?? .chatWithVision
         self.providerConfig = providerConfig
         self.apiKey = apiKey
         self.networkManager = networkManager
+        self.profile = profile
+        self.capabilities = profile.capabilities
     }
 
     func sendMessage(
@@ -47,7 +51,7 @@ actor DatabricksAdapter: LLMProviderAdapter {
         return try await sendOpenAICompatibleMessage(
             request: request,
             streaming: streaming,
-            reasoningField: .reasoningOrReasoningContent,
+            reasoningField: profile.reasoningField,
             networkManager: networkManager
         )
     }

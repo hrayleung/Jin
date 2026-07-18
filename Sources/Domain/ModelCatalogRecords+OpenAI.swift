@@ -14,31 +14,61 @@ extension ModelCatalog {
         // with 5.6 and `minimal` is no longer accepted, default medium). No dated snapshots
         // are published yet, so unlike prior 5.x releases there are no date-suffixed twins.
         // temperature/top_p are rejected; sampling stays denied via the gpt-5* default.
+        // GPT-5.6 family: features are declared on the catalog so web search / code exec /
+        // Responses pro+verbosity can dual-read from ModelCatalog instead of registry-only sets.
         Record(id: "gpt-5.6-sol", displayName: "GPT-5.6 Sol",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_050_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
-               isFullySupported: true, isSeeded: true),
+               isFullySupported: true, isSeeded: true,
+               features: ModelFeatures(
+                   webSearch: true,
+                   codeExecution: true,
+                   openAIStyleProMode: true,
+                   openAIStyleReasoningContext: true,
+                   openAIStyleVerbosity: true
+               )),
         Record(id: "gpt-5.6-terra", displayName: "GPT-5.6 Terra",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_050_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
-               isFullySupported: true, isSeeded: true),
+               isFullySupported: true, isSeeded: true,
+               features: ModelFeatures(
+                   webSearch: true,
+                   codeExecution: true,
+                   openAIStyleProMode: true,
+                   openAIStyleReasoningContext: true,
+                   openAIStyleVerbosity: true
+               )),
         Record(id: "gpt-5.6-luna", displayName: "GPT-5.6 Luna",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_050_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
-               isFullySupported: true, isSeeded: true),
+               isFullySupported: true, isSeeded: true,
+               features: ModelFeatures(
+                   webSearch: true,
+                   codeExecution: true,
+                   openAIStyleProMode: true,
+                   openAIStyleReasoningContext: true,
+                   openAIStyleVerbosity: true
+               )),
         // Official alias routes to Sol; not seeded (pick explicit tiers in the picker).
         Record(id: "gpt-5.6", displayName: "GPT-5.6 (Sol Alias)",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_050_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
-               isFullySupported: true, isSeeded: false),
+               isFullySupported: true, isSeeded: false,
+               features: ModelFeatures(
+                   webSearch: true,
+                   codeExecution: true,
+                   openAIStyleProMode: true,
+                   openAIStyleReasoningContext: true,
+                   openAIStyleVerbosity: true
+               )),
         Record(id: "gpt-5.5", displayName: "GPT-5.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_050_000,

@@ -94,10 +94,12 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
             streaming: streaming
         )
 
+        let reasoningField = OpenAICompatibleProfile.profile(for: .opencodeGo)?.reasoningField
+            ?? .reasoningOrReasoningContent
         return try await sendOpenAICompatibleMessage(
             request: request,
             streaming: streaming,
-            reasoningField: .reasoningOrReasoningContent,
+            reasoningField: reasoningField,
             networkManager: networkManager
         )
     }

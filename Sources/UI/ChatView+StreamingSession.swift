@@ -69,7 +69,9 @@ extension ChatView {
         )
         streamingState.reset()
         let snapshotBuildStartedAt = ProcessInfo.processInfo.systemUptime
-        let messageSnapshots = orderedConversationMessages().map(PersistedMessageSnapshot.init)
+        // Capture raw entity fields only (Data is CoW). Do not sort here — `prepareHistory`
+        // sorts + decodes off the MainActor on the detached streaming task.
+        let messageSnapshots = conversationEntity.messages.map(PersistedMessageSnapshot.init)
         let snapshotBuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - snapshotBuildStartedAt) * 1000)
 
         // #region agent log

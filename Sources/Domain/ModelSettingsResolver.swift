@@ -45,8 +45,10 @@ enum ModelSettingsResolver {
         )
         let modelType = overrides?.modelType ?? inferModelType(capabilities: capabilities, modelID: model.id)
         let reasoningCanDisable = overrides?.reasoningCanDisable
+            ?? catalogEntry?.features.reasoningCanDisable
             ?? defaultReasoningCanDisable(for: providerType, modelID: model.id)
         let supportsWebSearch = overrides?.webSearchSupported
+            ?? catalogEntry?.features.webSearch
             ?? ModelCapabilityRegistry.supportsWebSearch(for: providerType, modelID: model.id)
         let requestShape = ModelCapabilityRegistry.requestShape(for: providerType, modelID: model.id)
         let supportsOpenAIStyleReasoningEffort = ModelCapabilityRegistry.supportsOpenAIStyleReasoningEffort(

@@ -7,15 +7,15 @@ extension ChatView {
     var composerOverlay: some View {
         ChatComposerBindingHost(
             composerTextStore: composerTextStore,
-            draftAttachments: $draftAttachments,
-            draftQuotes: $draftQuotes,
+            draftAttachments: draftAttachmentsBinding,
+            draftQuotes: draftQuotesBinding,
             isImportingDropAttachments: isImportingDropAttachments
         ) { textBinding, canSendDraft in
             CompactComposerOverlayView(
                 messageText: textBinding,
-                remoteVideoURLText: $remoteVideoInputURLText,
-                draftAttachments: $draftAttachments,
-                draftQuotes: $draftQuotes,
+                remoteVideoURLText: remoteVideoInputURLTextBinding,
+                draftAttachments: draftAttachmentsBinding,
+                draftQuotes: draftQuotesBinding,
                 isComposerDropTargeted: $isComposerDropTargeted,
                 isComposerFocused: $isComposerFocused,
                 composerTextContentHeight: $composerTextContentHeight,
@@ -72,15 +72,15 @@ extension ChatView {
 
         return ChatComposerBindingHost(
             composerTextStore: composerTextStore,
-            draftAttachments: $draftAttachments,
-            draftQuotes: $draftQuotes,
+            draftAttachments: draftAttachmentsBinding,
+            draftQuotes: draftQuotesBinding,
             isImportingDropAttachments: isImportingDropAttachments
         ) { textBinding, canSendDraft in
             ExpandedComposerOverlay(
                 messageText: textBinding,
-                remoteVideoURLText: $remoteVideoInputURLText,
-                draftAttachments: $draftAttachments,
-                draftQuotes: $draftQuotes,
+                remoteVideoURLText: remoteVideoInputURLTextBinding,
+                draftAttachments: draftAttachmentsBinding,
+                draftQuotes: draftQuotesBinding,
                 isPresented: $isExpandedComposerPresented,
                 isComposerDropTargeted: $isComposerDropTargeted,
                 contextUsageEstimate: currentContextUsageEstimate,

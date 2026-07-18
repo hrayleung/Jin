@@ -10,7 +10,10 @@ final class StreamingUIFlushBufferTests: XCTestCase {
         XCTAssertEqual(buffer.currentFlushInterval, 0.10, accuracy: 0.0001)
 
         buffer.appendThinking(String(repeating: "b", count: 8_000))
-        XCTAssertEqual(buffer.currentFlushInterval, 0.12, accuracy: 0.0001)
+        XCTAssertEqual(buffer.currentFlushInterval, 0.14, accuracy: 0.0001)
+
+        buffer.appendText(String(repeating: "c", count: 28_000))
+        XCTAssertEqual(buffer.currentFlushInterval, 0.18, accuracy: 0.0001)
     }
 
     func testNonForcedFlushRequiresElapsedIntervalAndPendingDeltas() throws {
@@ -60,5 +63,36 @@ final class StreamingUIFlushBufferTests: XCTestCase {
 
         let secondFlush = try XCTUnwrap(buffer.flushIfNeeded(force: true, now: 0.01))
         XCTAssertFalse(secondFlush.isFirstFlush)
+    }
+
+    func testToolAndSearchActivitiesFlushWithTextWindow() throws {
+        var buffer = StreamingUIFlushBuffer()
+        let call = ToolCall(id: "c1", name: "search", arguments: [:])
+        let activity = SearchActivity(
+            id: "s1",
+            type: "web_search",
+            status: .searching
+        )
+
+        buffer.setPendingToolCalls([call])
+        buffer.appendSearchActivity(activity)
+        buffer.appendText("hello")
+
+        let flush = try XCTUnwrap(buffer.flushIfNeeded(now: 0.08))
+        XCTAssertEqual(flush.textDelta, "hello")
+        XCTAssertEqual(flush.toolCalls?.map(\.id), ["c1"])
+        XCTAssertEqual(flush.searchActivities.map(\.id), ["s1"])
+
+        // Pending queues cleared.
+        XCTAssertNil(buffer.flushIfNeeded(now: 1.0))
+    }
+
+    func testToolOnlyPendingFlushesOnInterval() throws {
+        var buffer = StreamingUIFlushBuffer()
+        buffer.setPendingToolCalls([ToolCall(id: "c1", name: "t", arguments: [:])])
+        XCTAssertNil(buffer.flushIfNeeded(now: 0.01))
+        let flush = try XCTUnwrap(buffer.flushIfNeeded(now: 0.08))
+        XCTAssertEqual(flush.toolCalls?.first?.id, "c1")
+        XCTAssertEqual(flush.textDelta, "")
     }
 }

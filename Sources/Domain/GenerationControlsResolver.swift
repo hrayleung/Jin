@@ -21,6 +21,11 @@ enum GenerationControlsResolver {
             resolved.maxTokens = modelMaxOutputTokens
         }
 
+        GenerationControlsNormalizer.normalizeMaxTokensForModel(
+            controls: &resolved,
+            modelMaxOutputTokens: modelMaxOutputTokens
+        )
+
         return resolved
     }
 }

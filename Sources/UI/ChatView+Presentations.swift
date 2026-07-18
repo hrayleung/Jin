@@ -4,13 +4,12 @@ extension ChatView {
 
     @MainActor
     func presentError(_ message: String) {
-        errorMessage = message
-        showingError = true
+        session.presentError(message)
     }
 
     func chatPresentations<Content: View>(_ content: Content) -> some View {
         content
-            .alert("Couldn't complete chat action", isPresented: $showingError) {
+            .alert("Couldn't complete chat action", isPresented: showingErrorBinding) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "Please try again.")

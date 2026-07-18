@@ -71,11 +71,23 @@ extension ChatStreamingOrchestrator {
         )
         // #endregion
 
+        // Single MainActor hop for text + tool/search/code-exec UI for this window.
         await MainActor.run {
-            streamingState.appendDeltas(
-                textDelta: flush.textDelta,
-                thinkingDelta: flush.thinkingDelta
-            )
+            if !flush.textDelta.isEmpty || !flush.thinkingDelta.isEmpty {
+                streamingState.appendDeltas(
+                    textDelta: flush.textDelta,
+                    thinkingDelta: flush.thinkingDelta
+                )
+            }
+            if let toolCalls = flush.toolCalls {
+                streamingState.setToolCalls(toolCalls)
+            }
+            for activity in flush.searchActivities {
+                streamingState.upsertSearchActivity(activity)
+            }
+            for activity in flush.codeExecutionActivities {
+                streamingState.upsertCodeExecutionActivity(activity)
+            }
         }
 
         // #region agent log
@@ -107,34 +119,27 @@ extension ChatStreamingOrchestrator {
     static func applyStreamToolCall(
         _ call: ToolCall,
         accumulator: inout StreamingResponseAccumulator,
-        streamingState: StreamingMessageState
-    ) async {
+        uiFlushBuffer: inout StreamingUIFlushBuffer
+    ) {
         accumulator.upsertToolCall(call)
-        let visibleToolCalls = accumulator.buildToolCalls()
-        await MainActor.run {
-            streamingState.setToolCalls(visibleToolCalls)
-        }
+        uiFlushBuffer.setPendingToolCalls(accumulator.buildToolCalls())
     }
 
     static func applyStreamSearchActivity(
         _ activity: SearchActivity,
         accumulator: inout StreamingResponseAccumulator,
-        streamingState: StreamingMessageState
-    ) async {
+        uiFlushBuffer: inout StreamingUIFlushBuffer
+    ) {
         accumulator.upsertSearchActivity(activity)
-        await MainActor.run {
-            streamingState.upsertSearchActivity(activity)
-        }
+        uiFlushBuffer.appendSearchActivity(activity)
     }
 
     static func applyStreamCodeExecutionActivity(
         _ activity: CodeExecutionActivity,
         accumulator: inout StreamingResponseAccumulator,
-        streamingState: StreamingMessageState
-    ) async {
+        uiFlushBuffer: inout StreamingUIFlushBuffer
+    ) {
         accumulator.upsertCodeExecutionActivity(activity)
-        await MainActor.run {
-            streamingState.upsertCodeExecutionActivity(activity)
-        }
+        uiFlushBuffer.appendCodeExecutionActivity(activity)
     }
 }

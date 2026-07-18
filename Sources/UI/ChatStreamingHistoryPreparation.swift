@@ -2,6 +2,7 @@ import Foundation
 
 extension ChatStreamingOrchestrator {
     static func prepareHistory(from ctx: SessionContext) -> [Message] {
+        // Runs on the detached streaming task — keep decode off MainActor.
         let decoder = JSONDecoder()
         var history = ctx.messageSnapshots
             .sorted { lhs, rhs in

@@ -8,15 +8,19 @@ import Foundation
 /// - Models: `qwen-3-235b-a22b-instruct-2507`, `zai-glm-4.7`, `gpt-oss-120b`
 actor CerebrasAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .reasoning]
+    let capabilities: ModelCapability
+    private let profile: OpenAICompatibleProfile
 
     let networkManager: NetworkManager
     let apiKey: String
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
+        let profile = OpenAICompatibleProfile.profile(for: .cerebras) ?? .default
         self.providerConfig = providerConfig
         self.apiKey = apiKey
         self.networkManager = networkManager
+        self.profile = profile
+        self.capabilities = profile.capabilities
     }
 
     func sendMessage(
@@ -27,7 +31,9 @@ actor CerebrasAdapter: LLMProviderAdapter {
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         // Cerebras does not support streaming with tool calling on reasoning models.
-        let effectiveStreaming = streaming && tools.isEmpty
+        let effectiveStreaming = profile.disablesStreamingWithTools
+            ? (streaming && tools.isEmpty)
+            : streaming
 
         let request = try buildRequest(
             messages: messages,
@@ -40,7 +46,7 @@ actor CerebrasAdapter: LLMProviderAdapter {
         return try await sendOpenAICompatibleMessage(
             request: request,
             streaming: effectiveStreaming,
-            reasoningField: .reasoning,
+            reasoningField: profile.reasoningField,
             networkManager: networkManager
         )
     }

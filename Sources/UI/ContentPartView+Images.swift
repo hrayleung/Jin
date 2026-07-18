@@ -1,5 +1,4 @@
 import AppKit
-import ImageIO
 import SwiftUI
 
 extension ContentPartView {
@@ -16,6 +15,8 @@ private enum MessageImageThumbnailProvider {
     static let cache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 96
+        // Cap resident decoded bitmaps (~96 × ~1.4k edge worst-case is still large).
+        cache.totalCostLimit = 64 * 1024 * 1024
         return cache
     }()
 
@@ -96,7 +97,12 @@ private struct HistoricalMessageImageView: View {
         loadFailed = loadedImage == nil
 
         if let loadedImage {
-            MessageImageThumbnailProvider.cache.setObject(loadedImage, forKey: cacheKey)
+            let pixelCount = Int(max(loadedImage.size.width, 1) * max(loadedImage.size.height, 1))
+            MessageImageThumbnailProvider.cache.setObject(
+                loadedImage,
+                forKey: cacheKey,
+                cost: pixelCount * 4
+            )
         }
     }
 
@@ -229,25 +235,10 @@ private struct HistoricalMessageImageView: View {
     }
 
     private nonisolated static func downsampledImage(at url: URL, maxPixelSize: Int) -> NSImage? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        return thumbnailImage(from: source, maxPixelSize: maxPixelSize)
+        ImageThumbnailSupport.downsampledImage(at: url, maxPixelSize: maxPixelSize)
     }
 
     private nonisolated static func downsampledImage(data: Data, maxPixelSize: Int) -> NSImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
-        return thumbnailImage(from: source, maxPixelSize: maxPixelSize)
-    }
-
-    private nonisolated static func thumbnailImage(from source: CGImageSource, maxPixelSize: Int) -> NSImage? {
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceShouldCacheImmediately: false,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
-        ]
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
-            return nil
-        }
-        return NSImage(cgImage: cgImage, size: .zero)
+        ImageThumbnailSupport.downsampledImage(data: data, maxPixelSize: maxPixelSize)
     }
 }

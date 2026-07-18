@@ -8,15 +8,19 @@ import Foundation
 /// - Models: `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp`, `deepseek-v4-flash`, `deepseek-v4-pro`, ...
 actor DeepSeekAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .reasoning]
+    let capabilities: ModelCapability
+    private let profile: OpenAICompatibleProfile
 
     let networkManager: NetworkManager
     let apiKey: String
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
+        let profile = OpenAICompatibleProfile.profile(for: .deepseek) ?? .default
         self.providerConfig = providerConfig
         self.apiKey = apiKey
         self.networkManager = networkManager
+        self.profile = profile
+        self.capabilities = profile.capabilities
     }
 
     func sendMessage(
@@ -37,7 +41,7 @@ actor DeepSeekAdapter: LLMProviderAdapter {
         return try await sendOpenAICompatibleMessage(
             request: request,
             streaming: streaming,
-            reasoningField: .reasoningContent,
+            reasoningField: profile.reasoningField,
             networkManager: networkManager
         )
     }

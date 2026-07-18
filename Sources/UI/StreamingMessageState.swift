@@ -23,6 +23,10 @@ final class StreamingMessageState: ObservableObject {
     private var textStorage = ""
     private var thinkingStorage = ""
     private var artifactScanState = ArtifactMarkupParser.ScanState.initial
+    /// Once true, every text flush runs `ArtifactMarkupParser` (angle brackets or
+    /// committed artifacts). Until then we skip parse and treat text as passthrough —
+    /// the common case for pure markdown streams.
+    private var requiresArtifactParse = false
     private var searchActivitiesByID: OrderedDictionary<String, SearchActivity> = [:]
     private var codeExecutionActivitiesByID: OrderedDictionary<String, CodeExecutionActivity> = [:]
     private var hasLoggedFirstDeltaApply = false
@@ -35,6 +39,7 @@ final class StreamingMessageState: ObservableObject {
         textStorage = ""
         thinkingStorage = ""
         artifactScanState = .initial
+        requiresArtifactParse = false
         thinkingChunks = []
         searchActivities = []
         codeExecutionActivities = []
@@ -84,32 +89,46 @@ final class StreamingMessageState: ObservableObject {
 
         if didChangeText {
             let parseStartedAt = ProcessInfo.processInfo.systemUptime
-            let parseResult = ArtifactMarkupParser.parse(
-                nextTextStorage,
-                hidesTrailingIncompleteArtifact: true,
-                state: &artifactScanState
-            )
 
-            if parseResult.isPassthroughFullText {
+            if !requiresArtifactParse, textDelta.unicodeScalars.contains(where: { $0 == "<" }) {
+                requiresArtifactParse = true
+            }
+
+            if !requiresArtifactParse {
+                // Fast path: no angle brackets yet → no jinArtifact possible.
                 nextVisibleText = nextTextStorage
                 appendDelta(textDelta, to: &nextVisibleTextChunks, maxChunkSize: Self.maxChunkSize)
                 nextVisibleTextCharacterCount += textDelta.count
                 nextHasVisibleText = nextHasVisibleText || textDelta.containsNonWhitespace
             } else {
-                let chunkUpdate = visibleTextChunkUpdate(
-                    previous: visibleText,
-                    next: parseResult.visibleText,
-                    chunks: visibleTextChunks,
-                    prefersIncrementalAppend: !parseResult.hasIncompleteTrailingArtifact
-                        && parseResult.artifacts.count == artifacts.count
+                let parseResult = ArtifactMarkupParser.parse(
+                    nextTextStorage,
+                    hidesTrailingIncompleteArtifact: true,
+                    state: &artifactScanState
                 )
-                nextVisibleText = chunkUpdate.visibleText
-                nextVisibleTextChunks = chunkUpdate.chunks
-                nextVisibleTextCharacterCount = chunkUpdate.characterCount
-                nextHasVisibleText = nextVisibleText.containsNonWhitespace
+
+                if parseResult.isPassthroughFullText {
+                    nextVisibleText = nextTextStorage
+                    appendDelta(textDelta, to: &nextVisibleTextChunks, maxChunkSize: Self.maxChunkSize)
+                    nextVisibleTextCharacterCount += textDelta.count
+                    nextHasVisibleText = nextHasVisibleText || textDelta.containsNonWhitespace
+                } else {
+                    let chunkUpdate = visibleTextChunkUpdate(
+                        previous: visibleText,
+                        next: parseResult.visibleText,
+                        chunks: visibleTextChunks,
+                        prefersIncrementalAppend: !parseResult.hasIncompleteTrailingArtifact
+                            && parseResult.artifacts.count == artifacts.count
+                    )
+                    nextVisibleText = chunkUpdate.visibleText
+                    nextVisibleTextChunks = chunkUpdate.chunks
+                    nextVisibleTextCharacterCount = chunkUpdate.characterCount
+                    nextHasVisibleText = nextVisibleText.containsNonWhitespace
+                }
+
+                nextArtifacts = parseResult.artifacts
             }
 
-            nextArtifacts = parseResult.artifacts
             parseDurationMs = Int((ProcessInfo.processInfo.systemUptime - parseStartedAt) * 1000)
         }
 

@@ -18,6 +18,30 @@ final class StreamingMessageStateTests: XCTestCase {
         XCTAssertTrue(state.artifacts.isEmpty)
     }
 
+    func testAppendDeltasSkipsArtifactParseUntilAngleBracket() {
+        let state = StreamingMessageState()
+        // Pure text stream should never need markup parse for correctness.
+        state.appendDeltas(textDelta: "plain markdown stream ", thinkingDelta: "")
+        state.appendDeltas(textDelta: "with **bold** and code", thinkingDelta: "")
+        XCTAssertEqual(state.visibleText, "plain markdown stream with **bold** and code")
+        XCTAssertTrue(state.artifacts.isEmpty)
+
+        // Angle bracket arms the parser; complete open tag with hide-incomplete hides body.
+        state.appendDeltas(
+            textDelta: """
+             <jinArtifact artifact_id="x" title="X" contentType="text/html">
+            <div>hidden while incomplete
+            """,
+            thinkingDelta: ""
+        )
+        XCTAssertEqual(state.visibleText, "plain markdown stream with **bold** and code ")
+        XCTAssertTrue(state.artifacts.isEmpty)
+
+        state.appendDeltas(textDelta: "</div></jinArtifact> after", thinkingDelta: "")
+        XCTAssertEqual(state.artifacts.count, 1)
+        XCTAssertEqual(state.visibleText, "plain markdown stream with **bold** and code  after")
+    }
+
     func testAppendDeltasEmitsSingleObjectChange() {
         let state = StreamingMessageState()
         var changeCount = 0

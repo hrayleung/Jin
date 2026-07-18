@@ -19,6 +19,7 @@ private extension ModelRequestShape {
 }
 
 enum ModelCapabilityRegistry {
+    /// Default-effort exceptions still live here until defaultEffort is fully on catalog records.
     private static let openAINoneDefaultReasoningModelIDs: Set<String> = [
         "gpt-5.2",
         "gpt-5.2-2025-12-11",
@@ -38,87 +39,8 @@ enum ModelCapabilityRegistry {
         "gpt-5.4-pro-2026-03-05",
     ]
 
-    private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
-        "gpt-5.6",
-        "gpt-5.6-sol",
-        "gpt-5.6-sol-pro",
-        "gpt-5.6-terra",
-        "gpt-5.6-terra-pro",
-        "gpt-5.6-luna",
-        "gpt-5.6-luna-pro",
-        "gpt-5.5",
-        "gpt-5.5-2026-04-23",
-        "gpt-5.5-pro",
-        "gpt-5.5-pro-2026-04-23",
-        "gpt-5.4",
-        "gpt-5.4-2026-03-05",
-        "gpt-5.4-image-2",
-        "gpt-5.4-pro",
-        "gpt-5.4-pro-2026-03-05",
-        "gpt-5.4-mini",
-        "gpt-5.4-mini-2026-03-17",
-        "gpt-5.4-nano",
-        "gpt-5.4-nano-2026-03-17",
-        "gpt-5.2",
-        "gpt-5.2-2025-12-11",
-        "gpt-5.2-codex",
-        "gpt-5.2-pro",
-        "gpt-5.3-codex",
-        "gpt-5.3-codex-spark",
-    ]
-
-    /// Models accepting the `max` reasoning effort value, introduced with GPT-5.6
-    /// (Sol/Terra/Luna support none|low|medium|high|xhigh|max; `minimal` was dropped).
-    /// Older 5.x models reject "max", so it stays clamped to xhigh for them.
-    private static let openAIStyleMaxEffortModelIDs: Set<String> = [
-        "gpt-5.6",
-        "gpt-5.6-sol",
-        "gpt-5.6-sol-pro",
-        "gpt-5.6-terra",
-        "gpt-5.6-terra-pro",
-        "gpt-5.6-luna",
-        "gpt-5.6-luna-pro",
-    ]
-
-    /// Models that accept Responses API `reasoning.mode = "pro"` (GPT-5.6 family).
-    /// Pro is a request-time mode on the same model ID, not a separate OpenAI slug.
-    private static let openAIStyleProModeModelIDs: Set<String> = [
-        "gpt-5.6",
-        "gpt-5.6-sol",
-        "gpt-5.6-terra",
-        "gpt-5.6-luna",
-    ]
-
-    /// Models that accept Responses API `reasoning.context` (multi-turn reasoning reuse).
-    /// Keep conservative to GPT-5.6 family until broader model docs list the field.
-    private static let openAIStyleReasoningContextModelIDs: Set<String> = [
-        "gpt-5.6",
-        "gpt-5.6-sol",
-        "gpt-5.6-terra",
-        "gpt-5.6-luna",
-    ]
-
-    /// Models that accept Responses API `text.verbosity`.
-    private static let openAIStyleVerbosityModelIDs: Set<String> = [
-        "gpt-5.6",
-        "gpt-5.6-sol",
-        "gpt-5.6-terra",
-        "gpt-5.6-luna",
-        "gpt-5.5",
-        "gpt-5.5-2026-04-23",
-        "gpt-5.5-pro",
-        "gpt-5.5-pro-2026-04-23",
-        "gpt-5.4",
-        "gpt-5.4-2026-03-05",
-        "gpt-5.4-pro",
-        "gpt-5.4-pro-2026-03-05",
-        "gpt-5.4-mini",
-        "gpt-5.4-mini-2026-03-17",
-        "gpt-5.4-nano",
-        "gpt-5.4-nano-2026-03-17",
-        "gpt-5.2",
-        "gpt-5.2-2025-12-11",
-    ]
+    // OpenAI wire-policy sets (extreme/max effort, pro mode, verbosity, code interpreter)
+    // moved to `ModelCatalog.openAIDeclaredFeaturesByID` (PR1b).
 
     /// Gemini 3 Flash / 3.5 Flash supports MINIMAL/LOW/MEDIUM/HIGH.
     private static let gemini3FlashEffortModelIDs: Set<String> = [
@@ -147,51 +69,13 @@ enum ModelCapabilityRegistry {
         "gemini-3-pro-image-preview",
     ]
 
-    /// Models documented by Google as supporting grounding with Google Search in Gemini API,
-    /// plus narrow runtime trials we intentionally enable in Jin.
-    private static let geminiGoogleSearchSupportedModelIDs: Set<String> = [
-        "gemini-3.1-pro-preview",
-        "gemini-3-pro-preview",
-        "gemini-3-flash-preview",
-        "gemini-3-pro-image",
-        "gemini-3-pro-image-preview",
-        "gemini-3.1-flash-image",
-        "gemini-3.1-flash-image-preview",
-        "gemini-3.1-flash-lite-preview",
-        "gemini-3.1-flash-lite",
-        "gemini-3.5-flash",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-001",
-        "gemma-4-26b-a4b-it",
-        "gemma-4-31b-it",
-    ]
-
-    /// Models supporting grounding with Google Search in Vertex AI.
-    /// Includes Gemini 3.1 Flash Image based on runtime validation.
-    private static let vertexGoogleSearchSupportedModelIDs: Set<String> = [
-        "gemini-3.1-pro-preview",
-        "gemini-3-pro-preview",
-        "gemini-3-flash-preview",
-        "gemini-3-pro-image",
-        "gemini-3-pro-image-preview",
-        "gemini-3.1-flash-image",
-        "gemini-3.1-flash-image-preview",
-        "gemini-3.1-flash-lite",
-        "gemini-3.1-flash-lite-preview",
-        "gemini-3.5-flash",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-flash-preview",
-        "gemini-2.5-flash-lite-preview",
-        "gemini-2.0-flash",
-    ]
+    // Gemini/Vertex Search, Maps, and code-execution allowlists moved to
+    // `ModelCatalog.geminiDeclaredFeaturesByID` / `vertexDeclaredFeaturesByID` (PR1c).
+    // OpenAI / Anthropic feature tables: PR1b.
 
     /// OpenRouter `plugins: [{id: "web"}]` support stays conservative and does not
-    /// inherit Gemini-only runtime trials automatically.
+    /// inherit Gemini-only runtime trials automatically. Keys are bare Google IDs
+    /// (after stripping `google/`).
     private static let openRouterGoogleSearchSupportedModelIDs: Set<String> = [
         "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
@@ -212,146 +96,17 @@ enum ModelCapabilityRegistry {
         "gemini-2.0-flash-001",
     ]
 
-    /// Fallback used by proxy providers other than explicit provider-specific allowlists.
-    private static let proxiedGoogleSearchSupportedModelIDs: Set<String> =
-        geminiGoogleSearchSupportedModelIDs.union(vertexGoogleSearchSupportedModelIDs)
-
-    /// Models documented by Google as supporting grounding with Google Maps in Gemini API.
-    private static let geminiGoogleMapsSupportedModelIDs: Set<String> = [
-        "gemini-3.5-flash",
-        "gemini-3.1-pro-preview",
-        "gemini-3.1-flash-lite",
-        "gemini-3.1-flash-lite-preview",
-        "gemini-3-flash-preview",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-001",
-    ]
-
-    // Note: image-generation models intentionally omitted from Maps (docs: not supported).
-
-    /// Models supporting grounding with Google Maps in Vertex AI.
-    /// Vertex documentation's Google Maps grounding pages list these exact model IDs
-    /// or exact model families as supported as of May 21, 2026. Keep this list
-    /// constrained by runtime validation because Vertex model pages and the
-    /// grounding page can temporarily disagree for preview models.
-    ///
-    /// Notes:
-    /// - We include the current exact preview version IDs where the model pages expose them
-    ///   (for example `gemini-2.5-flash-preview-09-2025`).
-    /// - We also retain the legacy alias-style IDs already used in persisted Jin data
-    ///   (for example `gemini-2.5-flash-preview`) so previously-saved conversations
-    ///   do not silently lose the Maps UI toggle.
-    private static let vertexGoogleMapsSupportedModelIDs: Set<String> = [
-        // Keep constrained to Vertex-documented Maps IDs; do not broaden from AI Studio lists.
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro-preview",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-flash-preview",
-        "gemini-2.5-flash-preview-09-2025",
-        "gemini-2.5-flash-lite-preview",
-        "gemini-2.5-flash-lite-preview-09-2025",
-        "gemini-live-2.5-flash-native-audio",
-        "gemini-live-2.5-flash-preview-native-audio-09-2025",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-001",
-        "gemini-2.0-flash-live-preview-04-09",
-    ]
-
-    /// Models documented by Google as supporting code execution in Gemini API.
-    private static let geminiCodeExecutionSupportedModelIDs: Set<String> = [
-        "gemini-3-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro",
-        "gemini-3.1-pro-preview",
-        "gemini-3-flash",
-        "gemini-3-flash-preview",
-        "gemini-3.1-flash-lite",
-        "gemini-3.1-flash-lite-preview",
-        "gemini-3.5-flash",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-001",
-    ]
-
-    /// Models documented by Google as supporting code execution in Vertex AI.
-    private static let vertexCodeExecutionSupportedModelIDs: Set<String> = [
-        "gemini-3-pro",
-        "gemini-3-pro-preview",
-        "gemini-3.1-pro",
-        "gemini-3.1-pro-preview",
-        "gemini-3-flash",
-        "gemini-3-flash-preview",
-        "gemini-3.1-flash-lite",
-        "gemini-3.1-flash-lite-preview",
-        "gemini-3.5-flash",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.5-flash-preview",
-        "gemini-2.5-flash-lite-preview",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-001",
-    ]
-
-    // Note: OpenAI code interpreter set continues below.
-
-    /// Exact model IDs that OpenAI currently documents as supporting the built-in Code interpreter tool.
-    /// Keep this conservative: do not broaden to unlisted realtime/audio families.
-    private static let openAICodeInterpreterSupportedModelIDs: Set<String> = [
-        "gpt-4.1",
-        "gpt-4.1-2025-04-14",
-        "gpt-5",
-        "gpt-5-2025-08-07",
-        "gpt-5.6",
-        "gpt-5.6-sol",
-        "gpt-5.6-terra",
-        "gpt-5.6-luna",
-        "gpt-5.5",
-        "gpt-5.5-2026-04-23",
-        "gpt-5.5-pro",
-        "gpt-5.5-pro-2026-04-23",
-        "gpt-5.2",
-        "gpt-5.2-2025-12-11",
-        "gpt-5.4",
-        "gpt-5.4-2026-03-05",
-        "gpt-5.4-mini",
-        "gpt-5.4-mini-2026-03-17",
-        "gpt-5.4-nano",
-        "gpt-5.4-nano-2026-03-17",
-        "gpt-5-mini",
-        "gpt-5-mini-2025-08-07",
-        "gpt-5-nano",
-        "gpt-5-nano-2025-08-07",
-        "o3",
-        "o4-mini",
-    ]
-
-    /// Exact model IDs that Anthropic currently documents as supporting the code execution tool.
-    /// Includes Fable 5 / Mythos 5 (restored 2026-07 docs list code execution under Supported features).
-    private static let anthropicCodeExecutionSupportedModelIDs: Set<String> = [
-        "claude-fable-5",
-        "claude-mythos-5",
-        "claude-opus-4-8",
-        "claude-opus-4-7",
-        "claude-opus-4-6",
-        "claude-sonnet-5",
-        "claude-sonnet-4-6",
-        "claude-sonnet-4-5-20250929",
-        "claude-opus-4-5-20251101",
-        "claude-haiku-4-5-20251001",
-        "claude-opus-4-1-20250805",
-        "claude-opus-4-20250514",
-        "claude-sonnet-4-20250514",
-        "claude-3-7-sonnet-20250219",
-        "claude-3-5-haiku-latest",
-    ]
+    /// Fallback used by proxy providers other than OpenRouter's explicit list.
+    /// Union of AI Studio + Vertex catalog feature IDs that enable webSearch.
+    private static let proxiedGoogleSearchSupportedModelIDs: Set<String> = {
+        let gemini = ModelCatalog.geminiDeclaredFeaturesByID
+            .filter { $0.value.webSearch == true }
+            .map(\.key)
+        let vertex = ModelCatalog.vertexDeclaredFeaturesByID
+            .filter { $0.value.webSearch == true }
+            .map(\.key)
+        return Set(gemini).union(vertex)
+    }()
 
     private static let reasoningEffortRank: [ReasoningEffort: Int] = [
         .none: 0,
@@ -437,12 +192,6 @@ enum ModelCapabilityRegistry {
         "mistral-small-4-0-26-03",
         "magistral-medium-1-2-25-09",
     ]
-    private static let googleModelPrefixes = [
-        "google/",
-        "google-ai-studio/",
-        "google-vertex-ai/google/",
-        "models/",
-    ]
     private static let searchKeywords = ["search", "sonar", ":online"]
     private static let reasoningKeywords = ["deepseek-r1", "reasoning", "thinking"]
     private static let mediaGenerationKeywords = [
@@ -479,9 +228,7 @@ enum ModelCapabilityRegistry {
         guard supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) else {
             return false
         }
-
-        let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
-        return openAIStyleExtremeEffortModelIDs.contains(canonicalLowerModelID)
+        return openAIStyleFeatureFlag(for: providerType, modelID: modelID, \.openAIStyleExtremeEffort) ?? false
     }
 
     static func supportsOpenAIStyleMaxEffort(for providerType: ProviderType?, modelID: String) -> Bool {
@@ -496,8 +243,7 @@ enum ModelCapabilityRegistry {
             return true
         }
 
-        let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: lowerModelID)
-        return openAIStyleMaxEffortModelIDs.contains(canonicalLowerModelID)
+        return openAIStyleFeatureFlag(for: providerType, modelID: modelID, \.openAIStyleMaxEffort) ?? false
     }
 
     /// GPT-5.6 Responses API `reasoning.mode = "pro"` (not a separate model slug on OpenAI).
@@ -505,8 +251,7 @@ enum ModelCapabilityRegistry {
         guard supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) else {
             return false
         }
-        let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
-        return openAIStyleProModeModelIDs.contains(canonicalLowerModelID)
+        return openAIStyleFeatureFlag(for: providerType, modelID: modelID, \.openAIStyleProMode) ?? false
     }
 
     /// Responses API `reasoning.context` support (exact IDs).
@@ -514,8 +259,7 @@ enum ModelCapabilityRegistry {
         guard supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) else {
             return false
         }
-        let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
-        return openAIStyleReasoningContextModelIDs.contains(canonicalLowerModelID)
+        return openAIStyleFeatureFlag(for: providerType, modelID: modelID, \.openAIStyleReasoningContext) ?? false
     }
 
     /// Responses API `text.verbosity` support (exact IDs).
@@ -527,8 +271,7 @@ enum ModelCapabilityRegistry {
         default:
             return false
         }
-        let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
-        return openAIStyleVerbosityModelIDs.contains(canonicalLowerModelID)
+        return openAIStyleFeatureFlag(for: providerType, modelID: modelID, \.openAIStyleVerbosity) ?? false
     }
 
     static func supportedReasoningEfforts(for providerType: ProviderType?, modelID: String) -> [ReasoningEffort] {
@@ -676,16 +419,21 @@ enum ModelCapabilityRegistry {
     }
 
     static func supportsWebSearch(for providerType: ProviderType?, modelID: String) -> Bool {
+        // Catalog features win when explicitly declared (Phase 1 dual-read).
+        if let declared = resolvedCatalogFeatures(for: providerType, modelID: modelID)?.webSearch {
+            return declared
+        }
+
         let lowerModelID = modelID.lowercased()
 
         switch providerType {
         case .openai, .openaiWebSocket:
+            // Uncatalogued OpenAI IDs keep the conservative gpt-/o3/o4 heuristic.
             return supportsOpenAIWebSearch(lowerModelID: lowerModelID)
         case .openrouter:
             return supportsOpenRouterWebSearch(lowerModelID: lowerModelID)
         case .anthropic:
-            // Server-side web search is available on current Claude models including Fable 5 /
-            // Mythos 5 (dynamic filtering docs list them as of 2026-07).
+            // Uncatalogued Claude IDs keep the conservative family heuristic.
             return isAnthropicModelID(lowerModelID)
         case .claudeManagedAgents:
             return false
@@ -850,43 +598,32 @@ enum ModelCapabilityRegistry {
 
     private static func supportsGoogleSearch(lowerModelID: String, providerType: ProviderType?) -> Bool {
         let canonical = canonicalGoogleModelID(lowerModelID: lowerModelID)
-        return googleSearchSupportedModelIDs(for: providerType).contains(canonical)
-    }
-
-    private static func googleSearchSupportedModelIDs(for providerType: ProviderType?) -> Set<String> {
         switch providerType {
         case .gemini:
-            return geminiGoogleSearchSupportedModelIDs
+            return ModelCatalog.features(for: canonical, provider: .gemini)?.webSearch ?? false
         case .vertexai:
-            return vertexGoogleSearchSupportedModelIDs
+            return ModelCatalog.features(for: canonical, provider: .vertexai)?.webSearch ?? false
         case .openrouter:
-            return openRouterGoogleSearchSupportedModelIDs
+            return openRouterGoogleSearchSupportedModelIDs.contains(canonical)
         default:
-            return proxiedGoogleSearchSupportedModelIDs
+            return proxiedGoogleSearchSupportedModelIDs.contains(canonical)
         }
     }
 
     private static func supportsGoogleCodeExecution(lowerModelID: String, providerType: ProviderType?) -> Bool {
         let canonical = canonicalGoogleModelID(lowerModelID: lowerModelID)
-        return googleCodeExecutionSupportedModelIDs(for: providerType).contains(canonical)
-    }
-
-    private static func googleCodeExecutionSupportedModelIDs(for providerType: ProviderType?) -> Set<String> {
         switch providerType {
         case .gemini:
-            return geminiCodeExecutionSupportedModelIDs
+            return ModelCatalog.features(for: canonical, provider: .gemini)?.codeExecution ?? false
         case .vertexai:
-            return vertexCodeExecutionSupportedModelIDs
+            return ModelCatalog.features(for: canonical, provider: .vertexai)?.codeExecution ?? false
         default:
-            return []
+            return false
         }
     }
 
     private static func canonicalGoogleModelID(lowerModelID: String) -> String {
-        for prefix in googleModelPrefixes where lowerModelID.hasPrefix(prefix) {
-            return String(lowerModelID.dropFirst(prefix.count))
-        }
-        return lowerModelID
+        ModelCatalog.canonicalGoogleModelID(lowerModelID)
     }
 
     private static func isLikelyMediaGenerationModelID(_ lowerModelID: String) -> Bool {
@@ -912,16 +649,22 @@ enum ModelCapabilityRegistry {
 
     /// Whether the provider/model supports native code execution (OpenAI Code Interpreter, Anthropic Code Execution).
     static func supportsCodeExecution(for providerType: ProviderType?, modelID: String) -> Bool {
+        // OpenAI / Anthropic: catalog feature tables are the SSoT (explicit true/false).
+        // Explicit `codeExecution` on features wins over the capability bit so alias
+        // records (e.g. claude-opus-4) can deny execution while still advertising tools.
+        if let features = resolvedCatalogFeatures(for: providerType, modelID: modelID),
+           let declared = features.codeExecution {
+            return declared
+        }
+
         let lowerModelID = modelID.lowercased()
 
         switch providerType {
         case .openai, .openaiWebSocket:
-            // OpenAI Responses API code_interpreter tool uses an exact documented model allowlist.
-            // WebSocket mode uses the same Responses API and supports code_interpreter for non-realtime models.
-            return supportsOpenAICodeInterpreter(lowerModelID: lowerModelID)
+            // No catalog/feature row → not supported (exact-ID policy).
+            return false
         case .anthropic:
-            // Anthropic code_execution tool uses an exact documented model allowlist.
-            return supportsAnthropicCodeExecution(lowerModelID: lowerModelID)
+            return false
         case .claudeManagedAgents:
             return false
         case .xai:
@@ -940,30 +683,16 @@ enum ModelCapabilityRegistry {
         }
     }
 
-    private static func supportsOpenAICodeInterpreter(lowerModelID: String) -> Bool {
-        let canonical = canonicalOpenAIModelID(lowerModelID: lowerModelID)
-        return openAICodeInterpreterSupportedModelIDs.contains(canonical)
-    }
-
-    private static func supportsAnthropicCodeExecution(lowerModelID: String) -> Bool {
-        let canonical: String
-        if lowerModelID.hasPrefix("anthropic/") {
-            canonical = String(lowerModelID.dropFirst("anthropic/".count))
-        } else {
-            canonical = lowerModelID
-        }
-        return anthropicCodeExecutionSupportedModelIDs.contains(canonical)
-    }
-
     /// Whether the provider/model supports grounding with Google Maps.
     static func supportsGoogleMaps(for providerType: ProviderType?, modelID: String) -> Bool {
-        let lowerModelID = modelID.lowercased()
+        if let declared = resolvedCatalogFeatures(for: providerType, modelID: modelID)?.googleMaps {
+            return declared
+        }
 
         switch providerType {
-        case .gemini:
-            return supportsGoogleMapsGrounding(lowerModelID: lowerModelID, providerType: .gemini)
-        case .vertexai:
-            return supportsGoogleMapsGrounding(lowerModelID: lowerModelID, providerType: .vertexai)
+        case .gemini, .vertexai:
+            // No catalog/feature row → not supported (exact-ID policy).
+            return false
         case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .githubCopilot,
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
@@ -973,33 +702,51 @@ enum ModelCapabilityRegistry {
         }
     }
 
-    private static func supportsGoogleMapsGrounding(lowerModelID: String, providerType: ProviderType?) -> Bool {
-        let canonical = canonicalGoogleModelID(lowerModelID: lowerModelID)
-        return googleMapsSupportedModelIDs(for: providerType).contains(canonical)
+    // MARK: - Catalog dual-read helpers
+
+    private static func catalogEntry(
+        for providerType: ProviderType?,
+        modelID: String
+    ) -> ModelCatalogEntry? {
+        guard let providerType else { return nil }
+        return ModelCatalog.entry(for: modelID, provider: providerType)
     }
 
-    private static func googleMapsSupportedModelIDs(for providerType: ProviderType?) -> Set<String> {
-        switch providerType {
-        case .gemini:
-            return geminiGoogleMapsSupportedModelIDs
-        case .vertexai:
-            return vertexGoogleMapsSupportedModelIDs
-        default:
-            return []
+    /// Features from `ModelCatalog.features` (record + declared tables), including
+    /// OpenAI/Anthropic table-only rows that have no full catalog `Record`.
+    private static func resolvedCatalogFeatures(
+        for providerType: ProviderType?,
+        modelID: String
+    ) -> ModelFeatures? {
+        guard let providerType else { return nil }
+        return ModelCatalog.features(for: modelID, provider: providerType)
+    }
+
+    /// OpenAI-style wire flags: native providers use full feature resolution;
+    /// compound IDs (`openai/gpt-5.4` on gateways) resolve against the OpenAI table.
+    private static func openAIStyleFeatureFlag(
+        for providerType: ProviderType?,
+        modelID: String,
+        _ keyPath: KeyPath<ModelFeatures, Bool?>
+    ) -> Bool? {
+        if let providerType, providerType == .openai || providerType == .openaiWebSocket {
+            if let value = ModelCatalog.features(for: modelID, provider: providerType)?[keyPath: keyPath] {
+                return value
+            }
         }
+
+        let canonical = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
+        return ModelCatalog.openAIDeclaredFeaturesByID[canonical]?[keyPath: keyPath]
     }
 
     /// Models that support the `web_search_20260209` tool with dynamic filtering.
     /// Documented list includes Fable 5, Mythos 5, Opus 4.8/4.7/4.6, Sonnet 5/4.6.
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
-        let lower = modelID.lowercased()
-        return lower == "claude-fable-5"
-            || lower == "claude-mythos-5"
-            || lower == "claude-opus-4-8"
-            || lower == "claude-opus-4-7"
-            || lower == "claude-opus-4-6"
-            || lower == "claude-sonnet-5"
-            || lower == "claude-sonnet-4-6"
+        if let declared = resolvedCatalogFeatures(for: providerType, modelID: modelID)?.webSearchDynamicFiltering {
+            return declared
+        }
+        // Uncatalogued Anthropic IDs: no dynamic filtering (exact-ID policy).
+        return false
     }
 }
