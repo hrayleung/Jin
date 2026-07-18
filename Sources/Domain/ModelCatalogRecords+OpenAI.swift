@@ -598,6 +598,28 @@ extension ModelCatalog {
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Kimi K3 (verified against ai-gateway.vercel.sh/v1/models, 2026-07-18): the
+        // gateway lists 1,000,000 context / 131,072 output and tags reasoning /
+        // tool-use / vision / implicit-caching. Thinking is always-on upstream with
+        // max-only effort, so reasoningConfig stays nil (Jin sends no reasoning
+        // shape) and the ID joins vercelAIGatewayAlwaysOnReasoningModelIDs.
+        Record(id: "moonshotai/kimi-k3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Thinking Machines Inkling (verified against ai-gateway.vercel.sh/v1/models,
+        // 2026-07-18): the gateway lists 256,000 context AND output plus cached-input
+        // pricing, but no audio tag — audio is not claimed here. Reasoning defaults
+        // on (TML model card default effort "high"); Vercel documents no effort
+        // values, so the default low/medium/high band applies.
+        Record(id: "thinkingmachines/inkling", displayName: "Inkling",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 256_000,
+               maxOutputTokens: 256_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
 
         // xAI — grok-4.5 confirmed live on ai-gateway.vercel.sh/v1/models (2026-07-11).
         // 500K context (a regression vs grok-4.3's 1M — verified, not mirrored); xAI

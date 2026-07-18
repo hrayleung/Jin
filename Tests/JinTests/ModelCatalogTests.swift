@@ -1623,6 +1623,58 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(qwen37Plus.reasoningConfig?.defaultBudget, 10_000)
     }
 
+    func testInklingAndKimiK3GatewayCatalogMetadataUsesExactProviderIDs() {
+        // Together AI serves Inkling at 524,288 context on its deployment (1M is
+        // model-level); max output is unpublished and stays nil (verified via
+        // Together's serverless model docs, 2026-07-18).
+        let togetherInkling = ModelCatalog.modelInfo(for: "thinkingmachines/Inkling", provider: .together)
+        XCTAssertEqual(togetherInkling.name, "Inkling")
+        XCTAssertEqual(togetherInkling.contextWindow, 524_288)
+        XCTAssertNil(togetherInkling.maxOutputTokens)
+        XCTAssertTrue(togetherInkling.capabilities.contains(.streaming))
+        XCTAssertTrue(togetherInkling.capabilities.contains(.toolCalling))
+        XCTAssertTrue(togetherInkling.capabilities.contains(.vision))
+        XCTAssertTrue(togetherInkling.capabilities.contains(.audio))
+        XCTAssertTrue(togetherInkling.capabilities.contains(.reasoning))
+        XCTAssertTrue(togetherInkling.capabilities.contains(.promptCaching))
+        XCTAssertEqual(togetherInkling.reasoningConfig?.type, .effort)
+        XCTAssertEqual(togetherInkling.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "thinkingmachines/Inkling", provider: .together))
+        XCTAssertTrue(ModelCatalog.seededModels(for: .together).contains(where: { $0.id == "thinkingmachines/Inkling" }))
+
+        // Vercel AI Gateway lists both models (verified via ai-gateway.vercel.sh
+        // /v1/models, 2026-07-18): kimi-k3 at 1,000,000 context with always-on
+        // max-only thinking, Inkling at 256,000 context/output with no audio tag.
+        let vercelKimiK3 = ModelCatalog.modelInfo(for: "moonshotai/kimi-k3", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelKimiK3.name, "Kimi K3")
+        XCTAssertEqual(vercelKimiK3.contextWindow, 1_000_000)
+        XCTAssertEqual(vercelKimiK3.maxOutputTokens, 131_072)
+        XCTAssertTrue(vercelKimiK3.capabilities.contains(.vision))
+        XCTAssertTrue(vercelKimiK3.capabilities.contains(.reasoning))
+        XCTAssertTrue(vercelKimiK3.capabilities.contains(.promptCaching))
+        XCTAssertNil(vercelKimiK3.reasoningConfig)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "moonshotai/kimi-k3", provider: .vercelAIGateway))
+
+        let vercelInkling = ModelCatalog.modelInfo(for: "thinkingmachines/inkling", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelInkling.name, "Inkling")
+        XCTAssertEqual(vercelInkling.contextWindow, 256_000)
+        XCTAssertEqual(vercelInkling.maxOutputTokens, 256_000)
+        XCTAssertTrue(vercelInkling.capabilities.contains(.vision))
+        XCTAssertFalse(vercelInkling.capabilities.contains(.audio))
+        XCTAssertTrue(vercelInkling.capabilities.contains(.promptCaching))
+        XCTAssertEqual(vercelInkling.reasoningConfig?.type, .effort)
+        XCTAssertEqual(vercelInkling.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "thinkingmachines/inkling", provider: .vercelAIGateway))
+
+        // Near-miss IDs fall back to conservative defaults.
+        for (provider, id) in [(ProviderType.together, "thinkingmachines/Inkling-Small"), (.vercelAIGateway, "thinkingmachines/inkling-small")] {
+            let unknown = ModelCatalog.modelInfo(for: id, provider: provider)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
+            XCTAssertEqual(unknown.contextWindow, 128_000, id)
+            XCTAssertNil(unknown.reasoningConfig, id)
+        }
+    }
+
     func testOpenCodeGoKimiK3CatalogUsesExactProviderIDs() {
         // Verified against models.dev `opencode-go` and Moonshot's K3 docs (2026-07-18).
         let kimiK3 = ModelCatalog.modelInfo(for: "kimi-k3", provider: .opencodeGo)

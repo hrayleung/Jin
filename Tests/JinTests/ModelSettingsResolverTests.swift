@@ -1012,6 +1012,46 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolved.reasoningCanDisable)
     }
 
+    func testTogetherInklingReasoningCannotDisableByDefault() {
+        // Together exposes Inkling with effort-only reasoning and no true on/off
+        // toggle (Together docs, verified 2026-07-18), matching the gpt-oss handling.
+        let legacyModel = ModelInfo(
+            id: "thinkingmachines/Inkling",
+            name: "Inkling",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .together)
+        XCTAssertEqual(resolved.contextWindow, 524_288)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolved.capabilities.contains(.audio))
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(resolved.reasoningCanDisable)
+    }
+
+    func testVercelKimiK3ReasoningCannotDisableByDefault() {
+        // Kimi K3 thinking is always-on upstream (Moonshot docs, verified 2026-07-18);
+        // the Vercel twin must not offer a disable toggle either.
+        let legacyModel = ModelInfo(
+            id: "moonshotai/kimi-k3",
+            name: "Kimi K3",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .vercelAIGateway)
+        XCTAssertEqual(resolved.contextWindow, 1_000_000)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertNil(resolved.reasoningConfig)
+        XCTAssertFalse(resolved.reasoningCanDisable)
+    }
+
     func testResolverInfersRecentFireworksCatalogMetadataForLegacyPersistedModels() {
         let qwen36Legacy = ModelInfo(
             id: "accounts/fireworks/models/qwen3p6-plus",

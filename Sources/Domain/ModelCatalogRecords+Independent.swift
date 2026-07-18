@@ -283,6 +283,18 @@ extension ModelCatalog {
                contextWindow: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: true),
+        // Thinking Machines Inkling (live on Together serverless since 2026-07-15;
+        // verified against docs.together.ai serverless-models and the model page,
+        // 2026-07-18): 524,288 context on Together's deployment (1M is model-level),
+        // text+image+audio input, cached-input pricing. Reasoning uses Together's
+        // low/medium/high effort (TML documents the same named presets; the model
+        // card default is "high") and has no true off switch, so the ID joins the
+        // resolver's togetherAlwaysOnReasoningModelIDs. Max output is unpublished.
+        Record(id: "thinkingmachines/Inkling", displayName: "Inkling",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.2", displayName: "GLM-5.2",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,

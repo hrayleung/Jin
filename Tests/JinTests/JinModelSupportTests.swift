@@ -263,6 +263,13 @@ final class JinModelSupportTests: XCTestCase {
 
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "thinkingmachines/inkling"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "thinkingmachines/inkling-custom"))
+
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "thinkingmachines/Inkling"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "thinkingmachines/Inkling-Small"))
+
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "moonshotai/kimi-k3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "thinkingmachines/inkling"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "thinkingmachines/inkling-small"))
     }
 
     func testOpenCodeGoMiMoV25ModelsUseExactFullySupportedIDs() {
