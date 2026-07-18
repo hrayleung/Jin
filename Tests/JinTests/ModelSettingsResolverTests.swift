@@ -971,6 +971,91 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertFalse(resolved.reasoningCanDisable)
     }
 
+    func testOpenRouterKimiK3NilReasoningConfigLeavesCanDisableMoot() {
+        // Live OpenRouter /models metadata reports reasoning.mandatory = true for
+        // kimi-k3, whose only supported effort is "max" (verified 2026-07-18). The
+        // catalog keeps reasoningConfig nil, so Jin sends no reasoning shape and
+        // shows no reasoning UI — leaving the canDisable default moot, matching the
+        // `k3` Kimi for Coding precedent. A legacy persisted model must still
+        // resolve through the catalog entry.
+        let legacyModel = ModelInfo(
+            id: "moonshotai/kimi-k3",
+            name: "Kimi K3",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .openrouter)
+        XCTAssertEqual(resolved.contextWindow, 1_048_576)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertNil(resolved.reasoningConfig)
+        XCTAssertTrue(resolved.reasoningCanDisable)
+    }
+
+    func testOpenRouterInklingReasoningCanDisableByDefault() {
+        // Inkling's reasoning is on by default but not mandatory (OpenRouter
+        // reasoning.mandatory = false, verified 2026-07-18), so it stays disableable.
+        let legacyModel = ModelInfo(
+            id: "thinkingmachines/inkling",
+            name: "Inkling",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .openrouter)
+        XCTAssertEqual(resolved.contextWindow, 1_048_576)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolved.capabilities.contains(.audio))
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolved.reasoningCanDisable)
+    }
+
+    func testTogetherInklingReasoningCannotDisableByDefault() {
+        // Together exposes Inkling with effort-only reasoning and no true on/off
+        // toggle (Together docs, verified 2026-07-18), matching the gpt-oss handling.
+        let legacyModel = ModelInfo(
+            id: "thinkingmachines/Inkling",
+            name: "Inkling",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .together)
+        XCTAssertEqual(resolved.contextWindow, 524_288)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolved.capabilities.contains(.audio))
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(resolved.reasoningCanDisable)
+    }
+
+    func testVercelKimiK3NilReasoningConfigLeavesCanDisableMoot() {
+        // Same shape as the OpenRouter record: always-on max-only thinking upstream
+        // (Moonshot K3 docs, verified 2026-07-18), nil reasoningConfig in the
+        // catalog, moot canDisable default.
+        let legacyModel = ModelInfo(
+            id: "moonshotai/kimi-k3",
+            name: "Kimi K3",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .vercelAIGateway)
+        XCTAssertEqual(resolved.contextWindow, 1_000_000)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertNil(resolved.reasoningConfig)
+        XCTAssertTrue(resolved.reasoningCanDisable)
+    }
+
     func testResolverInfersRecentFireworksCatalogMetadataForLegacyPersistedModels() {
         let qwen36Legacy = ModelInfo(
             id: "accounts/fireworks/models/qwen3p6-plus",

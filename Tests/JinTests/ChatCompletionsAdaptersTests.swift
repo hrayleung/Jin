@@ -2412,7 +2412,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for id in ["minimax-m3", "minimax-m2.7", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "claude-opus-4-8"] {
             XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /messages")
         }
-        for id in ["deepseek-v4-pro", "glm-5", "kimi-k2.6", "kimi-k2.7-code", "mimo-v2.5-pro", "hy3-preview"] {
+        for id in ["deepseek-v4-pro", "glm-5", "kimi-k3", "kimi-k2.6", "kimi-k2.7-code", "mimo-v2.5-pro", "hy3-preview"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /chat/completions")
         }
         // Routing is exact-ID, not prefix: unknown minimax-/qwen IDs must NOT auto-route.
@@ -2646,6 +2646,64 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             streaming: false
         )
         for try await _ in disabledStream {}
+    }
+
+    func testOpenRouterAdapterOmitsReasoningShapeForKimiK3() async throws {
+        // Kimi K3 is reasoning-mandatory with a max-only effort, so its catalog
+        // record keeps reasoningConfig nil: even when stale persisted controls carry
+        // ReasoningControls(enabled: true), the adapter must send NO reasoning shape
+        // at all and let OpenRouter apply its default max effort.
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1",
+            models: [
+                ModelInfo(
+                    id: "moonshotai/kimi-k3",
+                    name: "Kimi K3",
+                    capabilities: [.streaming, .toolCalling, .reasoning],
+                    contextWindow: 1_048_576,
+                    reasoningConfig: nil
+                )
+            ]
+        )
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "moonshotai/kimi-k3")
+            XCTAssertNil(root["reasoning"])
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["include_reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_kimi_k3",
+                "choices": [
+                    [
+                        "message": ["role": "assistant", "content": "OK"],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "moonshotai/kimi-k3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
     }
 
     func testOpenRouterAdapterSendsNestedXHighEffortForDeepSeekV4Models() async throws {

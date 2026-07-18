@@ -394,6 +394,11 @@ enum ModelCapabilityRegistry {
     private static let openRouterMinimalHighEffortModelIDs: Set<String> = [
         "google/gemini-3.1-flash-lite-image",
     ]
+    /// Thinking Machines Inkling accepts the full none/minimal/low/medium/high/max
+    /// band with no xhigh (OpenRouter supported_efforts, verified 2026-07-18).
+    private static let openRouterMinimalMaxEffortModelIDs: Set<String> = [
+        "thinkingmachines/inkling",
+    ]
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
     ]
@@ -485,7 +490,9 @@ enum ModelCapabilityRegistry {
         }
 
         let lowerModelID = modelID.lowercased()
-        if providerType == .openrouter, openRouterHighBandEffortModelIDs.contains(lowerModelID) {
+        if providerType == .openrouter,
+           openRouterHighBandEffortModelIDs.contains(lowerModelID)
+            || openRouterMinimalMaxEffortModelIDs.contains(lowerModelID) {
             return true
         }
 
@@ -548,6 +555,8 @@ enum ModelCapabilityRegistry {
             return [.high, .xhigh, .max]
         case .openrouter where openRouterMinimalHighEffortModelIDs.contains(lowerModelID):
             return [.minimal, .high]
+        case .openrouter where openRouterMinimalMaxEffortModelIDs.contains(lowerModelID):
+            return [.none, .minimal, .low, .medium, .high, .max]
         case .openrouter where openRouterLowHighEffortModelIDs.contains(lowerModelID):
             return [.low, .high]
         case .together where togetherDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):

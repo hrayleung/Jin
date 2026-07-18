@@ -283,6 +283,18 @@ extension ModelCatalog {
                contextWindow: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: true),
+        // Thinking Machines Inkling (live on Together serverless since 2026-07-15;
+        // verified against docs.together.ai serverless-models and the model page,
+        // 2026-07-18): 524,288 context on Together's deployment (1M is model-level),
+        // text+image+audio input, cached-input pricing. Reasoning uses Together's
+        // low/medium/high effort (TML documents the same named presets; the model
+        // card default is "high") and has no true off switch, so the ID joins the
+        // resolver's togetherAlwaysOnReasoningModelIDs. Max output is unpublished.
+        Record(id: "thinkingmachines/Inkling", displayName: "Inkling",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.2", displayName: "GLM-5.2",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,
@@ -1113,6 +1125,22 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 202_752,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        // Kimi K3 (live on the Go /models list since 2026-07-16; verified against
+        // models.dev `opencode-go` and Moonshot's K3 docs): 1,048,576 context /
+        // 131,072 output, text+image input. Thinking is always-on and
+        // reasoning_effort accepts only "max" (models.dev reasoning_options;
+        // Moonshot docs) — the endpoint applies max when the field is omitted, so
+        // reasoningConfig stays nil and Jin sends no reasoning shape (same pattern
+        // as the `k3` Kimi for Coding record). models.dev also lists video input,
+        // but this model routes through the OpenAI-compatible endpoint whose message
+        // translation has no video part builder, so .videoInput is deliberately not
+        // claimed — same rationale as kimi-k2.7-code below.
+        Record(id: "kimi-k3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
         Record(id: "kimi-k2.5", displayName: "Kimi K2.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
