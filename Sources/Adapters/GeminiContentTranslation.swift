@@ -119,11 +119,16 @@ extension GeminiAdapter {
 
         if message.role == .assistant, let toolCalls = message.toolCalls {
             for call in toolCalls {
+                var functionCall: [String: Any] = [
+                    "name": call.name,
+                    "args": call.arguments.mapValues { $0.value }
+                ]
+                // Echo provider call IDs so Gemini 3 can associate parallel tool results.
+                if !call.id.isEmpty {
+                    functionCall["id"] = call.id
+                }
                 var part: [String: Any] = [
-                    "functionCall": [
-                        "name": call.name,
-                        "args": call.arguments.mapValues { $0.value }
-                    ]
+                    "functionCall": functionCall
                 ]
                 if let signature = call.signature {
                     part["thoughtSignature"] = signature
@@ -149,13 +154,18 @@ extension GeminiAdapter {
         for result in results {
             guard let toolName = result.toolName, !toolName.isEmpty else { continue }
 
-            var part: [String: Any] = [
-                "functionResponse": [
-                    "name": toolName,
-                    "response": [
-                        "content": result.content
-                    ]
+            var functionResponse: [String: Any] = [
+                "name": toolName,
+                "response": [
+                    "content": result.content
                 ]
+            ]
+            // Gemini 3 requires functionResponse.id to match the original functionCall.id.
+            if !result.toolCallID.isEmpty {
+                functionResponse["id"] = result.toolCallID
+            }
+            var part: [String: Any] = [
+                "functionResponse": functionResponse
             ]
 
             if let signature = result.signature {

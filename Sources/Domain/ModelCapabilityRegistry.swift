@@ -543,9 +543,16 @@ enum ModelCapabilityRegistry {
     static func supportedReasoningEfforts(for providerType: ProviderType?, modelID: String) -> [ReasoningEffort] {
         let lowerModelID = modelID.lowercased()
 
+        // Gateway-prefixed Gemini IDs (google/…, google-ai-studio/…, etc.) share the
+        // native Gemini thinking-level bands so catalog defaults like `.minimal` stick.
+        if let geminiEfforts = geminiThinkingEffortsIfApplicable(
+            for: providerType,
+            lowerModelID: lowerModelID
+        ) {
+            return geminiEfforts
+        }
+
         switch providerType {
-        case .vertexai, .gemini:
-            return supportedGeminiThinkingEfforts(lowerModelID: lowerModelID)
         case .perplexity:
             return defaultGeminiReasoningEfforts
         case .anthropic, .claudeManagedAgents:
@@ -625,17 +632,41 @@ enum ModelCapabilityRegistry {
         return defaultReasoningEfforts
     }
 
+    private static func geminiThinkingEffortsIfApplicable(
+        for providerType: ProviderType?,
+        lowerModelID: String
+    ) -> [ReasoningEffort]? {
+        switch providerType {
+        case .gemini, .vertexai:
+            return supportedGeminiThinkingEfforts(lowerModelID: lowerModelID)
+        case .openrouter, .vercelAIGateway, .cloudflareAIGateway:
+            let canonical = canonicalGoogleModelID(lowerModelID: lowerModelID)
+            guard isKnownGeminiEffortPolicyModel(canonical) else { return nil }
+            return supportedGeminiThinkingEfforts(lowerModelID: canonical)
+        default:
+            return nil
+        }
+    }
+
+    private static func isKnownGeminiEffortPolicyModel(_ lowerModelID: String) -> Bool {
+        gemini31FlashImageEffortModelIDs.contains(lowerModelID)
+            || gemini3FlashEffortModelIDs.contains(lowerModelID)
+            || gemini31ProEffortModelIDs.contains(lowerModelID)
+            || gemini3ProLowHighEffortModelIDs.contains(lowerModelID)
+    }
+
     private static func supportedGeminiThinkingEfforts(lowerModelID: String) -> [ReasoningEffort] {
-        if gemini31FlashImageEffortModelIDs.contains(lowerModelID) {
+        let id = canonicalGoogleModelID(lowerModelID: lowerModelID)
+        if gemini31FlashImageEffortModelIDs.contains(id) {
             return [.minimal, .high]
         }
-        if gemini3FlashEffortModelIDs.contains(lowerModelID) {
+        if gemini3FlashEffortModelIDs.contains(id) {
             return defaultGeminiReasoningEfforts
         }
-        if gemini31ProEffortModelIDs.contains(lowerModelID) {
+        if gemini31ProEffortModelIDs.contains(id) {
             return defaultReasoningEfforts
         }
-        if gemini3ProLowHighEffortModelIDs.contains(lowerModelID) {
+        if gemini3ProLowHighEffortModelIDs.contains(id) {
             return [.low, .high]
         }
         return defaultGeminiReasoningEfforts

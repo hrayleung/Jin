@@ -58,6 +58,27 @@ final class GeminiRequestSupportTests: XCTestCase {
         }
     }
 
+    func testSupportsCustomSamplingCanonicalizesPathQualifiedModelIDs() {
+        XCTAssertFalse(
+            GeminiModelConstants.supportsCustomSamplingParameters("models/gemini-3.6-flash")
+        )
+        XCTAssertFalse(
+            GeminiModelConstants.supportsCustomSamplingParameters(
+                "publishers/google/models/gemini-3.5-flash-lite"
+            )
+        )
+        XCTAssertTrue(
+            GeminiModelConstants.supportsCustomSamplingParameters("models/gemini-3.5-flash")
+        )
+
+        let config = GeminiRequestSupport.generationConfig(
+            controls: GenerationControls(temperature: 0.3, topP: 0.4),
+            modelID: "models/gemini-3.6-flash"
+        )
+        XCTAssertNil(config["temperature"])
+        XCTAssertNil(config["topP"])
+    }
+
     func testGenerationConfigSetsMediumThinkingLevelForGemini36Flash() throws {
         let config = GeminiRequestSupport.generationConfig(
             controls: GenerationControls(

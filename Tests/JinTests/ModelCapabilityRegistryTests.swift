@@ -288,6 +288,38 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanAnthropic, modelID: "mimo-v2.5-preview"))
     }
 
+    func testGatewayPrefixedGeminiModelsUseNativeThinkingEffortBands() {
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .openrouter,
+                modelID: "google/gemini-3.5-flash-lite"
+            ),
+            [.minimal, .low, .medium, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(
+                .minimal,
+                for: .openrouter,
+                modelID: "google/gemini-3.5-flash-lite"
+            ),
+            .minimal
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .vercelAIGateway,
+                modelID: "google/gemini-3.6-flash"
+            ),
+            [.minimal, .low, .medium, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .cloudflareAIGateway,
+                modelID: "google-ai-studio/gemini-3.5-flash-lite"
+            ),
+            [.minimal, .low, .medium, .high]
+        )
+    }
+
     func testGoogleMapsSupportUsesExactDocumentedModelIDs() {
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.6-flash"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.5-flash"))

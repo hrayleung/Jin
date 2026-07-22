@@ -159,8 +159,28 @@ enum GeminiModelConstants {
 
     /// Whether the model accepts custom sampling (`temperature` / `topP` / `topK`).
     /// When false, omit those fields so defaults apply (custom values are ignored or deprecated).
+    /// Path-qualified IDs (`models/...`, `publishers/google/models/...`) are canonicalized first.
     static func supportsCustomSamplingParameters(_ modelID: String) -> Bool {
-        !customSamplingUnsupportedModelIDs.contains(modelID.lowercased())
+        !customSamplingUnsupportedModelIDs.contains(canonicalTerminalModelID(modelID))
+    }
+
+    /// Terminal model ID from path-qualified forms used by Gemini/Vertex routing.
+    static func canonicalTerminalModelID(_ modelID: String) -> String {
+        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+
+        let segments = trimmed
+            .split(separator: "/")
+            .map { String($0) }
+            .filter { !$0.isEmpty }
+        guard !segments.isEmpty else { return trimmed.lowercased() }
+
+        if let modelsIndex = segments.lastIndex(where: { $0.caseInsensitiveCompare("models") == .orderedSame }),
+           modelsIndex < segments.index(before: segments.endIndex) {
+            return segments[segments.index(after: modelsIndex)].lowercased()
+        }
+
+        return (segments.last ?? trimmed).lowercased()
     }
 
     /// Maps a `ReasoningEffort` to a Google thinking level string.

@@ -105,11 +105,15 @@ enum VertexAIMessageTranslation {
         guard message.role == .assistant, let toolCalls = message.toolCalls else { return [] }
 
         return toolCalls.map { call in
+            var functionCall: [String: Any] = [
+                "name": call.name,
+                "args": call.arguments.mapValues { $0.value }
+            ]
+            if !call.id.isEmpty {
+                functionCall["id"] = call.id
+            }
             var translated: [String: Any] = [
-                "functionCall": [
-                    "name": call.name,
-                    "args": call.arguments.mapValues { $0.value }
-                ]
+                "functionCall": functionCall
             ]
             if let signature = call.signature {
                 translated["thoughtSignature"] = signature
@@ -123,11 +127,16 @@ enum VertexAIMessageTranslation {
 
         return toolResults.compactMap { result in
             guard let toolName = result.toolName else { return nil }
+            var functionResponse: [String: Any] = [
+                "name": toolName,
+                "response": ["content": result.content]
+            ]
+            // Gemini 3 requires functionResponse.id to match the original functionCall.id.
+            if !result.toolCallID.isEmpty {
+                functionResponse["id"] = result.toolCallID
+            }
             var translated: [String: Any] = [
-                "functionResponse": [
-                    "name": toolName,
-                    "response": ["content": result.content]
-                ]
+                "functionResponse": functionResponse
             ]
             if let signature = result.signature {
                 translated["thoughtSignature"] = signature

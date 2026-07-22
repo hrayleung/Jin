@@ -164,6 +164,81 @@ final class VertexAIRequestBuilderTests: XCTestCase {
         XCTAssertEqual(config["maxOutputTokens"] as? Int, 512)
     }
 
+    func testGenerationConfigOmitsCustomSamplingForPathQualifiedGemini36Flash() {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let config = builder.makeGenerationConfig(
+            GenerationControls(temperature: 0.1, topP: 0.2),
+            modelID: "publishers/google/models/gemini-3.6-flash"
+        )
+
+        XCTAssertNil(config["temperature"])
+        XCTAssertNil(config["topP"])
+    }
+
+    func testBuildRequestEchoesFunctionCallAndResponseIDs() throws {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let request = try builder.buildRequest(
+            messages: [
+                Message(role: .user, content: [.text("hi")]),
+                Message(
+                    role: .assistant,
+                    content: [],
+                    toolCalls: [
+                        ToolCall(
+                            id: "call_vertex_1",
+                            name: "lookup",
+                            arguments: ["q": AnyCodable("x")],
+                            signature: "sig"
+                        )
+                    ]
+                ),
+                Message(
+                    role: .tool,
+                    content: [],
+                    toolResults: [
+                        ToolResult(
+                            toolCallID: "call_vertex_1",
+                            toolName: "lookup",
+                            content: "result"
+                        )
+                    ]
+                )
+            ],
+            modelID: "gemini-3.6-flash",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false,
+            accessToken: "vertex-token"
+        )
+
+        let json = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: XCTUnwrap(vertexAIRequestBodyData(request))) as? [String: Any]
+        )
+        let contents = try XCTUnwrap(json["contents"] as? [[String: Any]])
+        XCTAssertEqual(contents.count, 3)
+
+        let assistantParts = try XCTUnwrap(contents[1]["parts"] as? [[String: Any]])
+        let functionCall = try XCTUnwrap(assistantParts.first?["functionCall"] as? [String: Any])
+        XCTAssertEqual(functionCall["id"] as? String, "call_vertex_1")
+        XCTAssertEqual(functionCall["name"] as? String, "lookup")
+        XCTAssertEqual(assistantParts.first?["thoughtSignature"] as? String, "sig")
+
+        let toolParts = try XCTUnwrap(contents[2]["parts"] as? [[String: Any]])
+        let functionResponse = try XCTUnwrap(toolParts.first?["functionResponse"] as? [String: Any])
+        XCTAssertEqual(functionResponse["id"] as? String, "call_vertex_1")
+        XCTAssertEqual(functionResponse["name"] as? String, "lookup")
+    }
+
     func testBuildRequestUsesStandardParametersKeyForFunctionDeclarations() throws {
         let builder = VertexAIRequestBuilder(
             providerConfig: makeVertexProviderConfig(),

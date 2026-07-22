@@ -496,6 +496,7 @@ final class GeminiAdapterTests: XCTestCase {
                                 ],
                                 [
                                     "functionCall": [
+                                        "id": "call_gemini_abc",
                                         "name": "tool_name",
                                         "args": ["q": "x"]
                                     ],
@@ -546,11 +547,13 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(sig, "sig")
 
         guard case .toolCallStart(let call) = events[2] else { return XCTFail("Expected toolCallStart") }
+        XCTAssertEqual(call.id, "call_gemini_abc")
         XCTAssertEqual(call.name, "tool_name")
         XCTAssertEqual(call.arguments["q"]?.value as? String, "x")
         XCTAssertEqual(call.signature, "sig2")
 
         guard case .toolCallEnd(let endCall) = events[3] else { return XCTFail("Expected toolCallEnd") }
+        XCTAssertEqual(endCall.id, "call_gemini_abc")
         XCTAssertEqual(endCall.name, "tool_name")
         XCTAssertEqual(endCall.arguments["q"]?.value as? String, "x")
         XCTAssertEqual(endCall.signature, "sig2")
