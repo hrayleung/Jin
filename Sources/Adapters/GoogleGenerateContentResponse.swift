@@ -62,11 +62,15 @@ struct GoogleGenerateContentResponse: Codable {
     }
 
     struct FunctionCall: Codable {
+        /// Unique call ID returned by Gemini 3+; must be echoed on functionResponse.
+        let id: String?
         let name: String
         let args: [String: AnyCodable]?
     }
 
     struct FunctionResponse: Codable {
+        /// Must match the corresponding FunctionCall.id when the API provided one.
+        let id: String?
         let name: String?
         let response: [String: AnyCodable]?
     }

@@ -496,6 +496,7 @@ final class GeminiAdapterTests: XCTestCase {
                                 ],
                                 [
                                     "functionCall": [
+                                        "id": "call_gemini_abc",
                                         "name": "tool_name",
                                         "args": ["q": "x"]
                                     ],
@@ -546,11 +547,13 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertEqual(sig, "sig")
 
         guard case .toolCallStart(let call) = events[2] else { return XCTFail("Expected toolCallStart") }
+        XCTAssertEqual(call.id, "call_gemini_abc")
         XCTAssertEqual(call.name, "tool_name")
         XCTAssertEqual(call.arguments["q"]?.value as? String, "x")
         XCTAssertEqual(call.signature, "sig2")
 
         guard case .toolCallEnd(let endCall) = events[3] else { return XCTFail("Expected toolCallEnd") }
+        XCTAssertEqual(endCall.id, "call_gemini_abc")
         XCTAssertEqual(endCall.name, "tool_name")
         XCTAssertEqual(endCall.arguments["q"]?.value as? String, "x")
         XCTAssertEqual(endCall.signature, "sig2")
@@ -2047,8 +2050,94 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertTrue(ModelCatalog.seededModels(for: .vertexai).contains { $0.id == "gemini-3.5-flash" })
 
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "gemini-3.5-flash"))
-        XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.5-flash"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.5-flash"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-3.5-flash"))
+    }
+
+    func testGemini36FlashCatalogEntryAdvertisesFullCapabilities() throws {
+        let entry = try XCTUnwrap(ModelCatalog.entry(for: "gemini-3.6-flash", provider: .gemini))
+
+        XCTAssertEqual(entry.contextWindow, 1_048_576)
+        XCTAssertEqual(entry.maxOutputTokens, 65_536)
+        XCTAssertTrue(entry.isFullySupported)
+        XCTAssertTrue(entry.capabilities.contains(.streaming))
+        XCTAssertTrue(entry.capabilities.contains(.toolCalling))
+        XCTAssertTrue(entry.capabilities.contains(.vision))
+        XCTAssertTrue(entry.capabilities.contains(.audio))
+        XCTAssertTrue(entry.capabilities.contains(.reasoning))
+        XCTAssertTrue(entry.capabilities.contains(.promptCaching))
+        XCTAssertTrue(entry.capabilities.contains(.nativePDF))
+        XCTAssertTrue(entry.capabilities.contains(.codeExecution))
+        XCTAssertFalse(entry.capabilities.contains(.imageGeneration))
+        XCTAssertEqual(entry.reasoningConfig?.type, .effort)
+        XCTAssertEqual(entry.reasoningConfig?.defaultEffort, .medium)
+
+        XCTAssertTrue(ModelCatalog.seededModels(for: .gemini).contains { $0.id == "gemini-3.6-flash" })
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .gemini, modelID: "gemini-3.6-flash"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.6-flash"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .gemini, modelID: "gemini-3.6-flash"))
+
+        let efforts = ModelCapabilityRegistry.supportedReasoningEfforts(for: .gemini, modelID: "gemini-3.6-flash")
+        XCTAssertEqual(efforts, [.minimal, .low, .medium, .high])
+    }
+
+    func testGemini35FlashLiteCatalogEntryAdvertisesFullCapabilities() throws {
+        let entry = try XCTUnwrap(ModelCatalog.entry(for: "gemini-3.5-flash-lite", provider: .gemini))
+
+        XCTAssertEqual(entry.contextWindow, 1_048_576)
+        XCTAssertEqual(entry.maxOutputTokens, 65_536)
+        XCTAssertTrue(entry.isFullySupported)
+        XCTAssertTrue(entry.capabilities.contains(.streaming))
+        XCTAssertTrue(entry.capabilities.contains(.toolCalling))
+        XCTAssertTrue(entry.capabilities.contains(.vision))
+        XCTAssertTrue(entry.capabilities.contains(.audio))
+        XCTAssertTrue(entry.capabilities.contains(.reasoning))
+        XCTAssertTrue(entry.capabilities.contains(.promptCaching))
+        XCTAssertTrue(entry.capabilities.contains(.nativePDF))
+        XCTAssertTrue(entry.capabilities.contains(.codeExecution))
+        XCTAssertFalse(entry.capabilities.contains(.imageGeneration))
+        XCTAssertEqual(entry.reasoningConfig?.type, .effort)
+        XCTAssertEqual(entry.reasoningConfig?.defaultEffort, .minimal)
+
+        XCTAssertTrue(ModelCatalog.seededModels(for: .gemini).contains { $0.id == "gemini-3.5-flash-lite" })
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .gemini, modelID: "gemini-3.5-flash-lite"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.5-flash-lite"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .gemini, modelID: "gemini-3.5-flash-lite"))
+
+        let efforts = ModelCapabilityRegistry.supportedReasoningEfforts(for: .gemini, modelID: "gemini-3.5-flash-lite")
+        XCTAssertEqual(efforts, [.minimal, .low, .medium, .high])
+    }
+
+    func testGemini36FlashVertexCatalogEntryAdvertisesFullCapabilities() throws {
+        let entry = try XCTUnwrap(ModelCatalog.entry(for: "gemini-3.6-flash", provider: .vertexai))
+
+        XCTAssertEqual(entry.contextWindow, 1_048_576)
+        XCTAssertEqual(entry.maxOutputTokens, 65_536)
+        XCTAssertTrue(entry.isFullySupported)
+        XCTAssertTrue(entry.capabilities.contains(.codeExecution))
+        XCTAssertTrue(entry.capabilities.contains(.nativePDF))
+        XCTAssertEqual(entry.reasoningConfig?.defaultEffort, .medium)
+
+        XCTAssertTrue(ModelCatalog.seededModels(for: .vertexai).contains { $0.id == "gemini-3.6-flash" })
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "gemini-3.6-flash"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.6-flash"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-3.6-flash"))
+    }
+
+    func testGemini35FlashLiteVertexCatalogEntryAdvertisesFullCapabilities() throws {
+        let entry = try XCTUnwrap(ModelCatalog.entry(for: "gemini-3.5-flash-lite", provider: .vertexai))
+
+        XCTAssertEqual(entry.contextWindow, 1_048_576)
+        XCTAssertEqual(entry.maxOutputTokens, 65_536)
+        XCTAssertTrue(entry.isFullySupported)
+        XCTAssertTrue(entry.capabilities.contains(.codeExecution))
+        XCTAssertTrue(entry.capabilities.contains(.nativePDF))
+        XCTAssertEqual(entry.reasoningConfig?.defaultEffort, .minimal)
+
+        XCTAssertTrue(ModelCatalog.seededModels(for: .vertexai).contains { $0.id == "gemini-3.5-flash-lite" })
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: "gemini-3.5-flash-lite"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.5-flash-lite"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-3.5-flash-lite"))
     }
 }
 

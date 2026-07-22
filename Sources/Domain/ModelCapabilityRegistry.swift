@@ -120,10 +120,12 @@ enum ModelCapabilityRegistry {
         "gpt-5.2-2025-12-11",
     ]
 
-    /// Gemini 3 Flash / 3.5 Flash supports MINIMAL/LOW/MEDIUM/HIGH.
+    /// Gemini 3 Flash family supports MINIMAL/LOW/MEDIUM/HIGH.
     private static let gemini3FlashEffortModelIDs: Set<String> = [
         "gemini-3-flash-preview",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
     ]
 
     /// Gemini 3.1 Flash Image supports MINIMAL/HIGH.
@@ -160,6 +162,8 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-flash-lite-preview",
         "gemini-3.1-flash-lite",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -182,6 +186,8 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-flash-lite",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -203,6 +209,8 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-flash-lite-preview",
         "gemini-3.1-flash-lite",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -218,7 +226,9 @@ enum ModelCapabilityRegistry {
 
     /// Models documented by Google as supporting grounding with Google Maps in Gemini API.
     private static let geminiGoogleMapsSupportedModelIDs: Set<String> = [
+        "gemini-3.6-flash",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
         "gemini-3.1-pro-preview",
         "gemini-3.1-flash-lite",
         "gemini-3.1-flash-lite-preview",
@@ -233,21 +243,16 @@ enum ModelCapabilityRegistry {
     // Note: image-generation models intentionally omitted from Maps (docs: not supported).
 
     /// Models supporting grounding with Google Maps in Vertex AI.
-    /// Vertex documentation's Google Maps grounding pages list these exact model IDs
-    /// or exact model families as supported as of May 21, 2026. Keep this list
-    /// constrained by runtime validation because Vertex model pages and the
-    /// grounding page can temporarily disagree for preview models.
-    ///
-    /// Notes:
-    /// - We include the current exact preview version IDs where the model pages expose them
-    ///   (for example `gemini-2.5-flash-preview-09-2025`).
-    /// - We also retain the legacy alias-style IDs already used in persisted Jin data
-    ///   (for example `gemini-2.5-flash-preview`) so previously-saved conversations
-    ///   do not silently lose the Maps UI toggle.
+    /// Align with Vertex generative-ai Maps page + Enterprise model cards (2026-07).
+    /// Keep exact IDs only; legacy aliases retained for persisted conversations.
     private static let vertexGoogleMapsSupportedModelIDs: Set<String> = [
-        // Keep constrained to Vertex-documented Maps IDs; do not broaden from AI Studio lists.
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
+        "gemini-3-flash-preview",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -273,6 +278,8 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-flash-lite",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -291,6 +298,8 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-flash-lite",
         "gemini-3.1-flash-lite-preview",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -534,9 +543,16 @@ enum ModelCapabilityRegistry {
     static func supportedReasoningEfforts(for providerType: ProviderType?, modelID: String) -> [ReasoningEffort] {
         let lowerModelID = modelID.lowercased()
 
+        // Gateway-prefixed Gemini IDs (google/…, google-ai-studio/…, etc.) share the
+        // native Gemini thinking-level bands so catalog defaults like `.minimal` stick.
+        if let geminiEfforts = geminiThinkingEffortsIfApplicable(
+            for: providerType,
+            lowerModelID: lowerModelID
+        ) {
+            return geminiEfforts
+        }
+
         switch providerType {
-        case .vertexai, .gemini:
-            return supportedGeminiThinkingEfforts(lowerModelID: lowerModelID)
         case .perplexity:
             return defaultGeminiReasoningEfforts
         case .anthropic, .claudeManagedAgents:
@@ -616,17 +632,41 @@ enum ModelCapabilityRegistry {
         return defaultReasoningEfforts
     }
 
+    private static func geminiThinkingEffortsIfApplicable(
+        for providerType: ProviderType?,
+        lowerModelID: String
+    ) -> [ReasoningEffort]? {
+        switch providerType {
+        case .gemini, .vertexai:
+            return supportedGeminiThinkingEfforts(lowerModelID: lowerModelID)
+        case .openrouter, .vercelAIGateway, .cloudflareAIGateway:
+            let canonical = canonicalGoogleModelID(lowerModelID: lowerModelID)
+            guard isKnownGeminiEffortPolicyModel(canonical) else { return nil }
+            return supportedGeminiThinkingEfforts(lowerModelID: canonical)
+        default:
+            return nil
+        }
+    }
+
+    private static func isKnownGeminiEffortPolicyModel(_ lowerModelID: String) -> Bool {
+        gemini31FlashImageEffortModelIDs.contains(lowerModelID)
+            || gemini3FlashEffortModelIDs.contains(lowerModelID)
+            || gemini31ProEffortModelIDs.contains(lowerModelID)
+            || gemini3ProLowHighEffortModelIDs.contains(lowerModelID)
+    }
+
     private static func supportedGeminiThinkingEfforts(lowerModelID: String) -> [ReasoningEffort] {
-        if gemini31FlashImageEffortModelIDs.contains(lowerModelID) {
+        let id = canonicalGoogleModelID(lowerModelID: lowerModelID)
+        if gemini31FlashImageEffortModelIDs.contains(id) {
             return [.minimal, .high]
         }
-        if gemini3FlashEffortModelIDs.contains(lowerModelID) {
+        if gemini3FlashEffortModelIDs.contains(id) {
             return defaultGeminiReasoningEfforts
         }
-        if gemini31ProEffortModelIDs.contains(lowerModelID) {
+        if gemini31ProEffortModelIDs.contains(id) {
             return defaultReasoningEfforts
         }
-        if gemini3ProLowHighEffortModelIDs.contains(lowerModelID) {
+        if gemini3ProLowHighEffortModelIDs.contains(id) {
             return [.low, .high]
         }
         return defaultGeminiReasoningEfforts

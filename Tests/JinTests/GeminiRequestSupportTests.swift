@@ -39,6 +39,70 @@ final class GeminiRequestSupportTests: XCTestCase {
         XCTAssertTrue(GeminiRequestSupport.supportsThinkingLevel("gemini-3.5-flash"))
     }
 
+    func testGenerationConfigOmitsCustomSamplingForGemini36FlashAnd35FlashLite() {
+        for modelID in ["gemini-3.6-flash", "gemini-3.5-flash-lite"] {
+            let config = GeminiRequestSupport.generationConfig(
+                controls: GenerationControls(
+                    temperature: 0.2,
+                    maxTokens: 2048,
+                    topP: 0.5,
+                    reasoning: ReasoningControls(enabled: true, effort: .high)
+                ),
+                modelID: modelID
+            )
+
+            XCTAssertNil(config["temperature"], modelID)
+            XCTAssertNil(config["topP"], modelID)
+            XCTAssertEqual(config["maxOutputTokens"] as? Int, 2048, modelID)
+            XCTAssertFalse(GeminiModelConstants.supportsCustomSamplingParameters(modelID), modelID)
+        }
+    }
+
+    func testSupportsCustomSamplingCanonicalizesPathQualifiedModelIDs() {
+        XCTAssertFalse(
+            GeminiModelConstants.supportsCustomSamplingParameters("models/gemini-3.6-flash")
+        )
+        XCTAssertFalse(
+            GeminiModelConstants.supportsCustomSamplingParameters(
+                "publishers/google/models/gemini-3.5-flash-lite"
+            )
+        )
+        XCTAssertTrue(
+            GeminiModelConstants.supportsCustomSamplingParameters("models/gemini-3.5-flash")
+        )
+
+        let config = GeminiRequestSupport.generationConfig(
+            controls: GenerationControls(temperature: 0.3, topP: 0.4),
+            modelID: "models/gemini-3.6-flash"
+        )
+        XCTAssertNil(config["temperature"])
+        XCTAssertNil(config["topP"])
+    }
+
+    func testGenerationConfigSetsMediumThinkingLevelForGemini36Flash() throws {
+        let config = GeminiRequestSupport.generationConfig(
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .medium)
+            ),
+            modelID: "gemini-3.6-flash"
+        )
+
+        let thinkingConfig = try XCTUnwrap(config["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "MEDIUM")
+    }
+
+    func testGenerationConfigSetsMinimalThinkingLevelForGemini35FlashLite() throws {
+        let config = GeminiRequestSupport.generationConfig(
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .minimal)
+            ),
+            modelID: "gemini-3.5-flash-lite"
+        )
+
+        let thinkingConfig = try XCTUnwrap(config["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "MINIMAL")
+    }
+
     func testGenerationConfigUsesMinimalThinkingLevelWhenGemini35FlashReasoningIsDisabled() throws {
         let config = GeminiRequestSupport.generationConfig(
             controls: GenerationControls(

@@ -104,8 +104,11 @@ extension GeminiModelConstants {
 
         if let functionCall = part.functionCall,
            !isGoogleProviderNativeToolName(functionCall.name) {
+            // Gemini 3+ always returns a unique functionCall.id; reuse it so
+            // functionResponse can map the result back to the original call.
+            let callID = functionCall.id?.trimmedNonEmpty ?? UUID().uuidString
             let toolCall = ToolCall(
-                id: UUID().uuidString,
+                id: callID,
                 name: functionCall.name,
                 arguments: functionCall.args ?? [:],
                 signature: part.thoughtSignature

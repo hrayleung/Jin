@@ -123,8 +123,8 @@ final class VertexAIModelSupportTests: XCTestCase {
         XCTAssertTrue(support.supportsThinkingLevel("gemini-3.5-flash"))
         XCTAssertTrue(support.supportsNativePDF("gemini-3.5-flash"))
         XCTAssertTrue(support.supportsCodeExecution("gemini-3.5-flash"))
-        XCTAssertFalse(support.supportsGoogleMaps("gemini-3.5-flash"))
-        XCTAssertFalse(support.supportsGoogleMaps("gemini-3-flash-preview"))
+        XCTAssertTrue(support.supportsGoogleMaps("gemini-3.5-flash"))
+        XCTAssertTrue(support.supportsGoogleMaps("gemini-3-flash-preview"))
 
         let info = support.makeModelInfo(id: "gemini-3.5-flash", displayName: "Gemini 3.5 Flash", contextWindow: 1_048_576)
         XCTAssertTrue(info.capabilities.contains(.streaming))
@@ -138,6 +138,41 @@ final class VertexAIModelSupportTests: XCTestCase {
         XCTAssertFalse(info.capabilities.contains(.imageGeneration))
         XCTAssertEqual(info.reasoningConfig?.type, .effort)
         XCTAssertEqual(info.reasoningConfig?.defaultEffort, .medium)
+    }
+
+    func testGemini36FlashAnd35FlashLiteAreKnownAndFullySupportedOnVertex() {
+        let support = VertexAIModelSupport()
+
+        for id in ["gemini-3.6-flash", "gemini-3.5-flash-lite"] {
+            XCTAssertTrue(support.knownModels.contains { $0.id == id }, id)
+            XCTAssertFalse(support.supportsImageGeneration(id), id)
+            XCTAssertTrue(support.supportsFunctionCalling(id), id)
+            XCTAssertTrue(support.supportsThinking(id), id)
+            XCTAssertTrue(support.supportsThinkingConfig(id), id)
+            XCTAssertTrue(support.supportsThinkingLevel(id), id)
+            XCTAssertTrue(support.supportsNativePDF(id), id)
+            XCTAssertTrue(support.supportsCodeExecution(id), id)
+            XCTAssertTrue(support.supportsGoogleMaps(id), id)
+            XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .vertexai, modelID: id), id)
+        }
+
+        let flash36 = support.makeModelInfo(
+            id: "gemini-3.6-flash",
+            displayName: "Gemini 3.6 Flash",
+            contextWindow: 1_048_576
+        )
+        XCTAssertEqual(flash36.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertTrue(flash36.capabilities.contains(.codeExecution))
+        XCTAssertTrue(flash36.capabilities.contains(.nativePDF))
+
+        let flashLite35 = support.makeModelInfo(
+            id: "gemini-3.5-flash-lite",
+            displayName: "Gemini 3.5 Flash-Lite",
+            contextWindow: 1_048_576
+        )
+        XCTAssertEqual(flashLite35.reasoningConfig?.defaultEffort, .minimal)
+        XCTAssertTrue(flashLite35.capabilities.contains(.codeExecution))
+        XCTAssertTrue(flashLite35.capabilities.contains(.nativePDF))
     }
 
     func testStableGemini31FlashLiteIsExposedForVertexAI() {
@@ -160,5 +195,6 @@ final class VertexAIModelSupportTests: XCTestCase {
         XCTAssertTrue(support.supportsFunctionCalling("gemini-3.1-flash-lite"))
         XCTAssertTrue(support.supportsThinking("gemini-3.1-flash-lite"))
         XCTAssertTrue(support.supportsNativePDF("gemini-3.1-flash-lite"))
+        XCTAssertTrue(support.supportsGoogleMaps("gemini-3.1-flash-lite"))
     }
 }

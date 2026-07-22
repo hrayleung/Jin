@@ -3,20 +3,25 @@ import Foundation
 extension VertexAIRequestBuilder {
     func makeGenerationConfig(_ controls: GenerationControls, modelID: String) -> [String: Any] {
         var config: [String: Any] = [:]
-        addSamplingControls(to: &config, controls: controls)
+        addSamplingControls(to: &config, controls: controls, modelID: modelID)
         addThinkingConfig(to: &config, controls: controls, modelID: modelID)
         addImageConfig(to: &config, controls: controls, modelID: modelID)
         return config
     }
 
-    func addSamplingControls(to config: inout [String: Any], controls: GenerationControls) {
-        if let temperature = controls.temperature {
+    func addSamplingControls(
+        to config: inout [String: Any],
+        controls: GenerationControls,
+        modelID: String
+    ) {
+        let supportsCustomSampling = GeminiModelConstants.supportsCustomSamplingParameters(modelID)
+        if supportsCustomSampling, let temperature = controls.temperature {
             config["temperature"] = temperature
         }
         if let maxTokens = controls.maxTokens {
             config["maxOutputTokens"] = maxTokens
         }
-        if let topP = controls.topP {
+        if supportsCustomSampling, let topP = controls.topP {
             config["topP"] = topP
         }
     }
