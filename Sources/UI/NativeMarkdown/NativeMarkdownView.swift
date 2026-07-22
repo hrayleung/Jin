@@ -6,7 +6,7 @@ import SwiftUI
 /// Hot-path strategy:
 /// 1. Try the process-wide LRU synchronously (free).
 /// 2. If miss, render a one-shot plain-text placeholder synchronously and
-///    kick the real parse onto a background actor — promotes once ready.
+///    ask the retained coordinator for an off-main parse — promotes once ready.
 /// 3. `SelectionAggregator` lives in `@StateObject` so it survives body
 ///    re-evaluations (no churn).
 struct NativeMarkdownView: View {
@@ -23,20 +23,9 @@ struct NativeMarkdownView: View {
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
     @StateObject private var aggregatorStore = SelectionAggregatorStore()
-    /// Most recent parse result. **Kept across cache-key changes during
-    /// streaming**: when the markdown text grows every ~100 ms, each new
-    /// key misses the cache and a fresh parse is dispatched. Without this
-    /// retention the view would fall back to the plain-text placeholder
-    /// between parses and the user would see the rendered NSTextView
-    /// swap to raw markdown text every flush — that flicker is what gets
-    /// perceived as "the AI streaming output is particularly laggy".
-    @State private var asyncParsed: NativeMarkdownCache.Value?
-    /// The key `asyncParsed` was produced for. A recycled `NSTableView` cell
-    /// can preserve this view's `@State` while showing a DIFFERENT message, so
-    /// the retained parse is only safe to display when it belongs to the
-    /// current content lineage (same key, or the current text is a growth of
-    /// the parsed text — streaming flushes and the streaming→persisted swap).
-    @State private var asyncParsedKey: NativeMarkdownCache.Key?
+    /// Owns background work outside SwiftUI's cancellable `.task(id:)`
+    /// lifecycle and coalesces growing streaming prefixes.
+    @StateObject private var renderCoordinator = NativeMarkdownRenderCoordinator()
 
     var body: some View {
         let theme = MarkdownTheme.resolved(appFontFamily: appFontFamily, codeFontFamily: codeFontFamily)
@@ -53,9 +42,8 @@ struct NativeMarkdownView: View {
         // The retained async parse is reused only when it belongs to the
         // current content lineage:
         //  - same key (non-streaming first open: the async parse populates
-        //    `asyncParsed` before the cross-thread cache insert is visible to
-        //    the next `tryGet`, so `asyncParsed` is the only source of truth
-        //    in that window);
+        //    the coordinator output before the next body-level cache lookup,
+        //    so that retained output is the source of truth in the window);
         //  - the current text is a growth of the parsed text under the same
         //    fonts/mode (streaming flushes mint a fresh key each ~100 ms, and
         //    the streaming→persisted swap reuses the final streaming parse —
@@ -63,7 +51,8 @@ struct NativeMarkdownView: View {
         // A recycled cell that kept this view's `@State` for a DIFFERENT
         // message fails the lineage test and falls back to the placeholder
         // rather than briefly rendering the previous row's content.
-        let parsed = syncHit ?? (isLineageMatch(current: key, parsed: asyncParsedKey) ? asyncParsed : nil)
+        let retained = renderCoordinator.output
+        let parsed = syncHit ?? (isLineageMatch(current: key, parsed: retained?.key) ? retained?.value : nil)
 
         return Group {
             if let parsed {
@@ -72,28 +61,11 @@ struct NativeMarkdownView: View {
                 placeholder(theme: theme)
             }
         }
-        .task(id: key) {
-            if let syncHit {
-                // Retain the hit: `.task(id:)` won't re-fire for this key, so
-                // if the LRU later evicts it a body re-eval would regress to
-                // the placeholder with no recovery path.
-                asyncParsed = syncHit
-                asyncParsedKey = key
-                return
-            }
-            guard let value = await NativeMarkdownParseService.parse(key: key, theme: theme) else {
-                return
-            }
-            // Apply even if this task was cancelled mid-await (cell recycling
-            // re-pushed a structurally identical tree, which preserves view
-            // identity and never re-fires this task). For stable keys the
-            // write is exactly the heal; if the identity is truly gone the
-            // write lands nowhere. Streaming keys keep the guard — their old
-            // tasks are cancelled by id-change and an out-of-order write
-            // would regress the growing text.
-            if key.isStreaming, Task.isCancelled { return }
-            asyncParsed = value
-            asyncParsedKey = key
+        .onAppear {
+            renderCoordinator.request(key: key, theme: theme)
+        }
+        .onChange(of: key) { _, newKey in
+            renderCoordinator.request(key: newKey, theme: theme)
         }
         .onReceive(NativeMarkdownCache.insertNotifications) { _ in
             // Heals the placeholder-stuck state from OUTSIDE the view's own
@@ -103,9 +75,9 @@ struct NativeMarkdownView: View {
             // view (prewarm, another cell). No-op once we already hold the
             // current key's parse. Streaming keys are never cached, so this
             // only fires for stable keys.
-            guard asyncParsedKey != key, let value = NativeMarkdownCache.tryGet(key: key) else { return }
-            asyncParsed = value
-            asyncParsedKey = key
+            guard renderCoordinator.output?.key != key,
+                  let value = NativeMarkdownCache.tryGet(key: key) else { return }
+            renderCoordinator.adopt(value, for: key)
         }
     }
 
@@ -118,7 +90,8 @@ struct NativeMarkdownView: View {
         current: NativeMarkdownCache.Key,
         parsed: NativeMarkdownCache.Key?
     ) -> Bool {
-        asyncParsed != nil && NativeMarkdownParseLineage.matches(current: current, retained: parsed)
+        renderCoordinator.output != nil
+            && NativeMarkdownParseLineage.matches(current: current, retained: parsed)
     }
 
     @ViewBuilder
@@ -153,6 +126,7 @@ struct NativeMarkdownView: View {
         .environment(\.markdownTheme, theme)
         .environment(\.nativeMarkdownAnchor, anchorContext)
         .environment(\.markdownMathSourceActions, mathActions)
+        .environment(\.markdownDefersCodeHighlightUpgrade, deferCodeHighlightUpgrade)
         // Update the aggregator only when its inputs actually change. The
         // previous `let _ = aggregatorStore.update(...)` inside body ran on
         // every body re-eval, which in turn re-walked every block's
@@ -233,7 +207,7 @@ struct IndexedGroup: Identifiable {
 }
 
 /// Decides whether a retained parse may stand in for the current render key
-/// (see `NativeMarkdownView`'s `asyncParsed` reuse). Pure key comparison so it
+/// (see `NativeMarkdownView`'s coordinator output reuse). Pure key comparison so it
 /// can be unit-tested without a view.
 enum NativeMarkdownParseLineage {
     /// True when `retained` produced content the `current` key may display:
@@ -292,61 +266,5 @@ final class SelectionAggregatorStore: ObservableObject {
         }
         aggregator.actions = actions
         aggregator.update(blocks: blocks, persistedHighlights: persistedHighlights)
-    }
-}
-
-/// Off-main parsing actor. Documents up to ~30 KB parse in 5-30 ms; we keep
-/// SwiftUI responsive by offloading. Use `enum` + `nonisolated static func`
-/// (no actor) so multiple `.task(id:)` callers from different
-/// `NativeMarkdownView`s can all parse in parallel — the cache itself is
-/// already thread-safe (`OSAllocatedUnfairLock`). The previous `actor`
-/// design serialised parse work and showed up as a visible queueing hitch
-/// when several messages crossed into the viewport at once.
-enum NativeMarkdownParseService {
-    /// Run the parse on a background thread. Returns the freshly-computed
-    /// (or cached) value. Cancellation cuts off the work if the caller's
-    /// `.task` was torn down while parsing was in flight.
-    ///
-    /// Streaming keys (`key.isStreaming == true`) are **not written to the
-    /// LRU**: every ~100 ms flush mints a fresh key with the
-    /// growing-prefix markdown, and persisting all of them would fill the
-    /// 256-slot cache within seconds, evicting every other conversation's
-    /// finished-message entries. The streaming caller already retains
-    /// the last parsed value in its own `@State`, so the cache layer
-    /// doesn't need to.
-    static func parse(
-        key: NativeMarkdownCache.Key,
-        theme: MarkdownTheme
-    ) async -> NativeMarkdownCache.Value? {
-        if let cached = NativeMarkdownCache.tryGet(key: key) {
-            return cached
-        }
-        let task = Task.detached(priority: .userInitiated) {
-            if let cached = NativeMarkdownCache.tryGet(key: key) {
-                return Optional(cached)
-            }
-            // Streaming keys are throwaway (a fresh key arrives ~100 ms
-            // later), so cancellation may cut them off. NON-streaming keys
-            // are stable: finish and bank the parse even if the requesting
-            // view was recycled away mid-parse. Discarding completed work
-            // here left rows stuck on a mid-commit placeholder forever —
-            // `.task(id:)` never re-fires for a preserved identity, so the
-            // cache write is the only path by which the row can ever heal.
-            if key.isStreaming, Task.isCancelled {
-                return nil
-            }
-            let value = NativeMarkdownCache.compute(key: key, theme: theme)
-            if !key.isStreaming {
-                NativeMarkdownCache.insert(value, forKey: key)
-            }
-            return value
-        }
-        let value = await withTaskCancellationHandler {
-            await task.value
-        } onCancel: {
-            task.cancel()
-        }
-        if key.isStreaming, Task.isCancelled { return nil }
-        return value
     }
 }

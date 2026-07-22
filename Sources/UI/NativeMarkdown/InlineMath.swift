@@ -108,11 +108,14 @@ enum InlineMath {
     }
 
     /// Finds a valid closing `$` index for math opened at `from`. Skips escaped
-    /// `\$`; the close must be preceded by a non-space and not followed by a digit.
+    /// `\$`; the close must be preceded by a non-space and not followed by a
+    /// digit. The scan is bounded by `inlineMathMaxLength`: a farther close is
+    /// guaranteed to be rejected anyway, and bounding here prevents repeated
+    /// stray `$` openers from rescanning an entire long paragraph (O(n²)).
     private static func findDollarClose(_ chars: [Character], from: Int) -> Int? {
         let n = chars.count
         var j = from
-        while j < n {
+        while j < n, j - from <= inlineMathMaxLength {
             if chars[j] == "\\" { j += 2; continue }
             if chars[j] == "$" {
                 if j > from, !chars[j - 1].isWhitespace, (j + 1 >= n || !chars[j + 1].isNumber) {
@@ -125,11 +128,13 @@ enum InlineMath {
         return nil
     }
 
-    /// Returns the index of the backslash in the closing `\)`.
+    /// Returns the index of the backslash in the closing `\)`. Like dollar
+    /// math, an overlong candidate cannot be rendered, so the scan stops once
+    /// the maximum valid inline span length is exceeded.
     private static func findParenClose(_ chars: [Character], from: Int) -> Int? {
         let n = chars.count
         var j = from
-        while j < n - 1 {
+        while j < n - 1, j - from <= inlineMathMaxLength {
             if chars[j] == "\\" {
                 if chars[j + 1] == ")" { return j }
                 j += 2

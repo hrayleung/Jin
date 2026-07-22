@@ -170,6 +170,31 @@ extension ChatView {
 
         let sessionCallbacks = ChatStreamingOrchestrator.SessionCallbacks(
             persistAssistantMessage: { [self] message, providerID, modelID, modelName, metrics in
+                // Keep the already-rendered streaming row alive until the
+                // exact persisted-row cache keys are ready. Appending first
+                // caused the table to replace that row with NativeMarkdown's
+                // raw-text placeholder, which could remain visible for a long
+                // time if the view's parse task was recycled or queued behind
+                // duplicate work.
+                if message.toolCalls?.isEmpty != false {
+                    let prewarmItems = ChatMessageRenderPipeline.markdownPrewarmItems(
+                        for: message,
+                        artifactsEnabled: conversationEntity.artifactsEnabled == true
+                    )
+                    if !prewarmItems.isEmpty {
+                        let defaults = UserDefaults.standard
+                        let appFontFamily = defaults.string(forKey: AppPreferenceKeys.appFontFamily)
+                            ?? JinTypography.systemFontPreferenceValue
+                        let codeFontFamily = defaults.string(forKey: AppPreferenceKeys.codeFontFamily)
+                            ?? JinTypography.systemFontPreferenceValue
+                        await NativeMarkdownCache.prepareForImmediateDisplay(
+                            items: prewarmItems,
+                            appFontFamily: appFontFamily,
+                            codeFontFamily: codeFontFamily
+                        )
+                    }
+                }
+
                 do {
                     let entity = try MessageEntity.fromDomain(message)
                     entity.generatedProviderID = providerID

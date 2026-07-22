@@ -60,15 +60,13 @@ extension ChatStreamingOrchestrator {
         )
         let completionPreview = AttachmentImportPipeline.completionNotificationPreview(from: persistedParts)
 
-        let persistedAssistantMessageID = await MainActor.run {
-            callbacks.persistAssistantMessage(
-                assistantMessage,
-                ctx.providerID,
-                ctx.modelID,
-                ctx.modelNameSnapshot,
-                responseMetrics
-            )
-        }
+        let persistedAssistantMessageID = await callbacks.persistAssistantMessage(
+            assistantMessage,
+            ctx.providerID,
+            ctx.modelID,
+            ctx.modelNameSnapshot,
+            responseMetrics
+        )
 
         if response.toolCalls.isEmpty {
             await MainActor.run {

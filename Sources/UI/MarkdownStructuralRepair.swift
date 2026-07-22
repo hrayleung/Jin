@@ -380,14 +380,9 @@ enum MarkdownStructuralRepair {
         _ ranges: [Range<String.Index>]
     ) -> String {
         guard line.contains("|") else { return line }
-        // Tables almost never appear inside emphasis runs; we still use the
-        // emphasis-aware helper for the regex-based steps so the rare case
-        // of `*foo | bar*` doesn't get rewritten.
-
         var normalized = line
-        var currentRanges = ranges
         if let firstPipeIndex = normalized.firstIndex(of: "|"),
-           !currentRanges.contains(where: { $0.contains(firstPipeIndex) }) {
+           !ranges.contains(where: { $0.contains(firstPipeIndex) }) {
             let prefix = normalized[..<firstPipeIndex].trimmingCharacters(in: .whitespaces)
             let suffix = String(normalized[firstPipeIndex...])
             // Edge-pipe only: broader no-edge-pipe detection would treat
@@ -396,29 +391,13 @@ enum MarkdownStructuralRepair {
                MarkdownRenderPreparation.looksLikeEdgePipeTableRow(suffix),
                !MarkdownRenderPreparation.looksLikeParagraphWithPipes(prefix) {
                 normalized = String(prefix) + "\n" + suffix
-                currentRanges = protectedRanges(in: normalized)
             }
         }
 
-        var next = MarkdownRenderPreparation.replacingOutsideRanges(
-            pattern: #"(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)\s*(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)"#,
-            in: normalized,
-            protectedRanges: currentRanges,
-            with: "$1\n$2"
-        )
-        if next != normalized {
-            normalized = next
-            currentRanges = protectedRanges(in: normalized)
-        }
-
-        next = MarkdownRenderPreparation.replacingOutsideRanges(
-            pattern: #"(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)\s*(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)"#,
-            in: next,
-            protectedRanges: currentRanges,
-            with: "$1\n$2"
-        )
-
-        return next
+        // The deterministic helper validates complete edge-pipe row cells;
+        // ordinary `*foo | bar*` emphasis is not an edge-pipe table and is
+        // therefore left untouched without range-aware regex filtering.
+        return MarkdownRenderPreparation.normalizeInlineTable(normalized)
     }
 
     // MARK: - Heading body camelCase split (unchanged behavior)

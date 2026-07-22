@@ -190,6 +190,54 @@ enum ChatMessageRenderPipeline {
         return parts.joined(separator: "\n\n")
     }
 
+    /// Produces the exact native-markdown cache entries the persisted row will
+    /// request. This mirrors the render pipeline's artifact splitting and
+    /// rich-vs-plain mode inference so the streaming-to-persisted handoff does
+    /// not warm a similar-but-different key and still expose raw Markdown.
+    static func markdownPrewarmItems(
+        for message: Message,
+        artifactsEnabled: Bool
+    ) -> [NativeMarkdownCache.PrewarmItem] {
+        guard message.role == .assistant else { return [] }
+
+        let renderedContent = ChatRenderedContentDecoder.renderedContentParts(
+            from: message.content,
+            messageID: message.id
+        )
+        var artifactVersionCounts: [String: Int] = [:]
+        var artifactVersionsByID: OrderedDictionary<String, [RenderedArtifactVersion]> = [:]
+        let renderedBlocks = ChatArtifactRenderBlockBuilder.renderedBlocks(
+            content: renderedContent,
+            role: message.role,
+            messageID: message.id,
+            timestamp: message.timestamp,
+            artifactsEnabled: artifactsEnabled,
+            artifactVersionCounts: &artifactVersionCounts,
+            artifactVersionsByID: &artifactVersionsByID
+        )
+        let copyText = ChatMessageRenderMetadataBuilder.copyableText(
+            from: renderedContent,
+            role: message.role,
+            artifactsEnabled: artifactsEnabled
+        )
+        let metadata = ChatMessageRenderMetadataBuilder.renderMetadata(
+            role: message.role,
+            content: renderedContent,
+            renderedBlocks: renderedBlocks,
+            copyText: copyText
+        )
+        let renderPlainText = metadata.preferredRenderMode == .nativeText
+
+        return renderedBlocks.compactMap { block in
+            guard case .content(_, .text(let text)) = block,
+                  !text.isEmpty else { return nil }
+            return NativeMarkdownCache.PrewarmItem(
+                markdownText: text,
+                renderPlainText: renderPlainText
+            )
+        }
+    }
+
     private static func makeRenderItem(
         id: UUID,
         role: String,

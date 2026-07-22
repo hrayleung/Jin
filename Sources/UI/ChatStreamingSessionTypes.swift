@@ -32,7 +32,7 @@ extension ChatStreamingOrchestrator {
             _ modelID: String,
             _ modelName: String,
             _ metrics: ResponseMetrics?
-        ) -> UUID?
+        ) async -> UUID?
 
         /// Persist a tool-result message entity.
         let persistToolMessage: @MainActor (
