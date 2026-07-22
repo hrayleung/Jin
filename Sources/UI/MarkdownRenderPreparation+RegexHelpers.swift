@@ -47,10 +47,23 @@ extension MarkdownRenderPreparation {
         var result = ""
         result.reserveCapacity(string.count + matches.count * 2)
         var cursor = string.startIndex
+        // Regex matches arrive in source order. Walk one source-ordered range
+        // cursor beside them instead of scanning every protected emphasis/code
+        // range for every match (the previous M×R overlap check was quadratic
+        // on list- and emphasis-heavy model responses).
+        let sortedProtectedRanges = protectedRanges.sorted {
+            $0.lowerBound < $1.lowerBound
+        }
+        var protectedRangeIndex = 0
 
         for match in matches {
             guard let matchRange = Range(match.range, in: string) else { continue }
-            if protectedRanges.contains(where: { $0.overlaps(matchRange) }) {
+            while protectedRangeIndex < sortedProtectedRanges.count,
+                  sortedProtectedRanges[protectedRangeIndex].upperBound <= matchRange.lowerBound {
+                protectedRangeIndex += 1
+            }
+            if protectedRangeIndex < sortedProtectedRanges.count,
+               sortedProtectedRanges[protectedRangeIndex].overlaps(matchRange) {
                 continue
             }
             if matchRange.lowerBound < cursor {

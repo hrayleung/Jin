@@ -19,19 +19,15 @@ extension MarkdownRenderPreparation {
             }
         }
 
-        normalized = replacing(
-            pattern: #"(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)\s*(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)"#,
-            in: normalized,
-            with: "$1\n$2"
-        )
-
-        normalized = replacing(
-            pattern: #"(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)\s*(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)"#,
-            in: normalized,
-            with: "$1\n$2"
-        )
-
+        // Detect a data-row / separator-row pair with a deterministic cell
+        // scan. The former ICU expressions nested multiple lazy repetitions
+        // around every pipe. A perfectly valid, wide table row with no match
+        // could therefore trigger catastrophic backtracking and hold the raw
+        // Markdown placeholder on screen for minutes.
         return normalized
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { splitInlineTableRows(in: String($0)) }
+            .joined(separator: "\n")
     }
 
     /// True for a GFM pipe-table data/separator line, with or without outer
@@ -97,11 +93,130 @@ extension MarkdownRenderPreparation {
             }
         }
 
-        if matches(#"(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)\s*(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)"#, in: line) {
-            return true
+        return inlineTableRowBreakRange(in: line) != nil
+    }
+
+    /// Splits one or more table rows that a model emitted on the same source
+    /// line. Each pass removes one boundary; the cap protects repair work from
+    /// untrusted output containing thousands of deliberately ambiguous empty
+    /// cells while still covering far more glued rows than a model normally
+    /// produces.
+    private static func splitInlineTableRows(in line: String) -> String {
+        let maximumSplits = 32
+        var pending = [line]
+        var output: [String] = []
+        var splitCount = 0
+
+        while let candidate = pending.popLast() {
+            guard splitCount < maximumSplits,
+                  let breakRange = inlineTableRowBreakRange(in: candidate) else {
+                output.append(candidate)
+                continue
+            }
+
+            let left = String(candidate[..<breakRange.lowerBound])
+            let right = String(candidate[breakRange.upperBound...])
+            // Stack order is reversed so the source-order left segment is
+            // processed and emitted first.
+            pending.append(right)
+            pending.append(left)
+            splitCount += 1
         }
 
-        return matches(#"(\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|)\s*(\|\s*[^|\n]+?\s*(?:\|\s*[^|\n]+?\s*)+\|)"#, in: line)
+        return output.joined(separator: "\n")
+    }
+
+    /// Finds the whitespace gap between two adjacent edge pipes when the
+    /// cells on exactly one side form a GFM separator row. All prefix/suffix
+    /// separator classifications are precomputed, making this O(n) in the
+    /// source-line length with no regex backtracking.
+    private static func inlineTableRowBreakRange(in line: String) -> Range<String.Index>? {
+        guard line.contains("|") else { return nil }
+
+        guard let firstContent = line.firstIndex(where: { !$0.isWhitespace }),
+              let lastContent = line.lastIndex(where: { !$0.isWhitespace }),
+              line[firstContent] == "|",
+              line[lastContent] == "|" else {
+            return nil
+        }
+
+        var pipeIndices: [String.Index] = []
+        var index = firstContent
+        while index <= lastContent {
+            if line[index] == "|" {
+                pipeIndices.append(index)
+            }
+            guard index < lastContent else { break }
+            index = line.index(after: index)
+        }
+
+        // Two edge-pipe rows with at least two cells each require six pipes
+        // (`|a|b||---|---|`) and five between-pipe segments.
+        guard pipeIndices.count >= 6 else { return nil }
+
+        var cells: [Substring] = []
+        cells.reserveCapacity(pipeIndices.count - 1)
+        for offset in 0..<(pipeIndices.count - 1) {
+            let lowerBound = line.index(after: pipeIndices[offset])
+            cells.append(line[lowerBound..<pipeIndices[offset + 1]])
+        }
+
+        let separatorCells = cells.map(isTableSeparatorCell)
+        let dataCells = cells.map { !$0.isEmpty }
+        var separatorPrefix = Array(repeating: true, count: cells.count + 1)
+        var dataPrefix = Array(repeating: true, count: cells.count + 1)
+        for offset in cells.indices {
+            separatorPrefix[offset + 1] = separatorPrefix[offset] && separatorCells[offset]
+            dataPrefix[offset + 1] = dataPrefix[offset] && dataCells[offset]
+        }
+        var separatorSuffix = Array(repeating: true, count: cells.count + 1)
+        var dataSuffix = Array(repeating: true, count: cells.count + 1)
+        for offset in cells.indices.reversed() {
+            separatorSuffix[offset] = separatorSuffix[offset + 1] && separatorCells[offset]
+            dataSuffix[offset] = dataSuffix[offset + 1] && dataCells[offset]
+        }
+
+        for boundaryCell in cells.indices {
+            guard cells[boundaryCell].allSatisfy({ $0.isWhitespace }) else { continue }
+
+            let leftCellCount = boundaryCell
+            let rightCellCount = cells.count - boundaryCell - 1
+            guard leftCellCount >= 2, rightCellCount >= 2 else { continue }
+
+            let leftIsSeparator = separatorPrefix[boundaryCell]
+            let rightIsSeparator = separatorSuffix[boundaryCell + 1]
+            let leftIsData = dataPrefix[boundaryCell]
+            let rightIsData = dataSuffix[boundaryCell + 1]
+
+            guard (leftIsSeparator && rightIsData)
+                    || (rightIsSeparator && leftIsData) else {
+                continue
+            }
+
+            return line.index(after: pipeIndices[boundaryCell])..<pipeIndices[boundaryCell + 1]
+        }
+
+        return nil
+    }
+
+    private static func isTableSeparatorCell(_ cell: Substring) -> Bool {
+        guard var lowerBound = cell.firstIndex(where: { !$0.isWhitespace }),
+              let lastContent = cell.lastIndex(where: { !$0.isWhitespace }) else {
+            return false
+        }
+        var upperBound = cell.index(after: lastContent)
+
+        if cell[lowerBound] == ":" {
+            lowerBound = cell.index(after: lowerBound)
+        }
+        guard lowerBound < upperBound else { return false }
+        if cell[cell.index(before: upperBound)] == ":" {
+            upperBound = cell.index(before: upperBound)
+        }
+        guard lowerBound < upperBound else { return false }
+
+        let core = cell[lowerBound..<upperBound]
+        return core.count >= 3 && core.allSatisfy { $0 == "-" }
     }
 
     /// Pipe-delimited cells, tolerating optional outer `|`. Empty edge

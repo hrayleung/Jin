@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Highlighter
+import os
 
 /// Classification produced by `LanguageTokenizer`. Each enum case maps to a
 /// theme color set by `MarkdownTheme.SyntaxPalette`.
@@ -50,6 +51,9 @@ enum MarkdownSyntaxHighlighter {
     /// Large blocks stay readable as plain monospace text and can still be copied.
     static let maxHighlightLength = 50_000
     private static let highlightJSRenderer = HighlightJSRenderer()
+    private static let highlightCache = OSAllocatedUnfairLock<HighlightCacheStorage>(
+        initialState: HighlightCacheStorage(capacity: 192)
+    )
 
     static func highlight(
         _ source: String,
@@ -68,21 +72,40 @@ enum MarkdownSyntaxHighlighter {
         }
 
         let normalized = LanguageAliases.normalize(language)
+        let darkMode = resolvedDarkMode(isDarkMode)
+        let cacheKey = HighlightCacheKey(
+            source: source,
+            language: normalized,
+            fontName: theme.codeFont.fontName,
+            fontSize: theme.codeFont.pointSize,
+            isDarkMode: darkMode,
+            useFastFallback: useFastFallback
+        )
+        if let cached = highlightCache.withLock({ $0.lookup(cacheKey) }) {
+            return cached.value
+        }
+
+        let result: NSAttributedString
         if !useFastFallback,
            let normalized,
            let highlighted = highlightJSRenderer.highlight(
                 source,
                 language: normalized,
                 theme: theme,
-                isDarkMode: resolvedDarkMode(isDarkMode)
+                isDarkMode: darkMode
            ) {
             if tokenizer(for: normalized) != nil {
-                return fallbackHighlight(source, language: normalized, theme: theme, base: highlighted)
+                result = fallbackHighlight(source, language: normalized, theme: theme, base: highlighted)
+            } else {
+                result = highlighted
             }
-            return highlighted
+        } else {
+            result = fallbackHighlight(source, language: normalized, theme: theme)
         }
 
-        return fallbackHighlight(source, language: normalized, theme: theme)
+        let resultBox = HighlightCacheBox(result)
+        highlightCache.withLock { $0.insert(resultBox, for: cacheKey) }
+        return result
     }
 
     static func highlightJSThemeName(isDarkMode: Bool) -> String {
@@ -143,6 +166,100 @@ enum MarkdownSyntaxHighlighter {
         case "sql": return SQLTokenizer()
         case "zig": return ZigTokenizer()
         default: return nil
+        }
+    }
+}
+
+private struct HighlightCacheKey: Hashable, Sendable {
+    let source: String
+    let language: String?
+    let fontName: String
+    let fontSize: CGFloat
+    let isDarkMode: Bool
+    let useFastFallback: Bool
+    let sourceFingerprint: UInt64
+    let sourceByteCount: Int
+
+    init(
+        source: String,
+        language: String?,
+        fontName: String,
+        fontSize: CGFloat,
+        isDarkMode: Bool,
+        useFastFallback: Bool
+    ) {
+        self.source = source
+        self.language = language
+        self.fontName = fontName
+        self.fontSize = fontSize
+        self.isDarkMode = isDarkMode
+        self.useFastFallback = useFastFallback
+        var fingerprint = FNVHasher()
+        fingerprint.combine(source)
+        self.sourceFingerprint = fingerprint.value
+        self.sourceByteCount = source.utf8.count
+    }
+
+    static func == (lhs: HighlightCacheKey, rhs: HighlightCacheKey) -> Bool {
+        lhs.sourceFingerprint == rhs.sourceFingerprint
+            && lhs.sourceByteCount == rhs.sourceByteCount
+            && lhs.language == rhs.language
+            && lhs.fontName == rhs.fontName
+            && lhs.fontSize == rhs.fontSize
+            && lhs.isDarkMode == rhs.isDarkMode
+            && lhs.useFastFallback == rhs.useFastFallback
+            && lhs.source == rhs.source
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(sourceFingerprint)
+        hasher.combine(sourceByteCount)
+        hasher.combine(language)
+        hasher.combine(fontName)
+        hasher.combine(fontSize)
+        hasher.combine(isDarkMode)
+        hasher.combine(useFastFallback)
+    }
+}
+
+private final class HighlightCacheBox: @unchecked Sendable {
+    let value: NSAttributedString
+
+    init(_ value: NSAttributedString) {
+        self.value = value
+    }
+}
+
+private struct HighlightCacheStorage: @unchecked Sendable {
+    private struct Entry {
+        let box: HighlightCacheBox
+        var lastAccess: UInt64
+    }
+
+    private var entries: [HighlightCacheKey: Entry] = [:]
+    private var accessClock: UInt64 = 0
+    let capacity: Int
+
+    init(capacity: Int) {
+        self.capacity = capacity
+    }
+
+    mutating func lookup(_ key: HighlightCacheKey) -> HighlightCacheBox? {
+        guard var entry = entries[key] else { return nil }
+        accessClock &+= 1
+        entry.lastAccess = accessClock
+        entries[key] = entry
+        return entry.box
+    }
+
+    mutating func insert(_ box: HighlightCacheBox, for key: HighlightCacheKey) {
+        accessClock &+= 1
+        entries[key] = Entry(box: box, lastAccess: accessClock)
+        while entries.count > capacity {
+            guard let oldestKey = entries.min(by: {
+                $0.value.lastAccess < $1.value.lastAccess
+            })?.key else { break }
+            entries[oldestKey] = nil
         }
     }
 }

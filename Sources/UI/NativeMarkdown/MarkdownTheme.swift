@@ -5,7 +5,7 @@ import SwiftUI
 /// Resolved palette + fonts for the native markdown renderer. Mirrors the CSS
 /// custom properties in the old `markdown-template.html`. Re-resolved when
 /// font preferences or color scheme change.
-struct MarkdownTheme: Equatable {
+struct MarkdownTheme: Equatable, @unchecked Sendable {
     let bodyFont: NSFont
     let codeFont: NSFont
     let baseColor: NSColor

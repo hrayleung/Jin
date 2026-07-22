@@ -19,6 +19,7 @@ struct CodeBlockView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.markdownTheme) private var theme
+    @Environment(\.markdownDefersCodeHighlightUpgrade) private var deferHighlightUpgrade
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -32,7 +33,8 @@ struct CodeBlockView: View {
                     isStreamingTail: isStreamingTail,
                     showLineNumbers: showLineNumbers,
                     theme: theme,
-                    isDarkMode: colorScheme == .dark
+                    isDarkMode: colorScheme == .dark,
+                    deferHighlightUpgrade: deferHighlightUpgrade
                 )
             }
         }
@@ -158,6 +160,7 @@ private struct CodeBlockBody: View {
     let showLineNumbers: Bool
     let theme: MarkdownTheme
     let isDarkMode: Bool
+    let deferHighlightUpgrade: Bool
 
     /// Top/bottom inset of the code text view (`HighlightedCodeView` sets the
     /// same value on its `textContainerInset.height`). The gutter matches it so
@@ -193,7 +196,8 @@ private struct CodeBlockBody: View {
                     language: language,
                     isStreamingTail: isStreamingTail,
                     theme: theme,
-                    isDarkMode: isDarkMode
+                    isDarkMode: isDarkMode,
+                    deferHighlightUpgrade: deferHighlightUpgrade
                 )
             }
         }
@@ -206,6 +210,7 @@ private struct HighlightedCodeView: NSViewRepresentable {
     let isStreamingTail: Bool
     let theme: MarkdownTheme
     let isDarkMode: Bool
+    let deferHighlightUpgrade: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -249,28 +254,73 @@ private struct HighlightedCodeView: NSViewRepresentable {
             language: language,
             isStreamingTail: isStreamingTail,
             theme: theme,
-            isDarkMode: isDarkMode
-        )
-        guard coordinator.lastAppliedFingerprint != fingerprint else { return }
-
-        let selectedRange = view.selectedRange()
-        let highlighted = MarkdownSyntaxHighlighter.highlight(
-            source,
-            language: language,
-            theme: theme,
             isDarkMode: isDarkMode,
-            useFastFallback: isStreamingTail
+            deferHighlightUpgrade: deferHighlightUpgrade
         )
-        let withInsets = NSMutableAttributedString(attributedString: highlighted)
-        withInsets.addAttribute(
-            .paragraphStyle,
-            value: theme.codeParagraphStyle,
-            range: NSRange(location: 0, length: withInsets.length)
+        guard coordinator.lastRequestedFingerprint != fingerprint else { return }
+        coordinator.highlightTask?.cancel()
+        coordinator.lastRequestedFingerprint = fingerprint
+
+        // Establish text + final layout metrics immediately. Syntax coloring
+        // is layout-neutral and upgrades asynchronously, so Highlight.js can
+        // never block AppKit's sizing pass or the main thread.
+        let immediate = NSMutableAttributedString(
+            string: source,
+            attributes: [
+                .font: theme.codeFont,
+                .foregroundColor: theme.baseColor,
+                .paragraphStyle: theme.codeParagraphStyle,
+            ]
         )
-        view.setScrubbedAttributedString(withInsets)
-        view.setSelectedRange(clamped(range: selectedRange, length: withInsets.length))
+        apply(immediate, to: view)
+
+        let source = source
+        let language = language
+        let theme = theme
+        let isDarkMode = isDarkMode
+        let useFastFallback = isStreamingTail || deferHighlightUpgrade
+        let priority: TaskPriority = deferHighlightUpgrade ? .utility : .userInitiated
+        let work = Task.detached(priority: priority) {
+            guard !Task.isCancelled else { return SendableHighlightedString?.none }
+            let highlighted = MarkdownSyntaxHighlighter.highlight(
+                source,
+                language: language,
+                theme: theme,
+                isDarkMode: isDarkMode,
+                useFastFallback: useFastFallback
+            )
+            guard !Task.isCancelled else { return SendableHighlightedString?.none }
+            let withParagraphStyle = NSMutableAttributedString(attributedString: highlighted)
+            withParagraphStyle.addAttribute(
+                .paragraphStyle,
+                value: theme.codeParagraphStyle,
+                range: NSRange(location: 0, length: withParagraphStyle.length)
+            )
+            return SendableHighlightedString(value: withParagraphStyle)
+        }
+        coordinator.highlightTask = Task { @MainActor [weak view, weak coordinator] in
+            let result = await withTaskCancellationHandler {
+                await work.value
+            } onCancel: {
+                work.cancel()
+            }
+            guard !Task.isCancelled,
+                  let view,
+                  let coordinator,
+                  coordinator.lastRequestedFingerprint == fingerprint,
+                  let result else { return }
+            apply(result.value, to: view)
+            coordinator.highlightTask = nil
+        }
+    }
+
+    private func apply(_ attributedString: NSAttributedString, to view: JinMessageTextView) {
+        let selectedRange = view.selectedRange()
+        view.setScrubbedAttributedString(attributedString)
+        view.setSelectedRange(
+            clamped(range: selectedRange, length: attributedString.length)
+        )
         view.textContainerInset = NSSize(width: 14, height: CodeBlockBody.codeVerticalInset)
-        coordinator.lastAppliedFingerprint = fingerprint
     }
 
     private func clamped(range: NSRange, length: Int) -> NSRange {
@@ -280,7 +330,12 @@ private struct HighlightedCodeView: NSViewRepresentable {
     }
 
     final class Coordinator {
-        var lastAppliedFingerprint: Fingerprint?
+        var lastRequestedFingerprint: Fingerprint?
+        var highlightTask: Task<Void, Never>?
+
+        deinit {
+            highlightTask?.cancel()
+        }
     }
 
     fileprivate struct Fingerprint: Equatable {
@@ -289,7 +344,12 @@ private struct HighlightedCodeView: NSViewRepresentable {
         let isStreamingTail: Bool
         let theme: MarkdownTheme
         let isDarkMode: Bool
+        let deferHighlightUpgrade: Bool
     }
+}
+
+private struct SendableHighlightedString: @unchecked Sendable {
+    let value: NSAttributedString
 }
 
 /// Right-aligned line-number gutter laid out through TextKit with the code's

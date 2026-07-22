@@ -12,6 +12,23 @@ struct MarkdownInlineUnmatchedMarker: Equatable {
 }
 
 enum MarkdownInlineTokenizer {
+    /// Marks characters escaped by an odd-length run of immediately preceding
+    /// backslashes. Backtick scanners share this so protection and tokenization
+    /// cannot disagree about whether a code fence is literal.
+    static func escapedPositions(in characters: [Character]) -> [Bool] {
+        var escaped = Array(repeating: false, count: characters.count)
+        var precedingBackslashes = 0
+        for offset in characters.indices {
+            escaped[offset] = precedingBackslashes % 2 == 1
+            if characters[offset] == "\\" {
+                precedingBackslashes += 1
+            } else {
+                precedingBackslashes = 0
+            }
+        }
+        return escaped
+    }
+
     static func tokenize(_ paragraph: String) -> [MarkdownInlineToken] {
         InlineScanner(paragraph: paragraph).scan()
     }
@@ -27,6 +44,7 @@ enum MarkdownInlineTokenizer {
                 return nil
             }
         }
+        .sorted { $0.lowerBound < $1.lowerBound }
     }
 
     static func unmatchedMarkers(in paragraph: String) -> [MarkdownInlineUnmatchedMarker] {
@@ -40,14 +58,18 @@ enum MarkdownInlineTokenizer {
 }
 
 private final class InlineScanner {
-    private let paragraph: String
     private let chars: [Character]
     private let indices: [String.Index]
+    /// Whether the character at an offset is escaped by an odd-length run of
+    /// backslashes immediately before it. Computing this once avoids walking
+    /// backwards from every delimiter in backslash-heavy model output.
+    private let escapedPositions: [Bool]
 
     init(paragraph: String) {
-        self.paragraph = paragraph
         let charArray = Array(paragraph)
         self.chars = charArray
+        self.escapedPositions = MarkdownInlineTokenizer.escapedPositions(in: charArray)
+
         var idxs: [String.Index] = []
         idxs.reserveCapacity(charArray.count + 1)
         var idx = paragraph.startIndex
@@ -97,50 +119,67 @@ private final class InlineScanner {
 
     // MARK: - Inline code
 
-    private func findInlineCodeRanges(into tokens: inout [MarkdownInlineToken]) -> [Range<Int>] {
-        var ranges: [Range<Int>] = []
-        var pos = 0
-        while pos < chars.count {
-            if isEscaped(at: pos) {
-                pos += 2
-                continue
-            }
-            if chars[pos] == "`" {
-                let runLen = sameCharRunLength(at: pos)
-                let runEnd = pos + runLen
+    private struct BacktickRun {
+        let start: Int
+        let end: Int
 
-                if let matchEnd = findMatchingBacktick(after: runEnd, length: runLen) {
-                    ranges.append(pos..<matchEnd)
-                    tokens.append(.inlineCode(indices[pos]..<indices[matchEnd]))
-                    pos = matchEnd
-                } else {
-                    pos = runEnd
-                }
-                continue
+        var length: Int { end - start }
+    }
+
+    private func findInlineCodeRanges(into tokens: inout [MarkdownInlineToken]) -> [Range<Int>] {
+        let runs = backtickRuns()
+        guard !runs.isEmpty else { return [] }
+
+        // Index the next run of each exact length in one backward pass. The
+        // old implementation rescanned the entire suffix for every unmatched
+        // opener, making malformed backtick-heavy output quadratic.
+        var nextMatchingRun = Array<Int?>(repeating: nil, count: runs.count)
+        var nearestByLength: [Int: Int] = [:]
+        for runIndex in runs.indices.reversed() {
+            let length = runs[runIndex].length
+            nextMatchingRun[runIndex] = nearestByLength[length]
+            nearestByLength[length] = runIndex
+        }
+
+        var ranges: [Range<Int>] = []
+        ranges.reserveCapacity(runs.count / 2)
+        var runIndex = 0
+        while runIndex < runs.count {
+            let opener = runs[runIndex]
+            if let closerIndex = nextMatchingRun[runIndex] {
+                let closer = runs[closerIndex]
+                let range = opener.start..<closer.end
+                ranges.append(range)
+                tokens.append(.inlineCode(indices[range.lowerBound]..<indices[range.upperBound]))
+                // Runs inside the code span are content, even when one happens
+                // to share the opener's length.
+                runIndex = closerIndex + 1
+            } else {
+                runIndex += 1
             }
-            pos += 1
         }
         return ranges
     }
 
-    private func findMatchingBacktick(after start: Int, length: Int) -> Int? {
-        var pos = start
+    private func backtickRuns() -> [BacktickRun] {
+        var result: [BacktickRun] = []
+        var pos = 0
         while pos < chars.count {
-            if isEscaped(at: pos) {
-                pos += 2
+            guard chars[pos] == "`" else {
+                pos += 1
                 continue
             }
-            if chars[pos] == "`" {
-                let candidateLen = sameCharRunLength(at: pos)
-                if candidateLen == length {
-                    return pos + candidateLen
-                }
-                pos += candidateLen
+            if escapedPositions[pos] {
+                // Only the first scalar is escaped. In `\``` the remaining
+                // two backticks are still a valid two-character run.
+                pos += 1
                 continue
             }
-            pos += 1
+            let end = pos + sameCharRunLength(at: pos)
+            result.append(BacktickRun(start: pos, end: end))
+            pos = end
         }
-        return nil
+        return result
     }
 
     // MARK: - Delimiter runs
@@ -185,16 +224,22 @@ private final class InlineScanner {
     private func findDelimiterRuns(excluding codeRanges: [Range<Int>]) -> [Run] {
         var result: [Run] = []
         var pos = 0
+        var codeRangeIndex = 0
         while pos < chars.count {
-            if isInRanges(pos, codeRanges) {
-                pos += 1
-                continue
+            while codeRangeIndex < codeRanges.count,
+                  codeRanges[codeRangeIndex].upperBound <= pos {
+                codeRangeIndex += 1
             }
-            if isEscaped(at: pos) {
-                pos += 2
+            if codeRangeIndex < codeRanges.count,
+               codeRanges[codeRangeIndex].contains(pos) {
+                pos = codeRanges[codeRangeIndex].upperBound
                 continue
             }
             guard let marker = DelimiterMarker(chars[pos]) else {
+                pos += 1
+                continue
+            }
+            if escapedPositions[pos] {
                 pos += 1
                 continue
             }
@@ -380,21 +425,4 @@ private final class InlineScanner {
         return len
     }
 
-    private func isEscaped(at pos: Int) -> Bool {
-        guard pos > 0 else { return false }
-        var count = 0
-        var p = pos - 1
-        while p >= 0, chars[p] == "\\" {
-            count += 1
-            p -= 1
-        }
-        return count % 2 == 1
-    }
-
-    private func isInRanges(_ pos: Int, _ ranges: [Range<Int>]) -> Bool {
-        for range in ranges where range.contains(pos) {
-            return true
-        }
-        return false
-    }
 }

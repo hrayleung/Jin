@@ -8,21 +8,68 @@ import os
 /// every message even when the user had just scrolled past it a second ago.
 /// Lives for the app's lifetime; capped to bound memory.
 enum NativeMarkdownCache {
-    struct Key: Hashable {
+    struct Key: Hashable, Sendable {
         let markdownText: String
         let isStreaming: Bool
         let renderPlainText: Bool
         let appFontFamily: String
         let codeFontFamily: String
+
+        /// Precomputed once when the render request is created. The synthesized
+        /// `Hashable` implementation used to hash the full markdown payload on
+        /// every LRU lookup, `.task(id:)` comparison, and in-flight lookup. A
+        /// growing streaming response therefore paid O(document length) several
+        /// times per UI flush before parsing even began.
+        let contentFingerprint: UInt64
+        let contentByteCount: Int
+
+        init(
+            markdownText: String,
+            isStreaming: Bool,
+            renderPlainText: Bool,
+            appFontFamily: String,
+            codeFontFamily: String
+        ) {
+            self.markdownText = markdownText
+            self.isStreaming = isStreaming
+            self.renderPlainText = renderPlainText
+            self.appFontFamily = appFontFamily
+            self.codeFontFamily = codeFontFamily
+            var fingerprint = FNVHasher()
+            fingerprint.combine(markdownText)
+            self.contentFingerprint = fingerprint.value
+            self.contentByteCount = markdownText.utf8.count
+        }
+
+        static func == (lhs: Key, rhs: Key) -> Bool {
+            lhs.isStreaming == rhs.isStreaming
+                && lhs.renderPlainText == rhs.renderPlainText
+                && lhs.appFontFamily == rhs.appFontFamily
+                && lhs.codeFontFamily == rhs.codeFontFamily
+                && lhs.contentByteCount == rhs.contentByteCount
+                && lhs.contentFingerprint == rhs.contentFingerprint
+                // Keep equality collision-safe. In the overwhelmingly common
+                // case both strings share storage, so this is constant-time.
+                && lhs.markdownText == rhs.markdownText
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(contentFingerprint)
+            hasher.combine(contentByteCount)
+            hasher.combine(isStreaming)
+            hasher.combine(renderPlainText)
+            hasher.combine(appFontFamily)
+            hasher.combine(codeFontFamily)
+        }
     }
 
-    struct Value {
+    struct Value: @unchecked Sendable {
         let blocks: [NativeMarkdownBlock]
         let groups: [NativeMarkdownGroup]
         let layout: NativeAnchorLayout
     }
 
-    struct PrewarmItem: Hashable {
+    struct PrewarmItem: Hashable, Sendable {
         let markdownText: String
         let renderPlainText: Bool
     }
@@ -30,10 +77,9 @@ enum NativeMarkdownCache {
     private static let capacity = 256
     private static let storage = OSAllocatedUnfairLock<Storage>(initialState: Storage(capacity: capacity))
 
-    /// Fires (throttled, on main) after inserts. A `NativeMarkdownView`
-    /// whose own `.task` died mid-parse (cell recycling) can never re-fire
-    /// it — observing inserts lets such views pick up values parsed by any
-    /// other caller (prewarm, another cell) and leave the placeholder state.
+    /// Fires (throttled, on main) after inserts. Observing process-wide cache
+    /// fills lets a recycled row adopt work completed by prewarm or another
+    /// row without tying correctness to a particular SwiftUI task lifecycle.
     private static let insertSignal = PassthroughSubject<Void, Never>()
     static let insertNotifications: AnyPublisher<Void, Never> = insertSignal
         .throttle(for: .milliseconds(120), scheduler: DispatchQueue.main, latest: true)
@@ -58,7 +104,7 @@ enum NativeMarkdownCache {
     /// Off-main pre-warm. Given the text payloads that will eventually be
     /// rendered by `NativeMarkdownView`, computes each with the same
     /// plain-text-vs-markdown mode the row will use so the LRU is populated
-    /// before `LazyVStack` lazily instantiates the corresponding view.
+    /// before the recycling timeline instantiates the corresponding row.
     /// Eliminates the placeholder → content swap users see when scrolling
     /// into a fresh message in a long conversation.
     ///
@@ -73,6 +119,7 @@ enum NativeMarkdownCache {
     /// TextKit layout happening during conversation open. Returns a `Task`
     /// the caller can cancel.
     @discardableResult
+    @MainActor
     static func prewarm(
         items: [PrewarmItem],
         appFontFamily: String,
@@ -90,43 +137,84 @@ enum NativeMarkdownCache {
             codeFontFamily: codeFontFamily
         )
         return Task.detached(priority: .utility) {
-            await withTaskGroup(of: Void.self) { group in
-                var inFlight = 0
-                var iterator = items.makeIterator()
+            await warm(
+                items: items,
+                appFontFamily: appFontFamily,
+                codeFontFamily: codeFontFamily,
+                theme: theme,
+                workerCount: workerCount,
+                priority: .utility
+            )
+        }
+    }
 
-                @Sendable func makeChild(_ item: PrewarmItem) -> (@Sendable () async -> Void) {
-                    {
-                        if Task.isCancelled { return }
-                        let text = item.markdownText
-                        guard !text.isEmpty else { return }
-                        let key = Key(
-                            markdownText: text,
-                            isStreaming: false,
-                            renderPlainText: item.renderPlainText,
-                            appFontFamily: appFontFamily,
-                            codeFontFamily: codeFontFamily
-                        )
-                        if tryGet(key: key) != nil { return }
-                        let value = compute(key: key, theme: theme)
-                        insert(value, forKey: key)
-                    }
+    /// Completes the stable parse before a streaming row is replaced by its
+    /// persisted message row. The user keeps seeing the already-laid-out stream
+    /// while this runs, then the final row lands as a synchronous LRU hit instead
+    /// of exposing raw Markdown for an unbounded placeholder interval.
+    @MainActor
+    static func prepareForImmediateDisplay(
+        items: [PrewarmItem],
+        appFontFamily: String,
+        codeFontFamily: String,
+        concurrency: Int = 2
+    ) async {
+        guard !items.isEmpty else { return }
+        let theme = MarkdownTheme.resolved(
+            appFontFamily: appFontFamily,
+            codeFontFamily: codeFontFamily
+        )
+        await warm(
+            items: items,
+            appFontFamily: appFontFamily,
+            codeFontFamily: codeFontFamily,
+            theme: theme,
+            workerCount: max(1, concurrency),
+            priority: .userInitiated
+        )
+    }
+
+    private static func warm(
+        items: [PrewarmItem],
+        appFontFamily: String,
+        codeFontFamily: String,
+        theme: MarkdownTheme,
+        workerCount: Int,
+        priority: TaskPriority
+    ) async {
+        await withTaskGroup(of: Void.self) { group in
+            var inFlight = 0
+            var iterator = items.makeIterator()
+
+            @Sendable func makeChild(_ item: PrewarmItem) -> (@Sendable () async -> Void) {
+                {
+                    if Task.isCancelled { return }
+                    let text = item.markdownText
+                    guard !text.isEmpty else { return }
+                    let key = Key(
+                        markdownText: text,
+                        isStreaming: false,
+                        renderPlainText: item.renderPlainText,
+                        appFontFamily: appFontFamily,
+                        codeFontFamily: codeFontFamily
+                    )
+                    guard tryGet(key: key) == nil else { return }
+                    _ = await NativeMarkdownParseService.parse(
+                        key: key,
+                        theme: theme,
+                        priority: priority
+                    )
                 }
+            }
 
-                // Seed the group up to the concurrency cap.
-                while inFlight < workerCount, let next = iterator.next() {
+            while inFlight < workerCount, let next = iterator.next() {
+                group.addTask(operation: makeChild(next))
+                inFlight += 1
+            }
+            while await group.next() != nil {
+                if Task.isCancelled { break }
+                if let next = iterator.next() {
                     group.addTask(operation: makeChild(next))
-                    inFlight += 1
-                }
-                // Drain + refill: as each parse finishes we schedule the
-                // next text, keeping `concurrency` parses in flight until
-                // the input is exhausted. This bounds peak memory (we
-                // never queue all N texts at once) and lets cancellation
-                // short-circuit the remaining tail.
-                while await group.next() != nil {
-                    if Task.isCancelled { break }
-                    if let next = iterator.next() {
-                        group.addTask(operation: makeChild(next))
-                    }
                 }
             }
         }
@@ -165,13 +253,13 @@ enum NativeMarkdownCache {
 
 extension NativeMarkdownCache {
     fileprivate struct Storage {
-        private struct Node {
-            let key: Key
+        private struct Entry {
             let value: Value
+            var lastAccess: UInt64
         }
 
-        private var order: [Key] = []
-        private var entries: [Key: Value] = [:]
+        private var entries: [Key: Entry] = [:]
+        private var accessClock: UInt64 = 0
         let capacity: Int
 
         init(capacity: Int) {
@@ -179,22 +267,20 @@ extension NativeMarkdownCache {
         }
 
         mutating func lookup(_ key: Key) -> Value? {
-            guard let value = entries[key] else { return nil }
-            if let idx = order.firstIndex(of: key) {
-                order.remove(at: idx)
-                order.append(key)
-            }
-            return value
+            guard var entry = entries[key] else { return nil }
+            accessClock &+= 1
+            entry.lastAccess = accessClock
+            entries[key] = entry
+            return entry.value
         }
 
         mutating func insert(_ value: Value, forKey key: Key) {
-            if entries[key] != nil {
-                if let idx = order.firstIndex(of: key) { order.remove(at: idx) }
-            }
-            entries[key] = value
-            order.append(key)
-            while order.count > capacity {
-                let evicted = order.removeFirst()
+            accessClock &+= 1
+            entries[key] = Entry(value: value, lastAccess: accessClock)
+            while entries.count > capacity {
+                guard let evicted = entries.min(by: {
+                    $0.value.lastAccess < $1.value.lastAccess
+                })?.key else { break }
                 entries[evicted] = nil
             }
         }
