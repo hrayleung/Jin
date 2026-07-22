@@ -34,8 +34,10 @@ extension NSAttributedString.Key {
 }
 
 /// `NSLayoutManager` subclass that paints rounded backgrounds for runs marked
-/// with `.jinInlineCodeBackground`. Falls through to `super` for highlight
-/// `.backgroundColor` runs and selection painting.
+/// with `.jinInlineCodeBackground` and blockquote gutter bars. Decorative
+/// fills are drawn **before** `super.drawBackground` so selection and
+/// persisted-highlight `.backgroundColor` runs paint on top of the nearly
+/// opaque inline-code pill (otherwise the gray fill hides the blue selection).
 final class JinMarkdownLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     // ponytail: only short bilingual parentheticals are protected; use a real line-breaker if longer phrases matter.
     private static let protectedParentheticalMaxUTF16Length = 40
@@ -58,33 +60,57 @@ final class JinMarkdownLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
     }
 
     override func drawBackground(forGlyphRange glyphsToShow: NSRange, at origin: NSPoint) {
+        // Decorative fills first so selection / highlight `.backgroundColor`
+        // from `super` paint on top. Drawing them after covers the blue
+        // selection with the nearly-opaque inline-code gray.
+        if let textStorage,
+           let textContainer = textContainers.first,
+           let context = NSGraphicsContext.current?.cgContext {
+            let charRange = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
+            if charRange.length > 0 {
+                drawBlockQuoteBars(
+                    in: charRange,
+                    storage: textStorage,
+                    container: textContainer,
+                    origin: origin,
+                    context: context
+                )
+                drawInlineCodeBackgrounds(
+                    in: charRange,
+                    storage: textStorage,
+                    container: textContainer,
+                    origin: origin,
+                    context: context
+                )
+            }
+        }
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
+    }
 
-        guard let textStorage,
-              let textContainer = textContainers.first,
-              let context = NSGraphicsContext.current?.cgContext
-        else { return }
-
-        let charRange = characterRange(forGlyphRange: glyphsToShow, actualGlyphRange: nil)
-        guard charRange.length > 0 else { return }
-
-        drawBlockQuoteBars(in: charRange, storage: textStorage, container: textContainer, origin: origin, context: context)
-
-        textStorage.enumerateAttribute(
+    /// Rounded, padded pills for `.jinInlineCodeBackground` runs. Sized from
+    /// the code font's metrics and anchored on the text baseline — not by
+    /// insetting the full line-fragment rect (body font + `lineHeightMultiple`
+    /// inflate that rect well above the smaller code glyphs).
+    private func drawInlineCodeBackgrounds(
+        in charRange: NSRange,
+        storage: NSTextStorage,
+        container: NSTextContainer,
+        origin: NSPoint,
+        context: CGContext
+    ) {
+        storage.enumerateAttribute(
             .jinInlineCodeBackground,
             in: charRange,
             options: []
         ) { value, attrRange, _ in
             guard let fillColor = value as? NSColor else { return }
-            let borderColor = textStorage.attribute(.jinInlineCodeBorder, at: attrRange.location, effectiveRange: nil) as? NSColor
+            let borderColor = storage.attribute(
+                .jinInlineCodeBorder,
+                at: attrRange.location,
+                effectiveRange: nil
+            ) as? NSColor
 
-            // Size the pill from the *code* font's metrics, anchored on the
-            // text baseline — not by insetting the enclosing rect. That rect
-            // is the full line-fragment height, which the larger body font
-            // and `lineHeightMultiple` inflate well above the (smaller) code
-            // glyphs; insetting it symmetrically left the fill floating high
-            // with a big gap on top and the descenders clipped at the bottom.
-            let codeFont = textStorage.attribute(.font, at: attrRange.location, effectiveRange: nil) as? NSFont
+            let codeFont = storage.attribute(.font, at: attrRange.location, effectiveRange: nil) as? NSFont
             let glyphRange = self.glyphRange(forCharacterRange: attrRange, actualCharacterRange: nil)
             guard glyphRange.length > 0 else { return }
             // Baseline distance from the line-fragment top. Uniform within a
@@ -94,7 +120,7 @@ final class JinMarkdownLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
             enumerateEnclosingRects(
                 forGlyphRange: glyphRange,
                 withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
-                in: textContainer
+                in: container
             ) { rect, _ in
                 // `capHeight` clears caps, digits and lowercase ascenders;
                 // `descender` clears the tails. A little breathing room above,
