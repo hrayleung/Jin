@@ -170,31 +170,6 @@ extension ChatView {
 
         let sessionCallbacks = ChatStreamingOrchestrator.SessionCallbacks(
             persistAssistantMessage: { [self] message, providerID, modelID, modelName, metrics in
-                // Keep the already-rendered streaming row alive until the
-                // exact persisted-row cache keys are ready. Appending first
-                // caused the table to replace that row with NativeMarkdown's
-                // raw-text placeholder, which could remain visible for a long
-                // time if the view's parse task was recycled or queued behind
-                // duplicate work.
-                if message.toolCalls?.isEmpty != false {
-                    let prewarmItems = ChatMessageRenderPipeline.markdownPrewarmItems(
-                        for: message,
-                        artifactsEnabled: conversationEntity.artifactsEnabled == true
-                    )
-                    if !prewarmItems.isEmpty {
-                        let defaults = UserDefaults.standard
-                        let appFontFamily = defaults.string(forKey: AppPreferenceKeys.appFontFamily)
-                            ?? JinTypography.systemFontPreferenceValue
-                        let codeFontFamily = defaults.string(forKey: AppPreferenceKeys.codeFontFamily)
-                            ?? JinTypography.systemFontPreferenceValue
-                        await NativeMarkdownCache.prepareForImmediateDisplay(
-                            items: prewarmItems,
-                            appFontFamily: appFontFamily,
-                            codeFontFamily: codeFontFamily
-                        )
-                    }
-                }
-
                 do {
                     let entity = try MessageEntity.fromDomain(message)
                     entity.generatedProviderID = providerID
@@ -202,11 +177,49 @@ extension ChatView {
                     entity.generatedModelName = modelName
                     entity.responseMetrics = metrics
                     entity.conversation = conversationEntity
+
+                    // A completed response must be durable before optional
+                    // display preparation. In particular, a pathological
+                    // Markdown parse must never leave the only copy in the
+                    // transient streaming row if the app exits mid-prewarm.
+                    let shouldPrepareDisplay = message.toolCalls?.isEmpty != false
+                    if shouldPrepareDisplay {
+                        defersObservedMessageCacheRebuild = true
+                    }
+                    defer {
+                        defersObservedMessageCacheRebuild = false
+                    }
+
                     conversationEntity.messages.append(entity)
                     conversationEntity.updatedAt = Date()
+                    persistCompletedAssistantMessage()
+
+                    // Keep the already-rendered streaming row alive until the
+                    // exact persisted-row cache keys are ready. Observer-driven
+                    // cache rebuilds are deferred above, but the SwiftData save
+                    // has already completed before this best-effort UI work.
+                    if shouldPrepareDisplay {
+                        let prewarmItems = ChatMessageRenderPipeline.markdownPrewarmItems(
+                            for: message,
+                            artifactsEnabled: conversationEntity.artifactsEnabled == true
+                        )
+                        if !prewarmItems.isEmpty {
+                            let defaults = UserDefaults.standard
+                            let appFontFamily = defaults.string(forKey: AppPreferenceKeys.appFontFamily)
+                                ?? JinTypography.systemFontPreferenceValue
+                            let codeFontFamily = defaults.string(forKey: AppPreferenceKeys.codeFontFamily)
+                                ?? JinTypography.systemFontPreferenceValue
+                            await NativeMarkdownCache.prepareForImmediateDisplay(
+                                items: prewarmItems,
+                                appFontFamily: appFontFamily,
+                                codeFontFamily: codeFontFamily
+                            )
+                        }
+                    }
+
+                    defersObservedMessageCacheRebuild = false
                     rebuildMessageCaches()
                     autoOpenLatestArtifactIfNeeded(from: message)
-                    schedulePersistenceSave()
                     return entity.id
                 } catch {
                     presentError(error.localizedDescription)
@@ -298,6 +311,16 @@ extension ChatView {
             guard !Task.isCancelled else { return }
             persistModelContext(context: "debounced streaming save")
         }
+    }
+
+    /// Saves completed assistant content immediately, before any optional UI
+    /// prewarm can suspend. It also retires an older debounced save because the
+    /// synchronous commit covers every pending change in this model context.
+    @MainActor
+    private func persistCompletedAssistantMessage() {
+        pendingPersistenceSaveTask?.cancel()
+        pendingPersistenceSaveTask = nil
+        persistModelContext(context: "assistant completion before markdown prewarm")
     }
 
     /// Cancels any pending debounced save and commits synchronously. Called on

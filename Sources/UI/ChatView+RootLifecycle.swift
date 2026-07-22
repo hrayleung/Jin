@@ -20,8 +20,8 @@ extension ChatView {
             .background {
                 ChatConversationChangeObserverView(
                     conversation: conversationEntity,
-                    onMessageCountChanged: rebuildMessageCachesIfNeeded,
-                    onUpdatedAtChanged: scheduleUpdatedAtDrivenCacheRebuild
+                    onMessageCountChanged: handleObservedMessageCountChange,
+                    onUpdatedAtChanged: handleObservedConversationUpdate
                 )
             }
             .onChange(of: contextUsageRefreshToken) { _, _ in
@@ -47,6 +47,16 @@ extension ChatView {
         draftContextUsageRefreshTask?.cancel()
         draftContextUsageRefreshTask = nil
         flushPendingPersistenceSave()
+    }
+
+    func handleObservedMessageCountChange() {
+        guard !defersObservedMessageCacheRebuild else { return }
+        rebuildMessageCachesIfNeeded()
+    }
+
+    func handleObservedConversationUpdate() {
+        guard !defersObservedMessageCacheRebuild else { return }
+        scheduleUpdatedAtDrivenCacheRebuild()
     }
 
     func scheduleUpdatedAtDrivenCacheRebuild() {

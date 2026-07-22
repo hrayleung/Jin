@@ -12,6 +12,23 @@ struct MarkdownInlineUnmatchedMarker: Equatable {
 }
 
 enum MarkdownInlineTokenizer {
+    /// Marks characters escaped by an odd-length run of immediately preceding
+    /// backslashes. Backtick scanners share this so protection and tokenization
+    /// cannot disagree about whether a code fence is literal.
+    static func escapedPositions(in characters: [Character]) -> [Bool] {
+        var escaped = Array(repeating: false, count: characters.count)
+        var precedingBackslashes = 0
+        for offset in characters.indices {
+            escaped[offset] = precedingBackslashes % 2 == 1
+            if characters[offset] == "\\" {
+                precedingBackslashes += 1
+            } else {
+                precedingBackslashes = 0
+            }
+        }
+        return escaped
+    }
+
     static func tokenize(_ paragraph: String) -> [MarkdownInlineToken] {
         InlineScanner(paragraph: paragraph).scan()
     }
@@ -51,18 +68,7 @@ private final class InlineScanner {
     init(paragraph: String) {
         let charArray = Array(paragraph)
         self.chars = charArray
-
-        var escaped = Array(repeating: false, count: charArray.count)
-        var precedingBackslashes = 0
-        for offset in charArray.indices {
-            escaped[offset] = precedingBackslashes % 2 == 1
-            if charArray[offset] == "\\" {
-                precedingBackslashes += 1
-            } else {
-                precedingBackslashes = 0
-            }
-        }
-        self.escapedPositions = escaped
+        self.escapedPositions = MarkdownInlineTokenizer.escapedPositions(in: charArray)
 
         var idxs: [String.Index] = []
         idxs.reserveCapacity(charArray.count + 1)

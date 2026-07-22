@@ -205,6 +205,8 @@ struct ChatView: View {
     @State var prepareToSendCancellationReason: PrepareToSendCancellationReason?
     // swiftlint:disable:next private_swiftui_state
     @State var pendingPersistenceSaveTask: Task<Void, Never>?
+    // swiftlint:disable:next private_swiftui_state
+    @State var defersObservedMessageCacheRebuild = false
     @EnvironmentObject var ttsPlaybackManager: TextToSpeechPlaybackManager
     @StateObject var speechToTextManager = SpeechToTextManager()
 

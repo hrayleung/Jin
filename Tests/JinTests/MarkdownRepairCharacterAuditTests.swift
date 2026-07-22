@@ -72,4 +72,22 @@ final class MarkdownRepairCharacterAuditTests: XCTestCase {
         let result = MarkdownRenderPreparation.preserveInlineCode(in: line) { $0 }
         XCTAssertEqual(result, line)
     }
+
+    func testEscapedBacktickDoesNotOpenProtectedSpan() {
+        let line = #"prefix \`literal###heading` suffix"#
+        let result = MarkdownRenderPreparation.preserveInlineCode(in: line) { candidate in
+            candidate.replacingOccurrences(of: "###heading", with: "\n### heading")
+        }
+
+        XCTAssertEqual(result, #"prefix \`literal"# + "\n" + #"### heading` suffix"#)
+    }
+
+    func testBackticksAfterEscapedBacktickStillFormDelimiterRun() {
+        let line = "prefix \\`" + "``protected`` suffix"
+        let result = MarkdownRenderPreparation.preserveInlineCode(in: line) { candidate in
+            candidate.replacingOccurrences(of: "protected", with: "changed")
+        }
+
+        XCTAssertEqual(result, line)
+    }
 }

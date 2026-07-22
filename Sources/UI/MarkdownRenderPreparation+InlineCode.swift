@@ -22,9 +22,16 @@ extension MarkdownRenderPreparation {
         }
 
         var runs: [MarkdownInlineCodeTickRun] = []
+        let escapedPositions = MarkdownInlineTokenizer.escapedPositions(in: characters)
         var index = 0
         while index < characters.count {
             guard characters[index] == "`" else {
+                index += 1
+                continue
+            }
+            if escapedPositions[index] {
+                // Only this backtick is escaped. Any immediately following
+                // backticks can still begin their own delimiter run.
                 index += 1
                 continue
             }
