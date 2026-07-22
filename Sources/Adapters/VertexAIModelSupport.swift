@@ -11,7 +11,9 @@ struct VertexAIModelSupport {
     let knownModels: [(id: String, name: String, contextWindow: Int)] = [
         ("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview", 1_048_576),
         ("gemini-3-flash-preview", "Gemini 3 Flash Preview", 1_048_576),
+        ("gemini-3.6-flash", "Gemini 3.6 Flash", 1_048_576),
         ("gemini-3.5-flash", "Gemini 3.5 Flash", 1_048_576),
+        ("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", 1_048_576),
         ("gemini-3-pro-image", "Gemini 3 Pro Image", 65_536),
         ("gemini-3.1-flash-image", "Gemini 3.1 Flash Image", 131_072),
         ("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite", 1_048_576),
@@ -224,7 +226,9 @@ struct VertexAIModelSupport {
         if GeminiModelConstants.gemini25TextModelIDs.contains(lower) {
             return ModelReasoningConfig(type: .budget, defaultBudget: 2048)
         }
-        if lower == "gemini-3.1-flash-lite-preview" || lower == "gemini-3.1-flash-lite" {
+        if lower == "gemini-3.1-flash-lite-preview"
+            || lower == "gemini-3.1-flash-lite"
+            || lower == "gemini-3.5-flash-lite" {
             return ModelReasoningConfig(type: .effort, defaultEffort: .minimal)
         }
         if GeminiModelConstants.isFlashImageGenerationModel(modelID) {

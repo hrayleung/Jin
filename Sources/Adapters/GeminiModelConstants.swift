@@ -20,6 +20,8 @@ enum GeminiModelConstants {
         "gemini-3-pro-image",
         "gemini-3-pro-image-preview",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
         "gemini-2.5",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
@@ -46,6 +48,15 @@ enum GeminiModelConstants {
         "gemini-3-pro-image",
         "gemini-3-pro-image-preview",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+    ]
+
+    /// Exact IDs where custom temperature / topP / topK are ignored or deprecated.
+    /// Docs (Vertex 3.6 Flash / 3.5 Flash-Lite model pages + Gemini API 2026-07-21 changelog).
+    static let customSamplingUnsupportedModelIDs: Set<String> = [
+        "gemini-3.6-flash",
+        "gemini-3.5-flash-lite",
     ]
 
     /// Gemini models that support native image generation (lowercased).
@@ -99,6 +110,8 @@ enum GeminiModelConstants {
         "gemini-3.1-flash-lite-preview",
         "gemini-3.1-flash-lite",
         "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
     ]
 
     /// Extended native PDF set for Vertex AI, which also supports Gemini 2.5 family.
@@ -142,6 +155,12 @@ enum GeminiModelConstants {
 
     static func supportsVertexNativePDF(_ modelID: String) -> Bool {
         vertexNativePDFModelIDs.contains(modelID.lowercased())
+    }
+
+    /// Whether the model accepts custom sampling (`temperature` / `topP` / `topK`).
+    /// When false, omit those fields so defaults apply (custom values are ignored or deprecated).
+    static func supportsCustomSamplingParameters(_ modelID: String) -> Bool {
+        !customSamplingUnsupportedModelIDs.contains(modelID.lowercased())
     }
 
     /// Maps a `ReasoningEffort` to a Google thinking level string.

@@ -112,7 +112,7 @@ final class VertexAIRequestBuilderTests: XCTestCase {
         XCTAssertNotNil(json["safetySettings"])
     }
 
-    func testBuildRequestOmitsGoogleMapsForRuntimeUnsupportedVertexGemini3FlashPreview() throws {
+    func testBuildRequestIncludesGoogleMapsForVertexGemini3FlashPreview() throws {
         let builder = VertexAIRequestBuilder(
             providerConfig: makeVertexProviderConfig(),
             serviceAccountJSON: makeVertexCredentials(),
@@ -141,11 +141,27 @@ final class VertexAIRequestBuilderTests: XCTestCase {
             try JSONSerialization.jsonObject(with: XCTUnwrap(vertexAIRequestBodyData(request))) as? [String: Any]
         )
         let tools = try XCTUnwrap(json["tools"] as? [[String: Any]])
-        XCTAssertEqual(tools.count, 1)
-        XCTAssertNotNil(tools.first?["googleSearch"])
-        XCTAssertNil(tools.first?["googleMaps"])
-        XCTAssertNil(json["toolConfig"])
-        XCTAssertNil(json["systemInstruction"])
+        XCTAssertEqual(tools.count, 2)
+        XCTAssertTrue(tools.contains { $0["googleSearch"] != nil })
+        XCTAssertTrue(tools.contains { $0["googleMaps"] != nil })
+        XCTAssertNotNil(json["toolConfig"])
+    }
+
+    func testGenerationConfigOmitsCustomSamplingForGemini36Flash() {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let config = builder.makeGenerationConfig(
+            GenerationControls(temperature: 0.1, maxTokens: 512, topP: 0.2),
+            modelID: "gemini-3.6-flash"
+        )
+
+        XCTAssertNil(config["temperature"])
+        XCTAssertNil(config["topP"])
+        XCTAssertEqual(config["maxOutputTokens"] as? Int, 512)
     }
 
     func testBuildRequestUsesStandardParametersKeyForFunctionDeclarations() throws {

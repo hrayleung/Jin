@@ -107,8 +107,11 @@ extension GeminiAdapter {
             caps.insert(.reasoning)
             if GeminiModelConstants.isFlashImageGenerationModel(id)
                 || lower == "gemini-3.1-flash-lite-preview"
-                || lower == "gemini-3.1-flash-lite" {
+                || lower == "gemini-3.1-flash-lite"
+                || lower == "gemini-3.5-flash-lite" {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .minimal)
+            } else if lower == "gemini-3.5-flash" || lower == "gemini-3.6-flash" {
+                reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             } else if supportsThinkingConfig(id) {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)
             } else {
