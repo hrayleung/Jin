@@ -169,9 +169,16 @@ enum MarkdownTextLossAudit {
             if skipMermaid, language == "mermaid" { return }
             if includeCodeBlocks { out.append(code.code) }
         case let html as InlineHTML:
-            out.append(html.rawHTML)
+            // Mirrors the renderer: `<br>` is a line break, not readable text
+            // (see `MarkdownHTMLLineBreak`). Applied on both sides of every
+            // comparison, exactly like the SoftBreak/LineBreak rules below.
+            out.append(MarkdownHTMLLineBreak.isBreakTag(html.rawHTML) ? "\n" : html.rawHTML)
         case let html as HTMLBlock:
-            if includeCodeBlocks { out.append(html.rawHTML) }
+            if MarkdownHTMLLineBreak.isBreakOnlyBlock(html.rawHTML) {
+                out.append("\n")
+            } else if includeCodeBlocks {
+                out.append(html.rawHTML)
+            }
         case is SoftBreak:
             out.append(" ")
         case is LineBreak:

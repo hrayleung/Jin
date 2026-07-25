@@ -80,7 +80,12 @@ struct MarkdownASTWalker {
             blocks.append(.thematicBreak)
 
         case let html as HTMLBlock:
-            blocks.append(.htmlBlock(text: html.rawHTML))
+            // A block of nothing but `<br>` is vertical spacing, not content;
+            // block spacing already covers it, so emitting a literal code box
+            // reading "<br>" is strictly worse than dropping it.
+            if !MarkdownHTMLLineBreak.isBreakOnlyBlock(html.rawHTML) {
+                blocks.append(.htmlBlock(text: html.rawHTML))
+            }
 
         default:
             // Any block we don't yet handle renders as a paragraph from its
