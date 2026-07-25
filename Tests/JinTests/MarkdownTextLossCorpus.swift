@@ -195,6 +195,15 @@ enum MarkdownTextLossCorpus {
         结尾段落。
         """),
 
+        Entry(name: "brLineBreaksInTable", text: """
+        | 评价维度 | 组合 A | 组合 B |
+        | :--- | :--- | :--- |
+        | **计算机顶级荣誉** | **ACM SIGOPS Ritchie Award**<br>*(全球 Systems 领域最高奖)* | AMD Spotlight Award、<br>省科技进步特等奖 |
+        | 系统 / 架构顶级会议<br>(EuroSys/NSDI/ASPLOS) | 12 篇<br>(EuroSys × 5, NSDI × 3) | 4–5 篇<br>(ASPLOS × 2) |
+
+        表格之外的段落也会出现 <br> 换行，<br/>以及自闭合写法。
+        """),
+
         Entry(name: "thematicBreakGlued", text: """
         上一段落的结尾---### 新的小节
         小节正文内容。

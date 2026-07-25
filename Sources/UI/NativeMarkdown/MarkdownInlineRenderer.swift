@@ -7,7 +7,8 @@ import Markdown
 /// selection offset bookkeeping, and the URL ranges for link clicks.
 ///
 /// SoftBreak renders as " " (GFM `breaks: false` semantics — matches the
-/// current `markdown-it` configuration). LineBreak renders as "\n".
+/// current `markdown-it` configuration). LineBreak and inline `<br>` render
+/// as "\n" (see `MarkdownHTMLLineBreak`).
 /// Bare URLs in plain text are linkified via `NSDataDetector`.
 struct MarkdownInlineRenderer {
     let theme: MarkdownTheme
@@ -75,7 +76,14 @@ private extension MarkdownInlineRenderer {
                 append("\n", frame: stack.last!)
 
             case let inlineHTML as InlineHTML:
-                appendRaw(inlineHTML.rawHTML, frame: stack.last!.withInlineCode(theme: theme))
+                // `<br>` is a hard line break, not something to read — it is
+                // the only way to break a line inside a GFM table cell, so
+                // models emit it constantly. Every other tag stays literal.
+                if MarkdownHTMLLineBreak.isBreakTag(inlineHTML.rawHTML) {
+                    append("\n", frame: stack.last!)
+                } else {
+                    appendRaw(inlineHTML.rawHTML, frame: stack.last!.withInlineCode(theme: theme))
+                }
 
             case let symbol as SymbolLink:
                 if let dest = symbol.destination, !dest.isEmpty {
