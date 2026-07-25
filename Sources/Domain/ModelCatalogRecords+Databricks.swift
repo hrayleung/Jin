@@ -32,6 +32,13 @@ extension ModelCatalog {
                contextWindow: 200_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        // Databricks documents Opus 5 with a 1M context window (unlike the conservative
+        // 200K the older Claude endpoints here carry).
+        Record(id: "databricks-claude-opus-5", displayName: "Claude Opus 5",
+               capabilities: [.streaming, .toolCalling, .vision],
+               contextWindow: 1_000_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         Record(id: "databricks-claude-opus-4-8", displayName: "Claude Opus 4.8",
                capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,

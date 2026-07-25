@@ -22,6 +22,17 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        // Opus 5: successor to Opus 4.8 at the same $5/$25 pricing, 1M context (default AND
+        // maximum — there is no separate 1M model ID) / 128k output. Same adaptive-thinking
+        // surface as 4.8 with two flips handled in AnthropicModelLimits: thinking is ON when
+        // `thinking` is omitted, and an explicit `{type: "disabled"}` is only accepted at
+        // effort `high` or below. Full low…max effort ladder; fast mode supported.
+        Record(id: "claude-opus-5", displayName: "Claude Opus 5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "claude-opus-4-8", displayName: "Claude Opus 4.8",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,

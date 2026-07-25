@@ -279,6 +279,35 @@ enum AnthropicRequestBodySupport {
         return nil
     }
 
+    /// Opus 5 rejects `thinking: {type: "disabled"}` paired with an effort of `xhigh`/`max`
+    /// with a 400, and the API validates that pairing on every request. Jin's own effort is
+    /// only emitted on the thinking-enabled path, but a persisted provider-specific
+    /// `output_config` can still carry one, so clamp to `high` as the final normalization
+    /// before the body is serialized.
+    static func normalizeDisabledThinkingEffort(in body: inout [String: Any], modelID: String) {
+        guard AnthropicModelLimits.disabledThinkingRequiresEffortAtMostHigh(for: modelID),
+              let thinking = body["thinking"] as? [String: Any],
+              unwrappedString(thinking["type"]) == "disabled",
+              var outputConfig = body["output_config"] as? [String: Any],
+              let effort = unwrappedString(outputConfig["effort"]),
+              effort == "xhigh" || effort == "max" else {
+            return
+        }
+
+        outputConfig["effort"] = "high"
+        body["output_config"] = outputConfig
+    }
+
+    private static func unwrappedString(_ value: Any?) -> String? {
+        if let string = value as? String {
+            return string
+        }
+        if let codable = value as? AnyCodable {
+            return codable.value as? String
+        }
+        return nil
+    }
+
     private static func mergeOutputConfig(into body: inout [String: Any], additional: [String: Any]) {
         guard !additional.isEmpty else { return }
         var merged = (body["output_config"] as? [String: Any]) ?? [:]

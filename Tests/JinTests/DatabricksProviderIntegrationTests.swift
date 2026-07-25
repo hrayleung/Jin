@@ -51,6 +51,7 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
             provider.models.map(\.id),
             [
                 "databricks-claude-sonnet-4-6",
+                "databricks-claude-opus-5",
                 "databricks-claude-opus-4-8",
                 "databricks-gpt-oss-120b",
                 "databricks-gemini-3-1-pro",

@@ -1152,6 +1152,93 @@ final class AnthropicAdapterTests: XCTestCase {
         )
     }
 
+    func testAnthropicAdapterUsesNativePDFForOpus5() async throws {
+        // Regression: `claude-opus-5` has no "-4-"/"-4." substring either, so the adapter's
+        // native-PDF gate would return false without an explicit Opus 5 arm — the same bug
+        // pattern that hit Fable 5 and then Sonnet 5.
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        var sawNativePDFDocumentBlock = false
+
+        protocolType.requestHandler = { request in
+            switch request.url?.path {
+            case "/files":
+                let response: [String: Any] = [
+                    "id": "file_ant_opus5",
+                    "filename": "opus5-regression.pdf",
+                    "mime_type": "application/pdf"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    data
+                )
+
+            case "/messages":
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+                let content = try XCTUnwrap(messages.first?["content"] as? [[String: Any]])
+                if let document = content.first(where: { ($0["type"] as? String) == "document" }),
+                   let source = document["source"] as? [String: Any] {
+                    let isHostedRef = (source["type"] as? String) == "file"
+                    let isInlinePDF = (source["media_type"] as? String) == "application/pdf"
+                    sawNativePDFDocumentBlock = isHostedRef || isInlinePDF
+                }
+
+                let response = Data("data: [DONE]\n\n".utf8)
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    response
+                )
+
+            default:
+                XCTFail("Unexpected request: \(request.url?.absoluteString ?? "<nil>")")
+                return (
+                    HTTPURLResponse(url: request.url ?? URL(string: "https://example.com")!, statusCode: 500, httpVersion: nil, headerFields: nil)!,
+                    Data()
+                )
+            }
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .file(FileContent(
+                            mimeType: "application/pdf",
+                            filename: "opus5-regression.pdf",
+                            data: Data([0x25, 0x50, 0x44, 0x46, 0x4F, 0x35]),
+                            url: nil,
+                            extractedText: "PDF"
+                        ))
+                    ]
+                )
+            ],
+            modelID: "claude-opus-5",
+            controls: GenerationControls(pdfProcessingMode: .native),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+        XCTAssertTrue(
+            sawNativePDFDocumentBlock,
+            "Opus 5 PDF must become a native document block, not a filename-only fallback"
+        )
+    }
+
     func testAnthropicPrefixWindowUsesTopLevelCacheControl() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

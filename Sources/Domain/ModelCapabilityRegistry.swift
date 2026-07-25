@@ -347,6 +347,7 @@ enum ModelCapabilityRegistry {
     private static let anthropicCodeExecutionSupportedModelIDs: Set<String> = [
         "claude-fable-5",
         "claude-mythos-5",
+        "claude-opus-5",
         "claude-opus-4-8",
         "claude-opus-4-7",
         "claude-opus-4-6",
@@ -1030,12 +1031,13 @@ enum ModelCapabilityRegistry {
     }
 
     /// Models that support the `web_search_20260209` tool with dynamic filtering.
-    /// Documented list includes Fable 5, Mythos 5, Opus 4.8/4.7/4.6, Sonnet 5/4.6.
+    /// Documented list includes Fable 5, Mythos 5, Opus 5, Opus 4.8/4.7/4.6, Sonnet 5/4.6.
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
         let lower = modelID.lowercased()
         return lower == "claude-fable-5"
             || lower == "claude-mythos-5"
+            || lower == "claude-opus-5"
             || lower == "claude-opus-4-8"
             || lower == "claude-opus-4-7"
             || lower == "claude-opus-4-6"

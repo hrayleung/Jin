@@ -120,6 +120,7 @@ enum DatabricksGateway {
         // Reasoning is intentionally omitted: extended thinking is not wired through the gateway
         // Anthropic path yet, so the models are exposed as vision chat models only.
         [
+            visionChatModel("claude-opus-5", "Claude Opus 5", contextWindow: 1_000_000),
             visionChatModel("claude-opus-4-8", "Claude Opus 4.8", contextWindow: 200_000),
             visionChatModel("claude-sonnet-4-6", "Claude Sonnet 4.6", contextWindow: 200_000),
             visionChatModel("claude-sonnet-4-5", "Claude Sonnet 4.5", contextWindow: 200_000),

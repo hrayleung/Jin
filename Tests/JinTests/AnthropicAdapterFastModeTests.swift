@@ -6,7 +6,35 @@ final class AnthropicAdapterFastModeTests: XCTestCase {
 
     // MARK: - applySpeedConfig
 
-    func testApplySpeedConfigSetsFastOnOpus47WhenEnabled() {
+    func testApplySpeedConfigSetsFastOnOpus5WhenEnabled() {
+        var body: [String: Any] = [:]
+        let controls = GenerationControls(anthropicSpeed: .fast)
+
+        AnthropicRequestBodySupport.applySpeedConfig(
+            to: &body,
+            controls: controls,
+            providerType: .anthropic,
+            modelID: "claude-opus-5"
+        )
+
+        XCTAssertEqual(body["speed"] as? String, "fast")
+    }
+
+    func testApplySpeedConfigSetsFastOnOpus48WhenEnabled() {
+        var body: [String: Any] = [:]
+        let controls = GenerationControls(anthropicSpeed: .fast)
+
+        AnthropicRequestBodySupport.applySpeedConfig(
+            to: &body,
+            controls: controls,
+            providerType: .anthropic,
+            modelID: "claude-opus-4-8"
+        )
+
+        XCTAssertEqual(body["speed"] as? String, "fast")
+    }
+
+    func testApplySpeedConfigOmitsSpeedOnOpus47AfterFastModeRemoval() {
         var body: [String: Any] = [:]
         let controls = GenerationControls(anthropicSpeed: .fast)
 
@@ -17,21 +45,7 @@ final class AnthropicAdapterFastModeTests: XCTestCase {
             modelID: "claude-opus-4-7"
         )
 
-        XCTAssertEqual(body["speed"] as? String, "fast")
-    }
-
-    func testApplySpeedConfigSetsFastOnOpus46WhenEnabled() {
-        var body: [String: Any] = [:]
-        let controls = GenerationControls(anthropicSpeed: .fast)
-
-        AnthropicRequestBodySupport.applySpeedConfig(
-            to: &body,
-            controls: controls,
-            providerType: .anthropic,
-            modelID: "claude-opus-4-6"
-        )
-
-        XCTAssertEqual(body["speed"] as? String, "fast")
+        XCTAssertNil(body["speed"])
     }
 
     func testApplySpeedConfigOmitsSpeedOnUnsupportedModel() {
@@ -171,10 +185,17 @@ final class AnthropicAdapterFastModeTests: XCTestCase {
 
     // MARK: - Model gating
 
-    func testSupportsFastModeOnOpus48AndOpus47AndOpus46() {
+    func testSupportsFastModeOnOpus5AndOpus48() {
+        XCTAssertTrue(AnthropicModelLimits.supportsFastMode(for: "claude-opus-5"))
         XCTAssertTrue(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-8"))
-        XCTAssertTrue(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-7"))
-        XCTAssertTrue(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-6"))
+    }
+
+    func testSupportsFastModeRejectsWithdrawnOpus47And46() {
+        // Opus 4.7 fast mode was removed upstream (`speed: "fast"` now errors), and the
+        // retired `claude-opus-4-6-fast` route silently falls back to standard Opus 4.6 —
+        // so neither may be offered as a fast-mode target any more.
+        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-7"))
+        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-6"))
     }
 
     func testSupportsFastModeRejectsOtherModels() {
@@ -185,7 +206,7 @@ final class AnthropicAdapterFastModeTests: XCTestCase {
         // Fable 5 / Mythos 5 have no fast-mode variant — docs do not list `speed: "fast"`.
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-fable-5"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-mythos-5"))
-        // Fast mode remains a research preview scoped to Opus 4.8/4.7/4.6 only — Sonnet 5 is not listed.
+        // Fast mode remains a research preview scoped to Opus 5 / Opus 4.8 only — Sonnet 5 is not listed.
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-sonnet-5"))
     }
 
@@ -193,11 +214,10 @@ final class AnthropicAdapterFastModeTests: XCTestCase {
         // Anthropic documents fast mode for the exact model IDs only — refuse
         // hypothetical date snapshots or custom suffixes so we never send
         // `speed: "fast"` for a model the API would reject.
+        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-5-20260722"))
+        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-5-custom"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-8-20260528"))
-        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-7-20260128"))
-        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-6-20260101"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-8-custom"))
-        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-7-custom"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4-7-thinking"))
     }
 
