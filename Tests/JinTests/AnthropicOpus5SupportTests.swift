@@ -69,6 +69,29 @@ final class AnthropicOpus5SupportTests: XCTestCase {
         )
     }
 
+    func testOpus5KeepsTheFullEffortLadderOnOpenRouter() {
+        // OpenRouter reports supported_efforts = [max, xhigh, high, medium, low] for both
+        // Opus 5 variants (live-verified 2026-07-25). Without an explicit band they fall
+        // through to the low/medium/high default, which silently clamps xhigh/max to high.
+        for id in ["anthropic/claude-opus-5", "anthropic/claude-opus-5-fast"] {
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: id),
+                [.low, .medium, .high, .xhigh, .max],
+                "\(id) must offer the full ladder OpenRouter accepts"
+            )
+            XCTAssertEqual(
+                ModelCapabilityRegistry.normalizedReasoningEffort(.max, for: .openrouter, modelID: id),
+                .max,
+                "\(id) must not fold max down to high"
+            )
+            XCTAssertEqual(
+                ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .openrouter, modelID: id),
+                .xhigh,
+                "\(id) must not fold xhigh down to high"
+            )
+        }
+    }
+
     func testOpus5RejectsSamplingParametersAndDefaultsThinkingDisplayToSummarized() {
         XCTAssertFalse(AnthropicModelLimits.supportsSamplingParameters(for: "claude-opus-5"))
         XCTAssertTrue(AnthropicModelLimits.requiresExplicitThinkingDisplay(for: "claude-opus-5"))

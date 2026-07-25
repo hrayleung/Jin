@@ -409,6 +409,20 @@ enum ModelCapabilityRegistry {
     private static let openRouterMinimalMaxEffortModelIDs: Set<String> = [
         "thinkingmachines/inkling",
     ]
+    /// Claude models whose OpenRouter `supported_efforts` is the full low…max ladder
+    /// (verified 2026-07-25). Without an explicit band these fall through to the
+    /// low/medium/high default, which silently clamps `xhigh`/`max` down to `high`
+    /// even though the gateway accepts both.
+    ///
+    /// NOTE: the same clamp still affects the other Claude models on OpenRouter
+    /// (opus-4.8/4.7 and their `-fast` twins, fable-5, sonnet-5 — all live-verified as
+    /// low…max) and on the Vercel/Cloudflare gateways. That is a pre-existing gap, not
+    /// an Opus 5 regression, and widening it for those models is deliberately left to a
+    /// separate change so this one stays scoped to the model it ships.
+    private static let openRouterFullLadderEffortModelIDs: Set<String> = [
+        "anthropic/claude-opus-5",
+        "anthropic/claude-opus-5-fast",
+    ]
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
     ]
@@ -502,7 +516,8 @@ enum ModelCapabilityRegistry {
         let lowerModelID = modelID.lowercased()
         if providerType == .openrouter,
            openRouterHighBandEffortModelIDs.contains(lowerModelID)
-            || openRouterMinimalMaxEffortModelIDs.contains(lowerModelID) {
+            || openRouterMinimalMaxEffortModelIDs.contains(lowerModelID)
+            || openRouterFullLadderEffortModelIDs.contains(lowerModelID) {
             return true
         }
 
@@ -568,6 +583,8 @@ enum ModelCapabilityRegistry {
             return [.low, .medium, .high]
         case .openrouter where xAIStandardEffortWithNoneModelIDs.contains(lowerModelID):
             return [.none, .low, .medium, .high]
+        case .openrouter where openRouterFullLadderEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high, .xhigh, .max]
         case .openrouter where openRouterHighBandEffortModelIDs.contains(lowerModelID):
             return [.high, .xhigh, .max]
         case .openrouter where openRouterMinimalHighEffortModelIDs.contains(lowerModelID):
