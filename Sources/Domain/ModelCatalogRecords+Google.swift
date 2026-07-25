@@ -524,6 +524,22 @@ extension ModelCatalog {
                maxOutputTokens: 256000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
                isFullySupported: true, isSeeded: false),
+        // Opus 5 on OpenRouter keeps the undotted upstream ID (`anthropic/claude-opus-5`),
+        // unlike the dotted 4.x aliases. Live /models metadata (2026-07-25): 1,000,000 context /
+        // 128,000 output, efforts low…max defaulting to high, reasoning.mandatory=false with
+        // default_enabled=true — so it is deliberately NOT in `openRouterAlwaysOnReasoningModelIDs`.
+        Record(id: "anthropic/claude-opus-5-fast", displayName: "Anthropic: Claude Opus 5 (Fast)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1000000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "anthropic/claude-opus-5", displayName: "Anthropic: Claude Opus 5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1000000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "anthropic/claude-opus-4.8-fast", displayName: "Anthropic: Claude Opus 4.8 (Fast)",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1000000,

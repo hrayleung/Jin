@@ -3,6 +3,7 @@ import SwiftData
 
 enum ChatModelSelectionSupport {
     static let preferredAnthropicModelOrder: [String] = [
+        "claude-opus-5",
         "claude-opus-4-8",
         "claude-opus-4-7",
         "claude-opus-4-6",
@@ -46,6 +47,7 @@ enum ChatModelSelectionSupport {
     ]
     static let preferredDatabricksModelOrder: [String] = [
         "databricks-claude-sonnet-4-6",
+        "databricks-claude-opus-5",
         "databricks-claude-opus-4-8",
         "databricks-gpt-oss-120b",
         "databricks-gemini-3-1-pro",

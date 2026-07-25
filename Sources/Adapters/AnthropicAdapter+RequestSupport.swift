@@ -164,6 +164,10 @@ extension AnthropicAdapter {
             supportsDynamicFiltering: supportsWebSearchDynamicFiltering(modelID)
         )
 
+        // Must stay last: it reconciles `thinking` against `output_config.effort` once every
+        // other mutator (including provider-specific overrides) has had its say.
+        AnthropicRequestBodySupport.normalizeDisabledThinkingEffort(in: &body, modelID: modelID)
+
         return try NetworkRequestFactory.makeJSONRequest(
             url: validatedURL("\(baseURL)/messages"),
             headers: anthropicHeaders(apiKey: apiKey, betaHeader: preparation.betaHeader),
@@ -173,13 +177,15 @@ extension AnthropicAdapter {
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
         // Claude 4.x families match via the "-4-"/"-4." substrings. The Fable/Mythos 5
-        // generation and Sonnet 5 have no such substring but are fully PDF-capable ("all
-        // active models support PDF processing"), and their catalog records declare
+        // generation, Opus 5 and Sonnet 5 have no such substring but are fully PDF-capable
+        // ("all active models support PDF processing"), and their catalog records declare
         // `.nativePDF` — so they must be matched here too, or PDFs would silently fall back
         // to a filename-only stub (the same regression Fable 5 originally hit).
         let lower = modelID.lowercased()
         return lower.contains("-4-") || lower.contains("-4.")
-            || AnthropicModelLimits.isFableMythos5(lower) || AnthropicModelLimits.isSonnet5(lower)
+            || AnthropicModelLimits.isFableMythos5(lower)
+            || AnthropicModelLimits.isOpus5(lower)
+            || AnthropicModelLimits.isSonnet5(lower)
     }
 
     private func supportsWebSearch(_ modelID: String) -> Bool {

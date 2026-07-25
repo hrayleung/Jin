@@ -35,6 +35,9 @@ extension ContentView {
         if providerID == "vercel-ai-gateway", let gpt5 = models.first(where: { $0.id == "openai/gpt-5" }) {
             return gpt5.id
         }
+        if providerID == "anthropic", let opus5 = models.first(where: { $0.id == "claude-opus-5" }) {
+            return opus5.id
+        }
         if providerID == "anthropic", let opus48 = models.first(where: { $0.id == "claude-opus-4-8" }) {
             return opus48.id
         }
@@ -138,6 +141,9 @@ extension ContentView {
         if providerID == "databricks", let sonnet46 = models.first(where: { $0.id == "databricks-claude-sonnet-4-6" }) {
             return sonnet46.id
         }
+        if providerID == "databricks", let opus5 = models.first(where: { $0.id == "databricks-claude-opus-5" }) {
+            return opus5.id
+        }
         if providerID == "databricks", let opus48 = models.first(where: { $0.id == "databricks-claude-opus-4-8" }) {
             return opus48.id
         }
@@ -160,7 +166,7 @@ extension ContentView {
     }
 
     private static let absoluteFallbackModelIDs: [String: String] = [
-        "anthropic": "claude-opus-4-8",
+        "anthropic": "claude-opus-5",
         "xai": "grok-4.5",
         "deepseek": "deepseek-chat",
         "zhipu-coding-plan": "glm-5.2[1m]",

@@ -347,6 +347,7 @@ enum ModelCapabilityRegistry {
     private static let anthropicCodeExecutionSupportedModelIDs: Set<String> = [
         "claude-fable-5",
         "claude-mythos-5",
+        "claude-opus-5",
         "claude-opus-4-8",
         "claude-opus-4-7",
         "claude-opus-4-6",
@@ -407,6 +408,20 @@ enum ModelCapabilityRegistry {
     /// band with no xhigh (OpenRouter supported_efforts, verified 2026-07-18).
     private static let openRouterMinimalMaxEffortModelIDs: Set<String> = [
         "thinkingmachines/inkling",
+    ]
+    /// Claude models whose OpenRouter `supported_efforts` is the full low…max ladder
+    /// (verified 2026-07-25). Without an explicit band these fall through to the
+    /// low/medium/high default, which silently clamps `xhigh`/`max` down to `high`
+    /// even though the gateway accepts both.
+    ///
+    /// NOTE: the same clamp still affects the other Claude models on OpenRouter
+    /// (opus-4.8/4.7 and their `-fast` twins, fable-5, sonnet-5 — all live-verified as
+    /// low…max) and on the Vercel/Cloudflare gateways. That is a pre-existing gap, not
+    /// an Opus 5 regression, and widening it for those models is deliberately left to a
+    /// separate change so this one stays scoped to the model it ships.
+    private static let openRouterFullLadderEffortModelIDs: Set<String> = [
+        "anthropic/claude-opus-5",
+        "anthropic/claude-opus-5-fast",
     ]
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
@@ -501,7 +516,8 @@ enum ModelCapabilityRegistry {
         let lowerModelID = modelID.lowercased()
         if providerType == .openrouter,
            openRouterHighBandEffortModelIDs.contains(lowerModelID)
-            || openRouterMinimalMaxEffortModelIDs.contains(lowerModelID) {
+            || openRouterMinimalMaxEffortModelIDs.contains(lowerModelID)
+            || openRouterFullLadderEffortModelIDs.contains(lowerModelID) {
             return true
         }
 
@@ -567,6 +583,8 @@ enum ModelCapabilityRegistry {
             return [.low, .medium, .high]
         case .openrouter where xAIStandardEffortWithNoneModelIDs.contains(lowerModelID):
             return [.none, .low, .medium, .high]
+        case .openrouter where openRouterFullLadderEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high, .xhigh, .max]
         case .openrouter where openRouterHighBandEffortModelIDs.contains(lowerModelID):
             return [.high, .xhigh, .max]
         case .openrouter where openRouterMinimalHighEffortModelIDs.contains(lowerModelID):
@@ -1030,12 +1048,13 @@ enum ModelCapabilityRegistry {
     }
 
     /// Models that support the `web_search_20260209` tool with dynamic filtering.
-    /// Documented list includes Fable 5, Mythos 5, Opus 4.8/4.7/4.6, Sonnet 5/4.6.
+    /// Documented list includes Fable 5, Mythos 5, Opus 5, Opus 4.8/4.7/4.6, Sonnet 5/4.6.
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
         let lower = modelID.lowercased()
         return lower == "claude-fable-5"
             || lower == "claude-mythos-5"
+            || lower == "claude-opus-5"
             || lower == "claude-opus-4-8"
             || lower == "claude-opus-4-7"
             || lower == "claude-opus-4-6"

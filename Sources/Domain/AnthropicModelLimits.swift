@@ -3,13 +3,13 @@ import Foundation
 enum AnthropicModelLimits {
     static func supportsAdaptiveThinking(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
-        return isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower) || isOpus46(lower)
-            || isSonnet5(lower) || isSonnet46(lower)
+        return isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
+            || isOpus46(lower) || isSonnet5(lower) || isSonnet46(lower)
     }
 
     static func supportsEffort(for modelID: String) -> Bool {
-        // Effort works on Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 5, Sonnet 4.6 (with adaptive thinking)
-        // and Opus 4.5, Opus 4.1 (with budget_tokens thinking).
+        // Effort works on Opus 5, Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 5, Sonnet 4.6 (with adaptive
+        // thinking) and Opus 4.5, Opus 4.1 (with budget_tokens thinking).
         // DeepSeek V4 exposes effort through Anthropic-compatible output_config.
         let lower = modelID.lowercased()
         return supportsAdaptiveThinking(for: lower)
@@ -18,13 +18,22 @@ enum AnthropicModelLimits {
             || isDeepSeekV4(lower)
     }
 
-    /// Sonnet 5 is the only adaptive-thinking Anthropic model where OMITTING `thinking`
-    /// does not disable it — Anthropic's migration guide: "on Claude Sonnet 5, omitting
-    /// runs adaptive; on Opus 4.7/4.8, omitting runs without thinking." So disabling
-    /// reasoning on Sonnet 5 requires sending `thinking: {type: "disabled"}` explicitly
-    /// (which Sonnet 5 accepts, unlike Fable 5, where an explicit "disabled" 400s).
+    /// Models where OMITTING `thinking` does not disable it — Anthropic's migration guide:
+    /// "on Claude Sonnet 5 and Claude Opus 5, omitting runs adaptive; on Opus 4.7/4.8,
+    /// omitting runs without thinking." So disabling reasoning on these requires sending
+    /// `thinking: {type: "disabled"}` explicitly (which they accept, unlike Fable 5, where
+    /// an explicit "disabled" 400s). Opus 5 additionally caps the effort it accepts
+    /// alongside a disabled thinking block — see `disabledThinkingRequiresEffortAtMostHigh`.
     static func requiresExplicitThinkingDisabled(for modelID: String) -> Bool {
-        isSonnet5(modelID.lowercased())
+        let lower = modelID.lowercased()
+        return isSonnet5(lower) || isOpus5(lower)
+    }
+
+    /// Opus 5 accepts `thinking: {type: "disabled"}` only at effort `high` or below;
+    /// pairing it with `xhigh`/`max` returns a 400. The API validates this per request,
+    /// so every call site that can emit both fields has to clamp, not just the first.
+    static func disabledThinkingRequiresEffortAtMostHigh(for modelID: String) -> Bool {
+        isOpus5(modelID.lowercased())
     }
 
     static func supportsDeepSeekV4OutputConfigEffort(for modelID: String) -> Bool {
@@ -33,47 +42,57 @@ enum AnthropicModelLimits {
 
     static func supportsXHighEffort(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
-        return isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower) || isSonnet5(lower)
+        return isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
+            || isSonnet5(lower)
     }
 
     /// Fast mode (beta: research preview) is documented for the exact model IDs
-    /// `claude-opus-4-8`, `claude-opus-4-7` and `claude-opus-4-6` only. Sending
-    /// `speed: "fast"` to any other model — including date-suffixed snapshots of
-    /// Opus 4.8/4.7/4.6 — returns an API error, and the request still bills at
-    /// the fast-mode rate as extra usage, so we gate strictly on exact-match.
+    /// `claude-opus-5` and `claude-opus-4-8` only. Opus 4.7 fast mode has since been
+    /// removed upstream (`speed: "fast"` on 4.7 now errors) and the retired
+    /// `claude-opus-4-6-fast` route silently falls back to standard Opus 4.6, so both
+    /// are gated off here. Sending `speed: "fast"` to any other model — including
+    /// date-suffixed snapshots of Opus 5/4.8 — returns an API error, and the request
+    /// still bills at the fast-mode rate as extra usage, so we gate strictly on
+    /// exact-match.
     static func supportsFastMode(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
-        return lower == "claude-opus-4-8" || lower == "claude-opus-4-7" || lower == "claude-opus-4-6"
+        return lower == "claude-opus-5" || lower == "claude-opus-4-8"
     }
 
     static func supportsMaxEffort(for modelID: String) -> Bool {
-        // Fable/Mythos 5, Opus 4.8/4.7, and Sonnet 5 support both xhigh and max. Opus 4.6 supports max only.
+        // Fable/Mythos 5, Opus 5, Opus 4.8/4.7, and Sonnet 5 support both xhigh and max.
+        // Opus 4.6 supports max only.
         let lower = modelID.lowercased()
-        return isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower) || isOpus46(lower) || isSonnet5(lower)
+        return isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
+            || isOpus46(lower) || isSonnet5(lower)
     }
 
     static func supportsSamplingParameters(for modelID: String) -> Bool {
-        // Sampling params (temperature/top_p/top_k) are removed on Fable/Mythos 5 and Opus 4.8/4.7.
-        // On Sonnet 5, only non-default values 400 (omitting/defaulting is accepted) — but Jin only
-        // ever sends a value when the user explicitly set one in the UI, which is never the API
-        // default, so treat Sonnet 5 the same as the other adaptive-thinking models: strip it.
+        // Sampling params (temperature/top_p/top_k) are removed on Fable/Mythos 5, Opus 5 and
+        // Opus 4.8/4.7. On Sonnet 5, only non-default values 400 (omitting/defaulting is
+        // accepted) — but Jin only ever sends a value when the user explicitly set one in the
+        // UI, which is never the API default, so treat Sonnet 5 the same as the other
+        // adaptive-thinking models: strip it.
         let lower = modelID.lowercased()
-        return !(isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower) || isSonnet5(lower))
+        return !(isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
+            || isSonnet5(lower))
     }
 
     static func requiresExplicitThinkingDisplay(for modelID: String) -> Bool {
-        // Raw thinking is never returned on Fable/Mythos 5, Opus 4.8/4.7, and Sonnet 5;
+        // Raw thinking is never returned on Fable/Mythos 5, Opus 5, Opus 4.8/4.7, and Sonnet 5;
         // `thinking.display` defaults to "omitted" on all of them (a silent change from Sonnet
         // 4.6, which defaulted to "summarized"), so we opt in to "summarized" to surface readable
         // reasoning.
         let lower = modelID.lowercased()
-        return isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower) || isSonnet5(lower)
+        return isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
+            || isSonnet5(lower)
     }
 
     static func maxOutputTokens(for modelID: String) -> Int? {
         let lower = modelID.lowercased()
 
-        if isFableMythos5(lower) || isOpus48(lower) || isOpus47(lower) || isOpus46(lower) || isSonnet5(lower) {
+        if isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
+            || isOpus46(lower) || isSonnet5(lower) {
             return 128_000
         }
 
@@ -124,6 +143,14 @@ enum AnthropicModelLimits {
     static func isFableMythos5(_ lowercasedModelID: String) -> Bool {
         isModelFamily(lowercasedModelID, prefix: "claude-fable-5")
             || isModelFamily(lowercasedModelID, prefix: "claude-mythos-5")
+    }
+
+    /// Claude Opus 5. Same adaptive-thinking-only surface as Opus 4.8 (no `budget_tokens`,
+    /// no sampling params, 1M context / 128k output, full `low`…`max` effort ladder), with
+    /// two behavioural flips: thinking is ON when `thinking` is omitted, and an explicit
+    /// `{type: "disabled"}` is only accepted at effort `high` or below.
+    static func isOpus5(_ lowercasedModelID: String) -> Bool {
+        isModelFamily(lowercasedModelID, prefix: "claude-opus-5")
     }
 
     private static func isOpus48(_ lowercasedModelID: String) -> Bool {
