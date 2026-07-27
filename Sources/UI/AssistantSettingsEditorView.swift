@@ -10,48 +10,35 @@ struct AssistantSettingsEditorView: View {
     @State private var isIconPickerPresented = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: JinSpacing.large) {
-                AssistantSettingsHeaderCard(
-                    name: nameBinding,
-                    assistantDescription: descriptionBinding,
-                    icon: iconBinding,
-                    isIconPickerPresented: $isIconPickerPresented
-                )
+        JinSettingsPage {
+            AssistantSettingsIdentityHeader(
+                name: nameBinding,
+                assistantDescription: descriptionBinding,
+                icon: iconBinding,
+                isIconPickerPresented: $isIconPickerPresented
+            )
 
-                AssistantSettingsSectionCard(
-                    title: "System Prompt",
-                    systemImage: "text.quote"
-                ) {
-                    AssistantSystemInstructionEditor(text: systemInstructionBinding)
-                }
+            AssistantSystemPromptSection(systemInstruction: systemInstructionBinding)
 
-                AssistantGenerationDefaultsSection(
-                    temperature: assistant.temperature,
-                    temperatureBinding: temperatureBinding,
-                    maxOutputTokens: assistant.maxOutputTokens,
-                    maxOutputTokensBinding: maxOutputTokensBinding,
-                    clearMaxOutputTokens: clearMaxOutputTokens
-                )
+            AssistantGenerationDefaultsSection(
+                temperature: temperatureBinding,
+                maxOutputTokens: assistant.maxOutputTokens,
+                maxOutputTokensDraft: maxOutputTokensBinding,
+                clearMaxOutputTokens: clearMaxOutputTokens
+            )
 
-                AssistantConversationLimitsSection(
-                    truncateMessagesSetting: truncateMessagesSettingBinding,
-                    maxHistoryMessages: maxHistoryMessagesBinding
-                )
+            AssistantConversationLimitsSection(
+                truncateMessagesSetting: truncateMessagesSettingBinding,
+                maxHistoryMessages: maxHistoryMessagesBinding
+            )
 
-                AssistantReplyLanguageSection(
-                    selection: $replyLanguageSelectionDraft,
-                    customLanguage: $customReplyLanguageDraft,
-                    didSelectPreset: applyReplyLanguageSelection,
-                    didChangeCustomLanguage: applyCustomReplyLanguage
-                )
-
-            }
-            .padding(.horizontal, JinSpacing.large)
-            .padding(.vertical, JinSpacing.medium)
-            .frame(maxWidth: 760, alignment: .leading)
+            AssistantReplyLanguageSection(
+                selection: $replyLanguageSelectionDraft,
+                customLanguage: $customReplyLanguageDraft,
+                didSelectPreset: applyReplyLanguageSelection,
+                didChangeCustomLanguage: applyCustomReplyLanguage
+            )
         }
-        .background(JinSemanticColor.detailSurface)
         .onAppear {
             syncCustomReplyLanguageDraft()
         }
@@ -132,16 +119,24 @@ struct AssistantSettingsEditorView: View {
         )
     }
 
+    /// Quantized to `temperatureStep` in the setter rather than via `Slider(step:)`,
+    /// which would make AppKit draw a tick mark for each of the 40 steps. The knob
+    /// still snaps because `get` returns the quantized value, and a drag persists at
+    /// most once per step instead of once per pixel.
     private var temperatureBinding: Binding<Double> {
         Binding(
             get: { assistant.temperature },
             set: { newValue in
+                let quantized = (newValue / Self.temperatureStep).rounded() * Self.temperatureStep
+                guard abs(quantized - assistant.temperature) > Self.temperatureStep / 10 else { return }
                 persistAssistantChange {
-                    assistant.temperature = newValue
+                    assistant.temperature = quantized
                 }
             }
         )
     }
+
+    private static let temperatureStep = 0.05
 
     private var maxOutputTokensBinding: Binding<String> {
         Binding(
