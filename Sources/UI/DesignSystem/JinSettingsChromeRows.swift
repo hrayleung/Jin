@@ -280,19 +280,31 @@ struct JinSettingsSliderValueRow: View {
     let title: String
     @Binding var value: Double
     let range: ClosedRange<Double>
-    let step: Double
+    /// Pass `nil` for a continuous slider. AppKit draws a tick mark per step, so
+    /// a fine step over a wide range renders a dotted track; quantize in the
+    /// binding instead when the value should still snap.
+    var step: Double? = nil
     var valueWidth: CGFloat = 52
     var labelWidth: CGFloat = 156
 
     var body: some View {
         JinSettingsControlRow(title, labelWidth: labelWidth) {
             HStack {
-                Slider(value: $value, in: range, step: step)
+                slider
                 Text(value.formatted(.number.precision(.fractionLength(2))))
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .frame(width: valueWidth, alignment: .trailing)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var slider: some View {
+        if let step {
+            Slider(value: $value, in: range, step: step)
+        } else {
+            Slider(value: $value, in: range)
         }
     }
 }
