@@ -26,6 +26,7 @@ enum AppPreferenceKeys {
     static let thinkingBlockDisplayMode = "thinkingBlockDisplayMode"
     static let codeExecutionDisplayMode = "codeExecutionDisplayMode"
     static let codeBlockShowLineNumbers = "codeBlockShowLineNumbers"
+    static let showConversationMinimap = "showConversationMinimap"
     static let mainSidebarWidth = "mainSidebarWidth"
 
     // MARK: - Updates
