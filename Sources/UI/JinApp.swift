@@ -49,7 +49,8 @@ struct JinApp: App {
             AppPreferenceKeys.notifyOnBackgroundResponseCompletion: true,
             AppPreferenceKeys.updateAutoCheckOnLaunch: true,
             AppPreferenceKeys.updateAllowPreRelease: false,
-            AppPreferenceKeys.useOverlayScrollbars: true
+            AppPreferenceKeys.useOverlayScrollbars: true,
+            AppPreferenceKeys.showConversationMinimap: true
         ])
         ImageCache.default.memoryStorage.config.expiration = .seconds(3600)
         ImageCache.default.diskStorage.config.expiration = .days(30)

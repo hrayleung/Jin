@@ -84,6 +84,7 @@ struct ChatSingleThreadMessagesView: View {
             key: equatableKey,
             conversationID: conversationID,
             visibleMessagesForWindow: visibleMessagesForWindow,
+            allMessages: allMessages,
             allMessageCount: allMessages.count,
             messageRenderPageSize: messageRenderPageSize,
             eagerCodeHighlightTailCount: eagerCodeHighlightTailCount,

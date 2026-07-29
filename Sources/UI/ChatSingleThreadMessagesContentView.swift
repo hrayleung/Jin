@@ -4,6 +4,11 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
     let key: ChatStageEquatableKey
     let conversationID: UUID
     let visibleMessagesForWindow: [MessageRenderItem]
+    /// Every message in the conversation, not just the rendered window — the
+    /// minimap reaches the whole chat, so clicking an old turn widens the
+    /// window first. Grouping into turns happens here, inside the
+    /// `EquatableView` gate, so it only runs when the stage key changes.
+    let allMessages: [MessageRenderItem]
     let allMessageCount: Int
     let messageRenderPageSize: Int
     let eagerCodeHighlightTailCount: Int
@@ -51,6 +56,13 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
     /// Bridge so the SwiftUI "scroll to bottom" chevron can drive the AppKit
     /// table controller without the controller leaking into the view tree.
     @StateObject private var scrollHandle = ChatTimelineScrollHandle()
+
+    /// Same bridge shape for the minimap rail: it carries the active-turn
+    /// report out of the controller and jump requests back in, without
+    /// widening this view's equatable key.
+    @StateObject private var minimapModel = ChatConversationMinimapModel()
+
+    @AppStorage(AppPreferenceKeys.showConversationMinimap) private var showConversationMinimap = true
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.key == rhs.key
@@ -115,12 +127,18 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             nextRenderLimit: timelineWindow.nextRenderLimit,
             canLoadEarlier: timelineWindow.canLoadEarlier,
             scrollHandle: scrollHandle,
+            minimapModel: showConversationMinimap ? minimapModel : nil,
             isPinnedToBottom: $isPinnedToBottom,
             messageRenderLimit: $messageRenderLimit,
             onLoadEarlier: {
                 pendingRestoreScrollMessageID = timelineWindow.loadEarlierPlan?.restoreMessageID
             }
         )
+        .overlay(alignment: .leading) {
+            if showConversationMinimap {
+                minimapRail
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             if !isPinnedToBottom {
                 scrollToBottomButton
@@ -147,6 +165,37 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
         .onDisappear {
             prewarmTask?.cancel()
         }
+    }
+
+    private var minimapRail: some View {
+        ChatConversationMinimapRail(
+            turnList: ChatConversationMinimapGeometry.turnList(from: allMessages),
+            assistantDisplayName: assistantDisplayName,
+            model: minimapModel,
+            onJump: jumpToTurn
+        )
+        // Mirrors the table's own content insets so the rail never sits under
+        // the floating composer or the top chrome.
+        .padding(.leading, JinSpacing.medium)
+        .padding(.top, 24)
+        .padding(.bottom, composerHeight + 24)
+    }
+
+    /// Widen the render window first when the target turn is older than what
+    /// the table currently holds; `ChatConversationMinimapModel` parks the jump
+    /// and completes it once the rows land.
+    private func jumpToTurn(_ messageID: UUID) {
+        if let index = allMessages.firstIndex(where: { $0.id == messageID }) {
+            let required = ChatConversationMinimapGeometry.renderLimit(
+                toInclude: index,
+                totalCount: allMessages.count,
+                currentLimit: messageRenderLimit
+            )
+            if required > messageRenderLimit {
+                messageRenderLimit = required
+            }
+        }
+        minimapModel.jump(to: messageID)
     }
 
     private var scrollToBottomButton: some View {

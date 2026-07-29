@@ -173,6 +173,9 @@ struct ChatTimelineTableRepresentable: NSViewControllerRepresentable {
     let nextRenderLimit: Int
     let canLoadEarlier: Bool
     let scrollHandle: ChatTimelineScrollHandle
+    /// `nil` when the minimap preference is off, which also switches off the
+    /// controller's per-scroll position reporting.
+    let minimapModel: ChatConversationMinimapModel?
     @Binding var isPinnedToBottom: Bool
     @Binding var messageRenderLimit: Int
     let onLoadEarlier: () -> Void
@@ -180,11 +183,13 @@ struct ChatTimelineTableRepresentable: NSViewControllerRepresentable {
     func makeNSViewController(context: Context) -> ChatTimelineTableController {
         let controller = ChatTimelineTableController()
         scrollHandle.controller = controller
+        bindMinimap(to: controller)
         return controller
     }
 
     func updateNSViewController(_ controller: ChatTimelineTableController, context: Context) {
         scrollHandle.controller = controller
+        bindMinimap(to: controller)
         controller.setStreamingModelInfo(label: streamingModelLabel, id: streamingModelID)
         controller.apply(
             ChatTimelineTableController.Model(
@@ -202,6 +207,11 @@ struct ChatTimelineTableRepresentable: NSViewControllerRepresentable {
                 onLoadEarlier: onLoadEarlier
             )
         )
+    }
+
+    private func bindMinimap(to controller: ChatTimelineTableController) {
+        minimapModel?.controller = controller
+        controller.minimapModel = minimapModel
     }
 }
 
@@ -344,6 +354,15 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     private var currentColumnWidth: CGFloat = 0
     private var lastConversationID: UUID?
 
+    /// Weak on BOTH sides — the model already holds a weak `controller`, and a
+    /// strong reference here would close the cycle. `nil` also means "the rail
+    /// is switched off", which `reportMinimapPosition` uses to short-circuit.
+    weak var minimapModel: ChatConversationMinimapModel?
+    /// Last message id handed to the minimap, so the per-scroll report can bail
+    /// before touching the model (which would otherwise publish nothing, but
+    /// still cost a hop) — `boundsDidChange` runs at streaming frequency.
+    private var lastReportedMinimapMessageID: UUID?
+
     // Pin / scroll-intent state. These mirror the old SwiftUI machinery:
     // `shouldMaintainBottom` is the latch that keeps follow-to-bottom alive
     // until the user scrolls away; `isProgrammaticScrolling` suppresses the
@@ -466,6 +485,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     // MARK: Apply model
 
     func apply(_ newModel: Model) {
+        // Runs on both exits (the conversation-changed branch returns early).
+        defer { scheduleMinimapSync() }
+
         let previousRows = rows
         let widthChanged = abs(currentColumnWidth - newModel.shared.columnWidth) > 0.5
         let conversationChanged = lastConversationID != newModel.conversationID
@@ -876,6 +898,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     }
 
     @objc private func boundsDidChange() {
+        reportMinimapPosition()
         let distance = distanceFromBottom()
         let tolerance = model.map { max(0, $0.bottomTolerance) } ?? 40
         let pinned = distance <= tolerance
@@ -934,6 +957,16 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     }
 
     func scrollToBottom(animated: Bool, force: Bool) {
+        if force {
+            // Chevron / conversation-open beats an unlanded minimap jump.
+            minimapModel?.cancelPendingJump()
+        } else if minimapModel?.hasPendingJump == true {
+            // The user asked to go somewhere specific and the rows carrying it
+            // are still arriving. Widening the render window is a wholesale row
+            // change, so the pinned re-anchor would fire first and flash the
+            // viewport to the newest message before the jump lands.
+            return
+        }
         guard force || shouldMaintainBottom else { return }
         guard !rows.isEmpty else { return }
         view.layoutSubtreeIfNeeded()
@@ -972,6 +1005,112 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         isProgrammaticScrolling = false
         isPinned = true
         model?.setPinned(true)
+    }
+
+    // MARK: - Minimap (conversation navigation rail)
+
+    private func rowIndex(forMessageID id: UUID) -> Int? {
+        let identity = "msg-\(id.uuidString)"
+        return rows.firstIndex { $0.identity == identity }
+    }
+
+    /// Whether `messageID` is inside the current render window. The rail uses
+    /// this to decide between scrolling now and widening the window first.
+    func canScroll(to messageID: UUID) -> Bool {
+        rowIndex(forMessageID: messageID) != nil
+    }
+
+    /// Scrolls a specific message to the top of the viewport.
+    ///
+    /// Rows above the viewport are sized from `ChatTimelineHeightEstimator`
+    /// estimates, so the landing point starts approximate — but every row that
+    /// realizes reports its true height through `cellDidMeasureHeight`, whose
+    /// anchor compensation shifts the origin by the same delta. The content the
+    /// user is looking at therefore stays pixel-stationary while the estimates
+    /// above resolve.
+    func scrollTo(messageID: UUID, animated: Bool) {
+        guard let index = rowIndex(forMessageID: messageID) else { return }
+        view.layoutSubtreeIfNeeded()
+
+        let clip = scrollView.contentView
+        let rowRect = tableView.rect(ofRow: index)
+        let topLimit = -scrollView.contentInsets.top
+        let maxOriginY = tableView.frame.height - clip.bounds.height + scrollView.contentInsets.bottom
+        let targetY = min(max(rowRect.minY + topLimit, topLimit), max(topLimit, maxOriginY))
+
+        // Jumping into history is an explicit "stop following the stream".
+        shouldMaintainBottom = false
+        isProgrammaticScrolling = true
+
+        let apply = {
+            clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
+            self.scrollView.reflectScrolledClipView(clip)
+        }
+        if animated {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.2
+                context.allowsImplicitAnimation = true
+                apply()
+            }, completionHandler: { [weak self] in
+                MainActor.assumeIsolated { self?.finishMinimapJump() }
+            })
+        } else {
+            apply()
+            DispatchQueue.main.async { [weak self] in self?.finishMinimapJump() }
+        }
+    }
+
+    /// Deliberately NOT `finishProgrammaticScroll()`: that one force-sets
+    /// `isPinned = true`, which would hide the scroll-to-bottom chevron while
+    /// the user is parked in the middle of the conversation. Recompute instead.
+    private func finishMinimapJump() {
+        isProgrammaticScrolling = false
+        recomputePinned()
+        reportMinimapPosition()
+    }
+
+    /// Post-`apply` catch-up: completes a jump that was waiting for its row to
+    /// enter the widened render window, and re-reports the active turn now that
+    /// the row set changed. Async so neither ever mutates published state
+    /// inside SwiftUI's update pass; skipped entirely when no rail is mounted.
+    private func scheduleMinimapSync() {
+        guard minimapModel != nil else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.minimapModel?.timelineDidApplyRows()
+            self.reportMinimapPosition()
+        }
+    }
+
+    /// Tells the rail which turn the viewport is showing. Called from
+    /// `boundsDidChange`, i.e. on every scroll frame AND on every streaming
+    /// re-layout, so it must stay cheap: it bails when no rail is mounted and
+    /// dedupes before touching the published property.
+    private func reportMinimapPosition() {
+        guard minimapModel != nil else { return }
+        let visible = scrollView.documentVisibleRect
+        let range = tableView.rows(in: visible)
+        var topMessageID: UUID?
+        if range.length > 0 {
+            for row in range.location..<(range.location + range.length) where row >= 0 && row < rows.count {
+                if case .message(let item, _) = rows[row] {
+                    topMessageID = item.id
+                    break
+                }
+            }
+        }
+        guard lastReportedMinimapMessageID != topMessageID else { return }
+        lastReportedMinimapMessageID = topMessageID
+        // Hop off the current call stack before publishing. `apply(_:)` can
+        // reach here synchronously (row mutation → `scrollToBottom` →
+        // `setBoundsOrigin` → `boundsDidChange`) while SwiftUI is still inside
+        // `updateNSViewController`, and publishing there trips
+        // "Publishing changes from within view updates". The dedupe above runs
+        // first, so this hop happens only when the active turn really changed —
+        // not on every scroll frame.
+        DispatchQueue.main.async { [weak self] in
+            self?.minimapModel?.reportTopVisibleMessageID(topMessageID)
+        }
     }
 
     // MARK: Warm-start heights

@@ -9,6 +9,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppPreferenceKeys.thinkingBlockDisplayMode) private var thinkingDisplayModeRaw = ThinkingBlockDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.codeExecutionDisplayMode) private var codeExecutionDisplayModeRaw = CodeExecutionDisplayMode.expanded.rawValue
     @AppStorage(AppPreferenceKeys.useOverlayScrollbars) private var useOverlayScrollbars = true
+    @AppStorage(AppPreferenceKeys.showConversationMinimap) private var showConversationMinimap = true
 
     @State private var showingAppFontPicker = false
     @State private var showingCodeFontPicker = false
@@ -57,6 +58,14 @@ struct AppearanceSettingsView: View {
                     }
                     .buttonStyle(.borderless)
                 }
+            }
+
+            JinSettingsSection("Chat") {
+                JinSettingsToggleRow(
+                    "Conversation Minimap",
+                    supportingText: "A rail of turn markers along the left edge of the chat. Hover to preview, click to jump.",
+                    isOn: $showConversationMinimap
+                )
             }
 
             JinSettingsSection("Code Blocks") {
