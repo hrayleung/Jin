@@ -468,6 +468,10 @@ enum ModelCapabilityRegistry {
         "zai-org/glm-5.2",
         "zai-org/glm-5.2-fast",
     ]
+    /// Baseten Mercury 2: none/low/medium/high (Inception + OpenRouter, 2026-07-29).
+    private static let basetenMercury2ReasoningEffortModelIDs: Set<String> = [
+        "inception/mercury-2",
+    ]
     private static let xAIMultiAgentReasoningEffortModelIDs: Set<String> = [
         "grok-4.20-multi-agent",
         "grok-4.20-multi-agent-0309",
@@ -687,6 +691,8 @@ enum ModelCapabilityRegistry {
             return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
         case .baseten where basetenGLM52EffortModelIDs.contains(lowerModelID):
             return [.none, .high, .max]
+        case .baseten where basetenMercury2ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.none, .low, .medium, .high]
         case .xai where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
             // Multi-agent: low/medium → 4 agents, high/xhigh → 16 agents.
             return [.low, .medium, .high, .xhigh]

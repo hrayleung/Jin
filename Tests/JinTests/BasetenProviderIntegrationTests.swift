@@ -33,6 +33,39 @@ final class BasetenProviderIntegrationTests: XCTestCase {
         }
     }
 
+    func testMercury2AndSID1CatalogSupport() {
+        let mercury = ModelCatalog.modelInfo(for: "inception/mercury-2", provider: .baseten)
+        XCTAssertEqual(mercury.name, "Mercury 2")
+        XCTAssertEqual(mercury.contextWindow, 128_000)
+        XCTAssertEqual(mercury.maxOutputTokens, 50_000)
+        XCTAssertTrue(mercury.capabilities.contains(.toolCalling))
+        XCTAssertTrue(mercury.capabilities.contains(.reasoning))
+        XCTAssertFalse(mercury.capabilities.contains(.vision))
+        XCTAssertEqual(mercury.reasoningConfig?.type, .effort)
+        XCTAssertEqual(mercury.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "inception/mercury-2", provider: .baseten))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .baseten,
+                modelID: "inception/mercury-2"
+            ),
+            [.none, .low, .medium, .high]
+        )
+        // Catalog-only — not first-launch seeded.
+        XCTAssertFalse(ModelCatalog.seededModels(for: .baseten).contains(where: { $0.id == "inception/mercury-2" }))
+
+        let sid = ModelCatalog.modelInfo(for: "sid/sid-1", provider: .baseten)
+        XCTAssertEqual(sid.name, "SID-1")
+        XCTAssertEqual(sid.contextWindow, 128_000)
+        XCTAssertTrue(sid.capabilities.contains(.streaming))
+        XCTAssertTrue(sid.capabilities.contains(.toolCalling))
+        XCTAssertFalse(sid.capabilities.contains(.vision))
+        XCTAssertFalse(sid.capabilities.contains(.reasoning))
+        XCTAssertNil(sid.reasoningConfig)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "sid/sid-1", provider: .baseten))
+        XCTAssertFalse(ModelCatalog.seededModels(for: .baseten).contains(where: { $0.id == "sid/sid-1" }))
+    }
+
     func testKimiK3CatalogMetadata() {
         let info = ModelCatalog.modelInfo(for: "moonshotai/Kimi-K3", provider: .baseten)
         XCTAssertEqual(info.name, "Kimi K3")

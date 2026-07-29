@@ -1470,5 +1470,29 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
+
+        // Additional Model API IDs returned by live GET /v1/models (verified against
+        // the Baseten account model list + models.dev / OpenRouter metadata, 2026-07-29).
+        // Not on the published 10-model overview table, so they are catalog-enriched
+        // rather than first-launch seeds — full support when the user adds them.
+        //
+        // Mercury 2 (Inception dLLM): 128k context / 50k output, text-only, tool calling,
+        // tunable reasoning via reasoning_effort low/medium/high (OpenRouter also lists
+        // "none"). Cached-input pricing on OpenRouter → promptCaching.
+        Record(id: "inception/mercury-2", displayName: "Mercury 2",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 128_000,
+               maxOutputTokens: 50_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // SID-1 (SID AI agentic retrieval): specialized search/retrieval model exposed
+        // on Baseten Model APIs as `sid/sid-1`. Baseten has not published a dedicated
+        // context/effort matrix for this slug — keep text + tools only, conservative
+        // 128k window, no reasoning/vision claims until docs confirm them.
+        Record(id: "sid/sid-1", displayName: "SID-1",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
     ]
 }
