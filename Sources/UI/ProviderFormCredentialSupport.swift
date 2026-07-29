@@ -15,7 +15,7 @@ extension ProviderFormSupport {
     static func credentialKind(for providerType: ProviderType) -> CredentialKind {
         switch providerType {
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-             .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .xai,
+             .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .xai,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
              .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .gemini, .zyphra, .meta, .kimiForCoding:
             return .apiKey

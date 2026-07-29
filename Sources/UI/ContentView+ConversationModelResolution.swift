@@ -97,6 +97,9 @@ extension ContentView {
         if providerID == "kimi-for-coding", let kimiForCoding = models.first(where: { $0.id == "kimi-for-coding" }) {
             return kimiForCoding.id
         }
+        if providerID == "deepinfra", let kimiK3 = models.first(where: { $0.id == "moonshotai/Kimi-K3" }) {
+            return kimiK3.id
+        }
         if providerID == "deepinfra", let glm52 = models.first(where: { $0.id == "zai-org/GLM-5.2" }) {
             return glm52.id
         }
@@ -115,6 +118,12 @@ extension ContentView {
         if providerID == "fireworks",
            let preferredFireworksModelID = ChatModelSelectionSupport.preferredFireworksModelID(in: models) {
             return preferredFireworksModelID
+        }
+        if providerID == "baseten", let kimiK3 = models.first(where: { $0.id == "moonshotai/Kimi-K3" }) {
+            return kimiK3.id
+        }
+        if providerID == "together", let kimiK3 = models.first(where: { $0.id == "moonshotai/Kimi-K3" }) {
+            return kimiK3.id
         }
         if providerID == "together", let kimiK2p5 = models.first(where: { $0.id == "moonshotai/Kimi-K2.5" }) {
             return kimiK2p5.id
@@ -173,9 +182,10 @@ extension ContentView {
         "kimi-for-coding": "k3",
         "minimax": "MiniMax-M2.7",
         "minimax-coding-plan": "MiniMax-M2.7",
-        "deepinfra": "zai-org/GLM-5.2",
-        "fireworks": "fireworks/kimi-k2p6",
-        "together": "moonshotai/Kimi-K2.5",
+        "deepinfra": "moonshotai/Kimi-K3",
+        "fireworks": "accounts/fireworks/models/kimi-k3",
+        "together": "moonshotai/Kimi-K3",
+        "baseten": "moonshotai/Kimi-K3",
         "opencode-go": "glm-5.2",
         "cerebras": "qwen-3-235b-a22b-instruct-2507",
         "sambanova": "MiniMax-M2.5",

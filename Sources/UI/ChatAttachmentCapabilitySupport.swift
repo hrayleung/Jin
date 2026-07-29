@@ -16,7 +16,7 @@ extension ChatModelCapabilitySupport {
         case .gemini, .vertexai:
             return geminiImageGenerationModelIDs.contains(lowerModelID)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
-             .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .anthropic, .claudeManagedAgents, .perplexity,
+             .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .anthropic, .claudeManagedAgents, .perplexity,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
              .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             return false
@@ -52,7 +52,7 @@ extension ChatModelCapabilitySupport {
         case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .perplexity, .xai, .gemini, .vertexai:
             break
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
+             .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo,
              .zyphra, .meta, .kimiForCoding:
             return false
@@ -115,7 +115,7 @@ extension ChatModelCapabilitySupport {
             return mistralAudioInputModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return geminiAudioInputModelIDs.contains(lowerModelID)
-        case .githubCopilot, .openrouter, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .deepinfra, .together:
+        case .githubCopilot, .openrouter, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .deepinfra, .together, .baseten:
             return compatibleAudioInputModelIDs.contains(lowerModelID)
         case .mimoTokenPlanOpenAI:
             return resolvedModelSettings?.capabilities.contains(.audio) == true

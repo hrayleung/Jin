@@ -46,7 +46,7 @@ extension FireworksAdapter {
                     body["reasoning_effort"] = "none"
                 }
             } else if let effort = reasoning.effort {
-                body["reasoning_effort"] = mapReasoningEffort(effort)
+                body["reasoning_effort"] = mapReasoningEffort(effort, modelID: modelID)
             }
         }
 
@@ -167,8 +167,32 @@ extension FireworksAdapter {
         return "audio/wav"
     }
 
-    private func mapReasoningEffort(_ effort: ReasoningEffort) -> String {
-        mapReasoningEffortNoneDisabled(effort)
+    private func mapReasoningEffort(_ effort: ReasoningEffort, modelID: String) -> String {
+        // Kimi K3 (and K3 Fast) accept low/medium/high/max on Fireworks; preserve `max`
+        // instead of collapsing it to `high` via the shared none-disabled mapper.
+        if isFireworksModelID(modelID, canonicalID: "kimi-k3")
+            || isFireworksKimiK3FastModel(modelID) {
+            switch effort {
+            case .none:
+                return "none"
+            case .minimal, .low:
+                return "low"
+            case .medium:
+                return "medium"
+            case .high, .xhigh:
+                return "high"
+            case .max:
+                return "max"
+            }
+        }
+        return mapReasoningEffortNoneDisabled(effort)
+    }
+
+    private func isFireworksKimiK3FastModel(_ modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        return lower == "accounts/fireworks/routers/kimi-k3-fast"
+            || lower == "fireworks/kimi-k3-fast"
+            || lower.hasSuffix("/kimi-k3-fast")
     }
 
     private func mapDeepSeekV4ProReasoningEffort(_ effort: ReasoningEffort) -> String {

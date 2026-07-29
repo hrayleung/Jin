@@ -23,6 +23,7 @@ enum DefaultProviderSeeds {
             perplexity,
             deepInfra,
             together,
+            baseten,
             xAI,
             deepSeek,
             zhipuCodingPlan,
@@ -198,6 +199,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .together),
             baseURL: ProviderType.together.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .together)
+        )
+    }
+
+    static var baseten: ProviderConfig {
+        ProviderConfig(
+            id: "baseten",
+            name: "Baseten",
+            type: .baseten,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .baseten),
+            baseURL: ProviderType.baseten.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .baseten)
         )
     }
 

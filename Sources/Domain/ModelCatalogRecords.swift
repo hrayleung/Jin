@@ -33,6 +33,7 @@ extension ModelCatalog {
         .mistral: mistralRecords,
         .deepinfra: deepInfraRecords,
         .together: togetherRecords,
+        .baseten: basetenRecords,
         .xai: xAIRecords,
         .deepseek: deepSeekRecords,
         .zhipuCodingPlan: zhipuCodingPlanRecords,

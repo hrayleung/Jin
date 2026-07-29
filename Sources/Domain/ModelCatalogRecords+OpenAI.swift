@@ -337,6 +337,22 @@ extension ModelCatalog {
                contextWindow: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Kimi K3 (models.dev `cloudflare-ai-gateway`, 2026-07-29): 1,048,576 context /
+        // 131,072 output, text+image. Reasoning effort is max-only on the gateway, so
+        // reasoningConfig stays nil (omit shape; endpoint applies max). Compat slug
+        // without the @cf/ Workers AI prefix, matching models.dev.
+        Record(id: "moonshotai/kimi-k3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "@cf/moonshotai/kimi-k3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
 
         // Anthropic
         Record(id: "anthropic/claude-fable-5", displayName: "Claude Fable 5",
@@ -639,6 +655,14 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                maxOutputTokens: 131_072,
                reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Kimi K3 Fast (models.dev `vercel`, 2026-07-29): same 1M/131k window and
+        // vision tags as base K3, with explicit low/high/max reasoning efforts.
+        Record(id: "moonshotai/kimi-k3-fast", displayName: "Kimi K3 Fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: false),
         // Thinking Machines Inkling (verified against ai-gateway.vercel.sh/v1/models,
         // 2026-07-18): the gateway lists 256,000 context AND output plus cached-input

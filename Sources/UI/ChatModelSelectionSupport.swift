@@ -12,6 +12,7 @@ enum ChatModelSelectionSupport {
         "claude-sonnet-4-5-20250929",
     ]
     static let preferredFireworksModelOrder: [String] = [
+        "kimi-k3",
         "kimi-k2p6",
         "qwen3p6-plus",
         "deepseek-v4-pro",
@@ -24,6 +25,7 @@ enum ChatModelSelectionSupport {
         "glm-4p7"
     ]
     static let preferredDeepInfraModelOrder: [String] = [
+        "moonshotai/Kimi-K3",
         "zai-org/GLM-5.2",
         "zai-org/GLM-5.1",
         "Qwen/Qwen3.6-35B-A3B",
@@ -36,6 +38,7 @@ enum ChatModelSelectionSupport {
         "Qwen/Qwen3.5-9B",
     ]
     static let preferredTogetherModelOrder: [String] = [
+        "moonshotai/Kimi-K3",
         "moonshotai/Kimi-K2.5",
         "zai-org/GLM-5.2",
         "zai-org/GLM-5",
@@ -44,6 +47,18 @@ enum ChatModelSelectionSupport {
         "Qwen/Qwen3.5-397B-A17B",
         "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
         "Qwen/Qwen3-Coder-Next-FP8",
+    ]
+    static let preferredBasetenModelOrder: [String] = [
+        "moonshotai/Kimi-K3",
+        "moonshotai/Kimi-K2.7-Code",
+        "moonshotai/Kimi-K2.6",
+        "thinkingmachines/inkling",
+        "deepseek-ai/DeepSeek-V4-Pro",
+        "zai-org/GLM-5.2",
+        "zai-org/GLM-5.2-Fast",
+        "zai-org/GLM-4.7",
+        "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B",
+        "openai/gpt-oss-120b",
     ]
     static let preferredDatabricksModelOrder: [String] = [
         "databricks-claude-sonnet-4-6",
@@ -132,6 +147,13 @@ enum ChatModelSelectionSupport {
             return preferredDeepInfraModelID(in: models)
         case .together:
             for preferredID in preferredTogetherModelOrder {
+                if let modelID = models.first(where: { $0.id == preferredID })?.id {
+                    return modelID
+                }
+            }
+            return nil
+        case .baseten:
+            for preferredID in preferredBasetenModelOrder {
                 if let modelID = models.first(where: { $0.id == preferredID })?.id {
                     return modelID
                 }

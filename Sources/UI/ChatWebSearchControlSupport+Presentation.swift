@@ -40,7 +40,7 @@ extension ChatAuxiliaryControlSupport {
         case .xai:
             return webSearchSourcesLabel(controls: controls)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .anthropic, .claudeManagedAgents,
-             .groq, .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
+             .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
              .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             return "On"
@@ -91,7 +91,7 @@ extension ChatAuxiliaryControlSupport {
         case .anthropic, .claudeManagedAgents, .mimoTokenPlanOpenAI:
             return "On"
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
+             .cohere, .mistral, .deepinfra, .together, .baseten, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
              .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             return "On"
