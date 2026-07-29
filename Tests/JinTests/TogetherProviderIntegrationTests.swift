@@ -32,10 +32,11 @@ final class TogetherProviderIntegrationTests: XCTestCase {
 
         XCTAssertEqual(togetherProvider.id, "together")
         XCTAssertEqual(togetherProvider.baseURL, ProviderType.together.defaultBaseURL)
-        XCTAssertEqual(togetherProvider.models.count, 10)
+        XCTAssertEqual(togetherProvider.models.count, 11)
         XCTAssertEqual(
             togetherProvider.models.map(\.id),
             [
+                "moonshotai/Kimi-K3",
                 "moonshotai/Kimi-K2.5",
                 "thinkingmachines/Inkling",
                 "zai-org/GLM-5.2",
@@ -48,5 +49,11 @@ final class TogetherProviderIntegrationTests: XCTestCase {
                 "Qwen/Qwen3-Coder-Next-FP8",
             ]
         )
+
+        let kimiK3 = ModelCatalog.modelInfo(for: "moonshotai/Kimi-K3", provider: .together)
+        XCTAssertEqual(kimiK3.contextWindow, 1_048_576)
+        XCTAssertEqual(kimiK3.maxOutputTokens, 131_072)
+        XCTAssertTrue(kimiK3.capabilities.contains(.vision))
+        XCTAssertEqual(kimiK3.reasoningConfig?.defaultEffort, .max)
     }
 }

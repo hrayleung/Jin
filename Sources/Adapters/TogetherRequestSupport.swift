@@ -62,6 +62,18 @@ extension TogetherAdapter {
                 for: providerConfig.type,
                 modelID: modelID
             )
+            // Kimi K3 on Together accepts low/high/max (models.dev, 2026-07-29).
+            if modelID.lowercased() == "moonshotai/kimi-k3" {
+                switch effort {
+                case .none, .minimal, .low:
+                    body["reasoning_effort"] = "low"
+                case .medium, .high:
+                    body["reasoning_effort"] = "high"
+                case .xhigh, .max:
+                    body["reasoning_effort"] = "max"
+                }
+                return
+            }
             switch effort {
             case .none, .minimal, .low:
                 body["reasoning_effort"] = "low"

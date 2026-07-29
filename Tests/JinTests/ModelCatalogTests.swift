@@ -1066,6 +1066,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(
             seeded,
             [
+                "moonshotai/Kimi-K3",
                 "zai-org/GLM-5.2",
                 "zai-org/GLM-5.1",
                 "Qwen/Qwen3.6-35B-A3B",
@@ -1081,6 +1082,12 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertFalse(seeded.contains("moonshotai/Kimi-K2-Instruct-0905"))
         XCTAssertFalse(seeded.contains("deepseek-ai/DeepSeek-V4-Flash"))
         XCTAssertFalse(seeded.contains("deepseek-ai/DeepSeek-V4-Pro"))
+
+        let kimiK3 = ModelCatalog.modelInfo(for: "moonshotai/Kimi-K3", provider: .deepinfra)
+        XCTAssertEqual(kimiK3.contextWindow, 1_048_576)
+        XCTAssertEqual(kimiK3.maxOutputTokens, 131_072)
+        XCTAssertTrue(kimiK3.capabilities.contains(.vision))
+        XCTAssertEqual(kimiK3.reasoningConfig?.defaultEffort, .max)
     }
 
     func testUnknownTogetherModelUsesConservativeFallback() {
@@ -1235,10 +1242,11 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(unknown.reasoningConfig)
     }
 
-    func testFireworksSeededModelsPreferExactKimiK26Default() throws {
+    func testFireworksSeededModelsPreferExactKimiK3Default() throws {
         let seeded = ModelCatalog.seededModels(for: .fireworks).map(\.id)
 
-        XCTAssertEqual(seeded.first, "fireworks/kimi-k2p6")
+        XCTAssertEqual(seeded.first, "accounts/fireworks/models/kimi-k3")
+        XCTAssertTrue(seeded.contains("fireworks/kimi-k2p6"))
         XCTAssertTrue(seeded.contains("fireworks/qwen3p6-plus"))
         XCTAssertTrue(seeded.contains("accounts/fireworks/models/deepseek-v4-pro"))
         XCTAssertTrue(seeded.contains("fireworks/deepseek-v3p2"))
@@ -1246,10 +1254,19 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(seeded.contains("fireworks/glm-5"))
         XCTAssertTrue(seeded.contains("fireworks/minimax-m2p5"))
         XCTAssertFalse(seeded.contains("accounts/fireworks/models/kimi-k2p6"))
+        // Short alias and fast router stay catalog-only (not seeded).
+        XCTAssertFalse(seeded.contains("fireworks/kimi-k3"))
+        XCTAssertFalse(seeded.contains("accounts/fireworks/routers/kimi-k3-fast"))
 
         let v4ProIndex = try XCTUnwrap(seeded.firstIndex(of: "accounts/fireworks/models/deepseek-v4-pro"))
         let v32Index = try XCTUnwrap(seeded.firstIndex(of: "fireworks/deepseek-v3p2"))
         XCTAssertLessThan(v4ProIndex, v32Index)
+
+        let kimiK3 = ModelCatalog.modelInfo(for: "accounts/fireworks/models/kimi-k3", provider: .fireworks)
+        XCTAssertEqual(kimiK3.contextWindow, 1_048_576)
+        XCTAssertEqual(kimiK3.maxOutputTokens, 131_072)
+        XCTAssertTrue(kimiK3.capabilities.contains(.vision))
+        XCTAssertEqual(kimiK3.reasoningConfig?.defaultEffort, .max)
     }
 
     func testFireworksCatalogMetadataUsesExactIDsAndConservativeFallback() {

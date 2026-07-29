@@ -180,7 +180,7 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                 case .claudeManagedAgents:
                     EmptyView()
                 case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-                     .cohere, .mistral, .deepinfra, .together, .gemini, .vertexai, .deepseek,
+                     .cohere, .mistral, .deepinfra, .together, .baseten, .gemini, .vertexai, .deepseek,
                      .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
                      .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
                     EmptyView()

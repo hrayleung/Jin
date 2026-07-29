@@ -149,6 +149,18 @@ extension FireworksAdapter {
         "qwen3p6-plus": FireworksFallbackSpec(name: "Qwen3.6 Plus", contextWindow: 128_000, extraCapabilities: [.vision]),
         "deepseek-v3p2": FireworksFallbackSpec(name: "DeepSeek V3.2", contextWindow: 163_800),
         "kimi-k2-instruct-0905": FireworksFallbackSpec(name: "Kimi K2 Instruct 0905", contextWindow: 262_100),
+        "kimi-k3": FireworksFallbackSpec(
+            name: "Kimi K3",
+            contextWindow: 1_048_576,
+            extraCapabilities: [.vision],
+            reasoning: true
+        ),
+        "kimi-k3-fast": FireworksFallbackSpec(
+            name: "Kimi K3 Fast",
+            contextWindow: 1_048_576,
+            extraCapabilities: [.vision],
+            reasoning: true
+        ),
         "kimi-k2p6": FireworksFallbackSpec(name: "Kimi K2.6", contextWindow: 262_100, extraCapabilities: [.vision], reasoning: true),
         "kimi-k2p5": FireworksFallbackSpec(name: "Kimi K2.5", contextWindow: 262_100, extraCapabilities: [.vision], reasoning: true),
         "qwen3-235b-a22b": FireworksFallbackSpec(name: "Qwen3 235B A22B", contextWindow: 131_100),

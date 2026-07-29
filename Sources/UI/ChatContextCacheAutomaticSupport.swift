@@ -48,7 +48,7 @@ extension ChatAuxiliaryControlSupport {
         case .cloudflareAIGateway:
             return ContextCacheControls(mode: .implicit, ttl: .minutes5)
         case .githubCopilot, .openaiCompatible, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
-             .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks,
+             .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks,
              .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .zyphra, .meta:
             return nil
         }

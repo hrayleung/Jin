@@ -273,6 +273,8 @@ enum LobeProviderIconCatalog {
             return "DeepInfra"
         case .together:
             return "Together"
+        case .baseten:
+            return "Baseten"
         case .xai:
             return "XAI"
         case .deepseek:

@@ -157,6 +157,16 @@ extension ModelCatalog {
 
     static let deepInfraRecords: [Record] = [
         // Seeded
+        // Kimi K3 (live on DeepInfra serverless; verified against models.dev `deepinfra`
+        // and Moonshot K3 docs, 2026-07-29): 1,048,576 context / 131,072 output,
+        // text+image. Reasoning efforts low/high/max (default max). Video is not claimed
+        // — OpenAI-compatible message translation has no video part builder here.
+        Record(id: "moonshotai/Kimi-K3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.2", displayName: "GLM-5.2",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,
@@ -289,6 +299,17 @@ extension ModelCatalog {
 
     static let togetherRecords: [Record] = [
         // Seeded
+        // Kimi K3 (Together serverless day-0; verified against together.ai/models/kimi-k3
+        // and models.dev `togetherai`, 2026-07-29): 1,048,576 context / 131,072 output,
+        // text+image (models.dev also lists video — not claimed: message translator has no
+        // video part builder). Reasoning efforts low/high/max with top-level
+        // `reasoning_effort`; default max. Cached-input pricing → promptCaching.
+        Record(id: "moonshotai/Kimi-K3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
         Record(id: "moonshotai/Kimi-K2.5", displayName: "Kimi K2.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 262_144,
@@ -684,6 +705,29 @@ extension ModelCatalog {
 
     static let fireworksRecords: [Record] = [
         // Seeded
+        // Kimi K3 (Fireworks serverless; verified against fireworks.ai/models/fireworks/kimi-k3
+        // and models.dev `fireworks-ai`, 2026-07-29): 1,048,576 context / 131,072 output,
+        // text+image. Reasoning: toggle + effort low/medium/high/max via top-level
+        // `reasoning_effort`. Seed the accounts/ path (canonical serverless ID) plus the
+        // short fireworks/ alias used elsewhere in this catalog.
+        Record(id: "accounts/fireworks/models/kimi-k3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "fireworks/kimi-k3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "accounts/fireworks/routers/kimi-k3-fast", displayName: "Kimi K3 Fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: false),
         Record(id: "fireworks/kimi-k2p6", displayName: "Kimi K2.6",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 262_100,
@@ -1355,5 +1399,100 @@ extension ModelCatalog {
                contextWindow: 128_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+    ]
+
+    // MARK: Baseten Model APIs
+
+    // Official Model APIs catalog (docs.baseten.co/inference/model-apis/overview +
+    // reasoning/vision pages, verified 2026-07-29). Context/output limits are Baseten's
+    // live serving caps (not always the model-native maximum). Automatic KV-cache
+    // discount → promptCaching on all seeded models. Reasoning wire shapes differ by
+    // family — see BasetenRequestSupport.
+    static let basetenRecords: [Record] = [
+        // Seeded — Kimi K3 first so it is the default preferred model.
+        Record(id: "moonshotai/Kimi-K3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "moonshotai/Kimi-K2.7-Code", displayName: "Kimi K2.7 Code",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "moonshotai/Kimi-K2.6", displayName: "Kimi K2.6",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "thinkingmachines/inkling", displayName: "Inkling",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "deepseek-ai/DeepSeek-V4-Pro", displayName: "DeepSeek V4 Pro",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "zai-org/GLM-5.2", displayName: "GLM 5.2",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "zai-org/GLM-5.2-Fast", displayName: "GLM 5.2 Fast",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 524_288,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "zai-org/GLM-4.7", displayName: "GLM 4.7",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 200_000,
+               maxOutputTokens: 200_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B", displayName: "Nemotron Ultra",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 202_000,
+               maxOutputTokens: 202_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "openai/gpt-oss-120b", displayName: "OpenAI GPT 120B",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 128_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+
+        // Additional Model API IDs returned by live GET /v1/models (verified against
+        // the Baseten account model list + models.dev / OpenRouter metadata, 2026-07-29).
+        // Not on the published 10-model overview table, so they are catalog-enriched
+        // rather than first-launch seeds — full support when the user adds them.
+        //
+        // Mercury 2 (Inception dLLM): 128k context / 50k output, text-only, tool calling,
+        // tunable reasoning via reasoning_effort low/medium/high (OpenRouter also lists
+        // "none"). Cached-input pricing on OpenRouter → promptCaching.
+        Record(id: "inception/mercury-2", displayName: "Mercury 2",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 128_000,
+               maxOutputTokens: 50_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // SID-1 (SID AI agentic retrieval): specialized search/retrieval model exposed
+        // on Baseten Model APIs as `sid/sid-1`. Baseten has not published a dedicated
+        // context/effort matrix for this slug — keep text + tools only, conservative
+        // 128k window, no reasoning/vision claims until docs confirm them.
+        Record(id: "sid/sid-1", displayName: "SID-1",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
     ]
 }

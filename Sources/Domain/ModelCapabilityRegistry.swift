@@ -426,9 +426,51 @@ enum ModelCapabilityRegistry {
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
     ]
+    /// Kimi K3 on Together: low/high/max (models.dev togetherai, 2026-07-29).
+    private static let togetherKimiK3ReasoningEffortModelIDs: Set<String> = [
+        "moonshotai/kimi-k3",
+    ]
     private static let deepInfraDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-flash",
         "deepseek-ai/deepseek-v4-pro",
+    ]
+    /// Kimi K3 on DeepInfra: low/high/max (models.dev deepinfra, 2026-07-29).
+    private static let deepInfraKimiK3ReasoningEffortModelIDs: Set<String> = [
+        "moonshotai/kimi-k3",
+    ]
+    /// Fireworks Kimi K3 IDs (canonical + accounts paths + fast router).
+    private static let fireworksKimiK3ReasoningEffortModelIDs: Set<String> = [
+        "kimi-k3",
+        "fireworks/kimi-k3",
+        "accounts/fireworks/models/kimi-k3",
+        "accounts/fireworks/routers/kimi-k3-fast",
+        "fireworks/kimi-k3-fast",
+    ]
+    /// Vercel Kimi K3 Fast: low/high/max (models.dev vercel, 2026-07-29).
+    private static let vercelKimiK3FastReasoningEffortModelIDs: Set<String> = [
+        "moonshotai/kimi-k3-fast",
+    ]
+    /// Baseten Kimi K3: none/low/high/max (docs.baseten.co reasoning, 2026-07-29).
+    private static let basetenKimiK3ReasoningEffortModelIDs: Set<String> = [
+        "moonshotai/kimi-k3",
+    ]
+    /// Baseten Inkling: none/minimal/low/medium/high/xhigh/max.
+    private static let basetenInklingReasoningEffortModelIDs: Set<String> = [
+        "thinkingmachines/inkling",
+    ]
+    /// Baseten DeepSeek V4 Pro + GPT-OSS: wide effort band including none.
+    private static let basetenWideEffortModelIDs: Set<String> = [
+        "deepseek-ai/deepseek-v4-pro",
+        "openai/gpt-oss-120b",
+    ]
+    /// Baseten GLM 5.2 family: none/high/max only.
+    private static let basetenGLM52EffortModelIDs: Set<String> = [
+        "zai-org/glm-5.2",
+        "zai-org/glm-5.2-fast",
+    ]
+    /// Baseten Mercury 2: none/low/medium/high (Inception + OpenRouter, 2026-07-29).
+    private static let basetenMercury2ReasoningEffortModelIDs: Set<String> = [
+        "inception/mercury-2",
     ]
     private static let xAIMultiAgentReasoningEffortModelIDs: Set<String> = [
         "grok-4.20-multi-agent",
@@ -488,7 +530,7 @@ enum ModelCapabilityRegistry {
         case .gemini, .vertexai:
             return .gemini
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-             .groq, .cohere, .mistral, .deepinfra, .together, .xai, .deepseek,
+             .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .xai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .perplexity, .morphllm, .opencodeGo,
              .zyphra, .meta, .none:
             return .openAICompatible
@@ -519,6 +561,41 @@ enum ModelCapabilityRegistry {
             || openRouterMinimalMaxEffortModelIDs.contains(lowerModelID)
             || openRouterFullLadderEffortModelIDs.contains(lowerModelID) {
             return true
+        }
+
+        // Hosted Kimi K3 / Baseten effort bands include an explicit `max` wire value
+        // (Together, DeepInfra, Fireworks, Vercel Fast, Baseten — verified 2026-07-29).
+        // Branch by provider first so one provider's ID set cannot enable max on another
+        // (e.g. Baseten's Inkling ID must not grant max on Together).
+        // Do not call supportedReasoningEfforts here (recursion).
+        switch providerType {
+        case .together:
+            if togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID) {
+                return true
+            }
+        case .deepinfra:
+            if deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID) {
+                return true
+            }
+        case .fireworks:
+            if fireworksKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+                || fireworksCanonicalModelID(lowerModelID)
+                    .map({ fireworksKimiK3ReasoningEffortModelIDs.contains($0) }) == true {
+                return true
+            }
+        case .vercelAIGateway:
+            if vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID) {
+                return true
+            }
+        case .baseten:
+            if basetenKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+                || basetenInklingReasoningEffortModelIDs.contains(lowerModelID)
+                || basetenWideEffortModelIDs.contains(lowerModelID)
+                || basetenGLM52EffortModelIDs.contains(lowerModelID) {
+                return true
+            }
+        default:
+            break
         }
 
         let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: lowerModelID)
@@ -595,8 +672,27 @@ enum ModelCapabilityRegistry {
             return [.low, .high]
         case .together where togetherDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
+        case .together where togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
         case .deepinfra where deepInfraDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
+        case .deepinfra where deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
+        case .fireworks where fireworksKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+            || fireworksCanonicalModelID(lowerModelID).map({ fireworksKimiK3ReasoningEffortModelIDs.contains($0) }) == true:
+            return [.none, .low, .medium, .high, .max]
+        case .vercelAIGateway where vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
+        case .baseten where basetenKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.none, .low, .high, .max]
+        case .baseten where basetenInklingReasoningEffortModelIDs.contains(lowerModelID):
+            return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
+        case .baseten where basetenWideEffortModelIDs.contains(lowerModelID):
+            return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
+        case .baseten where basetenGLM52EffortModelIDs.contains(lowerModelID):
+            return [.none, .high, .max]
+        case .baseten where basetenMercury2ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.none, .low, .medium, .high]
         case .xai where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
             // Multi-agent: low/medium → 4 agents, high/xhigh → 16 agents.
             return [.low, .medium, .high, .xhigh]
@@ -760,7 +856,7 @@ enum ModelCapabilityRegistry {
         case .mimoTokenPlanOpenAI:
             return MiMoModelIDs.tokenPlanExactModelIDs.contains(lowerModelID)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
-             .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
+             .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
@@ -991,7 +1087,7 @@ enum ModelCapabilityRegistry {
             // Vertex AI `tools.codeExecution`
             return supportsGoogleCodeExecution(lowerModelID: lowerModelID, providerType: .vertexai)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
-             .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together,
+             .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .baseten,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .databricks, .morphllm,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             return false
@@ -1024,7 +1120,7 @@ enum ModelCapabilityRegistry {
             return supportsGoogleMapsGrounding(lowerModelID: lowerModelID, providerType: .vertexai)
         case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .githubCopilot,
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
-             .groq, .cohere, .mistral, .deepinfra, .together, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
+             .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo,
              .zyphra, .meta, .kimiForCoding, .none:
             return false
