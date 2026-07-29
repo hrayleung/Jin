@@ -957,6 +957,16 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     }
 
     func scrollToBottom(animated: Bool, force: Bool) {
+        if force {
+            // Chevron / conversation-open beats an unlanded minimap jump.
+            minimapModel?.cancelPendingJump()
+        } else if minimapModel?.hasPendingJump == true {
+            // The user asked to go somewhere specific and the rows carrying it
+            // are still arriving. Widening the render window is a wholesale row
+            // change, so the pinned re-anchor would fire first and flash the
+            // viewport to the newest message before the jump lands.
+            return
+        }
         guard force || shouldMaintainBottom else { return }
         guard !rows.isEmpty else { return }
         view.layoutSubtreeIfNeeded()
