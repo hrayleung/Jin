@@ -561,22 +561,37 @@ enum ModelCapabilityRegistry {
 
         // Hosted Kimi K3 / Baseten effort bands include an explicit `max` wire value
         // (Together, DeepInfra, Fireworks, Vercel Fast, Baseten — verified 2026-07-29).
-        // Check exact IDs only — do not call supportedReasoningEfforts here (recursion).
-        if togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
-            || deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
-            || fireworksKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
-            || fireworksCanonicalModelID(lowerModelID).map({ fireworksKimiK3ReasoningEffortModelIDs.contains($0) }) == true
-            || vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID)
-            || basetenKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
-            || basetenInklingReasoningEffortModelIDs.contains(lowerModelID)
-            || basetenWideEffortModelIDs.contains(lowerModelID)
-            || basetenGLM52EffortModelIDs.contains(lowerModelID) {
-            switch providerType {
-            case .together, .deepinfra, .fireworks, .vercelAIGateway, .baseten:
+        // Branch by provider first so one provider's ID set cannot enable max on another
+        // (e.g. Baseten's Inkling ID must not grant max on Together).
+        // Do not call supportedReasoningEfforts here (recursion).
+        switch providerType {
+        case .together:
+            if togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
-            default:
-                break
             }
+        case .deepinfra:
+            if deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID) {
+                return true
+            }
+        case .fireworks:
+            if fireworksKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+                || fireworksCanonicalModelID(lowerModelID)
+                    .map({ fireworksKimiK3ReasoningEffortModelIDs.contains($0) }) == true {
+                return true
+            }
+        case .vercelAIGateway:
+            if vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID) {
+                return true
+            }
+        case .baseten:
+            if basetenKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+                || basetenInklingReasoningEffortModelIDs.contains(lowerModelID)
+                || basetenWideEffortModelIDs.contains(lowerModelID)
+                || basetenGLM52EffortModelIDs.contains(lowerModelID) {
+                return true
+            }
+        default:
+            break
         }
 
         let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: lowerModelID)

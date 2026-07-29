@@ -337,17 +337,11 @@ extension ModelCatalog {
                contextWindow: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
-        // Kimi K3 (models.dev `cloudflare-ai-gateway`, 2026-07-29): 1,048,576 context /
-        // 131,072 output, text+image. Reasoning effort is max-only on the gateway, so
-        // reasoningConfig stays nil (omit shape; endpoint applies max). Compat slug
-        // without the @cf/ Workers AI prefix, matching models.dev.
+        // Kimi K3 (models.dev `cloudflare-ai-gateway` + Cloudflare Workers AI catalog,
+        // 2026-07-29): 1,048,576 context / 131,072 output, text+image. Documented model
+        // ID is `moonshotai/kimi-k3` (no `@cf/` prefix — unlike K2.6's Workers AI alias).
+        // Reasoning effort is max-only on the gateway, so reasoningConfig stays nil.
         Record(id: "moonshotai/kimi-k3", displayName: "Kimi K3",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 131_072,
-               reasoningConfig: nil,
-               isFullySupported: true, isSeeded: false),
-        Record(id: "@cf/moonshotai/kimi-k3", displayName: "Kimi K3",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,

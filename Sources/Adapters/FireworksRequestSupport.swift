@@ -189,10 +189,10 @@ extension FireworksAdapter {
     }
 
     private func isFireworksKimiK3FastModel(_ modelID: String) -> Bool {
+        // Exact IDs only — no suffix expansion for undocumented namespaces.
         let lower = modelID.lowercased()
         return lower == "accounts/fireworks/routers/kimi-k3-fast"
             || lower == "fireworks/kimi-k3-fast"
-            || lower.hasSuffix("/kimi-k3-fast")
     }
 
     private func mapDeepSeekV4ProReasoningEffort(_ effort: ReasoningEffort) -> String {

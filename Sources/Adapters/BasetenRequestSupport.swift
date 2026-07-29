@@ -97,22 +97,8 @@ extension BasetenAdapter {
     }
 
     private func mapEffortWireValue(_ effort: ReasoningEffort) -> String {
-        switch effort {
-        case .none:
-            return "none"
-        case .minimal:
-            return "minimal"
-        case .low:
-            return "low"
-        case .medium:
-            return "medium"
-        case .high:
-            return "high"
-        case .xhigh:
-            return "xhigh"
-        case .max:
-            return "max"
-        }
+        // ReasoningEffort raw values are the lowercase API labels (none…max).
+        effort.rawValue
     }
 
     private func mergeChatTemplateArgs(into body: inout [String: Any], enableThinking: Bool) {

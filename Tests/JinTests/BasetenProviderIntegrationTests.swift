@@ -97,6 +97,40 @@ final class BasetenProviderIntegrationTests: XCTestCase {
         XCTFail("Expected Kimi K3 in preferred Baseten order")
     }
 
+    func testMaxEffortAllowlistsAreProviderScoped() {
+        // Baseten-only IDs must not enable max effort on other providers.
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .baseten,
+                modelID: "thinkingmachines/inkling"
+            )
+        )
+        XCTAssertFalse(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .together,
+                modelID: "thinkingmachines/inkling"
+            )
+        )
+        XCTAssertFalse(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .together,
+                modelID: "deepseek-ai/DeepSeek-V4-Pro"
+            )
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .together,
+                modelID: "moonshotai/Kimi-K3"
+            )
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .baseten,
+                modelID: "moonshotai/Kimi-K3"
+            )
+        )
+    }
+
     func testKimiK3HostedCatalogsOnExistingProviders() {
         let together = ModelCatalog.modelInfo(for: "moonshotai/Kimi-K3", provider: .together)
         XCTAssertEqual(together.contextWindow, 1_048_576)
