@@ -9,8 +9,9 @@ struct CodeExecutionTimelineHeaderRow: View {
 
     var body: some View {
         Button {
-            withAnimation(.spring(duration: 0.25, bounce: 0)) {
-                isExpanded.toggle()
+            let expanding = !isExpanded
+            withAnimation(JinMotion.disclosure(expanding: expanding)) {
+                isExpanded = expanding
             }
         } label: {
             headerContent
@@ -66,9 +67,11 @@ struct CodeExecutionTimelineHeaderRow: View {
     }
 
     private var disclosureIndicator: some View {
-        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(JinSemanticColor.textTertiary)
+        JinDisclosureChevron(
+            isExpanded: isExpanded,
+            font: .caption2.weight(.semibold),
+            foregroundStyle: JinSemanticColor.textTertiary
+        )
     }
 }
 

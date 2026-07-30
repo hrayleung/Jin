@@ -10,6 +10,9 @@ struct ToolCallView: View {
     let showsServerTag: Bool
 
     @State private var isExpanded = false
+    /// Expanded args/result payload is lazy-mounted after first expand so
+    /// collapsed tool rows don't pay full JSON/result layout cost up front.
+    @State private var hasEverExpanded = false
     @State private var isRunningPulse = false
 
     init(
@@ -45,30 +48,30 @@ struct ToolCallView: View {
                     statusLabel: statusLabel(for: resolvedStatus),
                     durationText: durationText,
                     statusStyle: statusStyle(for: resolvedStatus),
-                    isExpanded: $isExpanded
+                    isExpanded: expansionBinding
                 )
 
                 if !isExpanded, let argumentSummary {
                     ToolCallArgumentSummaryView(argumentSummary: argumentSummary)
                 }
 
-                VStack(spacing: 0) {
-                    if isExpanded {
+                if hasEverExpanded {
+                    JinCollapsibleContent(isExpanded: isExpanded) {
                         ToolCallExpandedContentView(
                             formattedArgumentsJSON: formattedArgumentsJSON,
                             toolResult: toolResult,
                             signature: toolCall.signature
                         )
-                            .padding(.top, JinSpacing.xSmall)
+                        .padding(.top, JinSpacing.xSmall)
                     }
                 }
-                .clipped()
             }
             .padding(.horizontal, JinSpacing.medium)
             .padding(.vertical, JinSpacing.small)
             .jinSurface(.subtle, cornerRadius: JinRadius.small)
         }
-        .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
+        // Status pulse only — expand height is driven by `withAnimation` on
+        // the header button so we don't double-spring the panel.
         .animation(.spring(duration: 0.24, bounce: 0), value: resolvedStatus)
         .onAppear {
             updatePulseAnimation(for: resolvedStatus)
@@ -79,6 +82,18 @@ struct ToolCallView: View {
     }
 
     // MARK: - Computed Properties
+
+    private var expansionBinding: Binding<Bool> {
+        Binding(
+            get: { isExpanded },
+            set: { newValue in
+                if newValue {
+                    hasEverExpanded = true
+                }
+                isExpanded = newValue
+            }
+        )
+    }
 
     private var formattedArgumentsJSON: String? {
         ToolCallViewSupport.formattedArgumentsJSON(for: toolCall.arguments)

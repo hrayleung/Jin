@@ -29,25 +29,60 @@ struct GoogleMapsResultsView: View {
 
     @Environment(\.googleMapsLocationBias) var locationBias
     @State var isExpanded = false
+    /// Map embed is expensive (WKWebView). Mount once on first expand, then
+    /// keep it and drive open/close through `JinCollapsibleContent` so the
+    /// webview isn't torn down and rebuilt every toggle.
+    @State var hasEverExpanded = false
+    /// Bumped on every toggle so a deferred first-expand `Task` cannot
+    /// reopen the panel after a later collapse.
+    @State var expandGeneration = 0
     @State var showAllPlaces = false
 
     var body: some View {
         let content = extractContent()
 
         if !content.places.isEmpty || !content.queries.isEmpty {
-            VStack(alignment: .leading, spacing: isExpanded ? JinSpacing.small : 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 collapsedRow(content: content)
 
-                if isExpanded {
-                    expandedPanel(content: content)
-                        .padding(.top, 2)
-                        .transition(.opacity)
+                if hasEverExpanded {
+                    JinCollapsibleContent(isExpanded: isExpanded) {
+                        expandedPanel(content: content)
+                            .padding(.top, JinSpacing.small + 2)
+                    }
                 }
             }
             .padding(JinSpacing.small)
             .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
             .clipped()
-            .animation(.easeInOut(duration: 0.2), value: isExpanded)
+        }
+    }
+
+    func toggleExpanded() {
+        expandGeneration &+= 1
+        let generation = expandGeneration
+
+        if isExpanded {
+            withAnimation(JinMotion.disclosure(expanding: false)) {
+                isExpanded = false
+            }
+            return
+        }
+
+        if hasEverExpanded {
+            withAnimation(JinMotion.disclosure(expanding: true)) {
+                isExpanded = true
+            }
+            return
+        }
+
+        hasEverExpanded = true
+        Task { @MainActor in
+            await Task.yield()
+            guard generation == expandGeneration else { return }
+            withAnimation(JinMotion.disclosure(expanding: true)) {
+                isExpanded = true
+            }
         }
     }
 }

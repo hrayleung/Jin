@@ -7,17 +7,20 @@ struct CodeExecutionTimelineView: View {
     let isStreaming: Bool
 
     @State private var isExpanded: Bool
+    /// Expanded execution details stay unmounted until first expand when the
+    /// display mode starts collapsed.
+    @State private var hasEverExpanded: Bool
 
     init(activities: [CodeExecutionActivity], isStreaming: Bool) {
         self.activities = activities
         self.isStreaming = isStreaming
         let mode = Self.resolveDisplayMode()
-        _isExpanded = State(
-            initialValue: CodeExecutionTimelineSupport.initialExpansion(
-                isStreaming: isStreaming,
-                displayMode: mode
-            )
+        let initiallyExpanded = CodeExecutionTimelineSupport.initialExpansion(
+            isStreaming: isStreaming,
+            displayMode: mode
         )
+        _isExpanded = State(initialValue: initiallyExpanded)
+        _hasEverExpanded = State(initialValue: initiallyExpanded)
     }
 
     var body: some View {
@@ -25,16 +28,14 @@ struct CodeExecutionTimelineView: View {
             VStack(alignment: .leading, spacing: 0) {
                 headerRow
 
-                VStack(spacing: 0) {
-                    if isExpanded {
+                if hasEverExpanded {
+                    JinCollapsibleContent(isExpanded: isExpanded) {
                         expandedContent
-                            .transition(.move(edge: .top).combined(with: .opacity))
                     }
                 }
-                .clipped()
             }
             .clipped()
-            .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
+            // Height animation is driven only by `withAnimation` on toggle.
             .animation(.easeInOut(duration: 0.2), value: animationSignature)
             .onChange(of: isStreaming) { _, streaming in
                 let mode = Self.resolveDisplayMode()
@@ -42,7 +43,10 @@ struct CodeExecutionTimelineView: View {
                     isStreaming: streaming,
                     displayMode: mode
                 ) {
-                    withAnimation(.spring(duration: 0.25, bounce: 0)) {
+                    if shouldExpand {
+                        hasEverExpanded = true
+                    }
+                    withAnimation(JinMotion.disclosure(expanding: shouldExpand)) {
                         isExpanded = shouldExpand
                     }
                 }
@@ -63,7 +67,19 @@ struct CodeExecutionTimelineView: View {
             isStreaming: isStreaming,
             hasActiveExecution: hasActiveExecution,
             compactStatus: compactStatus,
-            isExpanded: $isExpanded
+            isExpanded: expansionBinding
+        )
+    }
+
+    private var expansionBinding: Binding<Bool> {
+        Binding(
+            get: { isExpanded },
+            set: { newValue in
+                if newValue {
+                    hasEverExpanded = true
+                }
+                isExpanded = newValue
+            }
         )
     }
 

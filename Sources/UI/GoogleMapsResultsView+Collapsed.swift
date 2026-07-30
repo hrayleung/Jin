@@ -3,9 +3,7 @@ import SwiftUI
 extension GoogleMapsResultsView {
     func collapsedRow(content: MapsContent) -> some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                isExpanded.toggle()
-            }
+            toggleExpanded()
         } label: {
             HStack(spacing: JinSpacing.small) {
                 Image(systemName: "mappin.and.ellipse")
@@ -28,15 +26,23 @@ extension GoogleMapsResultsView {
                         .scaleEffect(0.5)
                 }
 
-                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                // Maps previously used up/down chevrons on the trailing edge;
+                // rotate the shared right-chevron so expand motion matches
+                // web-search / thinking disclosures.
+                JinDisclosureChevron(
+                    isExpanded: isExpanded,
+                    font: .caption2.weight(.semibold),
+                    foregroundStyle: Color.secondary
+                )
             }
             .padding(.horizontal, JinSpacing.small)
             .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(Text("Places"))
+        .accessibilityValue(Text(isExpanded ? "Expanded" : "Collapsed"))
+        .accessibilityHint(Text(isExpanded ? "Hides map results" : "Shows map results"))
     }
 
     func placeNamePills(places: [MapsPlace]) -> some View {

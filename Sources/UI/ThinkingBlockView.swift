@@ -24,17 +24,19 @@ struct ThinkingBlockView: View {
                 isExpanded: isExpanded,
                 copyText: thinking.text
             ) {
-                withAnimation(.spring(duration: 0.25, bounce: 0.0)) {
-                    isExpanded.toggle()
+                let expanding = !isExpanded
+                withAnimation(JinMotion.disclosure(expanding: expanding)) {
+                    isExpanded = expanding
                 }
             }
 
-            VStack(spacing: 0) {
-                if isExpanded {
-                    ThinkingBlockExpandedTextContent(text: thinking.text)
-                }
+            // Always mounted — thinking content is plain text (no favicon
+            // .task cost), so keep it in-tree and drive height through the
+            // animatable clip for a continuous spring instead of
+            // insert/remove transitions that reflow the timeline row.
+            JinCollapsibleContent(isExpanded: isExpanded) {
+                ThinkingBlockExpandedTextContent(text: thinking.text)
             }
-            .clipped()
         }
     }
 
@@ -89,20 +91,18 @@ struct StreamingThinkingBlockView: View {
                 isExpanded: isExpanded,
                 copyText: chunks.joined()
             ) {
-                withAnimation(.spring(duration: 0.25, bounce: 0.0)) {
-                    isExpanded.toggle()
+                let expanding = !isExpanded
+                withAnimation(JinMotion.disclosure(expanding: expanding)) {
+                    isExpanded = expanding
                 }
             }
 
-            VStack(spacing: 0) {
-                if isExpanded {
-                    StreamingThinkingBlockExpandedContent(
-                        chunks: chunks,
-                        codeFont: codeFont
-                    )
-                }
+            JinCollapsibleContent(isExpanded: isExpanded) {
+                StreamingThinkingBlockExpandedContent(
+                    chunks: chunks,
+                    codeFont: codeFont
+                )
             }
-            .clipped()
         }
         .onChange(of: isThinkingComplete) { _, complete in
             let mode = Self.resolveDisplayMode()
@@ -110,7 +110,7 @@ struct StreamingThinkingBlockView: View {
                 isComplete: complete,
                 displayMode: mode
             ) {
-                withAnimation(.spring(duration: 0.25, bounce: 0.0)) {
+                withAnimation(JinMotion.disclosure(expanding: shouldExpand)) {
                     isExpanded = shouldExpand
                 }
             }
