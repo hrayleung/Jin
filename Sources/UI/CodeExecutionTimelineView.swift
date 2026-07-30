@@ -7,17 +7,20 @@ struct CodeExecutionTimelineView: View {
     let isStreaming: Bool
 
     @State private var isExpanded: Bool
+    /// Expanded execution details stay unmounted until first expand when the
+    /// display mode starts collapsed.
+    @State private var hasEverExpanded: Bool
 
     init(activities: [CodeExecutionActivity], isStreaming: Bool) {
         self.activities = activities
         self.isStreaming = isStreaming
         let mode = Self.resolveDisplayMode()
-        _isExpanded = State(
-            initialValue: CodeExecutionTimelineSupport.initialExpansion(
-                isStreaming: isStreaming,
-                displayMode: mode
-            )
+        let initiallyExpanded = CodeExecutionTimelineSupport.initialExpansion(
+            isStreaming: isStreaming,
+            displayMode: mode
         )
+        _isExpanded = State(initialValue: initiallyExpanded)
+        _hasEverExpanded = State(initialValue: initiallyExpanded)
     }
 
     var body: some View {
@@ -25,8 +28,10 @@ struct CodeExecutionTimelineView: View {
             VStack(alignment: .leading, spacing: 0) {
                 headerRow
 
-                JinCollapsibleContent(isExpanded: isExpanded) {
-                    expandedContent
+                if hasEverExpanded {
+                    JinCollapsibleContent(isExpanded: isExpanded) {
+                        expandedContent
+                    }
                 }
             }
             .clipped()
@@ -38,6 +43,9 @@ struct CodeExecutionTimelineView: View {
                     isStreaming: streaming,
                     displayMode: mode
                 ) {
+                    if shouldExpand {
+                        hasEverExpanded = true
+                    }
                     withAnimation(JinMotion.disclosure(expanding: shouldExpand)) {
                         isExpanded = shouldExpand
                     }
@@ -59,7 +67,19 @@ struct CodeExecutionTimelineView: View {
             isStreaming: isStreaming,
             hasActiveExecution: hasActiveExecution,
             compactStatus: compactStatus,
-            isExpanded: $isExpanded
+            isExpanded: expansionBinding
+        )
+    }
+
+    private var expansionBinding: Binding<Bool> {
+        Binding(
+            get: { isExpanded },
+            set: { newValue in
+                if newValue {
+                    hasEverExpanded = true
+                }
+                isExpanded = newValue
+            }
         )
     }
 

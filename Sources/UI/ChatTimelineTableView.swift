@@ -317,9 +317,12 @@ final class ChatTimelineHostingCell: NSTableCellView {
     }
 
     private func scheduleHeightFlush(for identity: String) {
+        // Coalesce to the next main-actor turn so multiple layout invalidations
+        // in one frame publish a single height (latest wins).
         guard !heightFlushScheduled else { return }
         heightFlushScheduled = true
-        DispatchQueue.main.async { [weak self] in
+        Task { @MainActor [weak self] in
+            await Task.yield()
             guard let self else { return }
             self.heightFlushScheduled = false
             guard self.currentIdentity == identity,
@@ -386,6 +389,11 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// disclosure animation streams (many updates in a short window) so we
     /// skip scroll-anchor compensation that would fight the row motion.
     private var lastHeightCommitUptime: [String: TimeInterval] = [:]
+    /// While true, `documentFrameDidChange` must not re-pin — otherwise
+    /// `noteHeightOfRows` during a disclosure stream fights the animation
+    /// via scroll-to-bottom every frame. Cleared when the trailing pin runs.
+    private var isDeferringBottomPin = false
+    private var trailingBottomPinTask: Task<Void, Never>?
 
     private var currentColumnWidth: CGFloat = 0
     private var lastConversationID: UUID?
@@ -548,8 +556,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         if widthChanged {
             heightCache.removeAll(keepingCapacity: true)
             lastHeightCommitUptime.removeAll(keepingCapacity: true)
-            trailingBottomPinWorkItem?.cancel()
-            trailingBottomPinWorkItem = nil
+            cancelTrailingBottomPin()
             estimateCache.removeAll(keepingCapacity: true)
         }
 
@@ -558,8 +565,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             shouldMaintainBottom = true
             heightCache.removeAll(keepingCapacity: true)
             lastHeightCommitUptime.removeAll(keepingCapacity: true)
-            trailingBottomPinWorkItem?.cancel()
-            trailingBottomPinWorkItem = nil
+            cancelTrailingBottomPin()
             estimateCache.removeAll(keepingCapacity: true)
             seedHeightsFromStore()
             reloadDataPreservingPin()
@@ -794,6 +800,14 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let isRapidHeightStream = (now - lastCommit) < 0.034
         lastHeightCommitUptime[identity] = now
 
+        // Arm deferred pin *before* noteHeightOfRows so the document-frame
+        // observer cannot re-pin mid-stream (that path was still fighting
+        // the animation after we skipped maintainBottomIfNeeded here).
+        let deferBottomPin = shouldMaintainBottom && isRapidHeightStream
+        if deferBottomPin {
+            scheduleTrailingBottomPin()
+        }
+
         // Apply the new height immediately (duration 0). Smoothness comes from
         // coalesced once-per-turn reports + matching SwiftUI easeInOut, not
         // from AppKit interpolating against a thrashing target.
@@ -804,14 +818,8 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
         if shouldMaintainBottom {
             // Pinned: the bottom anchor wins; never also compensate.
-            // During a rapid stream, skip intermediate pin corrections —
-            // one pin at the end of the gesture is enough and avoids the
-            // scroll view fighting the row animation mid-flight.
-            if !isRapidHeightStream {
+            if !deferBottomPin {
                 maintainBottomIfNeeded()
-            } else {
-                // Trail a single pin after the stream settles.
-                scheduleTrailingBottomPin()
             }
             return
         }
@@ -830,24 +838,33 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         isProgrammaticScrolling = true
         clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
         scrollView.reflectScrolledClipView(clip)
-        DispatchQueue.main.async { [weak self] in self?.isProgrammaticScrolling = false }
+        Task { @MainActor [weak self] in
+            self?.isProgrammaticScrolling = false
+        }
         logAnchorCompensation(row: index, delta: delta)
     }
 
     /// Coalesces bottom-pin corrections that arrive during a rapid height
     /// stream into a single pin after the stream goes quiet.
-    private var trailingBottomPinWorkItem: DispatchWorkItem?
-
     private func scheduleTrailingBottomPin() {
-        trailingBottomPinWorkItem?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self, self.shouldMaintainBottom else { return }
+        isDeferringBottomPin = true
+        trailingBottomPinTask?.cancel()
+        trailingBottomPinTask = Task { @MainActor [weak self] in
+            // Slightly longer than a disclosure collapse window so we pin once
+            // after the last height sample, not between frames.
+            try? await Task.sleep(nanoseconds: 240_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.trailingBottomPinTask = nil
+            self.isDeferringBottomPin = false
+            guard self.shouldMaintainBottom else { return }
             self.maintainBottomIfNeeded()
         }
-        trailingBottomPinWorkItem = work
-        // Slightly longer than a disclosure collapse window so we pin once
-        // after the last height sample, not between frames.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24, execute: work)
+    }
+
+    private func cancelTrailingBottomPin() {
+        trailingBottomPinTask?.cancel()
+        trailingBottomPinTask = nil
+        isDeferringBottomPin = false
     }
 
     /// First-measurement estimate-error telemetry, for tuning
@@ -961,8 +978,12 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     @objc private func documentFrameDidChange() {
         // The table grew/shrank because rows self-sized (async content resolving,
         // streaming tokens). Keep the viewport pinned to the bottom if we're
-        // following, but never fight an active user scroll.
-        guard shouldMaintainBottom, !isProgrammaticScrolling, !isUserLiveScrolling else { return }
+        // following, but never fight an active user scroll — and never re-pin
+        // while a disclosure height stream has deferred pinning armed.
+        guard shouldMaintainBottom,
+              !isProgrammaticScrolling,
+              !isUserLiveScrolling,
+              !isDeferringBottomPin else { return }
         scrollToBottom(animated: false, force: false)
     }
 

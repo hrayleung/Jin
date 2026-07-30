@@ -33,6 +33,9 @@ struct GoogleMapsResultsView: View {
     /// keep it and drive open/close through `JinCollapsibleContent` so the
     /// webview isn't torn down and rebuilt every toggle.
     @State var hasEverExpanded = false
+    /// Bumped on every toggle so a deferred first-expand `Task` cannot
+    /// reopen the panel after a later collapse.
+    @State var expandGeneration = 0
     @State var showAllPlaces = false
 
     var body: some View {
@@ -56,6 +59,9 @@ struct GoogleMapsResultsView: View {
     }
 
     func toggleExpanded() {
+        expandGeneration &+= 1
+        let generation = expandGeneration
+
         if isExpanded {
             withAnimation(JinMotion.disclosure(expanding: false)) {
                 isExpanded = false
@@ -73,6 +79,7 @@ struct GoogleMapsResultsView: View {
         hasEverExpanded = true
         Task { @MainActor in
             await Task.yield()
+            guard generation == expandGeneration else { return }
             withAnimation(JinMotion.disclosure(expanding: true)) {
                 isExpanded = true
             }

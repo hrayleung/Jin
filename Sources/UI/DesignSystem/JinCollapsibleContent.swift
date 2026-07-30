@@ -21,6 +21,8 @@ import SwiftUI
 ///    so the table can match the same wall-clock window.
 /// 4. **Child does not reflow** — `fixedSize` + top-aligned clip (curtain).
 /// 5. **No opacity / compositingGroup** — those caused ghosting earlier.
+/// 6. **No broad `.transaction { animation = nil }` on content** — that also
+///    killed legitimate nested animations (streaming indicators, etc.).
 ///
 /// Drive `isExpanded` with `withAnimation(JinMotion.disclosure(expanding:))`.
 /// Lazy-mount call sites keep their own `hasEverExpanded` latch.
@@ -50,8 +52,6 @@ struct JinCollapsibleContent<Content: View>: View {
 
     var body: some View {
         content()
-            // Height animation is owned by `AnimatableHeightClip` only.
-            .transaction { $0.animation = nil }
             .fixedSize(horizontal: false, vertical: true)
             .background(heightProbe)
             .onPreferenceChange(CollapsibleContentHeightKey.self, perform: storeMeasuredHeight)
@@ -84,7 +84,7 @@ struct JinCollapsibleContent<Content: View>: View {
     private func storeMeasuredHeight(_ newHeight: CGFloat) {
         // Ignore near-zero samples while fully collapsed so the next expand
         // still has a solid target. Never animate measure writes — they must
-        // not retarget an in-flight height spring.
+        // not retarget an in-flight height animation.
         guard newHeight > 1 else { return }
         guard abs(newHeight - measuredHeight) > 0.5 else { return }
         var transaction = Transaction()

@@ -8,6 +8,9 @@ struct MCPToolTimelineView: View {
 
     @Query(sort: \MCPServerConfigEntity.name) private var configuredServers: [MCPServerConfigEntity]
     @State private var isExpanded = false
+    /// Heavy expanded panel (per-call args/results) stays unmounted until the
+    /// first expand — same lazy-mount pattern as web search / maps.
+    @State private var hasEverExpanded = false
 
     init(
         toolCalls: [ToolCall],
@@ -24,8 +27,10 @@ struct MCPToolTimelineView: View {
             VStack(alignment: .leading, spacing: 0) {
                 collapsedSummaryRow
 
-                JinCollapsibleContent(isExpanded: isExpanded) {
-                    expandedPanel
+                if hasEverExpanded {
+                    JinCollapsibleContent(isExpanded: isExpanded) {
+                        expandedPanel
+                    }
                 }
             }
             .clipped()
@@ -35,11 +40,13 @@ struct MCPToolTimelineView: View {
             .animation(.easeInOut(duration: 0.2), value: entryAnimationSignature)
             .onAppear {
                 if isStreaming {
+                    hasEverExpanded = true
                     isExpanded = true
                 }
             }
             .onChange(of: isStreaming) { _, streaming in
                 guard streaming else { return }
+                hasEverExpanded = true
                 withAnimation(JinMotion.disclosure(expanding: true)) {
                     isExpanded = true
                 }
@@ -57,7 +64,19 @@ struct MCPToolTimelineView: View {
             isStreaming: isStreaming,
             runningCount: runningCount,
             compactStatusBadges: compactStatusBadges,
-            isExpanded: $isExpanded
+            isExpanded: expansionBinding
+        )
+    }
+
+    private var expansionBinding: Binding<Bool> {
+        Binding(
+            get: { isExpanded },
+            set: { newValue in
+                if newValue {
+                    hasEverExpanded = true
+                }
+                isExpanded = newValue
+            }
         )
     }
 

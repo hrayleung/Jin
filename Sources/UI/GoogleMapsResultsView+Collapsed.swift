@@ -40,6 +40,9 @@ extension GoogleMapsResultsView {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(Text("Places"))
+        .accessibilityValue(Text(isExpanded ? "Expanded" : "Collapsed"))
+        .accessibilityHint(Text(isExpanded ? "Hides map results" : "Shows map results"))
     }
 
     func placeNamePills(places: [MapsPlace]) -> some View {

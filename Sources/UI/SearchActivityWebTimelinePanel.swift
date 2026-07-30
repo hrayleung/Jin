@@ -10,6 +10,9 @@ struct SearchActivityWebTimelinePanel: View {
     /// expanded panel stays mounted in the view tree forever — see the
     /// long comment on `body`.
     @State private var hasEverExpanded = false
+    /// Bumped on every toggle so a deferred first-expand `Task` cannot
+    /// reopen the panel after the user has already collapsed it.
+    @State private var expandGeneration = 0
     @State private var sourceEnrichmentState = SearchSourceEnrichmentState()
     private let sourceEnrichmentResolver = SearchSourceEnrichmentResolver.live
 
@@ -80,6 +83,9 @@ struct SearchActivityWebTimelinePanel: View {
     /// target, then springs open. Subsequent toggles animate height in place
     /// (expand and collapse share the same clip spring — no staged snap).
     private func toggleExpanded() {
+        expandGeneration &+= 1
+        let generation = expandGeneration
+
         if isExpanded {
             withAnimation(JinMotion.disclosure(expanding: false)) {
                 isExpanded = false
@@ -99,6 +105,7 @@ struct SearchActivityWebTimelinePanel: View {
         hasEverExpanded = true
         Task { @MainActor in
             await Task.yield()
+            guard generation == expandGeneration else { return }
             withAnimation(JinMotion.disclosure(expanding: true)) {
                 isExpanded = true
             }
