@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct UpdateSettingsView: View {
     @EnvironmentObject private var updateManager: SparkleUpdateManager
@@ -15,46 +16,37 @@ struct UpdateSettingsView: View {
 
     var body: some View {
         JinSettingsPage {
-            JinSettingsSection("Update Check") {
-                LabeledContent("Current Version") {
-                    Text(currentVersion)
-                        .foregroundStyle(.secondary)
-                }
+            UpdateSettingsVersionHero(
+                version: currentVersion,
+                build: currentBuild,
+                allowPreRelease: updateManager.allowPreRelease,
+                lastCheckDate: updateManager.lastUpdateCheckDate,
+                canCheckForUpdates: updateManager.canCheckForUpdates,
+                sessionInProgress: updateManager.sessionInProgress,
+                checkError: checkError,
+                onCheckForUpdates: runCheck
+            )
 
-                if let build = currentBuild {
-                    LabeledContent("Build") {
-                        Text(build)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+            UpdateSettingsAutomaticSection(
+                isOn: automaticallyChecksBinding
+            )
 
-                if let error = checkError {
-                    Text(error)
-                        .jinInlineErrorText()
-                }
-
-                JinSettingsToggleRow("Check automatically on launch", isOn: automaticallyChecksBinding)
-
-                JinSettingsToggleRow("Include pre-release versions", isOn: preReleaseBinding)
-
-                if updateManager.allowPreRelease {
-                    Text("Pre-release builds may be unstable.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Button {
-                    runCheck()
-                } label: {
-                    Label("Check for Updates", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!updateManager.canCheckForUpdates)
-            }
+            UpdateSettingsChannelSection(
+                allowPreRelease: preReleaseBinding
+            )
         }
         .navigationTitle("Updates")
         .onAppear {
             checkError = nil
+            updateManager.refreshPublishedProperties()
+        }
+        .task(id: updateManager.sessionInProgress) {
+            guard updateManager.sessionInProgress else { return }
+            while !Task.isCancelled {
+                updateManager.refreshPublishedProperties()
+                if !updateManager.sessionInProgress { break }
+                try? await Task.sleep(nanoseconds: 400_000_000)
+            }
             updateManager.refreshPublishedProperties()
         }
     }
@@ -75,11 +67,12 @@ struct UpdateSettingsView: View {
 
     private func runCheck() {
         guard updateManager.canCheckForUpdates else {
-            checkError = "Update checks are currently unavailable"
+            checkError = "Update checks are currently unavailable."
             return
         }
 
         checkError = nil
         updateManager.triggerManualCheck()
+        updateManager.refreshPublishedProperties()
     }
 }

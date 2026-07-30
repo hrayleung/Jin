@@ -20,6 +20,8 @@ final class SparkleUpdateManager: NSObject, ObservableObject {
     @Published private(set) var canCheckForUpdates: Bool = false
     @Published private(set) var automaticallyChecksForUpdates: Bool = false
     @Published private(set) var allowPreRelease: Bool = false
+    @Published private(set) var sessionInProgress: Bool = false
+    @Published private(set) var lastUpdateCheckDate: Date?
 
     private var hasCheckedOnLaunch = false
     private var isCheckingOnLaunch = false
@@ -86,6 +88,8 @@ final class SparkleUpdateManager: NSObject, ObservableObject {
     func refreshPublishedProperties() {
         canCheckForUpdates = updater.canCheckForUpdates
         automaticallyChecksForUpdates = updater.automaticallyChecksForUpdates
+        sessionInProgress = updater.sessionInProgress
+        lastUpdateCheckDate = updater.lastUpdateCheckDate
     }
 
     func checkForUpdatesOnLaunchIfNeeded() async {
