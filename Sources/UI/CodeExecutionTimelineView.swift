@@ -25,16 +25,12 @@ struct CodeExecutionTimelineView: View {
             VStack(alignment: .leading, spacing: 0) {
                 headerRow
 
-                VStack(spacing: 0) {
-                    if isExpanded {
-                        expandedContent
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
+                JinCollapsibleContent(isExpanded: isExpanded) {
+                    expandedContent
                 }
-                .clipped()
             }
             .clipped()
-            .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
+            // Height animation is driven only by `withAnimation` on toggle.
             .animation(.easeInOut(duration: 0.2), value: animationSignature)
             .onChange(of: isStreaming) { _, streaming in
                 let mode = Self.resolveDisplayMode()
@@ -42,7 +38,7 @@ struct CodeExecutionTimelineView: View {
                     isStreaming: streaming,
                     displayMode: mode
                 ) {
-                    withAnimation(.spring(duration: 0.25, bounce: 0)) {
+                    withAnimation(JinMotion.disclosure(expanding: shouldExpand)) {
                         isExpanded = shouldExpand
                     }
                 }

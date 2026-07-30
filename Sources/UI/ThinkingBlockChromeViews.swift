@@ -103,9 +103,11 @@ struct ThinkingBlockHeaderButton: View {
     }
 
     private var disclosureIndicator: some View {
-        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(JinSemanticColor.textTertiary)
+        JinDisclosureChevron(
+            isExpanded: isExpanded,
+            font: .caption.weight(.semibold),
+            foregroundStyle: JinSemanticColor.textTertiary
+        )
     }
 }
 
@@ -127,7 +129,6 @@ struct ThinkingBlockExpandedTextContent: View {
                     .fill(JinSemanticColor.borderEmphasized)
                     .frame(width: 2)
             }
-            .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     private var attributedText: NSAttributedString {
@@ -163,7 +164,6 @@ struct StreamingThinkingBlockExpandedContent: View {
                     .fill(JinSemanticColor.borderEmphasized)
                     .frame(width: 2)
             }
-            .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     private var chunkedText: some View {

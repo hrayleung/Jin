@@ -8,27 +8,19 @@ struct SearchActivityWebTimelineCollapsedSummaryRow: View {
     let content: SearchActivityTimelineSupport.ViewContent
     let isStreaming: Bool
     let sourceEnrichmentState: SearchSourceEnrichmentState
-    @Binding var isExpanded: Bool
-    /// Called *before* the animation fires when the row is about to flip
-    /// from collapsed to expanded. The parent uses it to latch a
-    /// `hasEverExpanded` flag so the expanded subtree mounts on the
-    /// same render pass — without this hook the parent's gating
-    /// `@State` flip would happen one transaction later and we'd lose
-    /// the first-expand benefit of the lazy-mount pattern.
-    var onWillExpand: (() -> Void)?
+    let isExpanded: Bool
+    /// Parent owns the expand transaction (including the first-expand
+    /// lazy-mount dance). The row just fires the request.
+    let onToggle: () -> Void
 
     var body: some View {
-        Button {
-            if !isExpanded {
-                onWillExpand?()
-            }
-            withAnimation(.easeInOut(duration: 0.18)) {
-                isExpanded.toggle()
-            }
-        } label: {
+        Button(action: onToggle) {
             summaryRowContent
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(Text(content.presentation.sectionTitle))
+        .accessibilityValue(Text(isExpanded ? "Expanded" : "Collapsed"))
+        .accessibilityHint(Text(isExpanded ? "Hides search sources" : "Shows search sources"))
     }
 
     private var summaryRowContent: some View {
@@ -76,9 +68,11 @@ struct SearchActivityWebTimelineCollapsedSummaryRow: View {
     }
 
     private var disclosureIndicator: some View {
-        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.secondary)
+        JinDisclosureChevron(
+            isExpanded: isExpanded,
+            font: .caption2.weight(.semibold),
+            foregroundStyle: Color.secondary
+        )
     }
 }
 

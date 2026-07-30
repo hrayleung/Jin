@@ -231,8 +231,14 @@ final class ChatTimelineHostingCell: NSTableCellView {
     /// Called whenever the hosted content's natural height changes (initial
     /// layout, async markdown parse completing, favicons/highlighting loading,
     /// streaming tokens). The controller caches it and re-notes that ONE row.
+    /// Reports are **coalesced to at most one per run-loop turn** so a SwiftUI
+    /// disclosure height animation cannot thrash `noteHeightOfRows` multiple
+    /// times inside a single frame (primary source of expand/collapse jitter).
     var onMeasuredHeight: ((String, CGFloat) -> Void)?
     private var lastReportedHeight: CGFloat = -1
+    /// Latest height waiting to flush on the next main-queue turn.
+    private var pendingMeasuredHeight: CGFloat?
+    private var heightFlushScheduled = false
     /// Set on every rootView swap; cleared once `layout()` has forced the
     /// SwiftUI commit. `host.rootView =` only SCHEDULES the view-graph
     /// rebuild, and AppKit layout is top-down (our `layout()` runs before
@@ -246,18 +252,23 @@ final class ChatTimelineHostingCell: NSTableCellView {
     override init(frame frameRect: NSRect) {
         host = NSHostingView(rootView: AnyView(EmptyView()))
         super.init(frame: frameRect)
-        // The host fills the cell (leading/trailing fix width = column width;
-        // top/bottom make it occupy the row). `.intrinsicContentSize` makes the
-        // host expose its content's width-wrapped natural height via
-        // `fittingSize`, which we read in `layout()` to drive the row height.
+        // Clip subviews that briefly exceed the row during disclosure
+        // animation so content cannot paint into the row below.
+        clipsToBounds = true
+        // Leading/trailing fix width = column width; top-align the host so
+        // when the table row is mid-animation (shorter or taller than the
+        // SwiftUI intrinsic size for a frame) we curtain from the top instead
+        // of vertically stretching the hosting view (bottom pin caused that
+        // stretch/compress fight — a major jitter source).
         host.sizingOptions = [.intrinsicContentSize]
         host.translatesAutoresizingMaskIntoConstraints = false
+        host.setContentHuggingPriority(.defaultHigh, for: .vertical)
+        host.setContentCompressionResistancePriority(.required, for: .vertical)
         addSubview(host)
         NSLayoutConstraint.activate([
             host.leadingAnchor.constraint(equalTo: leadingAnchor),
             host.trailingAnchor.constraint(equalTo: trailingAnchor),
             host.topAnchor.constraint(equalTo: topAnchor),
-            host.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
     }
 
@@ -267,6 +278,8 @@ final class ChatTimelineHostingCell: NSTableCellView {
     func configure(identity: String, content: AnyView) {
         currentIdentity = identity
         lastReportedHeight = -1
+        pendingMeasuredHeight = nil
+        heightFlushScheduled = false
         host.rootView = content
         hostHasPendingRootSwap = true
         host.invalidateIntrinsicContentSize()
@@ -294,9 +307,28 @@ final class ChatTimelineHostingCell: NSTableCellView {
             host.layoutSubtreeIfNeeded()
         }
         let measured = ceil(host.fittingSize.height)
-        guard measured > 0, measured != lastReportedHeight else { return }
-        lastReportedHeight = measured
-        onMeasuredHeight?(identity, measured)
+        guard measured > 0 else { return }
+        // Coalesce: many SwiftUI animation frames can invalidate layout more
+        // than once before the run loop drains. Keep the latest value and
+        // publish a single report per turn.
+        if measured == lastReportedHeight, pendingMeasuredHeight == nil { return }
+        pendingMeasuredHeight = measured
+        scheduleHeightFlush(for: identity)
+    }
+
+    private func scheduleHeightFlush(for identity: String) {
+        guard !heightFlushScheduled else { return }
+        heightFlushScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.heightFlushScheduled = false
+            guard self.currentIdentity == identity,
+                  let measured = self.pendingMeasuredHeight else { return }
+            self.pendingMeasuredHeight = nil
+            guard measured != self.lastReportedHeight else { return }
+            self.lastReportedHeight = measured
+            self.onMeasuredHeight?(identity, measured)
+        }
     }
 }
 
@@ -350,6 +382,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// Memoized content-aware estimates (same key scheme). The estimator is a
     /// single O(text) pass — fine once, not fine on every `heightOfRow` call.
     private var estimateCache: [String: CGFloat] = [:]
+    /// Last time each identity received a height commit — used to detect
+    /// disclosure animation streams (many updates in a short window) so we
+    /// skip scroll-anchor compensation that would fight the row motion.
+    private var lastHeightCommitUptime: [String: TimeInterval] = [:]
 
     private var currentColumnWidth: CGFloat = 0
     private var lastConversationID: UUID?
@@ -511,6 +547,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         // caches on a width change so rows re-measure at the new wrap width.
         if widthChanged {
             heightCache.removeAll(keepingCapacity: true)
+            lastHeightCommitUptime.removeAll(keepingCapacity: true)
+            trailingBottomPinWorkItem?.cancel()
+            trailingBottomPinWorkItem = nil
             estimateCache.removeAll(keepingCapacity: true)
         }
 
@@ -518,6 +557,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             lastConversationID = newModel.conversationID
             shouldMaintainBottom = true
             heightCache.removeAll(keepingCapacity: true)
+            lastHeightCommitUptime.removeAll(keepingCapacity: true)
+            trailingBottomPinWorkItem?.cancel()
+            trailingBottomPinWorkItem = nil
             estimateCache.removeAll(keepingCapacity: true)
             seedHeightsFromStore()
             reloadDataPreservingPin()
@@ -700,6 +742,11 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// by the same delta so the on-screen content stays pixel-stationary
     /// (the row "grows upward"). Without this, every estimate correction
     /// while scrolling up through history visibly jumped the content.
+    ///
+    /// Disclosure expand/collapse streams many height samples. Those must
+    /// update the row (so content below tracks) but must **not** run scroll-
+    /// anchor compensation every tick — compensation + row motion is the
+    /// classic "jitter" the disclosure animation was fighting.
     private func cellDidMeasureHeight(identity: String, height: CGFloat) {
         let key = heightKey(identity)
         let previous = heightCache[key]
@@ -739,6 +786,17 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let delta = height - oldRowRect.height
         let rowTopIsAboveViewport = oldRowRect.minY < visibleTop - 0.5
 
+        let now = ProcessInfo.processInfo.systemUptime
+        let lastCommit = lastHeightCommitUptime[identity] ?? 0
+        // Updates closer than ~2 frames are almost always a continuous
+        // disclosure (or streaming) height animation — not a one-shot
+        // estimate correction.
+        let isRapidHeightStream = (now - lastCommit) < 0.034
+        lastHeightCommitUptime[identity] = now
+
+        // Apply the new height immediately (duration 0). Smoothness comes from
+        // coalesced once-per-turn reports + matching SwiftUI easeInOut, not
+        // from AppKit interpolating against a thrashing target.
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0
             tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: index))
@@ -746,10 +804,22 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
         if shouldMaintainBottom {
             // Pinned: the bottom anchor wins; never also compensate.
-            maintainBottomIfNeeded()
+            // During a rapid stream, skip intermediate pin corrections —
+            // one pin at the end of the gesture is enough and avoids the
+            // scroll view fighting the row animation mid-flight.
+            if !isRapidHeightStream {
+                maintainBottomIfNeeded()
+            } else {
+                // Trail a single pin after the stream settles.
+                scheduleTrailingBottomPin()
+            }
             return
         }
-        guard rowTopIsAboveViewport, abs(delta) > 0.5 else { return }
+
+        // Isolated jumps (async image, first measure): keep anchor stable.
+        // Rapid streams: the row itself is animating; compensation per tick
+        // double-moves content below and is the main remaining jitter source.
+        guard !isRapidHeightStream, rowTopIsAboveViewport, abs(delta) > 0.5 else { return }
 
         var targetY = clip.bounds.origin.y + delta
         let topLimit = -scrollView.contentInsets.top
@@ -762,6 +832,22 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         scrollView.reflectScrolledClipView(clip)
         DispatchQueue.main.async { [weak self] in self?.isProgrammaticScrolling = false }
         logAnchorCompensation(row: index, delta: delta)
+    }
+
+    /// Coalesces bottom-pin corrections that arrive during a rapid height
+    /// stream into a single pin after the stream goes quiet.
+    private var trailingBottomPinWorkItem: DispatchWorkItem?
+
+    private func scheduleTrailingBottomPin() {
+        trailingBottomPinWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.shouldMaintainBottom else { return }
+            self.maintainBottomIfNeeded()
+        }
+        trailingBottomPinWorkItem = work
+        // Slightly longer than a disclosure collapse window so we pin once
+        // after the last height sample, not between frames.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.24, execute: work)
     }
 
     /// First-measurement estimate-error telemetry, for tuning

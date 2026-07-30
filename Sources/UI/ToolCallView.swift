@@ -52,23 +52,21 @@ struct ToolCallView: View {
                     ToolCallArgumentSummaryView(argumentSummary: argumentSummary)
                 }
 
-                VStack(spacing: 0) {
-                    if isExpanded {
-                        ToolCallExpandedContentView(
-                            formattedArgumentsJSON: formattedArgumentsJSON,
-                            toolResult: toolResult,
-                            signature: toolCall.signature
-                        )
-                            .padding(.top, JinSpacing.xSmall)
-                    }
+                JinCollapsibleContent(isExpanded: isExpanded) {
+                    ToolCallExpandedContentView(
+                        formattedArgumentsJSON: formattedArgumentsJSON,
+                        toolResult: toolResult,
+                        signature: toolCall.signature
+                    )
+                    .padding(.top, JinSpacing.xSmall)
                 }
-                .clipped()
             }
             .padding(.horizontal, JinSpacing.medium)
             .padding(.vertical, JinSpacing.small)
             .jinSurface(.subtle, cornerRadius: JinRadius.small)
         }
-        .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
+        // Status pulse only — expand height is driven by `withAnimation` on
+        // the header button so we don't double-spring the panel.
         .animation(.spring(duration: 0.24, bounce: 0), value: resolvedStatus)
         .onAppear {
             updatePulseAnimation(for: resolvedStatus)

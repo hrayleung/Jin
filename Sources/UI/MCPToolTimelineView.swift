@@ -24,16 +24,14 @@ struct MCPToolTimelineView: View {
             VStack(alignment: .leading, spacing: 0) {
                 collapsedSummaryRow
 
-                VStack(spacing: 0) {
-                    if isExpanded {
-                        expandedPanel
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
+                JinCollapsibleContent(isExpanded: isExpanded) {
+                    expandedPanel
                 }
-                .clipped()
             }
             .clipped()
-            .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
+            // Height animation is driven only by `withAnimation` on toggle —
+            // an extra `.animation(_:value:)` here double-drives the spring
+            // and leaves a residual ghost frame.
             .animation(.easeInOut(duration: 0.2), value: entryAnimationSignature)
             .onAppear {
                 if isStreaming {
@@ -42,7 +40,7 @@ struct MCPToolTimelineView: View {
             }
             .onChange(of: isStreaming) { _, streaming in
                 guard streaming else { return }
-                withAnimation(.spring(duration: 0.25, bounce: 0)) {
+                withAnimation(JinMotion.disclosure(expanding: true)) {
                     isExpanded = true
                 }
             }

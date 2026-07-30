@@ -27,45 +27,37 @@ struct SearchActivityWebTimelinePanel: View {
             // animation can't draw its first frame until that work
             // completes.
             //
-            // Thinking blocks don't have this problem because their
-            // expanded subtree is just a Text view with no .task; their
-            // body work is essentially free.
-            //
             // Fix: latch `hasEverExpanded` on first expand, then keep
-            // the panel mounted permanently and hide it via
-            // `frame(maxHeight: 0).opacity(0).allowsHitTesting(false)`.
-            // SwiftUI animates the opacity/frame on a stable identity —
-            // no destroy/rebuild, the favicon `@State` survives, and
-            // `compositingGroup()` lets the entire subtree fade as one
-            // CALayer.
+            // the panel mounted and drive open/close through
+            // `JinCollapsibleContent` (animatable finite height, not
+            // `maxHeight: .infinity`). Favicon `@State` survives, and
+            // every spring frame reports a real height to the timeline
+            // table so the row grows with the panel instead of snapping.
+            //
             // Outer spacing is 0 — once `hasEverExpanded` flips, the
             // collapsed panel is still a child of this VStack even when
             // its frame collapses to 0pt, so a non-zero stack spacing
             // would leave a permanent strip of empty space underneath
             // the summary row. The gap that the expanded state needs is
-            // applied directly on the panel via animated top padding.
+            // applied as top padding inside the collapsible content.
             VStack(alignment: .leading, spacing: 0) {
                 SearchActivityWebTimelineCollapsedSummaryRow(
                     content: content,
                     isStreaming: isStreaming,
                     sourceEnrichmentState: sourceEnrichmentState,
-                    isExpanded: $isExpanded,
-                    onWillExpand: { hasEverExpanded = true }
+                    isExpanded: isExpanded,
+                    onToggle: toggleExpanded
                 )
 
                 if hasEverExpanded {
-                    SearchActivityWebTimelineExpandedPanel(
-                        content: content,
-                        contextLabel: contextLabel,
-                        sourceEnrichmentState: sourceEnrichmentState
-                    )
-                        .padding(.top, isExpanded ? JinSpacing.small + 2 : 0)
-                        .frame(maxHeight: isExpanded ? .infinity : 0, alignment: .top)
-                        .opacity(isExpanded ? 1 : 0)
-                        .clipped()
-                        .allowsHitTesting(isExpanded)
-                        .accessibilityHidden(!isExpanded)
-                        .compositingGroup()
+                    JinCollapsibleContent(isExpanded: isExpanded) {
+                        SearchActivityWebTimelineExpandedPanel(
+                            content: content,
+                            contextLabel: contextLabel,
+                            sourceEnrichmentState: sourceEnrichmentState
+                        )
+                        .padding(.top, JinSpacing.small + 2)
+                    }
                 }
             }
             .clipped()
@@ -82,5 +74,34 @@ struct SearchActivityWebTimelinePanel: View {
         !content.presentation.sources.isEmpty
             || !content.presentation.queries.isEmpty
             || (isStreaming && content.hasRunningActivity)
+    }
+
+    /// First expand mounts collapsed so the height probe can capture a finite
+    /// target, then springs open. Subsequent toggles animate height in place
+    /// (expand and collapse share the same clip spring — no staged snap).
+    private func toggleExpanded() {
+        if isExpanded {
+            withAnimation(JinMotion.disclosure(expanding: false)) {
+                isExpanded = false
+            }
+            return
+        }
+
+        if hasEverExpanded {
+            withAnimation(JinMotion.disclosure(expanding: true)) {
+                isExpanded = true
+            }
+            return
+        }
+
+        // Mount collapsed first so `JinCollapsibleContent` measures a solid
+        // height target before the spring runs.
+        hasEverExpanded = true
+        Task { @MainActor in
+            await Task.yield()
+            withAnimation(JinMotion.disclosure(expanding: true)) {
+                isExpanded = true
+            }
+        }
     }
 }
