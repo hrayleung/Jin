@@ -18,7 +18,6 @@ actor MCPClient {
     private let handshakeTimeoutSeconds: Double = 180
     private let requestTimeoutSeconds: Double = 60
     private let toolCallTimeoutSeconds: Double = 180
-    private static let disconnectTimeoutSeconds: Double = 5
 
     static let defaultPathEntries: [String] = [
         "/opt/homebrew/bin",
@@ -62,7 +61,15 @@ actor MCPClient {
         stderrReadTask?.cancel()
         stderrReadTask = nil
 
-        await disconnectClientBounded()
+        // Fire and forget. `disconnect()` is best-effort SDK bookkeeping — the child is
+        // already dead and nothing downstream needs it to finish — but it hops onto the
+        // SDK's actor, which can be saturated when its receive loop is spinning on a
+        // half-open stream. Awaiting it (even inside a task group with a timeout, which
+        // still waits for every child before leaving scope) would let one wedged server
+        // block the MCPHub actor and with it every other server's calls.
+        if let client {
+            Task { await client.disconnect() }
+        }
         client = nil
         stdioTransport = nil
         httpTransport = nil
@@ -74,19 +81,6 @@ actor MCPClient {
         stdoutPipe = nil
         stderrPipe?.fileHandleForReading.closeFile()
         stderrPipe = nil
-    }
-
-    /// `disconnect()` is best-effort teardown; never let it stall shutdown.
-    private func disconnectClientBounded() async {
-        guard let client else { return }
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await client.disconnect() }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: UInt64(Self.disconnectTimeoutSeconds * 1_000_000_000))
-            }
-            await group.next()
-            group.cancelAll()
-        }
     }
 
     // MARK: - Public API

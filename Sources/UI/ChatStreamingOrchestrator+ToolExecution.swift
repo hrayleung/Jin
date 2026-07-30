@@ -40,6 +40,15 @@ extension ChatStreamingOrchestrator {
                         routes: mcpRoutes
                     )
                 }
+
+                // The tool may have completed after the user pressed Stop: nothing in
+                // the MCP call path cooperates with cancellation yet, so a late success
+                // would otherwise be published and the turn allowed to continue.
+                if Task.isCancelled {
+                    cancelled = true
+                    break
+                }
+
                 let record = successfulToolExecutionRecord(
                     for: call,
                     route: route,

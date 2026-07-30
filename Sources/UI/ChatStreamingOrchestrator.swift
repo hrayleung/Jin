@@ -129,7 +129,13 @@ enum ChatStreamingOrchestrator {
                         mcpRoutes: mcpRoutes
                     )
 
-                    guard !toolExecutionResult.cancelled else { return }
+                    if toolExecutionResult.cancelled {
+                        // Route through the shared cancellation path. Returning here
+                        // would skip `onSessionEnd`, leaving the session registered in
+                        // ConversationStreamingStore so the conversation looks busy
+                        // forever and refuses further sends.
+                        throw CancellationError()
+                    }
 
                     let continuationPersistenceResult = await persistToolContinuation(
                         executableToolCalls: executableToolCalls,
