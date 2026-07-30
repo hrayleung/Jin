@@ -21,15 +21,22 @@ actor MCPHub {
 
     private var clients: [String: MCPClient] = [:]
     private var clientConfigs: [String: MCPServerConfig] = [:]
+    /// Servers shut down by `shutdown(serverID:)`, kept so a stale route cannot restart
+    /// one. Cleared as soon as the live configuration mentions the ID again.
+    private var shutDownServerIDs: Set<String> = []
 
     func listTools(for server: MCPServerConfig) async throws -> [MCPToolInfo] {
-        try await withClient(for: server) { client in
+        noteServerIsConfigured(server.id)
+        return try await withClient(for: server) { client in
             try await client.listTools()
         }
     }
 
     func toolDefinitions(for servers: [MCPServerConfig]) async throws -> (definitions: [ToolDefinition], routes: ToolRouteSnapshot) {
         let enabledServers = servers.filter(\.isEnabled)
+        // These come straight from the live configuration, so any of them that were
+        // tombstoned by a previous delete clearly exist again.
+        for server in enabledServers { noteServerIsConfigured(server.id) }
 
         let serverTools = try await withThrowingTaskGroup(
             of: (server: MCPServerConfig, tools: [MCPToolInfo]).self,
@@ -100,7 +107,30 @@ actor MCPHub {
         }
     }
 
+    /// Stop and evict a persistent server's client. Without this a deleted or disabled
+    /// server keeps its child process alive until the app restarts.
+    ///
+    /// The server ID is also tombstoned, because a turn already in flight still holds a
+    /// `ToolRouteSnapshot` containing the old config — without this, its next tool call
+    /// would find no cached client and cheerfully spawn the process again.
+    func shutdown(serverID: String) async {
+        shutDownServerIDs.insert(serverID)
+        clientConfigs.removeValue(forKey: serverID)
+        guard let client = clients.removeValue(forKey: serverID) else { return }
+        await client.stop()
+    }
+
+    /// Clears the tombstone for a server that is present in the live configuration
+    /// again, so deleting and re-adding the same ID works.
+    private func noteServerIsConfigured(_ serverID: String) {
+        shutDownServerIDs.remove(serverID)
+    }
+
     private func withClient<T>(for server: MCPServerConfig, operation: (MCPClient) async throws -> T) async throws -> T {
+        guard !shutDownServerIDs.contains(server.id) else {
+            throw MCPHubError.serverNotConnected(server.id)
+        }
+
         if server.lifecycle.isPersistent {
             let client = await clientForServer(server)
             return try await operation(client)
