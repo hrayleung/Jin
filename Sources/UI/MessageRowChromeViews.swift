@@ -48,23 +48,27 @@ struct MessageRowHeaderView: View {
     let providerIconID: String?
 
     var body: some View {
-        if isUser {
-            EmptyView()
-        } else {
-            headerRow
-                .padding(.horizontal, JinSpacing.medium)
-                .padding(.bottom, 2)
-        }
+        // Lives inside the bubble surface — same YOU / ASSISTANT hierarchy as
+        // the minimap hover card.
+        headerRow
     }
 
     private var headerRow: some View {
         HStack(spacing: JinSpacing.small - 2) {
-            if !isTool {
-                ProviderBadgeIcon(iconID: providerIconID)
-            }
+            if isUser {
+                Text(ChatConversationMinimapGeometry.userRoleLabel)
+                    .jinSectionHeader()
+                    .foregroundStyle(JinSemanticColor.textTertiary)
+                Spacer(minLength: 0)
+            } else {
+                if !isTool {
+                    ProviderBadgeIcon(iconID: providerIconID)
+                }
 
-            identityLabel
-            modelLabel
+                identityLabel
+                modelLabel
+                Spacer(minLength: 0)
+            }
         }
     }
 
@@ -77,11 +81,10 @@ struct MessageRowHeaderView: View {
             Text("Tool Output")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-        } else if assistantDisplayName != "Assistant" {
-            Text(assistantDisplayName)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(.secondary)
+        } else {
+            Text(ChatConversationMinimapGeometry.assistantRoleLabel(displayName: assistantDisplayName))
+                .jinSectionHeader()
+                .foregroundStyle(JinSemanticColor.textTertiary)
         }
     }
 

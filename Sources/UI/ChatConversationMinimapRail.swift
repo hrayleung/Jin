@@ -15,15 +15,18 @@ struct ChatConversationMinimapRail: View {
     @ObservedObject var model: ChatConversationMinimapModel
     let onJump: (UUID) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var hoveredTurnIndex: Int?
     @State private var isRailHovered = false
     @State private var cardHeight: CGFloat = 0
 
     private static let railWidth: CGFloat = 34
-    private static let cardWidth: CGFloat = 320
-    private static let cardGap: CGFloat = 10
+    private static let cardWidth: CGFloat = 328
+    private static let cardGap: CGFloat = 12
     private static let tickHeight: CGFloat = 3
-    private static let fallbackCardHeight: CGFloat = 130
+    private static let fallbackCardHeight: CGFloat = 140
+    private static let cardCornerRadius = JinRadius.large
 
     private let pitch = ChatConversationMinimapGeometry.tickPitch
 
@@ -31,6 +34,10 @@ struct ChatConversationMinimapRail: View {
 
     private var activeTurnIndex: Int? {
         turnList.turnIndex(forMessageID: model.activeMessageID)
+    }
+
+    private var assistantRoleLabel: String {
+        ChatConversationMinimapGeometry.assistantRoleLabel(displayName: assistantDisplayName)
     }
 
     var body: some View {
@@ -62,9 +69,12 @@ struct ChatConversationMinimapRail: View {
             // On the container, not inside the `if` — a transition only plays
             // when an animation is attached to a view present on both sides of
             // the insertion.
-            .animation(.easeInOut(duration: 0.12), value: hoveredTurnIndex)
+            .animation(cardAnimation, value: hoveredTurnIndex)
             .onPreferenceChange(ChatConversationMinimapCardHeightKey.self) { height in
-                cardHeight = height
+                // Guard identical heights so continuous hover doesn't thrash layout.
+                if abs(cardHeight - height) > 0.5 {
+                    cardHeight = height
+                }
             }
         }
         .frame(width: Self.railWidth + Self.cardGap + Self.cardWidth)
@@ -95,14 +105,20 @@ struct ChatConversationMinimapRail: View {
         .onContinuousHover { phase in
             switch phase {
             case .active(let point):
-                isRailHovered = true
-                hoveredTurnIndex = turnIndex(atY: point.y, layout: layout)
+                // Only publish when something actually changed — continuous
+                // hover fires on every mouse move, and writing identical
+                // `@State` would re-evaluate the whole rail for free.
+                if !isRailHovered { isRailHovered = true }
+                let next = turnIndex(atY: point.y, layout: layout)
+                if hoveredTurnIndex != next {
+                    hoveredTurnIndex = next
+                }
             case .ended:
-                isRailHovered = false
-                hoveredTurnIndex = nil
+                if isRailHovered { isRailHovered = false }
+                if hoveredTurnIndex != nil { hoveredTurnIndex = nil }
             @unknown default:
-                isRailHovered = false
-                hoveredTurnIndex = nil
+                if isRailHovered { isRailHovered = false }
+                if hoveredTurnIndex != nil { hoveredTurnIndex = nil }
             }
         }
         .onTapGesture { point in
@@ -131,7 +147,7 @@ struct ChatConversationMinimapRail: View {
             .opacity(restOpacity(isActive: isActive) * endFade(at: index, layout: layout))
             .frame(width: Self.railWidth, height: pitch, alignment: .leading)
             .animation(.easeInOut(duration: 0.15), value: isActive)
-            .animation(.easeInOut(duration: 0.15), value: isHovered)
+            .animation(.easeInOut(duration: 0.12), value: isHovered)
     }
 
     /// Which turn sits at `y` within the tick block.
@@ -179,75 +195,40 @@ struct ChatConversationMinimapRail: View {
         if let hoveredTurnIndex,
            layout.visibleRange.contains(hoveredTurnIndex),
            hoveredTurnIndex < turns.count {
-            previewCard(turns[hoveredTurnIndex])
-                .offset(
-                    x: Self.railWidth + Self.cardGap,
-                    y: cardY(for: hoveredTurnIndex, layout: layout, viewportHeight: viewportHeight)
+            EquatableView(
+                content: ChatConversationMinimapPreviewCard(
+                    turn: turns[hoveredTurnIndex],
+                    assistantRoleLabel: assistantRoleLabel,
+                    cardWidth: Self.cardWidth,
+                    cornerRadius: Self.cardCornerRadius
                 )
-                .transition(.opacity)
+            )
+            .offset(
+                x: Self.railWidth + Self.cardGap,
+                y: cardY(for: hoveredTurnIndex, layout: layout, viewportHeight: viewportHeight)
+            )
+            .transition(cardTransition)
         }
     }
 
-    private func previewCard(_ turn: ChatConversationMinimapGeometry.Turn) -> some View {
-        let shape = RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-
-        return VStack(alignment: .leading, spacing: JinSpacing.small) {
-            if !turn.userExcerpt.isEmpty {
-                cardSection(label: "You", text: turn.userExcerpt, lineLimit: 3, isPrimary: true)
-            }
-            if !turn.assistantExcerpt.isEmpty {
-                cardSection(
-                    label: assistantDisplayName,
-                    text: turn.assistantExcerpt,
-                    lineLimit: 4,
-                    isPrimary: false
-                )
-            }
-            if turn.userExcerpt.isEmpty, turn.assistantExcerpt.isEmpty {
-                Text("No text in this turn")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
+    private var cardAnimation: Animation {
+        if reduceMotion {
+            return .easeOut(duration: 0.08)
         }
-        .jinCardPadding()
-        .frame(width: Self.cardWidth, alignment: .leading)
-        .background(
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: ChatConversationMinimapCardHeightKey.self,
-                    value: proxy.size.height
-                )
-            }
+        return .spring(response: 0.28, dampingFraction: 0.86)
+    }
+
+    private var cardTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        return .asymmetric(
+            insertion: .opacity
+                .combined(with: .scale(scale: 0.96, anchor: .leading))
+                .combined(with: .offset(x: -6)),
+            removal: .opacity
+                .combined(with: .scale(scale: 0.98, anchor: .leading))
         )
-        // One static material treatment — hover is expressed by the card
-        // appearing at all, never by swapping this for a solid colour.
-        .jinAdaptiveBackground(shape)
-        .clipShape(shape)
-        .overlay(shape.stroke(JinSemanticColor.borderEmphasized, lineWidth: JinStrokeWidth.hairline))
-        .shadow(color: JinSemanticColor.shadowElevated, radius: 12, x: 0, y: 4)
-        // Purely informational: it must never swallow a click meant for the
-        // message underneath it.
-        .allowsHitTesting(false)
-    }
-
-    private func cardSection(
-        label: String,
-        text: String,
-        lineLimit: Int,
-        isPrimary: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(JinSemanticColor.textTertiary)
-            Text(text)
-                .font(.callout)
-                .foregroundStyle(isPrimary ? Color.primary : Color.secondary)
-                .lineLimit(lineLimit)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Centres the card on its tick, then clamps it inside the viewport so a
@@ -268,6 +249,103 @@ struct ChatConversationMinimapRail: View {
     private var accessibilityValue: String {
         guard let activeTurnIndex else { return "\(turns.count) turns" }
         return "Turn \(activeTurnIndex + 1) of \(turns.count)"
+    }
+}
+
+// MARK: - Preview card
+
+/// Isolated equatable card so hover-index changes that land on the same turn
+/// content don't rebuild the material + text stack.
+private struct ChatConversationMinimapPreviewCard: View, Equatable {
+    let turn: ChatConversationMinimapGeometry.Turn
+    let assistantRoleLabel: String
+    let cardWidth: CGFloat
+    let cornerRadius: CGFloat
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.turn == rhs.turn
+            && lhs.assistantRoleLabel == rhs.assistantRoleLabel
+            && lhs.cardWidth == rhs.cardWidth
+            && lhs.cornerRadius == rhs.cornerRadius
+    }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            if !turn.userExcerpt.isEmpty {
+                section(
+                    label: ChatConversationMinimapGeometry.userRoleLabel,
+                    text: turn.userExcerpt,
+                    lineLimit: 3
+                )
+            }
+            if !turn.assistantExcerpt.isEmpty {
+                section(
+                    label: assistantRoleLabel,
+                    text: turn.assistantExcerpt,
+                    lineLimit: 5
+                )
+            }
+            if turn.userExcerpt.isEmpty, turn.assistantExcerpt.isEmpty {
+                Text("No text in this turn")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, JinSpacing.medium + 2)
+        .padding(.vertical, JinSpacing.medium)
+        .frame(width: cardWidth, alignment: .leading)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: ChatConversationMinimapCardHeightKey.self,
+                    value: proxy.size.height
+                )
+            }
+        )
+        // One static material treatment — hover is expressed by the card
+        // appearing at all, never by swapping this for a solid colour.
+        .jinAdaptiveBackground(shape, material: .regularMaterial)
+        .clipShape(shape)
+        .overlay(shape.stroke(JinSemanticColor.borderSubtle, lineWidth: JinStrokeWidth.hairline))
+        // Soft dual shadow reads as a floating macOS card without the hard
+        // single-layer cut that a large elevated-only radius produces.
+        .shadow(color: JinSemanticColor.shadowSubtle, radius: 2, x: 0, y: 1)
+        .shadow(color: JinSemanticColor.shadowElevated, radius: 16, x: 0, y: 6)
+        // Purely informational: it must never swallow a click meant for the
+        // message underneath it.
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func section(label: String, text: String, lineLimit: Int) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label)
+                .jinSectionHeader()
+                .foregroundStyle(JinSemanticColor.textTertiary)
+
+            Text(text)
+                .font(.callout)
+                .foregroundStyle(.primary)
+                .lineSpacing(2)
+                .lineLimit(lineLimit)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var accessibilityLabel: String {
+        var parts: [String] = []
+        if !turn.userExcerpt.isEmpty {
+            parts.append("\(ChatConversationMinimapGeometry.userRoleLabel): \(turn.userExcerpt)")
+        }
+        if !turn.assistantExcerpt.isEmpty {
+            parts.append("\(assistantRoleLabel): \(turn.assistantExcerpt)")
+        }
+        return parts.isEmpty ? "No text in this turn" : parts.joined(separator: ". ")
     }
 }
 

@@ -21,7 +21,36 @@ enum ChatConversationMinimapGeometry {
     static let userExcerptLimit = 140
     static let assistantExcerptLimit = 220
 
+    /// Role label shown above the user excerpt on the hover card.
+    static let userRoleLabel = "YOU"
+
+    /// Default role label for the assistant excerpt when the conversation
+    /// still uses the generic "Assistant" display name.
+    static let defaultAssistantRoleLabel = "ASSISTANT"
+
     private static let ellipsis = "…"
+
+    /// Formats the assistant role label for the hover card. Generic assistants
+    /// render as `ASSISTANT`; named ones keep their display name in uppercase
+    /// so the card matches the compact YOU / ASSISTANT visual language.
+    static func assistantRoleLabel(displayName: String) -> String {
+        guard let custom = customAssistantDisplayName(displayName) else {
+            return defaultAssistantRoleLabel
+        }
+        return custom.uppercased()
+    }
+
+    /// Returns a trimmed custom assistant name for UI that should suppress the
+    /// generic default (e.g. search-activity provider labels). `nil` covers
+    /// blank input and any case/diacritic-insensitive match of "Assistant".
+    static func customAssistantDisplayName(_ displayName: String) -> String? {
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.compare("Assistant", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame {
+            return nil
+        }
+        return trimmed
+    }
 
     // MARK: - Turns
 
