@@ -56,10 +56,14 @@ struct MessageRowHeaderView: View {
     private var headerRow: some View {
         HStack(spacing: JinSpacing.small - 2) {
             if isUser {
+                // No trailing Spacer here: the user bubble sizes itself to its
+                // content (up to `userBubbleMaxWidth`), and a greedy Spacer in
+                // the header would pin every bubble — even a two-word one — to
+                // that maximum. The enclosing VStack is `.leading`-aligned, so
+                // the label already sits on the bubble's inner rail.
                 Text(ChatConversationMinimapGeometry.userRoleLabel)
                     .jinSectionHeader()
                     .foregroundStyle(JinSemanticColor.textTertiary)
-                Spacer(minLength: 0)
             } else {
                 if !isTool {
                     ProviderBadgeIcon(iconID: providerIconID)
