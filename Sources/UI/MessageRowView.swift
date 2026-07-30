@@ -117,7 +117,7 @@ struct MessageRow: View, Equatable {
                                         SearchActivityTimelineView(
                                             activities: item.searchActivities,
                                             isStreaming: false,
-                                            providerLabel: assistantDisplayName == "Assistant" ? nil : assistantDisplayName,
+                                            providerLabel: ChatConversationMinimapGeometry.customAssistantDisplayName(assistantDisplayName),
                                             modelLabel: presentation.assistantModelLabel
                                         )
                                     }

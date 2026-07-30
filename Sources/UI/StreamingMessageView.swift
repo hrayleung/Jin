@@ -53,7 +53,7 @@ struct StreamingMessageView: View {
                             SearchActivityTimelineView(
                                 activities: state.searchActivities,
                                 isStreaming: true,
-                                providerLabel: assistantDisplayName == "Assistant" ? nil : assistantDisplayName,
+                                providerLabel: ChatConversationMinimapGeometry.customAssistantDisplayName(assistantDisplayName),
                                 modelLabel: modelLabel
                             )
                         }

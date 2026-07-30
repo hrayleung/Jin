@@ -137,6 +137,25 @@ final class ChatConversationMinimapGeometryTests: XCTestCase {
         )
     }
 
+    func testCustomAssistantDisplayNameSuppressesGenericNames() {
+        XCTAssertNil(ChatConversationMinimapGeometry.customAssistantDisplayName("Assistant"))
+        XCTAssertNil(ChatConversationMinimapGeometry.customAssistantDisplayName(" assistant "))
+        XCTAssertNil(ChatConversationMinimapGeometry.customAssistantDisplayName("ASSISTANT"))
+        XCTAssertNil(ChatConversationMinimapGeometry.customAssistantDisplayName(""))
+        XCTAssertNil(ChatConversationMinimapGeometry.customAssistantDisplayName("   "))
+    }
+
+    func testCustomAssistantDisplayNamePreservesNamedAssistants() {
+        XCTAssertEqual(
+            ChatConversationMinimapGeometry.customAssistantDisplayName(" Research Bot "),
+            "Research Bot"
+        )
+        XCTAssertEqual(
+            ChatConversationMinimapGeometry.customAssistantDisplayName("Claude"),
+            "Claude"
+        )
+    }
+
     // MARK: - Excerpts
 
     func testExcerptCollapsesWhitespaceRunsToSingleSpaces() {

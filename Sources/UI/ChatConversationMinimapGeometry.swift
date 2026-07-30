@@ -34,12 +34,22 @@ enum ChatConversationMinimapGeometry {
     /// render as `ASSISTANT`; named ones keep their display name in uppercase
     /// so the card matches the compact YOU / ASSISTANT visual language.
     static func assistantRoleLabel(displayName: String) -> String {
-        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return defaultAssistantRoleLabel }
-        if trimmed.compare("Assistant", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame {
+        guard let custom = customAssistantDisplayName(displayName) else {
             return defaultAssistantRoleLabel
         }
-        return trimmed.uppercased()
+        return custom.uppercased()
+    }
+
+    /// Returns a trimmed custom assistant name for UI that should suppress the
+    /// generic default (e.g. search-activity provider labels). `nil` covers
+    /// blank input and any case/diacritic-insensitive match of "Assistant".
+    static func customAssistantDisplayName(_ displayName: String) -> String? {
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.compare("Assistant", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame {
+            return nil
+        }
+        return trimmed
     }
 
     // MARK: - Turns
