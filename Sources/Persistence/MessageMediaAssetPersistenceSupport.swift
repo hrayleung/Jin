@@ -92,22 +92,40 @@ enum MessageMediaAssetPersistenceSupport {
         }
     }
 
+    /// Shared session for bounded remote-image fetches. Static so it exists
+    /// once for the process: a `URLSession` retains itself (plus its queue)
+    /// until `invalidateAndCancel`, so the previous per-call session leaked
+    /// one session per imported image.
+    private static let boundedImageFetchSession = URLSession(
+        configuration: NetworkDebugRequestExecutor.makeDefaultSessionConfiguration()
+    )
+
     private static func boundedRemoteImageData(from url: URL, mode: String, dataProvider: HTTPDataProvider?) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("image/*", forHTTPHeaderField: "Accept")
 
-        // One shared session for every caller: the previous path built a new
-        // `URLSession` per fetch and never invalidated it — a URLSession
-        // retains itself (plus its queue) until `invalidateAndCancel`, so each
-        // remote-image import leaked one. The size cap is still enforced via
-        // the declared Content-Length and the actual byte count.
-        let (data, response) = try await NetworkDebugRequestExecutor.data(
-            for: request,
-            mode: mode,
-            dataProvider: dataProvider
-        )
-        try validateRemoteImageResponse(response, byteCount: data.count)
+        if let dataProvider {
+            let (data, response) = try await NetworkDebugRequestExecutor.data(for: request, mode: mode, dataProvider: dataProvider)
+            try validateRemoteImageResponse(response, byteCount: data.count)
+            return (data, response)
+        }
+
+        // Streamed, not buffered-then-checked: a chunked response (or one
+        // that under-declares Content-Length) must hit the size cap while the
+        // bytes arrive, or an oversized URL buffers unbounded memory before
+        // validation ever sees a byte count.
+        let (bytes, response) = try await boundedImageFetchSession.bytes(for: request)
+        try validateRemoteImageResponse(response, byteCount: nil)
+
+        var data = Data()
+        data.reserveCapacity(min(RemoteMediaURLPolicy.maximumAutomaticFetchBytes, max(0, Int(response.expectedContentLength))))
+        for try await byte in bytes {
+            if data.count >= RemoteMediaURLPolicy.maximumAutomaticFetchBytes {
+                throw URLError(.dataLengthExceedsMaximum)
+            }
+            data.append(byte)
+        }
         return (data, response)
     }
 
