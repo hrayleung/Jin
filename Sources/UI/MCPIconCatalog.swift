@@ -31,7 +31,13 @@ struct MCPIcon: Identifiable, Hashable {
             ) else {
                 return nil
             }
-            return NSImage(contentsOf: resourceURL)
+            // Bundled icons ship at up to 2048px but render at 18-40 pt;
+            // decode at icon size so browsing the picker doesn't materialize
+            // full-resolution bitmaps.
+            return ImageDownsampler.image(
+                at: resourceURL,
+                maxPixelSize: MCPIconCatalog.maxIconPixelSize
+            )
         }
     }
 }
@@ -39,7 +45,15 @@ struct MCPIcon: Identifiable, Hashable {
 enum MCPIconCatalog {
     static let defaultIconID = "mcp"
 
-    private static let imageCache = LockedNSImageCache(countLimit: 64)
+    /// Largest render size is ~40 pt; 128 px covers @2x with headroom.
+    static let maxIconPixelSize = 128
+
+    // Entries are icon-sized (~65 KB) after downsampling, so the whole
+    // catalog stays warm well under the cost ceiling.
+    private static let imageCache = LockedNSImageCache(
+        countLimit: 256,
+        totalCostLimit: 16 * 1024 * 1024
+    )
 
     static let all: [MCPIcon] = loadBundledIcons()
 
@@ -71,7 +85,7 @@ enum MCPIconCatalog {
             return nil
         }
 
-        imageCache.setObject(image, forKey: nsKey)
+        imageCache.setObject(image, forKey: nsKey, cost: ImageDownsampler.estimatedBitmapCost(of: image))
         return image
     }
 

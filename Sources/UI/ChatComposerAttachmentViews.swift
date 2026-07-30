@@ -2,9 +2,14 @@ import SwiftUI
 import AppKit
 
 private enum DraftAttachmentThumbnailProvider {
+    /// Chips draw at 26 pt; decode at 64 px (26 pt @2x with headroom) instead
+    /// of full resolution — a full-res 12 MP decode is ~46 MB for a chip.
+    static let maxThumbnailPixelSize = 64
+
     static let cache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 64
+        cache.totalCostLimit = 8 * 1024 * 1024
         return cache
     }()
 
@@ -17,7 +22,11 @@ private enum DraftAttachmentThumbnailProvider {
     }
 
     static func store(_ image: NSImage, for url: URL) {
-        cache.setObject(image, forKey: cacheKey(for: url))
+        cache.setObject(
+            image,
+            forKey: cacheKey(for: url),
+            cost: ImageDownsampler.estimatedBitmapCost(of: image)
+        )
     }
 }
 
@@ -71,13 +80,14 @@ private struct DraftAttachmentThumbnailView: View {
         }
 
         let url = attachment.fileURL
-        let data = await Task.detached(priority: .utility) {
-            try? Data(contentsOf: url)
+        let loadedImage = await Task.detached(priority: .utility) {
+            ImageDownsampler.image(
+                at: url,
+                maxPixelSize: DraftAttachmentThumbnailProvider.maxThumbnailPixelSize
+            )
         }.value
 
-        guard !Task.isCancelled,
-              let data,
-              let loadedImage = NSImage(data: data) else {
+        guard !Task.isCancelled, let loadedImage else {
             image = nil
             return
         }

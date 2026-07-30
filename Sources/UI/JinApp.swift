@@ -20,6 +20,10 @@ private final class JinAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // `Process` does not kill its child when the parent exits, so without
+        // this sweep every persistent MCP server's node/python child outlives
+        // the app as an orphan on each quit.
+        MCPProcessRegistry.shared.terminateAll()
         _ = AppPreferencesSnapshotStore.persistCurrentDomain()
         if !AppRuntimeProtection.automaticSnapshotsSuspended {
             _ = try? AppSnapshotManager.captureAutomaticSnapshot(reason: .termination)
@@ -54,6 +58,11 @@ struct JinApp: App {
         ])
         ImageCache.default.memoryStorage.config.expiration = .seconds(3600)
         ImageCache.default.diskStorage.config.expiration = .days(30)
+        // Kingfisher's default memory ceiling is 25% of physical RAM (4 GB on
+        // a 16 GB machine) and its memory-warning purge is iOS-only, so bound
+        // it explicitly. Evicted entries fall back to the disk cache.
+        ImageCache.default.memoryStorage.config.totalCostLimit = 128 * 1024 * 1024
+        ImageCache.default.memoryStorage.config.countLimit = 150
         OverlayScrollerStyleController.shared.installIfNeeded()
 
         preferencesSyncController = AppPreferencesSyncController()
@@ -85,11 +94,11 @@ struct JinApp: App {
             }
             .onAppear {
                 launchCoordinator.startIfNeeded()
-                // Warm up the math/mermaid WKWebViews shortly after launch
-                // so the first message containing a math or mermaid block
-                // doesn't pay the 200-500 ms web-content-process spinup
-                // cost in front of the user.
-                MiniWebViewPrewarmer.prewarmIfNeeded()
+                // Mermaid WKWebView prewarm is demand-driven: the markdown
+                // group builder requests it when a mermaid block first
+                // appears (see MiniWebViewPrewarmer). Warming at launch cost
+                // every session a resident web-content process (~tens of MB)
+                // for a block type most conversations never contain.
             }
             // No window customization. Reference Tahoe-native apps (Chops,
             // Apple's own) use plain WindowGroup + NavigationSplitView and

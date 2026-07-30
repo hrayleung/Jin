@@ -8,7 +8,6 @@ import AppKit
 struct SettingsView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Query var conversations: [ConversationEntity]
 
     enum SettingsSection: String, CaseIterable, Identifiable {
         case providers = "Providers"

@@ -28,7 +28,7 @@ extension XAIAdapter {
         let streamDecoder = JSONDecoder.snakeCaseConverting()
 
         return AsyncThrowingStream { continuation in
-            Task {
+            let producerTask = Task {
                 do {
                     var functionCallsByItemID: [String: ResponsesAPIFunctionCallState] = [:]
                     var codeInterpreterState = OpenAICodeInterpreterState()
@@ -81,6 +81,10 @@ extension XAIAdapter {
                     continuation.finish(throwing: error)
                 }
             }
+            // When the consumer stops iterating (Stop, conversation delete),
+            // cancel the producer — otherwise it keeps draining the SSE
+            // stream and the HTTP transfer runs to completion.
+            continuation.onTermination = { _ in producerTask.cancel() }
         }
     }
 

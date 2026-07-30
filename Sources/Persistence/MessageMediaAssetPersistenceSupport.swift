@@ -92,6 +92,14 @@ enum MessageMediaAssetPersistenceSupport {
         }
     }
 
+    /// Shared session for bounded remote-image fetches. Static so it exists
+    /// once for the process: a `URLSession` retains itself (plus its queue)
+    /// until `invalidateAndCancel`, so the previous per-call session leaked
+    /// one session per imported image.
+    private static let boundedImageFetchSession = URLSession(
+        configuration: NetworkDebugRequestExecutor.makeDefaultSessionConfiguration()
+    )
+
     private static func boundedRemoteImageData(from url: URL, mode: String, dataProvider: HTTPDataProvider?) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -103,9 +111,11 @@ enum MessageMediaAssetPersistenceSupport {
             return (data, response)
         }
 
-        let configuration = NetworkDebugRequestExecutor.makeDefaultSessionConfiguration()
-        let session = URLSession(configuration: configuration)
-        let (bytes, response) = try await session.bytes(for: request)
+        // Streamed, not buffered-then-checked: a chunked response (or one
+        // that under-declares Content-Length) must hit the size cap while the
+        // bytes arrive, or an oversized URL buffers unbounded memory before
+        // validation ever sees a byte count.
+        let (bytes, response) = try await boundedImageFetchSession.bytes(for: request)
         try validateRemoteImageResponse(response, byteCount: nil)
 
         var data = Data()

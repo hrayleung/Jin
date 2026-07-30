@@ -151,6 +151,10 @@ enum InlineMath {
     private static let cache: NSCache<NSString, Box> = {
         let c = NSCache<NSString, Box>()
         c.countLimit = 1024
+        // Values carry rendered bitmaps whose size varies ~20× between a
+        // short and a max-length span, so bound bytes as well as count;
+        // inserts pass the bitmap size as the cost. A miss just re-renders.
+        c.totalCostLimit = 12 * 1024 * 1024
         return c
     }()
 
@@ -166,13 +170,19 @@ enum InlineMath {
         let key = "\(font.pointSize)|\(appearanceTag())|\(original)" as NSString
         if let cached = cache.object(forKey: key) { return cached.value }
 
-        let result = makeAttachment(inner: inner, original: original, font: font, color: resolvedColor)
+        let attachment = makeAttachment(inner: inner, original: original, font: font, color: resolvedColor)
+        let result = attachment?.string
             ?? NSAttributedString(string: original, attributes: [.font: font, .foregroundColor: color])
-        cache.setObject(Box(result), forKey: key)
+        cache.setObject(Box(result), forKey: key, cost: attachment?.bitmapCost ?? original.utf16.count * 2)
         return result
     }
 
-    private static func makeAttachment(inner: String, original: String, font: NSFont, color: NSColor) -> NSAttributedString? {
+    private static func makeAttachment(
+        inner: String,
+        original: String,
+        font: NSFont,
+        color: NSColor
+    ) -> (string: NSAttributedString, bitmapCost: Int)? {
         let image = MTMathImage(
             latex: MathRenderer.normalize(inner),
             fontSize: font.pointSize,
@@ -201,7 +211,10 @@ enum InlineMath {
         // so copy/quote can recover the LaTeX the rendered image otherwise
         // erases. Layout-inert; length-preserving (see `jinInlineMathSource`).
         string.addAttribute(.jinInlineMathSource, value: original, range: NSRange(location: 0, length: string.length))
-        return string
+        // `size` is in points; the backing bitmap renders at Retina scale, so
+        // account ~2x per axis for the cache's byte budget.
+        let bitmapCost = max(1, Int(nsImage.size.width * nsImage.size.height) * 4 * 4)
+        return (string, bitmapCost)
     }
 
     private static func resolveForCurrentAppearance(_ color: NSColor) -> NSColor {
