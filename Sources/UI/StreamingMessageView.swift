@@ -33,25 +33,22 @@ struct StreamingMessageView: View {
         HStack(alignment: .top, spacing: 0) {
             ConstrainedWidth(maxBubbleWidth) {
                 VStack(alignment: .leading, spacing: JinSpacing.small - 2) {
-                    HStack(spacing: JinSpacing.small - 2) {
-                        ProviderBadgeIcon(iconID: providerIconID)
-
-                        if assistantDisplayName != "Assistant" {
-                            Text(assistantDisplayName)
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let label = modelLabel?.trimmedNonEmpty {
-                            Text(label)
-                                .jinTagStyle()
-                        }
-                    }
-                    .padding(.horizontal, JinSpacing.medium)
-                    .padding(.bottom, 2)
-
                     VStack(alignment: .leading, spacing: JinSpacing.small) {
+                        HStack(spacing: JinSpacing.small - 2) {
+                            ProviderBadgeIcon(iconID: providerIconID)
+
+                            Text(ChatConversationMinimapGeometry.assistantRoleLabel(displayName: assistantDisplayName))
+                                .jinSectionHeader()
+                                .foregroundStyle(JinSemanticColor.textTertiary)
+
+                            if let label = modelLabel?.trimmedNonEmpty {
+                                Text(label)
+                                    .jinTagStyle()
+                            }
+
+                            Spacer(minLength: 0)
+                        }
+
                         if !state.searchActivities.isEmpty {
                             SearchActivityTimelineView(
                                 activities: state.searchActivities,
@@ -106,7 +103,7 @@ struct StreamingMessageView: View {
                         }
                     }
                     .padding(JinSpacing.medium)
-                    .jinSurface(.neutral, cornerRadius: JinRadius.medium)
+                    .jinSurface(.subtle, cornerRadius: JinRadius.large)
 
                     if showsCopyButton {
                         HStack {

@@ -101,6 +101,42 @@ final class ChatConversationMinimapGeometryTests: XCTestCase {
         XCTAssertEqual(ChatConversationMinimapGeometry.turnList(from: []).turns.count, 0)
     }
 
+    // MARK: - Role labels
+
+    func testUserRoleLabelIsUppercaseYou() {
+        XCTAssertEqual(ChatConversationMinimapGeometry.userRoleLabel, "YOU")
+    }
+
+    func testAssistantRoleLabelDefaultsToAssistant() {
+        XCTAssertEqual(
+            ChatConversationMinimapGeometry.assistantRoleLabel(displayName: "Assistant"),
+            "ASSISTANT"
+        )
+        XCTAssertEqual(
+            ChatConversationMinimapGeometry.assistantRoleLabel(displayName: " assistant "),
+            "ASSISTANT"
+        )
+        XCTAssertEqual(
+            ChatConversationMinimapGeometry.assistantRoleLabel(displayName: ""),
+            "ASSISTANT"
+        )
+        XCTAssertEqual(
+            ChatConversationMinimapGeometry.assistantRoleLabel(displayName: "   "),
+            "ASSISTANT"
+        )
+    }
+
+    func testAssistantRoleLabelUppercasesNamedAssistants() {
+        XCTAssertEqual(
+            ChatConversationMinimapGeometry.assistantRoleLabel(displayName: "Research Bot"),
+            "RESEARCH BOT"
+        )
+        XCTAssertEqual(
+            ChatConversationMinimapGeometry.assistantRoleLabel(displayName: "Claude"),
+            "CLAUDE"
+        )
+    }
+
     // MARK: - Excerpts
 
     func testExcerptCollapsesWhitespaceRunsToSingleSpaces() {

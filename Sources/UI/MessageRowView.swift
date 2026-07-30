@@ -56,15 +56,15 @@ struct MessageRow: View, Equatable {
 
                     ConstrainedWidth(presentation.effectiveMaxBubbleWidth) {
                         VStack(alignment: presentation.isUser ? .trailing : .leading, spacing: 6) {
-                            MessageRowHeaderView(
-                                isUser: presentation.isUser,
-                                isTool: presentation.isTool,
-                                assistantDisplayName: assistantDisplayName,
-                                assistantModelLabel: presentation.assistantModelLabel,
-                                providerIconID: item.assistantProviderIconID ?? providerIconID
-                            )
+                            VStack(alignment: .leading, spacing: JinSpacing.small) {
+                                MessageRowHeaderView(
+                                    isUser: presentation.isUser,
+                                    isTool: presentation.isTool,
+                                    assistantDisplayName: assistantDisplayName,
+                                    assistantModelLabel: presentation.assistantModelLabel,
+                                    providerIconID: item.assistantProviderIconID ?? providerIconID
+                                )
 
-                            VStack(alignment: .leading, spacing: 8) {
                                 if presentation.isEditingUserMessage {
                                     if editSlashCommand.isActive {
                                         SlashCommandMCPPopover(
@@ -174,7 +174,7 @@ struct MessageRow: View, Equatable {
                                     isUser: presentation.isUser,
                                     isTool: presentation.isTool
                                 ),
-                                cornerRadius: JinRadius.medium
+                                cornerRadius: JinRadius.large
                             )
 
                             if presentation.isUser || presentation.isAssistant {
@@ -272,8 +272,12 @@ struct MessageRow: View, Equatable {
 
     private func bubbleBackground(isUser: Bool, isTool: Bool) -> JinSurfaceVariant {
         if isTool { return .tool }
+        // User bubbles keep a soft accent tint so they still read as "mine".
+        // Assistant bubbles use the inline island (subtle + hairline) so long
+        // replies don't melt into the canvas without competing with the
+        // composer's reserved raised surface.
         if isUser { return .accent }
-        return .neutral
+        return .subtle
     }
 
     // MARK: - Equatable
