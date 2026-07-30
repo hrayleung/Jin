@@ -18,6 +18,7 @@ actor MCPClient {
     private let handshakeTimeoutSeconds: Double = 180
     private let requestTimeoutSeconds: Double = 60
     private let toolCallTimeoutSeconds: Double = 180
+    private static let disconnectTimeoutSeconds: Double = 5
 
     static let defaultPathEntries: [String] = [
         "/opt/homebrew/bin",
@@ -51,14 +52,21 @@ actor MCPClient {
     }
 
     func stop() async {
-        await client?.disconnect()
+        // Kill the child first. `disconnect()` hops onto the SDK's actor, which can be
+        // saturated when its receive loop is spinning on a half-open stream; with the
+        // old disconnect-first order that could strand the process we were trying to
+        // reap.
+        process?.terminate()
+        process = nil
+
+        stderrReadTask?.cancel()
+        stderrReadTask = nil
+
+        await disconnectClientBounded()
         client = nil
         stdioTransport = nil
         httpTransport = nil
         httpDiagnostics = nil
-
-        stderrReadTask?.cancel()
-        stderrReadTask = nil
 
         stdinPipe?.fileHandleForWriting.closeFile()
         stdinPipe = nil
@@ -66,9 +74,19 @@ actor MCPClient {
         stdoutPipe = nil
         stderrPipe?.fileHandleForReading.closeFile()
         stderrPipe = nil
+    }
 
-        process?.terminate()
-        process = nil
+    /// `disconnect()` is best-effort teardown; never let it stall shutdown.
+    private func disconnectClientBounded() async {
+        guard let client else { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await client.disconnect() }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(Self.disconnectTimeoutSeconds * 1_000_000_000))
+            }
+            await group.next()
+            group.cancelAll()
+        }
     }
 
     // MARK: - Public API
@@ -116,10 +134,7 @@ actor MCPClient {
                 try await client.callTool(name: name, arguments: args)
             }
 
-            let text = result.content.compactMap { item -> String? in
-                if case .text(let text) = item { return text }
-                return nil
-            }.joined(separator: "\n")
+            let text = result.content.compactMap(Self.line(for:)).joined(separator: "\n")
 
             return MCPToolCallResult(text: text, isError: result.isError ?? false)
         } catch {
@@ -294,6 +309,41 @@ actor MCPClient {
         if stderrTail.count > logTailLimitBytes {
             stderrTail.removeSubrange(0..<(stderrTail.count - logTailLimitBytes))
         }
+    }
+
+    // MARK: - Tool result content
+
+    /// Renders one tool-result content item.
+    ///
+    /// Only `.text` used to survive, so an embedded resource's text was thrown away
+    /// and an image or audio clip vanished without a trace — the model could not even
+    /// tell that something had come back. Inline resource text is recovered as real
+    /// content; binary payloads get a placeholder so the loss is at least visible.
+    /// (Surfacing the bytes themselves needs a newer SDK and is a separate change.)
+    static func line(for content: MCP.Tool.Content) -> String? {
+        switch content {
+        case .text(let text):
+            return text
+        case .image(let data, let mimeType, _):
+            return "[image returned — \(mimeType), \(formattedByteCount(base64Length: data.count)); not shown]"
+        case .audio(let data, let mimeType):
+            return "[audio returned — \(mimeType), \(formattedByteCount(base64Length: data.count)); not shown]"
+        case .resource(let uri, let mimeType, let text):
+            if let text, !text.isEmpty { return text }
+            return "[resource \(uri) — \(mimeType)]"
+        @unknown default:
+            return nil
+        }
+    }
+
+    /// Approximates the decoded size of a base64 payload. Deliberately not
+    /// `ByteCountFormatter`: this string reaches the model, so it must not vary with
+    /// locale or OS version.
+    static func formattedByteCount(base64Length: Int) -> String {
+        let bytes = Double(base64Length) * 3.0 / 4.0
+        if bytes < 1024 { return "\(Int(bytes)) B" }
+        if bytes < 1024 * 1024 { return String(format: "%.0f KB", bytes / 1024) }
+        return String(format: "%.1f MB", bytes / (1024 * 1024))
     }
 
     // MARK: - Encoding / decoding helpers

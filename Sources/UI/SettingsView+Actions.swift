@@ -86,10 +86,14 @@ extension SettingsView {
     }
 
     func deleteServer(_ server: MCPServerConfigEntity) {
+        let serverID = server.id
         Task { @MainActor in
             modelContext.delete(server)
             try? modelContext.save()
             serverPendingDeletion = nil
+            // Deleting the row alone leaves a persistent server's child process running
+            // until the app restarts.
+            await MCPHub.shared.shutdown(serverID: serverID)
         }
     }
 

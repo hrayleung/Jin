@@ -100,6 +100,14 @@ actor MCPHub {
         }
     }
 
+    /// Stop and evict a persistent server's client. Without this a deleted or disabled
+    /// server keeps its child process alive until the app restarts.
+    func shutdown(serverID: String) async {
+        clientConfigs.removeValue(forKey: serverID)
+        guard let client = clients.removeValue(forKey: serverID) else { return }
+        await client.stop()
+    }
+
     private func withClient<T>(for server: MCPServerConfig, operation: (MCPClient) async throws -> T) async throws -> T {
         if server.lifecycle.isPersistent {
             let client = await clientForServer(server)

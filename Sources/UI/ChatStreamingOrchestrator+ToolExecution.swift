@@ -11,8 +11,13 @@ extension ChatStreamingOrchestrator {
         mcpRoutes: ToolRouteSnapshot
     ) async -> ToolExecutionResult {
         var progress = ToolExecutionProgress()
+        var cancelled = false
 
         for call in executableToolCalls {
+            if Task.isCancelled {
+                cancelled = true
+                break
+            }
             let callStart = Date()
             let route = toolExecutionRoute(
                 for: call,
@@ -48,7 +53,16 @@ extension ChatStreamingOrchestrator {
                     accumulator: &accumulator,
                     streamingState: streamingState
                 )
+            } catch is CancellationError {
+                // The user stopped the turn; recording this as a tool failure would be
+                // wrong, and recording it as a success is what this used to do.
+                cancelled = true
+                break
             } catch {
+                if Task.isCancelled {
+                    cancelled = true
+                    break
+                }
                 let record = failedToolExecutionRecord(
                     for: call,
                     route: route,
@@ -65,6 +79,6 @@ extension ChatStreamingOrchestrator {
             }
         }
 
-        return progress.result(cancelled: false)
+        return progress.result(cancelled: cancelled)
     }
 }
