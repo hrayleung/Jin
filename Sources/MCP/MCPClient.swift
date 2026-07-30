@@ -246,6 +246,7 @@ actor MCPClient {
         process.standardError = stderrPipe
 
         process.terminationHandler = { [weak self] proc in
+            MCPProcessRegistry.shared.unregister(proc)
             let status = proc.terminationStatus
             Task { [weak self] in
                 guard let self else { return }
@@ -263,6 +264,9 @@ actor MCPClient {
         self.stdinPipe = stdinPipe
         self.stdoutPipe = stdoutPipe
         self.stderrPipe = stderrPipe
+        // Registered so app termination can reap the child synchronously;
+        // the terminationHandler above unregisters on any exit.
+        MCPProcessRegistry.shared.register(process)
 
         let stderrHandle = stderrPipe.fileHandleForReading
         stderrReadTask?.cancel()

@@ -16,6 +16,11 @@ struct RemoteMessageImageView: View {
             } else if canLoadPreview && isUser {
                 KFImage(source: .network(KF.ImageResource(downloadURL: url)))
                     .placeholder { _ in userPlaceholderView }
+                    // Decode/cache at display size instead of full resolution.
+                    // 240 pt (not 80) so `scaledToFill` still has both edges
+                    // ≥ the 80 pt frame after aspect-fit downsampling.
+                    .setProcessor(DownsamplingImageProcessor(size: CGSize(width: 240, height: 240)))
+                    .scaleFactor(NSScreen.main?.backingScaleFactor ?? 2)
                     .cancelOnDisappear(true)
                     .fade(duration: 0.15)
                     .onSuccess { _ in loadFailed = false }
@@ -34,6 +39,11 @@ struct RemoteMessageImageView: View {
             } else if canLoadPreview {
                 KFImage(source: .network(KF.ImageResource(downloadURL: url)))
                     .placeholder { _ in placeholderView }
+                    // Decode/cache at display size instead of full resolution;
+                    // the tall height keeps extreme portrait images crisp at
+                    // the 500 pt display width.
+                    .setProcessor(DownsamplingImageProcessor(size: CGSize(width: 500, height: 1000)))
+                    .scaleFactor(NSScreen.main?.backingScaleFactor ?? 2)
                     .cancelOnDisappear(true)
                     .fade(duration: 0.15)
                     .onSuccess { _ in loadFailed = false }

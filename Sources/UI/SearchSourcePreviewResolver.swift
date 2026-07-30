@@ -20,10 +20,34 @@ actor SearchSourcePreviewResolver {
         self.cacheFileURL = cacheFileURL ?? Self.defaultCacheFileURL(fileManager: fileManager)
         self.overrideDataProvider = dataProvider
         self.now = now
-        cacheByURL = SearchSourcePreviewDiskCache.load(
-            cacheFileURL: self.cacheFileURL,
-            now: self.now
+        cacheByURL = Self.pruned(
+            SearchSourcePreviewDiskCache.load(
+                cacheFileURL: self.cacheFileURL,
+                now: self.now
+            )
         )
+    }
+
+    /// The cache is rehydrated from disk at launch and would otherwise grow
+    /// without bound (one entry per distinct search-result URL ever previewed,
+    /// including failed fetches). The TTL alone never evicts a URL that is
+    /// never queried again, so cap by recency as well.
+    private static let maxCacheEntries = 2048
+
+    private static func pruned(
+        _ cache: [String: SearchSourcePreviewCacheEntry]
+    ) -> [String: SearchSourcePreviewCacheEntry] {
+        let overflow = cache.count - maxCacheEntries
+        guard overflow > 0 else { return cache }
+        var pruned = cache
+        let oldestKeys = cache
+            .sorted { $0.value.fetchedAt < $1.value.fetchedAt }
+            .prefix(overflow)
+            .map(\.key)
+        for key in oldestKeys {
+            pruned.removeValue(forKey: key)
+        }
+        return pruned
     }
 
     static func defaultCacheFileURL(fileManager: FileManager) -> URL? {
@@ -66,9 +90,11 @@ actor SearchSourcePreviewResolver {
         let resolvedAt = self.now()
         if let preview {
             cacheByURL[normalizedURL] = SearchSourcePreviewCacheEntry(previewText: preview, fetchedAt: resolvedAt)
+            cacheByURL = Self.pruned(cacheByURL)
             persistCacheToDisk()
         } else {
             cacheByURL[normalizedURL] = SearchSourcePreviewCacheEntry(previewText: nil, fetchedAt: resolvedAt)
+            cacheByURL = Self.pruned(cacheByURL)
         }
 
         return preview

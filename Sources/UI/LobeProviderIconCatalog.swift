@@ -37,13 +37,25 @@ struct LobeProviderIcon: Identifiable, Hashable {
             ) else {
                 return nil
             }
-            return NSImage(contentsOf: resourceURL)
+            // Bundled icons ship at up to 1024×1024 but render at 18-40 pt;
+            // decode at icon size so a scroll through the picker doesn't
+            // materialize hundreds of full-resolution bitmaps.
+            return ImageDownsampler.image(
+                at: resourceURL,
+                maxPixelSize: LobeProviderIconCatalog.maxIconPixelSize
+            )
         }
     }
 }
 
 enum LobeProviderIconCatalog {
-    private static let imageCache = LockedNSImageCache(countLimit: 512)
+    /// Largest render size is ~40 pt; 128 px covers @2x with headroom.
+    static let maxIconPixelSize = 128
+
+    private static let imageCache = LockedNSImageCache(
+        countLimit: 512,
+        totalCostLimit: 24 * 1024 * 1024
+    )
 
     static func cachedImage(forKey key: String, loader: () -> NSImage?) -> NSImage? {
         let nsKey = key as NSString
@@ -54,7 +66,7 @@ enum LobeProviderIconCatalog {
         guard let image = loader() else {
             return nil
         }
-        imageCache.setObject(image, forKey: nsKey)
+        imageCache.setObject(image, forKey: nsKey, cost: ImageDownsampler.estimatedBitmapCost(of: image))
         return image
     }
 

@@ -97,7 +97,7 @@ actor GeminiAdapter: LLMProviderAdapter {
         let sseStream = await networkManager.streamRequest(request, parser: parser)
 
         return AsyncThrowingStream { continuation in
-            Task {
+            let producerTask = Task {
                 do {
                     var didStart = false
                     let messageID = UUID().uuidString
@@ -175,6 +175,10 @@ actor GeminiAdapter: LLMProviderAdapter {
                     continuation.finish(throwing: error)
                 }
             }
+            // When the consumer stops iterating (Stop, conversation delete),
+            // cancel the producer — otherwise it keeps draining the SSE
+            // stream and the HTTP transfer runs to completion.
+            continuation.onTermination = { _ in producerTask.cancel() }
         }
     }
 

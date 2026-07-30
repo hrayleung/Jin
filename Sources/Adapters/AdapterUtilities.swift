@@ -82,9 +82,15 @@ func parseJSONObject(_ jsonString: String) -> [String: AnyCodable] {
 /// Reads file data from a URL, throwing a descriptive `LLMError` on failure.
 /// Use this instead of `try? Data(contentsOf: url)` in adapter code paths where
 /// a silent failure would cause user-visible data loss (e.g., dropped attachments).
+///
+/// `.mappedIfSafe`: attachment bytes here feed a single sequential pass
+/// (base64 → request body), so a file-backed mapping replaces a full
+/// dirty-heap copy per attachment per send. Consume the result within the
+/// request build — a mapped `Data` must not be stored anywhere that could
+/// outlive the file on disk.
 func resolveFileData(from url: URL) throws -> Data {
     do {
-        return try Data(contentsOf: url)
+        return try Data(contentsOf: url, options: [.mappedIfSafe])
     } catch {
         throw LLMError.invalidRequest(
             message: "Failed to read attachment \"\(url.lastPathComponent)\": \(error.localizedDescription)"

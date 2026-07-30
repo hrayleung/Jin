@@ -35,6 +35,9 @@ actor SearchRedirectURLResolver {
     private enum Configuration {
         static let requestTimeout: TimeInterval = 8
         static let redirectTargetQueryKeys = SearchRedirectQueryParameterSupport.targetURLKeysIncludingLink
+        /// The cache is rehydrated from disk at launch; the TTL alone never
+        /// evicts a URL that is never queried again, so cap by recency too.
+        static let maxCacheEntries = 2048
     }
 
     private var cacheByRawURL: [String: SearchRedirectURLCacheStore.Entry] = [:]
@@ -54,10 +57,28 @@ actor SearchRedirectURLResolver {
         self.cacheFileURL = cacheFileURL ?? Self.defaultCacheFileURL(fileManager: fileManager)
         self.overrideDataProvider = dataProvider
         self.now = now
-        cacheByRawURL = SearchRedirectURLCacheStore.load(
-            from: self.cacheFileURL,
-            now: self.now()
+        cacheByRawURL = Self.pruned(
+            SearchRedirectURLCacheStore.load(
+                from: self.cacheFileURL,
+                now: self.now()
+            )
         )
+    }
+
+    private static func pruned(
+        _ cache: [String: SearchRedirectURLCacheStore.Entry]
+    ) -> [String: SearchRedirectURLCacheStore.Entry] {
+        let overflow = cache.count - Configuration.maxCacheEntries
+        guard overflow > 0 else { return cache }
+        var pruned = cache
+        let oldestKeys = cache
+            .sorted { $0.value.resolvedAt < $1.value.resolvedAt }
+            .prefix(overflow)
+            .map(\.key)
+        for key in oldestKeys {
+            pruned.removeValue(forKey: key)
+        }
+        return pruned
     }
 
     func resolveIfNeeded(rawURL: String) async -> String? {
@@ -108,6 +129,7 @@ actor SearchRedirectURLResolver {
             resolvedURL: resolvedURL,
             resolvedAt: now
         )
+        cacheByRawURL = Self.pruned(cacheByRawURL)
         SearchRedirectURLCacheStore.persist(
             cacheByRawURL,
             to: cacheFileURL,

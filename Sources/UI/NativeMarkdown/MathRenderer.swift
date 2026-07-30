@@ -25,7 +25,9 @@ enum MathRenderer {
     private final class Box { let outcome: MathRenderOutcome; init(_ o: MathRenderOutcome) { outcome = o } }
     private static let cache: NSCache<NSString, Box> = {
         let c = NSCache<NSString, Box>()
-        c.countLimit = 512
+        // Each entry is a parsed MTMathAtom tree (~10-25 KB for a moderate
+        // equation); parsing is cheap enough that a miss is invisible.
+        c.countLimit = 256
         return c
     }()
 

@@ -39,7 +39,14 @@ extension SettingsView {
     }
 
     func providerDeletionMessage(_ provider: ProviderConfigEntity) -> String {
-        let count = conversations.filter { $0.providerID == provider.id }.count
+        // Counted on demand: this ran off a `@Query` of every conversation,
+        // which kept all of them (plus their faulted rows) resident for the
+        // whole lifetime of the Settings window just to build this message.
+        let providerID = provider.id
+        let descriptor = FetchDescriptor<ConversationEntity>(
+            predicate: #Predicate { $0.providerID == providerID }
+        )
+        let count = (try? modelContext.fetchCount(descriptor)) ?? 0
         return SettingsDeletionSupport.providerDeletionMessage(
             providerName: provider.name,
             chatCount: count

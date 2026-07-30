@@ -54,47 +54,50 @@ final class StreamingMessageState: ObservableObject {
 
     func appendDeltas(textDelta: String, thinkingDelta: String) {
         let appendStartedAt = ProcessInfo.processInfo.systemUptime
-        var didMutate = false
-        var didChangeText = false
-        var parseDurationMs = 0
-        var nextTextStorage = textStorage
-        var nextThinkingStorage = thinkingStorage
-        var nextThinkingChunks = thinkingChunks
-        var nextVisibleText = visibleText
-        var nextVisibleTextChunks = visibleTextChunks
-        var nextVisibleTextCharacterCount = visibleTextCharacterCount
-        var nextArtifacts = artifacts
-        var nextHasVisibleText = hasVisibleText
-        var nextIsThinkingComplete = isThinkingComplete
+        let didChangeText = !textDelta.isEmpty
+        guard didChangeText || !thinkingDelta.isEmpty else { return }
 
-        if !textDelta.isEmpty {
-            nextTextStorage.append(textDelta)
-            if !nextIsThinkingComplete, !nextThinkingChunks.isEmpty {
-                nextIsThinkingComplete = true
+        var parseDurationMs = 0
+
+        // Mutate the stored properties in place. The previous implementation
+        // staged every field into `next*` shadow copies and committed at the
+        // end; for the two monotonic string buffers that second reference
+        // defeated copy-on-write, so every flush recopied the entire
+        // accumulated response (O(n) per flush, O(n²) over a long reply).
+        // In-place appends on uniquely-referenced strings are amortized
+        // O(delta). `objectWillChange` still precedes the first mutation.
+        objectWillChange.send()
+
+        if didChangeText {
+            textStorage.append(textDelta)
+            if !isThinkingComplete, !thinkingChunks.isEmpty {
+                isThinkingComplete = true
             }
-            didChangeText = true
-            didMutate = true
         }
 
         if !thinkingDelta.isEmpty {
-            nextThinkingStorage.append(thinkingDelta)
-            appendDelta(thinkingDelta, to: &nextThinkingChunks, maxChunkSize: Self.maxChunkSize)
-            didMutate = true
+            thinkingStorage.append(thinkingDelta)
+            appendDelta(thinkingDelta, to: &thinkingChunks, maxChunkSize: Self.maxChunkSize)
         }
 
         if didChangeText {
             let parseStartedAt = ProcessInfo.processInfo.systemUptime
             let parseResult = ArtifactMarkupParser.parse(
-                nextTextStorage,
+                textStorage,
                 hidesTrailingIncompleteArtifact: true,
                 state: &artifactScanState
             )
 
             if parseResult.isPassthroughFullText {
-                nextVisibleText = nextTextStorage
-                appendDelta(textDelta, to: &nextVisibleTextChunks, maxChunkSize: Self.maxChunkSize)
-                nextVisibleTextCharacterCount += textDelta.count
-                nextHasVisibleText = nextHasVisibleText || textDelta.containsNonWhitespace
+                // Passthrough guarantees visibleText mirrors textStorage (the
+                // chunk bookkeeping below has always relied on that), so
+                // append the delta to visibleText's own buffer rather than
+                // aliasing textStorage — aliasing would force the next
+                // in-place append to copy the whole string again.
+                visibleText.append(textDelta)
+                appendDelta(textDelta, to: &visibleTextChunks, maxChunkSize: Self.maxChunkSize)
+                visibleTextCharacterCount += textDelta.count
+                hasVisibleText = hasVisibleText || textDelta.containsNonWhitespace
             } else {
                 let chunkUpdate = visibleTextChunkUpdate(
                     previous: visibleText,
@@ -103,31 +106,19 @@ final class StreamingMessageState: ObservableObject {
                     prefersIncrementalAppend: !parseResult.hasIncompleteTrailingArtifact
                         && parseResult.artifacts.count == artifacts.count
                 )
-                nextVisibleText = chunkUpdate.visibleText
-                nextVisibleTextChunks = chunkUpdate.chunks
-                nextVisibleTextCharacterCount = chunkUpdate.characterCount
-                nextHasVisibleText = nextVisibleText.containsNonWhitespace
+                visibleText = chunkUpdate.visibleText
+                visibleTextChunks = chunkUpdate.chunks
+                visibleTextCharacterCount = chunkUpdate.characterCount
+                hasVisibleText = visibleText.containsNonWhitespace
             }
 
-            nextArtifacts = parseResult.artifacts
+            artifacts = parseResult.artifacts
             parseDurationMs = Int((ProcessInfo.processInfo.systemUptime - parseStartedAt) * 1000)
         }
 
-        guard didMutate else { return }
-
-        objectWillChange.send()
-        textStorage = nextTextStorage
-        thinkingStorage = nextThinkingStorage
-        thinkingChunks = nextThinkingChunks
-        visibleText = nextVisibleText
-        visibleTextChunks = nextVisibleTextChunks
-        visibleTextCharacterCount = nextVisibleTextCharacterCount
-        artifacts = nextArtifacts
-        hasVisibleText = nextHasVisibleText
-        isThinkingComplete = nextIsThinkingComplete
         renderTick &+= 1
 
-        if !hasLoggedFirstDeltaApply, didMutate {
+        if !hasLoggedFirstDeltaApply {
             hasLoggedFirstDeltaApply = true
             let totalDurationMs = Int((ProcessInfo.processInfo.systemUptime - appendStartedAt) * 1000)
             // #region agent log

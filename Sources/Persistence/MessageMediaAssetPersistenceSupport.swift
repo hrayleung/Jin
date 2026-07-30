@@ -97,25 +97,17 @@ enum MessageMediaAssetPersistenceSupport {
         request.httpMethod = "GET"
         request.setValue("image/*", forHTTPHeaderField: "Accept")
 
-        if let dataProvider {
-            let (data, response) = try await NetworkDebugRequestExecutor.data(for: request, mode: mode, dataProvider: dataProvider)
-            try validateRemoteImageResponse(response, byteCount: data.count)
-            return (data, response)
-        }
-
-        let configuration = NetworkDebugRequestExecutor.makeDefaultSessionConfiguration()
-        let session = URLSession(configuration: configuration)
-        let (bytes, response) = try await session.bytes(for: request)
-        try validateRemoteImageResponse(response, byteCount: nil)
-
-        var data = Data()
-        data.reserveCapacity(min(RemoteMediaURLPolicy.maximumAutomaticFetchBytes, max(0, Int(response.expectedContentLength))))
-        for try await byte in bytes {
-            if data.count >= RemoteMediaURLPolicy.maximumAutomaticFetchBytes {
-                throw URLError(.dataLengthExceedsMaximum)
-            }
-            data.append(byte)
-        }
+        // One shared session for every caller: the previous path built a new
+        // `URLSession` per fetch and never invalidated it — a URLSession
+        // retains itself (plus its queue) until `invalidateAndCancel`, so each
+        // remote-image import leaked one. The size cap is still enforced via
+        // the declared Content-Length and the actual byte count.
+        let (data, response) = try await NetworkDebugRequestExecutor.data(
+            for: request,
+            mode: mode,
+            dataProvider: dataProvider
+        )
+        try validateRemoteImageResponse(response, byteCount: data.count)
         return (data, response)
     }
 

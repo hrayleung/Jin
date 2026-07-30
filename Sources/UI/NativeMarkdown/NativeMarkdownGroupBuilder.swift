@@ -573,6 +573,9 @@ enum NativeMarkdownGroupBuilder {
             return .math(latex: latex, signature: signature)
 
         case .mermaidBlock(let source):
+            // First sight of a mermaid block in a parse is the earliest
+            // moment we know the WKWebView spin-up will be needed.
+            MiniWebViewPrewarmer.requestPrewarm()
             return .mermaid(source: source, signature: signature)
 
         case .htmlBlock(let text):
