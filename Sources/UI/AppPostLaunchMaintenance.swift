@@ -33,21 +33,33 @@ final class AppPostLaunchMaintenance {
     /// once every row is backfilled, so steady-state launches fetch zero rows.
     /// Until a row is backfilled the sidebar falls back to the relationship,
     /// so this is a performance backfill, not a correctness gate.
+    ///
+    /// Batched: each pass fetches a bounded slice (the predicate excludes
+    /// already-backfilled rows, so re-fetching pages naturally) and saves it
+    /// before continuing — a huge store neither faults every message row in
+    /// one main-actor stint nor loses all progress if the app exits mid-way.
     func backfillConversationMessageCountsIfNeeded(container: ModelContainer) {
         let context = ModelContext(container)
-        let descriptor = FetchDescriptor<ConversationEntity>(
+        var descriptor = FetchDescriptor<ConversationEntity>(
             predicate: #Predicate { $0.messageCount == nil }
         )
-        guard let conversations = try? context.fetch(descriptor), !conversations.isEmpty else { return }
+        descriptor.fetchLimit = 200
 
-        for conversation in conversations {
-            conversation.refreshMessageCount()
-        }
+        while true {
+            guard let batch = try? context.fetch(descriptor), !batch.isEmpty else { return }
 
-        do {
-            try context.save()
-        } catch {
-            assertionFailure("Failed to backfill conversation message counts: \(error)")
+            for conversation in batch {
+                conversation.refreshMessageCount()
+            }
+
+            do {
+                try context.save()
+            } catch {
+                assertionFailure("Failed to backfill conversation message counts: \(error)")
+                return
+            }
+
+            if batch.count < 200 { return }
         }
     }
 

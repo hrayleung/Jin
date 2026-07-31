@@ -217,9 +217,12 @@ private struct StreamingPlainTextChunksView: View {
             memo.fontKey = fontKey
         }
 
+        // Mix the tail fingerprint into the signature the TextKit applier
+        // compares: a bare byte count would let a recycled cell skip applying
+        // different-but-equal-length content.
         return AttributedTextBlock(
             attributedString: memo.attributedString,
-            contentSignature: UInt64(byteCount)
+            contentSignature: UInt64(byteCount) &+ tailFingerprint
         )
         .frame(maxWidth: .infinity, alignment: .leading)
     }

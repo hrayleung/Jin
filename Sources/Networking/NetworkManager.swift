@@ -225,10 +225,12 @@ actor NetworkManager {
                 response: downloadResponse.response,
                 responseBody: nil
             ) {
+                removePartialDownload(downloadResponse.fileURL)
                 throw failure
             }
             guard let httpResponse = downloadResponse.response,
                   let fileURL = downloadResponse.fileURL else {
+                removePartialDownload(downloadResponse.fileURL)
                 throw missingHTTPResponseFailure()
             }
             if httpResponse.statusCode >= 400 {
@@ -305,6 +307,13 @@ actor NetworkManager {
             )
             throw failure.underlyingError
         }
+    }
+
+    /// A failed large-media download can leave a partial file in the
+    /// temporary directory; drop it rather than waiting for system cleanup.
+    private nonisolated func removePartialDownload(_ fileURL: URL?) {
+        guard let fileURL else { return }
+        try? FileManager.default.removeItem(at: fileURL)
     }
 
     private func makeDataRequest(for request: URLRequest) -> DataRequest {

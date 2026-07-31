@@ -20,6 +20,17 @@ enum VideoAttachmentUtility {
         // `sendRequest` would hold the whole payload in one contiguous Data.
         let (tempURL, response) = try await networkManager.downloadToFile(request)
 
+        // Defense-in-depth parity with the remote-URL persist path: a
+        // provider endpoint should never produce anything near this, but an
+        // oversized body must not be moved into attachment storage.
+        let fileSize = (try? tempURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        guard fileSize <= RemoteMediaURLPolicy.maximumAutomaticVideoFetchBytes else {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw LLMError.invalidRequest(
+                message: "Generated video exceeds the \(RemoteMediaURLPolicy.maximumAutomaticVideoFetchBytes / (1024 * 1024)) MB download limit."
+            )
+        }
+
         let contentType = response.value(forHTTPHeaderField: "Content-Type")?
             .components(separatedBy: ";").first?
             .trimmingCharacters(in: .whitespaces)

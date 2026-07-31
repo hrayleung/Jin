@@ -38,6 +38,11 @@ enum MessageMediaAssetPersistenceSupport {
 
     static func persistRemoteVideoToDisk(from url: URL, dataProvider: HTTPDataProvider? = nil) async -> URL? {
         do {
+            // Same SSRF guard as the image path: block localhost/private
+            // ranges and non-http(s) schemes before any fetch.
+            guard RemoteMediaURLPolicy.isAllowedForAutomaticFetch(url) else {
+                return nil
+            }
             if let dataProvider {
                 // Injected provider path (tests): buffered by construction.
                 let (data, response) = try await remoteData(from: url, mode: "attachment_video_download", dataProvider: dataProvider)

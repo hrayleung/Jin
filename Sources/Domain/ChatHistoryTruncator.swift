@@ -104,9 +104,17 @@ enum ChatHistoryTruncator {
     /// undercounted a full-resolution photo ~10×, so media-bearing turns
     /// never aged out of a truncated history — every send re-read and
     /// re-encoded the entire conversation's images forever.
+    ///
+    /// The estimate is capped: providers downscale before billing (Anthropic
+    /// to ~1.15 MP, OpenAI to 768 px short side), so a 12 MP original still
+    /// bills ~1,100-1,600 tokens. Feeding raw pixels through the formula
+    /// would claim ~16K tokens and over-truncate on small-context models.
+    private static let maxImageTokenEstimate = 2_600
+
     private static func imageTokenEstimate(for image: ImageContent) -> Int {
         if let pixels = ImagePixelDimensionsCache.dimensions(for: image) {
-            return max(256, Int((pixels.width * pixels.height) / 750))
+            let rawEstimate = Int((pixels.width * pixels.height) / 750)
+            return min(Self.maxImageTokenEstimate, max(256, rawEstimate))
         }
         // Unknown size (unreadable header, remote URL): assume a large image
         // rather than a trivial one.
