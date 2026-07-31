@@ -208,6 +208,61 @@ actor NetworkManager {
         )
     }
 
+    /// Streams a response body straight to a temporary file, never buffering
+    /// it in memory. For large media (generated videos), where `sendRequest`
+    /// would materialize the whole payload as one contiguous `Data`. The
+    /// caller owns the returned file and should move it into place promptly —
+    /// it lives in the temporary directory.
+    func downloadToFile(_ request: URLRequest) async throws -> (fileURL: URL, response: HTTPURLResponse) {
+        let requestID = await NetworkDebugLogger.shared.beginRequest(request, mode: "download")
+        do {
+            let downloadResponse = await session.download(request)
+                .serializingDownloadedFileURL(automaticallyCancelling: true)
+                .response
+
+            if let failure = resolvedRequestExecutionFailure(
+                from: downloadResponse.error,
+                response: downloadResponse.response,
+                responseBody: nil
+            ) {
+                throw failure
+            }
+            guard let httpResponse = downloadResponse.response,
+                  let fileURL = downloadResponse.fileURL else {
+                throw missingHTTPResponseFailure()
+            }
+            if httpResponse.statusCode >= 400 {
+                // Error bodies are small JSON payloads — read for the provider
+                // message, then drop the file.
+                let errorBody = try? Data(contentsOf: fileURL)
+                try? FileManager.default.removeItem(at: fileURL)
+                throw try httpStatusFailure(response: httpResponse, responseBody: errorBody)
+            }
+
+            await NetworkDebugLogger.shared.endRequest(
+                requestID: requestID,
+                response: httpResponse,
+                responseBody: nil,
+                responseBodyTruncated: false,
+                error: nil
+            )
+            return (fileURL, httpResponse)
+        } catch let failure as RequestExecutionFailure {
+            await NetworkDebugLogger.shared.endRequest(
+                requestID: requestID,
+                response: failure.response,
+                responseBody: Self.makeDebugLogResponseBody(
+                    failure.responseBody,
+                    response: failure.response,
+                    wasTruncated: false
+                ),
+                responseBodyTruncated: false,
+                error: failure.underlyingError
+            )
+            throw failure.underlyingError
+        }
+    }
+
     private func executeDataRequest(
         _ request: URLRequest,
         mode: String,

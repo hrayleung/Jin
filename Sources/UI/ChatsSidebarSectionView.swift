@@ -60,7 +60,11 @@ struct ChatsSidebarSectionView: View {
         let isSearching = !query.isEmpty
 
         let baseConversations = conversations.filter { conversation in
-            guard !conversation.messages.isEmpty else { return false }
+            // `resolvedMessageCount` reads the denormalized scalar; testing
+            // `messages.isEmpty` here faulted every conversation's message
+            // rows on every body evaluation (and this recomputes throughout
+            // streaming, because `updatedAt` — the @Query sort key — changes).
+            guard conversation.resolvedMessageCount > 0 else { return false }
             if isSearching { return true }
             guard let selectedAssistantID else { return true }
             return conversation.assistant?.id == selectedAssistantID

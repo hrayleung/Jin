@@ -174,12 +174,35 @@ private struct StreamingPlainTextChunksView: View {
     @AppStorage(AppPreferenceKeys.appFontFamily) private var appFontFamily = JinTypography.systemFontPreferenceValue
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
 
+    /// `body` runs several times per flush (renderTick plus layout probes),
+    /// and building the attributed string is O(accumulated text): join, UTF-16
+    /// conversion, CJK bracket scan. Memoize the built string on a cheap
+    /// signature so construction happens once per content change instead of
+    /// once per body evaluation. A reference-type box mutated during `body` is
+    /// deliberate — it must not re-invalidate the view.
+    @State private var memo = Memo()
+
+    private final class Memo {
+        var byteCount = -1
+        var tailFingerprint: UInt64 = 0
+        var fontKey = ""
+        var attributedString = NSAttributedString()
+    }
+
     var body: some View {
         let theme = MarkdownTheme.resolved(appFontFamily: appFontFamily, codeFontFamily: codeFontFamily)
-        let text = chunks.joined()
-        AttributedTextBlock(
-            attributedString: CJKPunctuationSpacing.applied(to: NSAttributedString(
-                string: text,
+        let byteCount = chunks.reduce(0) { $0 + $1.utf8.count }
+        // Byte count alone could collide across recycled view identities
+        // (different message, equal length); hashing the bounded last chunk
+        // (≤ maxChunkSize) closes that without an O(n) pass.
+        var tailHasher = FNVHasher()
+        tailHasher.combine(chunks.last ?? "")
+        let tailFingerprint = tailHasher.value
+        let fontKey = "\(appFontFamily)|\(codeFontFamily)"
+
+        if memo.byteCount != byteCount || memo.tailFingerprint != tailFingerprint || memo.fontKey != fontKey {
+            memo.attributedString = CJKPunctuationSpacing.applied(to: NSAttributedString(
+                string: chunks.joined(),
                 attributes: [
                     .font: theme.bodyFont,
                     .foregroundColor: theme.baseColor,
@@ -188,8 +211,15 @@ private struct StreamingPlainTextChunksView: View {
                     // doesn't reflow every line of a >4000-char message.
                     .paragraphStyle: theme.bodyParagraphStyle,
                 ]
-            )),
-            contentSignature: UInt64(text.utf8.count)
+            ))
+            memo.byteCount = byteCount
+            memo.tailFingerprint = tailFingerprint
+            memo.fontKey = fontKey
+        }
+
+        return AttributedTextBlock(
+            attributedString: memo.attributedString,
+            contentSignature: UInt64(byteCount)
         )
         .frame(maxWidth: .infinity, alignment: .leading)
     }

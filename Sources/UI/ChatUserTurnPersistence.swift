@@ -78,6 +78,7 @@ enum ChatUserTurnPersistence {
         }
         messageEntity.conversation = conversationEntity
         conversationEntity.messages.append(messageEntity)
+        conversationEntity.refreshMessageCount()
 
         applyFallbackTitleIfNeeded(
             draft: draft,

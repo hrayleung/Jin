@@ -51,9 +51,18 @@ enum MarkdownSyntaxHighlighter {
     /// Large blocks stay readable as plain monospace text and can still be copied.
     static let maxHighlightLength = 50_000
     private static let highlightJSRenderer = HighlightJSRenderer()
+    /// Count-capped AND byte-capped: entries retain the source (in the key)
+    /// plus the fully-attributed result, so 192 blocks near the 50 KB source
+    /// ceiling would otherwise hold tens of MB.
     private static let highlightCache = OSAllocatedUnfairLock<HighlightCacheStorage>(
-        initialState: HighlightCacheStorage(capacity: 192)
+        initialState: HighlightCacheStorage(capacity: 192, costBudget: 8 * 1024 * 1024)
     )
+
+    /// Full purge for memory-pressure response. Highlights re-run off-main on
+    /// the next render, so the refill is invisible.
+    static func purgeCacheForMemoryPressure() {
+        highlightCache.withLock { $0.removeAll() }
+    }
 
     static func highlight(
         _ source: String,
@@ -233,15 +242,19 @@ private final class HighlightCacheBox: @unchecked Sendable {
 private struct HighlightCacheStorage: @unchecked Sendable {
     private struct Entry {
         let box: HighlightCacheBox
+        let cost: Int
         var lastAccess: UInt64
     }
 
     private var entries: [HighlightCacheKey: Entry] = [:]
     private var accessClock: UInt64 = 0
+    private var totalCost = 0
     let capacity: Int
+    let costBudget: Int
 
-    init(capacity: Int) {
+    init(capacity: Int, costBudget: Int) {
         self.capacity = capacity
+        self.costBudget = costBudget
     }
 
     mutating func lookup(_ key: HighlightCacheKey) -> HighlightCacheBox? {
@@ -254,13 +267,26 @@ private struct HighlightCacheStorage: @unchecked Sendable {
 
     mutating func insert(_ box: HighlightCacheBox, for key: HighlightCacheKey) {
         accessClock &+= 1
-        entries[key] = Entry(box: box, lastAccess: accessClock)
-        while entries.count > capacity {
-            guard let oldestKey = entries.min(by: {
-                $0.value.lastAccess < $1.value.lastAccess
-            })?.key else { break }
-            entries[oldestKey] = nil
+        // ~3× source bytes: the source retained by the key, the UTF-16
+        // backing of the attributed result, and its attribute-run table.
+        let cost = 256 + key.sourceByteCount * 3
+        if let replaced = entries[key] {
+            totalCost -= replaced.cost
         }
+        entries[key] = Entry(box: box, cost: cost, lastAccess: accessClock)
+        totalCost += cost
+        while entries.count > capacity || totalCost > costBudget {
+            guard entries.count > 1, let oldest = entries.min(by: {
+                $0.value.lastAccess < $1.value.lastAccess
+            }) else { break }
+            totalCost -= oldest.value.cost
+            entries[oldest.key] = nil
+        }
+    }
+
+    mutating func removeAll() {
+        entries.removeAll()
+        totalCost = 0
     }
 }
 

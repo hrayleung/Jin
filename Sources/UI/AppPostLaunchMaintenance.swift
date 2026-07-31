@@ -24,7 +24,31 @@ final class AppPostLaunchMaintenance {
         resetMCPServersForTransportV2IfNeeded(container: container)
         renameMiniMaxCodingPlanToTokenPlanIfNeeded(container: container)
         migrateMiniMaxTokenPlanToUnifiedEndpointIfNeeded(container: container)
+        backfillConversationMessageCountsIfNeeded(container: container)
         updateProviderModelsIfNeeded(container: container)
+    }
+
+    /// Fills `ConversationEntity.messageCount` for rows created before the
+    /// attribute existed (`nil`). Self-limiting: the predicate matches nothing
+    /// once every row is backfilled, so steady-state launches fetch zero rows.
+    /// Until a row is backfilled the sidebar falls back to the relationship,
+    /// so this is a performance backfill, not a correctness gate.
+    func backfillConversationMessageCountsIfNeeded(container: ModelContainer) {
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<ConversationEntity>(
+            predicate: #Predicate { $0.messageCount == nil }
+        )
+        guard let conversations = try? context.fetch(descriptor), !conversations.isEmpty else { return }
+
+        for conversation in conversations {
+            conversation.refreshMessageCount()
+        }
+
+        do {
+            try context.save()
+        } catch {
+            assertionFailure("Failed to backfill conversation message counts: \(error)")
+        }
     }
 
     /// One-time migration of the MiniMax Token Plan provider from MiniMax's Anthropic-compatible
