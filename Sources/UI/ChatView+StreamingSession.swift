@@ -191,6 +191,7 @@ extension ChatView {
                     }
 
                     conversationEntity.messages.append(entity)
+                    conversationEntity.refreshMessageCount()
                     conversationEntity.updatedAt = Date()
                     persistCompletedAssistantMessage()
 
@@ -231,6 +232,7 @@ extension ChatView {
                     let entity = try MessageEntity.fromDomain(message)
                     entity.conversation = conversationEntity
                     conversationEntity.messages.append(entity)
+                    conversationEntity.refreshMessageCount()
                     conversationEntity.updatedAt = Date()
                     renderCache.scheduleDebouncedRebuild(after: .milliseconds(120)) {
                         rebuildMessageCachesIfNeeded()

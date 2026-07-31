@@ -162,6 +162,7 @@ extension ChatView {
             modelContext.delete(message)
         }
         conversationEntity.messages.removeAll { idsToDelete.contains($0.id) }
+        conversationEntity.refreshMessageCount()
         refreshConversationActivityTimestampFromLatestUserMessage()
         do {
             try modelContext.save()
@@ -183,6 +184,7 @@ extension ChatView {
         }
 
         conversationEntity.messages.removeAll { !keepIDs.contains($0.id) }
+        conversationEntity.refreshMessageCount()
         refreshConversationActivityTimestampFromLatestUserMessage()
         pendingRestoreScrollMessageID = nil
         isPinnedToBottom = true

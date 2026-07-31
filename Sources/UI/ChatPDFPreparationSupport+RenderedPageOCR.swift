@@ -1,4 +1,5 @@
 import Foundation
+import PDFKit
 
 extension ChatMessagePreparationSupport {
     /// Shared implementation for page-by-page OCR producers that render each PDF
@@ -30,20 +31,34 @@ extension ChatMessagePreparationSupport {
         onStatusUpdate: @MainActor @Sendable (String) -> Void
     ) async throws -> PreparedPDFContent {
         let includePageImages = profile.supportsVision
-        let renderedPages = try PDFKitImageRenderer.renderAllPagesAsJPEG(from: attachment.fileURL)
-        let totalPages = max(1, renderedPages.count)
+        // Render lazily, one page per OCR round-trip: rendering every page up
+        // front held the whole document's JPEGs (up to 3 MB each) in memory
+        // for the full multi-minute run of sequential network calls. Only the
+        // (byte-capped) vision attachments below survive the loop. Re-opening
+        // the document per page costs a few ms against a 120 s OCR call.
+        let pageCount: Int = try {
+            guard let document = PDFDocument(url: attachment.fileURL) else {
+                throw PDFKitImageRenderer.RenderError.failedToLoadPDF
+            }
+            return document.pageCount
+        }()
+        let totalPages = max(1, pageCount)
 
         var pageMarkdown: [String] = []
-        pageMarkdown.reserveCapacity(renderedPages.count)
+        pageMarkdown.reserveCapacity(pageCount)
 
         var imageParts: [ContentPart] = []
         var totalAttachedBytes = 0
 
-        for rendered in renderedPages {
+        for pageIndex in 0..<pageCount {
             try Task.checkCancellation()
 
-            await onStatusUpdate(statusLabel(rendered.pageIndex + 1, totalPages))
+            await onStatusUpdate(statusLabel(pageIndex + 1, totalPages))
 
+            let rendered = try PDFKitImageRenderer.renderPageAsJPEG(
+                from: attachment.fileURL,
+                pageIndex: pageIndex
+            )
             let raw = try await ocr(rendered.data, rendered.mimeType)
 
             let normalized = normalize(raw)
@@ -72,7 +87,7 @@ extension ChatMessagePreparationSupport {
 
         var output = combined
         if includePageImages, !imageParts.isEmpty {
-            let omitted = max(0, renderedPages.count - imageParts.count)
+            let omitted = max(0, pageCount - imageParts.count)
             output += "\n\n[Note: Attached \(imageParts.count) page image(s) for vision context.]"
             if omitted > 0 {
                 output += "\n[Note: \(omitted) page image(s) omitted due to size limits.]"

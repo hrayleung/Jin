@@ -63,6 +63,7 @@ struct JinApp: App {
         // it explicitly. Evicted entries fall back to the disk cache.
         ImageCache.default.memoryStorage.config.totalCostLimit = 128 * 1024 * 1024
         ImageCache.default.memoryStorage.config.countLimit = 150
+        MemoryPressureResponder.shared.installIfNeeded()
         OverlayScrollerStyleController.shared.installIfNeeded()
 
         preferencesSyncController = AppPreferencesSyncController()

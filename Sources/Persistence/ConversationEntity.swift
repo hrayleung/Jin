@@ -15,6 +15,12 @@ final class ConversationEntity {
     var providerID: String
     var modelID: String
     var modelConfigData: Data // Codable GenerationControls
+    /// Denormalized `messages.count`. The sidebar needs "has messages" for
+    /// every conversation on every body evaluation; testing the to-many
+    /// relationship faults every conversation's message rows each time.
+    /// `nil` (rows from before this attribute existed) falls back to the
+    /// relationship until post-launch maintenance backfills it.
+    var messageCount: Int?
 
     @Relationship var assistant: AssistantEntity?
 
@@ -50,6 +56,18 @@ final class ConversationEntity {
         self.modelID = modelID
         self.modelConfigData = modelConfigData
         self.assistant = assistant
+        self.messageCount = 0
+    }
+
+    var resolvedMessageCount: Int {
+        messageCount ?? messages.count
+    }
+
+    /// Call after any mutation of `messages`. Recomputing from the
+    /// relationship at mutation time is cheap (the messages are already
+    /// resident there) and cannot drift.
+    func refreshMessageCount() {
+        messageCount = messages.count
     }
 
     /// Convert to domain model

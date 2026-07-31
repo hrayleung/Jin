@@ -75,7 +75,21 @@ enum NativeMarkdownCache {
     }
 
     private static let capacity = 256
-    private static let storage = OSAllocatedUnfairLock<Storage>(initialState: Storage(capacity: capacity))
+    /// Byte ceiling for the estimated size of cached parses. A count limit
+    /// alone lets 256 code-heavy messages (each cached at roughly 10× its
+    /// source size across blocks + groups + layout) grow into the hundreds of
+    /// MB; typical conversations stay far below this budget, so eviction only
+    /// kicks in where it matters.
+    private static let costBudget = 32 * 1024 * 1024
+    private static let storage = OSAllocatedUnfairLock<Storage>(
+        initialState: Storage(capacity: capacity, costBudget: costBudget)
+    )
+
+    /// Full purge for memory-pressure response. Rows re-parse through the
+    /// normal async coordinator path on their next lookup.
+    static func purgeForMemoryPressure() {
+        storage.withLock { $0.removeAll() }
+    }
 
     /// Fires (throttled, on main) after inserts. Observing process-wide cache
     /// fills lets a recycled row adopt work completed by prewarm or another
@@ -255,15 +269,19 @@ extension NativeMarkdownCache {
     fileprivate struct Storage {
         private struct Entry {
             let value: Value
+            let cost: Int
             var lastAccess: UInt64
         }
 
         private var entries: [Key: Entry] = [:]
         private var accessClock: UInt64 = 0
+        private var totalCost = 0
         let capacity: Int
+        let costBudget: Int
 
-        init(capacity: Int) {
+        init(capacity: Int, costBudget: Int) {
             self.capacity = capacity
+            self.costBudget = costBudget
         }
 
         mutating func lookup(_ key: Key) -> Value? {
@@ -276,13 +294,27 @@ extension NativeMarkdownCache {
 
         mutating func insert(_ value: Value, forKey key: Key) {
             accessClock &+= 1
-            entries[key] = Entry(value: value, lastAccess: accessClock)
-            while entries.count > capacity {
-                guard let evicted = entries.min(by: {
-                    $0.value.lastAccess < $1.value.lastAccess
-                })?.key else { break }
-                entries[evicted] = nil
+            // ~10× source size covers the three parallel representations in a
+            // Value (per-block attributed strings, combined group strings,
+            // anchor-layout flat text) plus struct overhead.
+            let cost = 512 + key.contentByteCount * 10
+            if let replaced = entries[key] {
+                totalCost -= replaced.cost
             }
+            entries[key] = Entry(value: value, cost: cost, lastAccess: accessClock)
+            totalCost += cost
+            while entries.count > capacity || totalCost > costBudget {
+                guard entries.count > 1, let evicted = entries.min(by: {
+                    $0.value.lastAccess < $1.value.lastAccess
+                }) else { break }
+                totalCost -= evicted.value.cost
+                entries[evicted.key] = nil
+            }
+        }
+
+        mutating func removeAll() {
+            entries.removeAll()
+            totalCost = 0
         }
     }
 }

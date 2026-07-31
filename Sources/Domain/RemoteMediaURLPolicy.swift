@@ -2,6 +2,10 @@ import Foundation
 
 enum RemoteMediaURLPolicy {
     static let maximumAutomaticFetchBytes = 25 * 1024 * 1024
+    /// Videos legitimately run far larger than images (a 4K Veo clip is
+    /// ~100-200 MB), but an automatic fetch still needs a ceiling — video
+    /// downloads stream to disk, so this bounds disk, not RAM.
+    static let maximumAutomaticVideoFetchBytes = 512 * 1024 * 1024
 
     static func isAllowedForAutomaticFetch(_ url: URL) -> Bool {
         guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else {

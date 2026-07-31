@@ -224,7 +224,7 @@ private struct AssistantConversationStatsObserverView<Content: View>: View {
     }
 
     private var lastConversationByAssistantID: [String: Date] {
-        Dictionary(grouping: conversations.filter { !$0.messages.isEmpty }) { conversation in
+        Dictionary(grouping: conversations.filter { $0.resolvedMessageCount > 0 }) { conversation in
             conversation.assistant?.id ?? "default"
         }
         .mapValues { conversations in

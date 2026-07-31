@@ -82,7 +82,7 @@ enum ChatHistoryTruncator {
         case .redactedThinking:
             return 16
         case .image(let image):
-            return image.data != nil ? 1024 : 256
+            return imageTokenEstimate(for: image)
         case .file(let file):
             let extractedTokens = approximateTokenCount(for: file.extractedText ?? "")
             return approximateTokenCount(for: file.filename) + max(256, extractedTokens)
@@ -96,5 +96,28 @@ enum ChatHistoryTruncator {
     private static func approximateTokenCount(for text: String) -> Int {
         guard let trimmed = text.trimmedNonEmpty else { return 0 }
         return max(1, trimmed.count / 4)
+    }
+
+    /// Vision inputs bill by resolution, not by a flat constant: ~w×h/750
+    /// tracks Anthropic's published formula, and OpenAI's tile math lands in
+    /// the same range. The previous flat 256 for disk-backed images
+    /// undercounted a full-resolution photo ~10×, so media-bearing turns
+    /// never aged out of a truncated history — every send re-read and
+    /// re-encoded the entire conversation's images forever.
+    ///
+    /// The estimate is capped: providers downscale before billing (Anthropic
+    /// to ~1.15 MP, OpenAI to 768 px short side), so a 12 MP original still
+    /// bills ~1,100-1,600 tokens. Feeding raw pixels through the formula
+    /// would claim ~16K tokens and over-truncate on small-context models.
+    private static let maxImageTokenEstimate = 2_600
+
+    private static func imageTokenEstimate(for image: ImageContent) -> Int {
+        if let pixels = ImagePixelDimensionsCache.dimensions(for: image) {
+            let rawEstimate = Int((pixels.width * pixels.height) / 750)
+            return min(Self.maxImageTokenEstimate, max(256, rawEstimate))
+        }
+        // Unknown size (unreadable header, remote URL): assume a large image
+        // rather than a trivial one.
+        return 1500
     }
 }

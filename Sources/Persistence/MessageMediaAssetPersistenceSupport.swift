@@ -38,27 +38,62 @@ enum MessageMediaAssetPersistenceSupport {
 
     static func persistRemoteVideoToDisk(from url: URL, dataProvider: HTTPDataProvider? = nil) async -> URL? {
         do {
-            let (data, response) = try await remoteData(from: url, mode: "attachment_video_download", dataProvider: dataProvider)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode),
-                  !data.isEmpty else {
+            // Same SSRF guard as the image path: block localhost/private
+            // ranges and non-http(s) schemes before any fetch.
+            guard RemoteMediaURLPolicy.isAllowedForAutomaticFetch(url) else {
                 return nil
             }
-            let contentType = (response as? HTTPURLResponse)?
-                .value(forHTTPHeaderField: "Content-Type")?
-                .components(separatedBy: ";").first?
-                .trimmedLowercased
+            if let dataProvider {
+                // Injected provider path (tests): buffered by construction.
+                let (data, response) = try await remoteData(from: url, mode: "attachment_video_download", dataProvider: dataProvider)
+                guard let httpResponse = response as? HTTPURLResponse,
+                      (200...299).contains(httpResponse.statusCode),
+                      !data.isEmpty,
+                      data.count <= RemoteMediaURLPolicy.maximumAutomaticVideoFetchBytes else {
+                    return nil
+                }
+                return try writeVideo(data: data, contentType: videoContentType(from: httpResponse), url: url)
+            }
 
-            let ext = videoFileExtension(contentType: contentType, url: url)
+            // Stream to disk: videos run tens to hundreds of MB, and the
+            // previous buffered path (plus its lack of any size cap) held the
+            // whole payload in RAM. `URLSession.shared` — one process-wide
+            // session, nothing to invalidate.
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            let (tempURL, response) = try await URLSession.shared.download(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                try? FileManager.default.removeItem(at: tempURL)
+                return nil
+            }
+            let fileSize = (try? tempURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            guard fileSize > 0, fileSize <= RemoteMediaURLPolicy.maximumAutomaticVideoFetchBytes else {
+                try? FileManager.default.removeItem(at: tempURL)
+                return nil
+            }
+
+            let ext = videoFileExtension(contentType: videoContentType(from: httpResponse), url: url)
             try AppDataLocations.ensureDirectoriesExist()
-            guard let dir = try? AppDataLocations.attachmentsDirectoryURL() else { return nil }
-
+            guard let dir = try? AppDataLocations.attachmentsDirectoryURL() else {
+                try? FileManager.default.removeItem(at: tempURL)
+                return nil
+            }
             let destination = dir.appendingPathComponent("\(UUID().uuidString).\(ext)")
-            try data.write(to: destination, options: .atomic)
+            try VideoAttachmentUtility.moveReplacingDestination(from: tempURL, to: destination)
             return destination
         } catch {
             return nil
         }
+    }
+
+    private static func writeVideo(data: Data, contentType: String?, url: URL) throws -> URL? {
+        let ext = videoFileExtension(contentType: contentType, url: url)
+        try AppDataLocations.ensureDirectoriesExist()
+        guard let dir = try? AppDataLocations.attachmentsDirectoryURL() else { return nil }
+        let destination = dir.appendingPathComponent("\(UUID().uuidString).\(ext)")
+        try data.write(to: destination, options: .atomic)
+        return destination
     }
 
     static func persistImageToDisk(data: Data?, image: NSImage, mimeType: String) -> URL? {
@@ -154,6 +189,12 @@ enum MessageMediaAssetPersistenceSupport {
 
     private static func fallbackExtension(from url: URL, defaultValue: String) -> String {
         url.pathExtension.trimmedLowercased.trimmedNonEmpty ?? defaultValue
+    }
+
+    private static func videoContentType(from response: HTTPURLResponse) -> String? {
+        response.value(forHTTPHeaderField: "Content-Type")?
+            .components(separatedBy: ";").first?
+            .trimmedLowercased
     }
 
     private static func videoFileExtension(contentType: String?, url: URL) -> String {

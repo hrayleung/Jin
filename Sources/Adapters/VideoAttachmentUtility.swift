@@ -16,7 +16,20 @@ enum VideoAttachmentUtility {
             headers: authHeader.map { [$0.key: $0.value] } ?? [:]
         )
 
-        let (videoData, response) = try await networkManager.sendRequest(request)
+        // Stream to disk: a generated video is tens to hundreds of MB, and
+        // `sendRequest` would hold the whole payload in one contiguous Data.
+        let (tempURL, response) = try await networkManager.downloadToFile(request)
+
+        // Defense-in-depth parity with the remote-URL persist path: a
+        // provider endpoint should never produce anything near this, but an
+        // oversized body must not be moved into attachment storage.
+        let fileSize = (try? tempURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        guard fileSize <= RemoteMediaURLPolicy.maximumAutomaticVideoFetchBytes else {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw LLMError.invalidRequest(
+                message: "Generated video exceeds the \(RemoteMediaURLPolicy.maximumAutomaticVideoFetchBytes / (1024 * 1024)) MB download limit."
+            )
+        }
 
         let contentType = response.value(forHTTPHeaderField: "Content-Type")?
             .components(separatedBy: ";").first?
@@ -27,8 +40,19 @@ enum VideoAttachmentUtility {
 
         let filename = "\(UUID().uuidString).\(ext)"
         let destination = dir.appendingPathComponent(filename)
-        try videoData.write(to: destination, options: .atomic)
+        try moveReplacingDestination(from: tempURL, to: destination)
         return (destination, mimeType)
+    }
+
+    /// Rename into place; falls back to copy+delete if the temporary file
+    /// lives on another volume.
+    static func moveReplacingDestination(from source: URL, to destination: URL) throws {
+        do {
+            try FileManager.default.moveItem(at: source, to: destination)
+        } catch {
+            try FileManager.default.copyItem(at: source, to: destination)
+            try? FileManager.default.removeItem(at: source)
+        }
     }
 
     /// Saves raw video data to the local attachments directory.
