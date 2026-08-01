@@ -108,6 +108,81 @@ final class ChatTimelineScrollCoordinatorTests: XCTestCase {
         )
     }
 
+    func testScrollAnchorCompensationAppliesToMiddleRowsAboveTheViewport() {
+        XCTAssertTrue(
+            ChatTimelineScrollCoordinator.shouldCompensateScrollAnchor(
+                rowIndex: 3,
+                rowCount: 10,
+                rowTopIsAboveViewport: true,
+                isRapidHeightStream: false,
+                heightDelta: 40
+            )
+        )
+        // Shrinking counts the same as growing.
+        XCTAssertTrue(
+            ChatTimelineScrollCoordinator.shouldCompensateScrollAnchor(
+                rowIndex: 3,
+                rowCount: 10,
+                rowTopIsAboveViewport: true,
+                isRapidHeightStream: false,
+                heightDelta: -40
+            )
+        )
+    }
+
+    func testScrollAnchorCompensationNeverAppliesToTheLastRow() {
+        // The streaming row (always last) growing at its bottom has no rows
+        // below to keep stationary — compensating yanked the viewport.
+        XCTAssertFalse(
+            ChatTimelineScrollCoordinator.shouldCompensateScrollAnchor(
+                rowIndex: 9,
+                rowCount: 10,
+                rowTopIsAboveViewport: true,
+                isRapidHeightStream: false,
+                heightDelta: 82
+            )
+        )
+        XCTAssertFalse(
+            ChatTimelineScrollCoordinator.shouldCompensateScrollAnchor(
+                rowIndex: 0,
+                rowCount: 1,
+                rowTopIsAboveViewport: true,
+                isRapidHeightStream: false,
+                heightDelta: 82
+            )
+        )
+    }
+
+    func testScrollAnchorCompensationSkipsRapidStreamsViewportRowsAndTinyDeltas() {
+        XCTAssertFalse(
+            ChatTimelineScrollCoordinator.shouldCompensateScrollAnchor(
+                rowIndex: 3,
+                rowCount: 10,
+                rowTopIsAboveViewport: true,
+                isRapidHeightStream: true,
+                heightDelta: 40
+            )
+        )
+        XCTAssertFalse(
+            ChatTimelineScrollCoordinator.shouldCompensateScrollAnchor(
+                rowIndex: 3,
+                rowCount: 10,
+                rowTopIsAboveViewport: false,
+                isRapidHeightStream: false,
+                heightDelta: 40
+            )
+        )
+        XCTAssertFalse(
+            ChatTimelineScrollCoordinator.shouldCompensateScrollAnchor(
+                rowIndex: 3,
+                rowCount: 10,
+                rowTopIsAboveViewport: true,
+                isRapidHeightStream: false,
+                heightDelta: 0.4
+            )
+        )
+    }
+
     func testPinnedBottomToleranceStaysConservativeEvenWithTallComposer() {
         XCTAssertEqual(
             ChatTimelineScrollCoordinator.pinnedBottomTolerance(composerHeight: 0),

@@ -827,7 +827,16 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         // Isolated jumps (async image, first measure): keep anchor stable.
         // Rapid streams: the row itself is animating; compensation per tick
         // double-moves content below and is the main remaining jitter source.
-        guard !isRapidHeightStream, rowTopIsAboveViewport, abs(delta) > 0.5 else { return }
+        // Last row: nothing below it can move, so compensation is pure error
+        // (the streaming tail growing at its bottom was yanking an unpinned
+        // viewport down by the growth amount every flush).
+        guard ChatTimelineScrollCoordinator.shouldCompensateScrollAnchor(
+            rowIndex: index,
+            rowCount: rows.count,
+            rowTopIsAboveViewport: rowTopIsAboveViewport,
+            isRapidHeightStream: isRapidHeightStream,
+            heightDelta: delta
+        ) else { return }
 
         var targetY = clip.bounds.origin.y + delta
         let topLimit = -scrollView.contentInsets.top
