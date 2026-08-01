@@ -49,7 +49,7 @@ final class ChatConversationMinimapModelTests: XCTestCase {
     func testActiveMessageIsPublishedOnlyWhenItChanges() {
         let model = ChatConversationMinimapModel()
         var publishCount = 0
-        let subscription = model.objectWillChange.sink { _ in publishCount += 1 }
+        let subscription = model.railState.objectWillChange.sink { _ in publishCount += 1 }
         defer { subscription.cancel() }
 
         let first = UUID()
@@ -66,5 +66,24 @@ final class ChatConversationMinimapModelTests: XCTestCase {
         model.reportTopVisibleMessageID(nil)
         XCTAssertEqual(publishCount, 3)
         XCTAssertNil(model.activeMessageID)
+    }
+
+    func testScrollReportsNeverPublishOnTheOuterModel() {
+        // The stage view owns the model as @StateObject, which subscribes to
+        // objectWillChange unconditionally — one publish here re-renders the
+        // whole transcript per message-boundary crossing. Scroll-frequency
+        // state must publish only on railState.
+        let model = ChatConversationMinimapModel()
+        var outerPublishes = 0
+        let subscription = model.objectWillChange.sink { _ in outerPublishes += 1 }
+        defer { subscription.cancel() }
+
+        model.reportTopVisibleMessageID(UUID())
+        model.reportTopVisibleMessageID(nil)
+        model.jump(to: UUID())
+        model.timelineDidApplyRows()
+        model.cancelPendingJump()
+
+        XCTAssertEqual(outerPublishes, 0, "the transcript-owning @StateObject must never be invalidated by scroll traffic")
     }
 }

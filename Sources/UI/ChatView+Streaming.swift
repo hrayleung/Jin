@@ -128,7 +128,7 @@ extension ChatView {
                         isChatNamingPluginEnabled: isChatNamingPluginEnabled,
                         persistConversationIfNeeded: onPersistConversationIfNeeded,
                         makeConversationTitle: makeConversationTitle(from:),
-                        rebuildMessageCaches: rebuildMessageCaches
+                        applyRenderCaches: applyAppendedUserTurnToRenderCaches
                     )
                     let rebuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - rebuildStartedAt) * 1000)
 

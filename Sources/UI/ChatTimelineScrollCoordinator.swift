@@ -74,6 +74,30 @@ enum ChatTimelineScrollCoordinator {
         min(maximum, max(minimum, composerHeight * 0.25))
     }
 
+    /// Whether a corrected row height should shift the scroll origin to keep
+    /// the on-screen content pixel-stationary.
+    ///
+    /// A height change of row i moves ONLY the rows below it — the row's own
+    /// top and everything above are fixed, and cell content is top-anchored.
+    /// The LAST row has no rows below, so compensation has no target there:
+    /// any origin shift is pure error. The concrete failure this guards
+    /// against: the streaming tail growing by appended tokens (one measured
+    /// sample per ~100 ms flush, slower than the rapid-stream window) was
+    /// yanking an unpinned viewport down 8–82 px per flush while the user
+    /// read scrolled-up content.
+    static func shouldCompensateScrollAnchor(
+        rowIndex: Int,
+        rowCount: Int,
+        rowTopIsAboveViewport: Bool,
+        isRapidHeightStream: Bool,
+        heightDelta: CGFloat,
+        threshold: CGFloat = 0.5
+    ) -> Bool {
+        guard !isRapidHeightStream, rowTopIsAboveViewport else { return false }
+        guard abs(heightDelta) > threshold else { return false }
+        return rowIndex < rowCount - 1
+    }
+
     static func shouldScrollToBottom(
         lastMeasuredContentHeight: CGFloat,
         viewportHeight: CGFloat,

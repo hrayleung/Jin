@@ -50,7 +50,7 @@ enum ChatUserTurnPersistence {
         isChatNamingPluginEnabled: Bool,
         persistConversationIfNeeded: () -> Void,
         makeConversationTitle: (String) -> String,
-        rebuildMessageCaches: () -> Void
+        applyRenderCaches: (_ entity: MessageEntity, _ message: Message, _ previousUpdatedAt: Date) -> Void
     ) {
         if conversationEntity.messages.isEmpty {
             persistConversationIfNeeded()
@@ -86,8 +86,11 @@ enum ChatUserTurnPersistence {
             isChatNamingPluginEnabled: isChatNamingPluginEnabled,
             makeConversationTitle: makeConversationTitle
         )
+        // Captured HERE, not by the caller: the fast-append bookkeeping needs
+        // the value from before this mutation, and the callback runs after it.
+        let previousUpdatedAt = conversationEntity.updatedAt
         conversationEntity.updatedAt = draft.askedAt
-        rebuildMessageCaches()
+        applyRenderCaches(messageEntity, message, previousUpdatedAt)
     }
 
     private static func applyFallbackTitleIfNeeded(

@@ -1,6 +1,28 @@
 import Foundation
 import SwiftUI
 
+/// Scroll-frequency state, observed ONLY by the rail. It is split out of
+/// `ChatConversationMinimapModel` because the stage view owns that model as
+/// `@StateObject`, and `@StateObject` subscribes the owning view to
+/// `objectWillChange` unconditionally — one publish there re-renders the
+/// entire transcript per message-boundary crossing, which is exactly what
+/// the model's contract forbids.
+@MainActor
+final class ChatConversationMinimapRailState: ObservableObject {
+    /// The message currently at the top of the viewport. The rail maps it to a
+    /// turn to draw the "you are here" tick.
+    ///
+    /// Fed from the controller's `boundsDidChange`, which fires many times a
+    /// second while streaming, so the setter publishes **only on change** —
+    /// the same discipline as the existing `if pinned != isPinned` guard.
+    @Published private(set) var activeMessageID: UUID?
+
+    func reportTopVisibleMessageID(_ id: UUID?) {
+        guard activeMessageID != id else { return }
+        activeMessageID = id
+    }
+}
+
 /// Bridge between the SwiftUI minimap rail and the AppKit transcript
 /// controller, in the same shape as `ChatTimelineScrollHandle`: the rail talks
 /// to this object, the object holds a weak controller reference, and the
@@ -10,17 +32,20 @@ import SwiftUI
 /// `ChatSingleThreadMessagesContentView` is `EquatableView`-gated on
 /// `ChatStageEquatableKey` — scroll-frequency state must never travel through
 /// that key or the whole transcript would re-render as the user scrolls.
+///
+/// INVARIANT: this object must never publish. The stage view holds it as
+/// `@StateObject`, so a single `objectWillChange` here re-renders the whole
+/// transcript. Scroll-frequency state lives on `railState` (observed only by
+/// the rail); `controller` and `pendingJumpID` stay plain vars.
 @MainActor
 final class ChatConversationMinimapModel: ObservableObject {
     weak var controller: ChatTimelineTableController?
 
-    /// The message currently at the top of the viewport. The rail maps it to a
-    /// turn to draw the "you are here" tick.
-    ///
-    /// Fed from the controller's `boundsDidChange`, which fires many times a
-    /// second while streaming, so the setter publishes **only on change** —
-    /// the same discipline as the existing `if pinned != isPinned` guard.
-    @Published private(set) var activeMessageID: UUID?
+    /// Rail-only observable state; see `ChatConversationMinimapRailState`.
+    let railState = ChatConversationMinimapRailState()
+
+    /// Read-only convenience mirroring `railState.activeMessageID`.
+    var activeMessageID: UUID? { railState.activeMessageID }
 
     /// A jump whose target row is not in the render window yet. Deliberately
     /// **not** `@Published`: it is written while SwiftUI is applying the
@@ -42,8 +67,7 @@ final class ChatConversationMinimapModel: ObservableObject {
     }
 
     func reportTopVisibleMessageID(_ id: UUID?) {
-        guard activeMessageID != id else { return }
-        activeMessageID = id
+        railState.reportTopVisibleMessageID(id)
     }
 
     /// Scrolls the transcript to `messageID`, or parks the request until the

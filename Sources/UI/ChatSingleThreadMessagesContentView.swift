@@ -85,6 +85,37 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
         return result
     }
 
+    /// See `ChatTimelineContentEpoch`: everything here can change what a
+    /// visible cell displays while the row-identity list stays identical.
+    /// Sourced from the stage key (content signals), the window (loadEarlier
+    /// label + highlight eagerness), and the two inputs the key doesn't carry
+    /// (environment colorScheme, font preferences).
+    private var contentEpoch: ChatTimelineContentEpoch {
+        ChatTimelineContentEpoch(
+            renderRevision: key.renderRevision,
+            hiddenCount: timelineWindow.hiddenCount,
+            eagerCodeHighlightStartIndex: timelineWindow.eagerCodeHighlightStartIndex,
+            layoutCenterOffsetBucket: key.layoutCenterOffsetBucket,
+            assistantDisplayName: assistantDisplayName,
+            providerType: providerType,
+            providerIconID: providerIconID,
+            toolResultsByCallID: toolResultsByCallID,
+            entityCount: messageEntitiesByID.count,
+            editingUserMessageID: key.editingUserMessageID,
+            editSlashCommandKey: key.editSlashCommandKey,
+            textToSpeechEnabled: key.textToSpeechEnabled,
+            textToSpeechConfigured: key.textToSpeechConfigured,
+            textToSpeechPlaybackState: key.textToSpeechPlaybackState,
+            expandedCollapsedMessageIDs: expandedCollapsedMessageIDs.wrappedValue,
+            colorScheme: colorScheme,
+            appFontFamily: appFontFamily,
+            codeFontFamily: codeFontFamily,
+            streamingObjectID: streamingMessage.map(ObjectIdentifier.init),
+            streamingModelLabel: streamingModelLabel,
+            streamingModelID: streamingModelID
+        )
+    }
+
     private func makeShared(
         layout: ChatMessageStagePresentationSupport.SingleThreadLayout
     ) -> ChatTimelineSharedInputs {
@@ -116,6 +147,7 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             conversationID: conversationID,
             rows: rows,
             shared: makeShared(layout: layout),
+            contentEpoch: contentEpoch,
             streamingMessage: streamingMessage,
             streamingModelLabel: streamingModelLabel,
             streamingModelID: streamingModelID,
@@ -171,7 +203,9 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
         ChatConversationMinimapRail(
             turnList: ChatConversationMinimapGeometry.turnList(from: allMessages),
             assistantDisplayName: assistantDisplayName,
-            model: minimapModel,
+            // Plain stored-property access — registers no dependency on the
+            // rail's scroll-frequency publishes for THIS view.
+            railState: minimapModel.railState,
             onJump: jumpToTurn
         )
         // Mirrors the table's own content insets so the rail never sits under
@@ -244,20 +278,12 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
         var items: [NativeMarkdownCache.PrewarmItem] = []
         items.reserveCapacity(messages.count)
         for (index, message) in messages.enumerated() {
-            guard message.isAssistant else { continue }
-            let renderMode = effectiveRenderMode(index: index, message: message)
-            guard renderMode != .collapsedPreview else { continue }
-            let renderPlainText = renderMode == .nativeText
-
-            for block in message.renderedBlocks {
-                guard case .content(_, let part) = block else { continue }
-                guard case .text(let text) = part else { continue }
-                guard !text.isEmpty else { continue }
-                items.append(NativeMarkdownCache.PrewarmItem(
-                    markdownText: text,
-                    renderPlainText: renderPlainText
-                ))
-            }
+            // Shared with the controller's scroll-ahead waves so the two
+            // prewarm callers can't drift on the render-mode rules.
+            items.append(contentsOf: ChatTimelineScrollPrewarmPlanner.prewarmItems(
+                for: message,
+                renderMode: effectiveRenderMode(index: index, message: message)
+            ))
         }
         return items
     }

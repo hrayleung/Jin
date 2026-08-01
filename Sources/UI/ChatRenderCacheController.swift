@@ -97,6 +97,17 @@ final class ChatRenderCacheController {
         }
 
         let snapshots = request.orderedMessages.map(PersistedMessageSnapshot.init)
+
+        // Paint the tail immediately so a switch into a large conversation
+        // never shows an empty timeline while the full decode runs. Gated on
+        // an EMPTY cache: send-path rebuilds (content already painted) and
+        // in-place edits must not regress to a tail-only view. Bookkeeping is
+        // deliberately untouched so the full decode still applies over this
+        // provisional state.
+        if visibleMessages.isEmpty {
+            applyProvisionalTailContext(from: snapshots, request: request)
+        }
+
         let buildToken = UUID()
         activeBuildToken = buildToken
 
@@ -169,6 +180,54 @@ final class ChatRenderCacheController {
         }
     }
 
+    /// Fast path for the send flow: appends a just-persisted user turn without
+    /// re-decoding the conversation (which the async heuristics turn into a
+    /// detached full-conversation decode on essentially every real
+    /// conversation — the just-sent message stayed invisible until it landed).
+    ///
+    /// The append itself is unconditional so the row paints immediately.
+    /// Bookkeeping advances ONLY when the controller was quiescent and in sync
+    /// with the pre-append entity state — then the observer-driven
+    /// `rebuildIfNeeded` stays a no-op because this append IS the rebuild's
+    /// result for a tail user message (artifacts and tool results are
+    /// assistant/tool-role products and cannot change). Returns `false` when a
+    /// build/history decode/debounce was in flight or the cache was stale; the
+    /// caller must then run a full rebuild to true-up. Every non-exact case
+    /// degrades to today's behavior, never worse.
+    func appendUserTurn(
+        entity: MessageEntity,
+        historyMessage: Message,
+        renderItem: MessageRenderItem,
+        previousUpdatedAt: Date,
+        newUpdatedAt: Date,
+        totalMessageCount: Int
+    ) -> Bool {
+        // The debounce check closes a real hole: an edit whose rebuild is
+        // still pending would otherwise be suppressed forever once the
+        // fast-path bookkeeping moved `lastRebuildUpdatedAt` past it.
+        let isExactIncrement = renderContextBuildTask == nil
+            && renderContextDecodeTask == nil
+            && historyDecodeTask == nil
+            && updatedAtDebounceTask == nil
+            && isHistoryReady
+            && lastRebuildMessageCount == totalMessageCount - 1
+            && lastRebuildUpdatedAt == previousUpdatedAt
+
+        visibleMessages.append(renderItem)
+        messageEntitiesByID[entity.id] = entity
+        activeThreadHistory.append(historyMessage)
+        if cachedTotalMessageCount != totalMessageCount {
+            cachedTotalMessageCount = totalMessageCount
+        }
+        version &+= 1
+
+        if isExactIncrement {
+            lastRebuildMessageCount = totalMessageCount
+            lastRebuildUpdatedAt = newUpdatedAt
+        }
+        return isExactIncrement
+    }
+
     func scheduleDebouncedRebuild(
         after delay: Duration,
         action: @escaping @MainActor () -> Void
@@ -220,6 +279,38 @@ final class ChatRenderCacheController {
             toolResultsByCallID: toolResultsByCallID,
             artifactCatalog: artifactCatalog
         )
+    }
+
+    /// Synchronous tail-only decode for the first paint after a conversation
+    /// switch. Sets ONLY the display-facing properties: `lastRebuild*` stay
+    /// untouched (the full decode must still run and apply), `isHistoryReady`
+    /// keeps gating the token gauge, and `artifactCatalog` is left alone —
+    /// tail-local artifact version numbers would be wrong, and the full apply
+    /// corrects the chips moments later.
+    private func applyProvisionalTailContext(
+        from snapshots: [PersistedMessageSnapshot],
+        request: ChatRenderCacheRebuildRequest
+    ) {
+        let tail = ChatRenderProvisionalTailPolicy.tailSlice(of: snapshots)
+        guard !tail.isEmpty else { return }
+
+        let context = ChatMessageRenderPipeline.makeDecodedRenderContext(
+            from: tail,
+            fallbackModelLabel: request.fallbackModelLabel,
+            artifactsEnabled: request.artifactsEnabled,
+            assistantProviderIconsByID: request.providerIconsByID
+        )
+        guard !context.visibleMessages.isEmpty else { return }
+
+        let tailIDs = Set(tail.map(\.id))
+        visibleMessages = context.visibleMessages
+        messageEntitiesByID = Dictionary(
+            uniqueKeysWithValues: request.orderedMessages
+                .filter { tailIDs.contains($0.id) }
+                .map { ($0.id, $0) }
+        )
+        toolResultsByCallID = context.toolResultsByCallID
+        version &+= 1
     }
 
     private func applyDecodedRenderContext(

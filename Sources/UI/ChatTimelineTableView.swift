@@ -140,6 +140,52 @@ private func chatTimelineCenteredContent<Content: View>(
         .environment(\.colorScheme, shared.colorScheme)
 }
 
+// MARK: - Content epoch (apply gating)
+
+/// Inputs that change what a cell displays for an UNCHANGED row-identity
+/// list. When consecutive applies carry equal epochs (and the column width is
+/// stable), the visible cells are already current and the same-IDs reconcile
+/// can skip the wholesale rootView re-push + noteHeightOfRows(all rows) —
+/// pin flips and composer-height applies land there with nothing
+/// content-relevant changed.
+///
+/// Layout-only inputs (composerHeight, viewportHeight, pin state) are
+/// deliberately absent: they must NOT defeat the gate, and width changes are
+/// covered by the reconcile's separate `widthChanged` disjunct. Inputs whose
+/// content-relevant changes also change row identities (isStreaming,
+/// messageRenderLimit, message counts) are absent for the same reason — the
+/// hidden-head case is covered by `hiddenCount` + `renderRevision`. Per-token
+/// streaming text flows through the cell's own `@ObservedObject` and never
+/// needs a re-push.
+struct ChatTimelineContentEpoch: Equatable {
+    let renderRevision: Int
+    let hiddenCount: Int
+    let eagerCodeHighlightStartIndex: Int
+    let layoutCenterOffsetBucket: Int
+    let assistantDisplayName: String
+    let providerType: ProviderType?
+    let providerIconID: String?
+    let toolResultsByCallID: [String: ToolResult]
+    let entityCount: Int
+    let editingUserMessageID: UUID?
+    let editSlashCommandKey: ChatEditSlashCommandEquatableKey
+    let textToSpeechEnabled: Bool
+    let textToSpeechConfigured: Bool
+    let textToSpeechPlaybackState: TextToSpeechPlaybackManager.State
+    let expandedCollapsedMessageIDs: Set<UUID>
+    /// Re-injected environment — a freshly hosted cell doesn't inherit it.
+    let colorScheme: ColorScheme
+    /// Hosted subtrees self-update via AppStorage, but the gate must not
+    /// suppress the re-push/re-measure a font swap needs.
+    let appFontFamily: String
+    let codeFontFamily: String
+    /// The constant "streaming" identity can carry a NEW state object across
+    /// consecutive turns.
+    let streamingObjectID: ObjectIdentifier?
+    let streamingModelLabel: String?
+    let streamingModelID: String?
+}
+
 // MARK: - Scroll handle (SwiftUI ⇆ controller bridge)
 
 /// Lets the SwiftUI overlay (the "scroll to bottom" chevron) drive the
@@ -164,6 +210,7 @@ struct ChatTimelineTableRepresentable: NSViewControllerRepresentable {
     let conversationID: UUID
     let rows: [ChatTimelineRow]
     let shared: ChatTimelineSharedInputs
+    let contentEpoch: ChatTimelineContentEpoch
     let streamingMessage: StreamingMessageState?
     let streamingModelLabel: String?
     let streamingModelID: String?
@@ -196,6 +243,7 @@ struct ChatTimelineTableRepresentable: NSViewControllerRepresentable {
                 conversationID: conversationID,
                 rows: rows,
                 shared: shared,
+                contentEpoch: contentEpoch,
                 streamingMessage: streamingMessage,
                 topInset: topInset,
                 bottomInset: bottomInset,
@@ -361,6 +409,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let conversationID: UUID
         let rows: [ChatTimelineRow]
         let shared: ChatTimelineSharedInputs
+        let contentEpoch: ChatTimelineContentEpoch
         let streamingMessage: StreamingMessageState?
         let topInset: CGFloat
         let bottomInset: CGFloat
@@ -397,6 +446,17 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
     private var currentColumnWidth: CGFloat = 0
     private var lastConversationID: UUID?
+    /// Epoch of the last applied model, for the same-IDs reconcile gate.
+    /// `nil` (fresh controller / new conversation) always counts as changed.
+    private var lastAppliedContentEpoch: ChatTimelineContentEpoch?
+
+    // Scroll-ahead markdown prewarm (see ChatTimelineScrollPrewarmPlanner).
+    // Debounce and warm tasks are held separately: cancelling the debounce
+    // before it fires prevents a wave; the warm task is detached and needs
+    // its own cancellation on conversation switch.
+    private var scrollPrewarmDebounceTask: Task<Void, Never>?
+    private var scrollPrewarmTask: Task<Void, Never>?
+    private var lastScrollPrewarmTopRow = Int.min
 
     /// Weak on BOTH sides — the model already holds a weak `controller`, and a
     /// strong reference here would close the cycle. `nil` also means "the rail
@@ -535,10 +595,12 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let previousRows = rows
         let widthChanged = abs(currentColumnWidth - newModel.shared.columnWidth) > 0.5
         let conversationChanged = lastConversationID != newModel.conversationID
+        let epochChanged = lastAppliedContentEpoch != newModel.contentEpoch
 
         model = newModel
         rows = newModel.rows
         currentColumnWidth = newModel.shared.columnWidth
+        lastAppliedContentEpoch = newModel.contentEpoch
 
         scrollView.scrollerStyle = preferredScrollerStyle()
         let current = scrollView.contentInsets
@@ -567,6 +629,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             lastHeightCommitUptime.removeAll(keepingCapacity: true)
             cancelTrailingBottomPin()
             estimateCache.removeAll(keepingCapacity: true)
+            cancelScrollPrewarm()
             seedHeightsFromStore()
             reloadDataPreservingPin()
             // Deterministic open-at-bottom: pin once now; every later height
@@ -581,7 +644,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             return
         }
 
-        reconcile(old: previousRows, new: rows, widthChanged: widthChanged)
+        reconcile(old: previousRows, new: rows, widthChanged: widthChanged, epochChanged: epochChanged)
     }
 
     /// `reloadData` + re-note all row heights. On macOS 13.0 the automatic
@@ -603,57 +666,60 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
     /// Diff old→new rows and apply the minimal table mutation, preserving
     /// scroll position (and follow-to-bottom) wherever possible.
-    private func reconcile(old: [ChatTimelineRow], new: [ChatTimelineRow], widthChanged: Bool) {
+    private func reconcile(old: [ChatTimelineRow], new: [ChatTimelineRow], widthChanged: Bool, epochChanged: Bool) {
         let oldIDs = old.map(\.identity)
         let newIDs = new.map(\.identity)
+        let plan = ChatTimelineReconcilePlanner.plan(oldIDs: oldIDs, newIDs: newIDs)
+        logReconcilePlan(plan, oldCount: oldIDs.count, newCount: newIDs.count)
 
-        if oldIDs == newIDs {
+        switch plan {
+        case .identical:
             // Same rows: a width change (cells re-wrap at the new column width)
             // and/or an in-place content edit. Re-push content into the visible
             // cells (rebuilds with the current shared.columnWidth + new content),
             // which makes them re-self-size, then re-note heights.
+            //
+            // Pin flips and composer-height applies land here with nothing
+            // content-relevant changed; re-pushing every visible rootView
+            // (each swap forces a synchronous layoutSubtreeIfNeeded in the
+            // next cell.layout()) plus noteHeightOfRows(all) was the
+            // scroll-time invalidation storm.
+            guard widthChanged || epochChanged else {
+                maintainBottomIfNeeded()
+                return
+            }
             reloadVisibleContent()
             if !new.isEmpty {
                 tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<new.count))
             }
             maintainBottomIfNeeded()
-            return
-        }
 
-        // Same count but some rows differ in place (commonly the streaming row
-        // being replaced by the finished message at the same tail index).
-        if oldIDs.count == newIDs.count {
-            let changed = IndexSet((0..<newIDs.count).filter { oldIDs[$0] != newIDs[$0] })
-            if !changed.isEmpty {
-                tableView.reloadData(forRowIndexes: changed, columnIndexes: IndexSet(integer: 0))
-                tableView.noteHeightOfRows(withIndexesChanged: changed)
-                maintainBottomIfNeeded()
-                return
-            }
-        }
+        case .reloadInPlace(let changed):
+            // Same count but some rows differ in place (commonly the streaming
+            // row being replaced by the finished message at the same tail index).
+            tableView.reloadData(forRowIndexes: changed, columnIndexes: IndexSet(integer: 0))
+            tableView.noteHeightOfRows(withIndexesChanged: changed)
+            maintainBottomIfNeeded()
 
-        // Pure append at the tail (new messages / streaming row appears).
-        if newIDs.count > oldIDs.count, Array(newIDs.prefix(oldIDs.count)) == oldIDs {
-            let inserted = IndexSet(integersIn: oldIDs.count..<newIDs.count)
+        case .appendTail(let inserted):
+            // Pure append at the tail (new messages / streaming row appears).
             tableView.beginUpdates()
-            tableView.insertRows(at: inserted, withAnimation: [])
+            tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
             tableView.endUpdates()
             maintainBottomIfNeeded()
-            return
-        }
 
-        // Pure prepend (Load earlier). Preserve the viewport with the canonical
-        // capture-then-adjust: record document height + scroll offset BEFORE the
-        // insert, then shift the offset by the inserted-height delta AFTER layout
-        // resolves. Robust even while the just-inserted rows' heights are still
-        // being measured (unlike anchoring on a specific row's rect).
-        if newIDs.count > oldIDs.count, Array(newIDs.suffix(oldIDs.count)) == oldIDs {
+        case .prependHead(let inserted):
+            // Pure prepend. Preserve the viewport with the canonical
+            // capture-then-adjust: record document height + scroll offset BEFORE
+            // the insert, then shift the offset by the inserted-height delta
+            // AFTER layout resolves. Robust even while the just-inserted rows'
+            // heights are still being measured (unlike anchoring on a specific
+            // row's rect).
             let clip = scrollView.contentView
             let oldDocHeight = tableView.frame.height
             let savedOriginY = clip.bounds.origin.y
-            let inserted = IndexSet(integersIn: 0..<(newIDs.count - oldIDs.count))
             tableView.beginUpdates()
-            tableView.insertRows(at: inserted, withAnimation: [])
+            tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
             tableView.endUpdates()
             view.layoutSubtreeIfNeeded()
             let delta = tableView.frame.height - oldDocHeight
@@ -661,12 +727,138 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: savedOriginY + delta))
             scrollView.reflectScrolledClipView(clip)
             DispatchQueue.main.async { [weak self] in self?.isProgrammaticScrolling = false }
+
+        case .batchDiff(let removals, let insertions):
+            applyBatchDiff(old: old, new: new, removals: removals, insertions: insertions)
+
+        case .fullReload:
+            // Wholesale identity churn: a reload is cheaper than a huge batch.
+            reloadDataPreservingPin()
+            maintainBottomIfNeeded()
+        }
+    }
+
+    /// The common slide: sending in a window-capped conversation drops head
+    /// identities and appends the tail (load-earlier pages with a surviving
+    /// "load earlier" row land here too). reloadData here tore down every
+    /// realized cell — their NSTextViews lingering in the reuse pool — and
+    /// remounted the viewport synchronously: the main-thread stall and blank
+    /// beat on every send in a long conversation.
+    private func applyBatchDiff(
+        old: [ChatTimelineRow],
+        new: [ChatTimelineRow],
+        removals: IndexSet,
+        insertions: IndexSet
+    ) {
+        let clip = scrollView.contentView
+        let savedOriginY = clip.bounds.origin.y
+        let anchor = shouldMaintainBottom
+            ? nil
+            : reconcileAnchor(old: old, new: new, visibleTop: scrollView.documentVisibleRect.minY)
+        let anchorMinYBefore = anchor.map { tableView.rect(ofRow: $0.oldIndex).minY }
+
+        tableView.beginUpdates()
+        tableView.removeRows(at: removals, withAnimation: [])
+        tableView.insertRows(at: insertions, withAnimation: [])
+        tableView.endUpdates()
+
+        refreshLoadEarlierLabelIfNeeded(old: old, new: new)
+
+        if shouldMaintainBottom {
+            maintainBottomIfNeeded()
             return
         }
+        guard let anchor, let anchorMinYBefore else { return }
+        // Keep the anchor row pixel-stationary: it moved by `delta` in
+        // document coordinates, so the origin moves by the same amount from
+        // its pre-update value (robust even if AppKit adjusted the clip
+        // during endUpdates).
+        view.layoutSubtreeIfNeeded()
+        let delta = tableView.rect(ofRow: anchor.newIndex).minY - anchorMinYBefore
+        guard abs(delta) > 0.5 else { return }
+        let topLimit = -scrollView.contentInsets.top
+        let maxOriginY = tableView.frame.height - clip.bounds.height + scrollView.contentInsets.bottom
+        let targetY = min(max(savedOriginY + delta, topLimit), max(topLimit, maxOriginY))
+        isProgrammaticScrolling = true
+        clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
+        scrollView.reflectScrolledClipView(clip)
+        DispatchQueue.main.async { [weak self] in self?.isProgrammaticScrolling = false }
+    }
 
-        // General change (deletions, reordering): full reload.
-        reloadDataPreservingPin()
-        maintainBottomIfNeeded()
+    /// The row whose screen position the user should keep through a batch
+    /// mutation: the first surviving MESSAGE row that intersects or sits below
+    /// the viewport top. Skips the load-earlier row deliberately — anchoring
+    /// on it would pin the header and push the user's reading position down
+    /// when a page of older messages lands between the two.
+    private func reconcileAnchor(
+        old: [ChatTimelineRow],
+        new: [ChatTimelineRow],
+        visibleTop: CGFloat
+    ) -> (oldIndex: Int, newIndex: Int)? {
+        var oldIndexByID: [String: Int] = [:]
+        oldIndexByID.reserveCapacity(old.count)
+        for (index, row) in old.enumerated() {
+            oldIndexByID[row.identity] = index
+        }
+        var fallback: (oldIndex: Int, newIndex: Int)?
+        for (newIndex, row) in new.enumerated() {
+            guard case .message = row, let oldIndex = oldIndexByID[row.identity] else { continue }
+            if fallback == nil { fallback = (oldIndex, newIndex) }
+            if tableView.rect(ofRow: oldIndex).maxY > visibleTop - 0.5 {
+                return (oldIndex, newIndex)
+            }
+        }
+        return fallback
+    }
+
+    /// The load-earlier row keeps a constant identity through a slide, but its
+    /// "N earlier messages" label carries `hiddenCount`. Almost always
+    /// off-screen when this fires (the user is at the bottom sending), so the
+    /// reload realizes nothing.
+    private func refreshLoadEarlierLabelIfNeeded(old: [ChatTimelineRow], new: [ChatTimelineRow]) {
+        guard case .loadEarlier(let oldHidden, _)? = old.first,
+              case .loadEarlier(let newHidden, _)? = new.first,
+              oldHidden != newHidden else { return }
+        tableView.reloadData(forRowIndexes: IndexSet(integer: 0), columnIndexes: IndexSet(integer: 0))
+        tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: 0))
+    }
+
+    /// On-device proof of the reconcile behavior: sends in a long conversation
+    /// must log `batchDiff` with a handful of mutations, never `fullReload`.
+    /// `.identical` applies (pin flips, composer growth) are deliberately not
+    /// logged — they fire often and mutate nothing.
+    private func logReconcilePlan(_ plan: ChatTimelineReconcilePlanner.Plan, oldCount: Int, newCount: Int) {
+        let name: String
+        var mutations = 0
+        switch plan {
+        case .identical:
+            return
+        case .reloadInPlace(let changed):
+            name = "reloadInPlace"
+            mutations = changed.count
+        case .appendTail(let inserted):
+            name = "appendTail"
+            mutations = inserted.count
+        case .prependHead(let inserted):
+            name = "prependHead"
+            mutations = inserted.count
+        case .batchDiff(let removals, let insertions):
+            name = "batchDiff"
+            mutations = removals.count + insertions.count
+        case .fullReload:
+            name = "fullReload"
+        }
+        ChatDiagnosticLogger.log(
+            runId: "scroll-perf",
+            hypothesisId: "reconcile",
+            message: "reconcile_plan",
+            data: [
+                "plan": name,
+                "mutations": String(mutations),
+                "oldCount": String(oldCount),
+                "newCount": String(newCount),
+            ]
+        )
     }
 
     /// Re-pushes SwiftUI content into the cells currently on screen (after a
@@ -827,7 +1019,16 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         // Isolated jumps (async image, first measure): keep anchor stable.
         // Rapid streams: the row itself is animating; compensation per tick
         // double-moves content below and is the main remaining jitter source.
-        guard !isRapidHeightStream, rowTopIsAboveViewport, abs(delta) > 0.5 else { return }
+        // Last row: nothing below it can move, so compensation is pure error
+        // (the streaming tail growing at its bottom was yanking an unpinned
+        // viewport down by the growth amount every flush).
+        guard ChatTimelineScrollCoordinator.shouldCompensateScrollAnchor(
+            rowIndex: index,
+            rowCount: rows.count,
+            rowTopIsAboveViewport: rowTopIsAboveViewport,
+            isRapidHeightStream: isRapidHeightStream,
+            heightDelta: delta
+        ) else { return }
 
         var targetY = clip.bounds.origin.y + delta
         let topLimit = -scrollView.contentInsets.top
@@ -1024,6 +1225,72 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // which produces no live-scroll notifications) → resume follow.
             shouldMaintainBottom = true
         }
+        // Behind the same gesture gate: streaming re-layouts and programmatic
+        // scrolls (conversation open, chevron) have no recent wheel event and
+        // must not trigger prewarm waves.
+        scheduleScrollPrewarm()
+    }
+
+    // MARK: - Scroll-ahead markdown prewarm
+
+    /// One wave per top-row change, debounced to ride out momentum. The wave
+    /// itself is cheap to repeat — `NativeMarkdownCache.prewarm` skips
+    /// already-cached keys without dispatching.
+    private func scheduleScrollPrewarm() {
+        let visible = tableView.rows(in: tableView.visibleRect)
+        guard visible.length > 0 else { return }
+        guard visible.location != lastScrollPrewarmTopRow else { return }
+        lastScrollPrewarmTopRow = visible.location
+        scrollPrewarmDebounceTask?.cancel()
+        scrollPrewarmDebounceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.scrollPrewarmDebounceTask = nil
+            self.performScrollPrewarm()
+        }
+    }
+
+    private func performScrollPrewarm() {
+        guard let model else { return }
+        let visible = tableView.rows(in: tableView.visibleRect)
+        guard visible.length > 0 else { return }
+        let candidates = ChatTimelineScrollPrewarmPlanner.candidateRows(
+            rowCount: rows.count,
+            visibleRange: visible.location..<(visible.location + visible.length)
+        )
+
+        var items: [NativeMarkdownCache.PrewarmItem] = []
+        for row in candidates {
+            guard row < rows.count, case .message(let item, let index) = rows[row] else { continue }
+            items.append(contentsOf: ChatTimelineScrollPrewarmPlanner.prewarmItems(
+                for: item,
+                renderMode: model.shared.effectiveRenderMode(index, item)
+            ))
+            if items.count >= ChatTimelineScrollPrewarmPlanner.maxItemsPerWave { break }
+        }
+        guard !items.isEmpty else { return }
+
+        // The controller sits outside SwiftUI's AppStorage flow; reading the
+        // preference directly matches the scroller-style precedent above.
+        let defaults = UserDefaults.standard
+        let appFontFamily = defaults.string(forKey: AppPreferenceKeys.appFontFamily)
+            ?? JinTypography.systemFontPreferenceValue
+        let codeFontFamily = defaults.string(forKey: AppPreferenceKeys.codeFontFamily)
+            ?? JinTypography.systemFontPreferenceValue
+        scrollPrewarmTask?.cancel()
+        scrollPrewarmTask = NativeMarkdownCache.prewarm(
+            items: Array(items.prefix(ChatTimelineScrollPrewarmPlanner.maxItemsPerWave)),
+            appFontFamily: appFontFamily,
+            codeFontFamily: codeFontFamily
+        )
+    }
+
+    private func cancelScrollPrewarm() {
+        scrollPrewarmDebounceTask?.cancel()
+        scrollPrewarmDebounceTask = nil
+        scrollPrewarmTask?.cancel()
+        scrollPrewarmTask = nil
+        lastScrollPrewarmTopRow = Int.min
     }
 
     @objc private func userWillStartLiveScroll() {
