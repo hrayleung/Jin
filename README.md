@@ -81,12 +81,13 @@ Conversation-first, tool-aware, and built for macOS instead of Electron.
 
 Configure providers in **Settings > Providers**. Jin supports direct providers, gateways, and coding-focused runtimes:
 
-OpenAI · OpenAI (WebSocket) · Anthropic · Claude Managed Agents · Gemini (AI Studio) · Vertex AI · xAI · Perplexity · Groq · Cohere · Mistral · DeepInfra · Together AI · Baseten · Fireworks · SambaNova · Databricks · Cerebras · DeepSeek · Zhipu Coding Plan · MiniMax · MiniMax Coding Plan · Xiaomi MiMo Token Plan · Kimi for Coding · Zyphra · MorphLLM · OpenCode Go · GitHub Copilot · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Vercel AI Gateway
+OpenAI · OpenAI (WebSocket) · Anthropic · Claude Managed Agents · Gemini (AI Studio) · Vertex AI · xAI · Perplexity · Groq · Cohere · Mistral · DeepInfra · Together AI · Baseten · Modal · Fireworks · SambaNova · Databricks · Cerebras · DeepSeek · Zhipu Coding Plan · MiniMax · MiniMax Coding Plan · Xiaomi MiMo Token Plan · Kimi for Coding · Zyphra · MorphLLM · OpenCode Go · GitHub Copilot · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Vercel AI Gateway
 
 - **Most providers** use an API key.
 - **Vertex AI** uses a service account JSON.
 - **Claude Managed Agents** uses an Anthropic API key and routes through Anthropic's managed-agent runtime (custom tools, persistent sessions, prompt caching).
 - **Xiaomi MiMo Token Plan** ships in two flavors — Anthropic-compatible and OpenAI-compatible — so you can use whichever upstream API surface a given MiMo model expects.
+- **Modal** takes a proxy token pair in two fields — Token ID (`wk-…`) and Token Secret (`ws-…`) — sent as `Modal-Key` / `Modal-Secret`. It defaults to the us-west Shared API (`https://inference.us-west.modal.direct/v1`); change the region in the base URL, or paste an Auto Endpoint URL such as `https://<workspace>--<app>-server.us-west.modal.direct` to talk to your own deployment. Because the model list is scoped to your token, use **Fetch Models** after entering it.
 - **Gateway providers** such as OpenRouter, Cloudflare AI Gateway, Vercel AI Gateway, and OpenAI Compatible can route upstream models while still benefiting from Jin's model metadata when the exact upstream model ID is known.
 
 ### Model Catalog

@@ -47,6 +47,7 @@ extension ModelCatalog {
         .cerebras: cerebrasRecords,
         .sambanova: sambaNovaRecords,
         .databricks: databricksRecords,
+        .modal: modalRecords,
         .morphllm: morphLLMRecords,
         .opencodeGo: opencodeGoRecords,
         .gemini: geminiRecords,

@@ -468,6 +468,16 @@ enum ModelCapabilityRegistry {
         "zai-org/glm-5.2",
         "zai-org/glm-5.2-fast",
     ]
+    /// Modal Shared API Kimi K3. Modal doesn't publish a per-model effort matrix, so
+    /// this inherits the band documented for the same weights on Baseten.
+    private static let modalKimiK3ReasoningEffortModelIDs: Set<String> = [
+        "moonshotai/kimi-k3",
+    ]
+    /// Modal Shared API Inkling: full none/minimal/low/medium/high/xhigh/max band,
+    /// same weights as the Inkling served elsewhere (note Modal's NVFP4 slug).
+    private static let modalInklingReasoningEffortModelIDs: Set<String> = [
+        "thinkingmachines/inkling-nvfp4",
+    ]
     /// Baseten Mercury 2: none/low/medium/high (Inception + OpenRouter, 2026-07-29).
     private static let basetenMercury2ReasoningEffortModelIDs: Set<String> = [
         "inception/mercury-2",
@@ -531,7 +541,7 @@ enum ModelCapabilityRegistry {
             return .gemini
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .xai, .deepseek,
-             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .perplexity, .morphllm, .opencodeGo,
+             .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .perplexity, .modal, .morphllm, .opencodeGo,
              .zyphra, .meta, .none:
             return .openAICompatible
         }
@@ -592,6 +602,11 @@ enum ModelCapabilityRegistry {
                 || basetenInklingReasoningEffortModelIDs.contains(lowerModelID)
                 || basetenWideEffortModelIDs.contains(lowerModelID)
                 || basetenGLM52EffortModelIDs.contains(lowerModelID) {
+                return true
+            }
+        case .modal:
+            if modalKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+                || modalInklingReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
             }
         default:
@@ -693,6 +708,10 @@ enum ModelCapabilityRegistry {
             return [.none, .high, .max]
         case .baseten where basetenMercury2ReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .low, .medium, .high]
+        case .modal where modalKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.none, .low, .high, .max]
+        case .modal where modalInklingReasoningEffortModelIDs.contains(lowerModelID):
+            return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
         case .xai where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
             // Multi-agent: low/medium → 4 agents, high/xhigh → 16 agents.
             return [.low, .medium, .high, .xhigh]
@@ -857,7 +876,7 @@ enum ModelCapabilityRegistry {
             return MiMoModelIDs.tokenPlanExactModelIDs.contains(lowerModelID)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .zyphra, .meta, .kimiForCoding, .none:
+             .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
     }
@@ -1088,7 +1107,7 @@ enum ModelCapabilityRegistry {
             return supportsGoogleCodeExecution(lowerModelID: lowerModelID, providerType: .vertexai)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .baseten,
-             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .databricks, .morphllm,
+             .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
@@ -1121,7 +1140,7 @@ enum ModelCapabilityRegistry {
         case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .githubCopilot,
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo,
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo,
              .zyphra, .meta, .kimiForCoding, .none:
             return false
         }

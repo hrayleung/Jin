@@ -6339,6 +6339,267 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(usage?.inputTokens, 1)
         XCTAssertEqual(usage?.outputTokens, 2)
     }
+
+    // MARK: Modal
+
+    private func makeModalProviderConfig(baseURL: String = "https://inference.us-west.modal.direct/v1") -> ProviderConfig {
+        ProviderConfig(
+            id: "modal",
+            name: "Modal",
+            type: .modal,
+            apiKey: "ignored",
+            baseURL: baseURL
+        )
+    }
+
+    private func modalStubResponse(for request: URLRequest) throws -> (HTTPURLResponse, Data) {
+        let response: [String: Any] = [
+            "id": "cmpl_modal",
+            "choices": [
+                [
+                    "message": ["role": "assistant", "content": "OK"],
+                    "finish_reason": "stop"
+                ]
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: response)
+        return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+    }
+
+    func testModalAdapterSendsProxyTokenPairHeaders() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(
+                request.url?.absoluteString,
+                "https://inference.us-west.modal.direct/v1/chat/completions"
+            )
+            // Modal's proxy speaks the split header pair; Authorization stays free.
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Modal-Key"), "wk-abc")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Modal-Secret"), "ws-def")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "moonshotai/Kimi-K3")
+            XCTAssertEqual(root["stream"] as? Bool, false)
+
+            let response: [String: Any] = [
+                "id": "cmpl_modal",
+                "choices": [
+                    [
+                        "message": ["role": "assistant", "content": "OK"],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: makeModalProviderConfig(),
+            apiKey: "wk-abc\nws-def",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "moonshotai/Kimi-K3",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testModalAdapterOmitsReasoningEffortWhenNoEffortChosen() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            // Nothing chosen → send no reasoning key at all rather than guessing at
+            // a wire shape the gateway may reject.
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["chat_template_kwargs"])
+            XCTAssertNil(root["chat_template_args"])
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_modal",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: makeModalProviderConfig(),
+            apiKey: "wk-abc.ws-def",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "moonshotai/Kimi-K3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testModalAdapterSendsTopLevelReasoningEffortWhenChosen() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["reasoning_effort"] as? String, "max")
+            XCTAssertNil(root["chat_template_kwargs"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_modal",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: makeModalProviderConfig(),
+            apiKey: "wk-abc.ws-def",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "moonshotai/Kimi-K3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testModalAdapterSendsNoneEffortWhenReasoningDisabled() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            // "none" is in the documented band for both Shared API models.
+            XCTAssertEqual(root["reasoning_effort"] as? String, "none")
+
+            let response: [String: Any] = [
+                "id": "cmpl_modal",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: makeModalProviderConfig(),
+            apiKey: "wk-abc.ws-def",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "moonshotai/Kimi-K3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testModalAdapterRequestsUsageWhenStreaming() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["stream"] as? Bool, true)
+            XCTAssertEqual((root["stream_options"] as? [String: Any])?["include_usage"] as? Bool, true)
+
+            let sse = """
+            data: {"id":"cmpl_modal","choices":[{"delta":{"reasoning_content":"thinking"}}]}
+
+            data: {"id":"cmpl_modal","choices":[{"delta":{"content":"OK"}}]}
+
+            data: [DONE]
+
+            """
+            let data = Data(sse.utf8)
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "text/event-stream"]
+            )!
+            return (response, data)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: makeModalProviderConfig(),
+            apiKey: "wk-abc.ws-def",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "moonshotai/Kimi-K3",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: true
+        )
+
+        var sawThinking = false
+        var sawText = false
+        for try await event in stream {
+            if case .thinkingDelta(.thinking(let text, _)) = event, text == "thinking" { sawThinking = true }
+            if case .contentDelta(.text(let text)) = event, text == "OK" { sawText = true }
+        }
+
+        // vLLM streams thinking on `reasoning_content`.
+        XCTAssertTrue(sawThinking)
+        XCTAssertTrue(sawText)
+    }
+
+    func testModalAdapterTargetsAutoEndpointURLWhenPasted() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(
+                request.url?.absoluteString,
+                "https://my-endpoint.us-east.modal.direct/v1/chat/completions"
+            )
+            return try self.modalStubResponse(for: request)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: makeModalProviderConfig(baseURL: "https://my-endpoint.us-east.modal.direct"),
+            apiKey: "wk-abc.ws-def",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "moonshotai/Kimi-K3",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
 }
 
 // MARK: - URLProtocol stubbing

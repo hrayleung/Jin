@@ -94,6 +94,9 @@ actor ProviderManager {
                 return AnthropicAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
             }
             return DatabricksAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .modal:
+            let apiKey = requiredAPIKey(from: credentials, for: config.type)
+            return ModalAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .morphllm:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return MorphLLMAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)

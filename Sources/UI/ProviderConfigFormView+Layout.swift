@@ -111,6 +111,8 @@ extension ProviderConfigFormView {
             switch ProviderFormSupport.credentialKind(for: providerType) {
             case .apiKey:
                 apiKeyField
+            case .proxyTokenPair:
+                proxyTokenFields
             case .serviceAccountJSON:
                 vertexAISection
             }

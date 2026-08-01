@@ -20,6 +20,26 @@ extension ProviderConfigFormView {
         ProviderFormSupport.apiKeyFieldTitle(for: providerType)
     }
 
+    // MARK: - Proxy Token Pair Section (Modal)
+
+    @ViewBuilder
+    var proxyTokenFields: some View {
+        JinSettingsSecureFieldRow(
+            "Token ID",
+            text: ProviderFormSupport.proxyTokenIDBinding($apiKey),
+            isRevealed: $showingAPIKey,
+            revealHelp: "Show token ID",
+            concealHelp: "Hide token ID"
+        )
+        JinSettingsSecureFieldRow(
+            "Token Secret",
+            text: ProviderFormSupport.proxyTokenSecretBinding($apiKey),
+            isRevealed: $showingAPIKey,
+            revealHelp: "Show token secret",
+            concealHelp: "Hide token secret"
+        )
+    }
+
     // MARK: - Vertex AI Section
 
     var vertexAISection: some View {
@@ -72,7 +92,7 @@ extension ProviderConfigFormView {
             guard let loadedProviderType = providerType else { return }
 
             switch ProviderFormSupport.credentialKind(for: loadedProviderType) {
-            case .apiKey:
+            case .apiKey, .proxyTokenPair:
                 apiKey = provider.apiKey ?? ""
             case .serviceAccountJSON:
                 serviceAccountJSON = provider.serviceAccountJSON ?? ""
@@ -124,7 +144,7 @@ extension ProviderConfigFormView {
         guard let persistedProviderType = providerType else { return }
 
         switch ProviderFormSupport.credentialKind(for: persistedProviderType) {
-        case .apiKey:
+        case .apiKey, .proxyTokenPair:
             let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
             await MainActor.run {
                 if persistedProviderType != .claudeManagedAgents {

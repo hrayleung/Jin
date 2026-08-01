@@ -1495,4 +1495,35 @@ extension ModelCatalog {
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
     ]
+
+    // MARK: Modal Shared API
+
+    // Modal's Shared API is the multi-tenant, billed-per-token surface behind
+    // `inference.<region>.modal.direct` (modal.com/docs/guide/endpoint-integrations,
+    // modal.com/library, verified 2026-08-01). Only these two models are published
+    // there today; everything else a token can reach is the user's own Auto Endpoint,
+    // which arrives through `fetchAvailableModels` and takes the conservative
+    // fallback. Automatic vLLM prefix caching is priced separately (Kimi K3: $0.30
+    // vs $3.00 /MTok) → promptCaching. Model IDs are Hugging Face repo IDs, exactly
+    // as Modal documents for the `model` field.
+    static let modalRecords: [Record] = [
+        // Kimi K3: 2.8T MoE with native vision and a 1M window (config.json
+        // max_length 1048576). Reasoning is effort-controlled, not a true toggle.
+        Record(id: "moonshotai/Kimi-K3", displayName: "Kimi K3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
+        // Thinking Machines Inkling, NVFP4 build. Note the ID differs from the
+        // `thinkingmachines/inkling` slug other providers use — catalog lookup is by
+        // exact ID, so this one must stay verbatim. Text + image + audio input per
+        // models.dev's Modal entry; 1M context / 256k output.
+        Record(id: "thinkingmachines/Inkling-NVFP4", displayName: "Inkling",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+    ]
 }
