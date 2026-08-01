@@ -52,10 +52,10 @@ extension ProviderConfigFormView {
 
     private var nameRow: some View {
         JinSettingsControlRow("Name") {
-            // Buffered field so key-repeat (hold Delete) isn't interrupted by
-            // per-keystroke SwiftData observation + save.
+            // Local-draft field so transforming bindings cannot kill key-repeat;
+            // persist is debounced (see scheduleConfigurationSave).
             JinSettingsTextField("Provider name", text: $provider.name)
-                .onChange(of: provider.name) { _, _ in try? modelContext.save() }
+                .onChange(of: provider.name) { _, _ in scheduleConfigurationSave() }
         }
     }
 
@@ -87,7 +87,7 @@ extension ProviderConfigFormView {
 
                     Button("Reset") {
                         provider.baseURL = defaultBaseURL
-                        try? modelContext.save()
+                        flushConfigurationSave()
                     }
                     .disabled((provider.baseURL ?? defaultBaseURL) == defaultBaseURL)
                     .buttonStyle(.borderless)
@@ -149,7 +149,7 @@ extension ProviderConfigFormView {
                 )
                 guard provider.baseURL != stored else { return }
                 provider.baseURL = stored
-                try? modelContext.save()
+                scheduleConfigurationSave()
             }
         )
     }

@@ -1,11 +1,15 @@
 import SwiftUI
 
-/// Settings text field that keeps keystrokes local while the user is editing.
+/// Settings text field that keeps the visible string in a local draft.
 ///
-/// Binding writes (and any parent re-render / SwiftData save they trigger) are
-/// debounced until typing pauses, focus leaves, or the view disappears. That
-/// preserves macOS key-repeat (hold Delete/Backspace) which SwiftUI otherwise
-/// interrupts when the external binding rewrites the field every character.
+/// The external binding is updated **synchronously** on every keystroke so
+/// toolbar Save/Apply actions always read the latest value (debouncing here
+/// would drop input when the user types and immediately confirms a sheet).
+///
+/// Isolation still preserves macOS key-repeat: transforming bindings (e.g. blank
+/// base URL → default) must not rewrite the field mid-edit, which is what used
+/// to interrupt hold-Delete. Echoes of our own pushes are ignored while true
+/// external changes (Reset, provider switch) still replace the draft.
 struct JinSettingsTextField: View {
     let title: String
     @Binding var text: String
@@ -13,8 +17,6 @@ struct JinSettingsTextField: View {
 
     @State private var draft = ""
     @State private var lastPushedValue: String?
-    @State private var pushTask: Task<Void, Never>?
-    @FocusState private var isFocused: Bool
 
     init(
         _ title: String,
@@ -28,7 +30,6 @@ struct JinSettingsTextField: View {
 
     var body: some View {
         styledField
-            .focused($isFocused)
             .onAppear {
                 // Seed once per appear; identity changes (e.g. switching provider)
                 // recreate the view and re-run this.
@@ -39,24 +40,15 @@ struct JinSettingsTextField: View {
             }
             .onChange(of: draft) { _, newValue in
                 guard newValue != lastPushedValue else { return }
-                schedulePush(newValue)
+                pushToExternal(newValue)
             }
             .onChange(of: text) { _, newValue in
                 // External updates (Reset, provider switch, AppStorage reload).
-                // Ignore echoes of our own debounced pushes.
+                // Ignore echoes of our own pushes so transforming bindings cannot
+                // bounce the caret / kill key-repeat mid-edit.
                 guard newValue != lastPushedValue else { return }
                 lastPushedValue = newValue
                 draft = newValue
-                pushTask?.cancel()
-                pushTask = nil
-            }
-            .onChange(of: isFocused) { _, focused in
-                if !focused {
-                    flushPush()
-                }
-            }
-            .onDisappear {
-                flushPush()
             }
     }
 
@@ -75,19 +67,6 @@ struct JinSettingsTextField: View {
             .textFieldStyle(.roundedBorder)
     }
 
-    private func schedulePush(_ value: String) {
-        pushTask?.cancel()
-        pushTask = PluginAutosave.schedule {
-            pushToExternal(value)
-        }
-    }
-
-    private func flushPush() {
-        pushTask?.cancel()
-        pushTask = nil
-        pushToExternal(draft)
-    }
-
     private func pushToExternal(_ value: String) {
         // Record the intended value first so transforming bindings (e.g. blank
         // base URL → default) don't bounce the draft while the user is mid-edit.
@@ -97,7 +76,7 @@ struct JinSettingsTextField: View {
         }
         // If the binding rewrites the stored value (normalize / default fill),
         // remember the resolved value so the onChange echo is ignored, but keep
-        // `draft` as what the user typed until focus ends or an external edit.
+        // `draft` as what the user typed until an external edit arrives.
         let resolved = text
         if resolved != value {
             lastPushedValue = resolved
