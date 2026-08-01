@@ -660,8 +660,11 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     private func reconcile(old: [ChatTimelineRow], new: [ChatTimelineRow], widthChanged: Bool, epochChanged: Bool) {
         let oldIDs = old.map(\.identity)
         let newIDs = new.map(\.identity)
+        let plan = ChatTimelineReconcilePlanner.plan(oldIDs: oldIDs, newIDs: newIDs)
+        logReconcilePlan(plan, oldCount: oldIDs.count, newCount: newIDs.count)
 
-        if oldIDs == newIDs {
+        switch plan {
+        case .identical:
             // Same rows: a width change (cells re-wrap at the new column width)
             // and/or an in-place content edit. Re-push content into the visible
             // cells (rebuilds with the current shared.columnWidth + new content),
@@ -681,43 +684,33 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<new.count))
             }
             maintainBottomIfNeeded()
-            return
-        }
 
-        // Same count but some rows differ in place (commonly the streaming row
-        // being replaced by the finished message at the same tail index).
-        if oldIDs.count == newIDs.count {
-            let changed = IndexSet((0..<newIDs.count).filter { oldIDs[$0] != newIDs[$0] })
-            if !changed.isEmpty {
-                tableView.reloadData(forRowIndexes: changed, columnIndexes: IndexSet(integer: 0))
-                tableView.noteHeightOfRows(withIndexesChanged: changed)
-                maintainBottomIfNeeded()
-                return
-            }
-        }
+        case .reloadInPlace(let changed):
+            // Same count but some rows differ in place (commonly the streaming
+            // row being replaced by the finished message at the same tail index).
+            tableView.reloadData(forRowIndexes: changed, columnIndexes: IndexSet(integer: 0))
+            tableView.noteHeightOfRows(withIndexesChanged: changed)
+            maintainBottomIfNeeded()
 
-        // Pure append at the tail (new messages / streaming row appears).
-        if newIDs.count > oldIDs.count, Array(newIDs.prefix(oldIDs.count)) == oldIDs {
-            let inserted = IndexSet(integersIn: oldIDs.count..<newIDs.count)
+        case .appendTail(let inserted):
+            // Pure append at the tail (new messages / streaming row appears).
             tableView.beginUpdates()
-            tableView.insertRows(at: inserted, withAnimation: [])
+            tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
             tableView.endUpdates()
             maintainBottomIfNeeded()
-            return
-        }
 
-        // Pure prepend (Load earlier). Preserve the viewport with the canonical
-        // capture-then-adjust: record document height + scroll offset BEFORE the
-        // insert, then shift the offset by the inserted-height delta AFTER layout
-        // resolves. Robust even while the just-inserted rows' heights are still
-        // being measured (unlike anchoring on a specific row's rect).
-        if newIDs.count > oldIDs.count, Array(newIDs.suffix(oldIDs.count)) == oldIDs {
+        case .prependHead(let inserted):
+            // Pure prepend. Preserve the viewport with the canonical
+            // capture-then-adjust: record document height + scroll offset BEFORE
+            // the insert, then shift the offset by the inserted-height delta
+            // AFTER layout resolves. Robust even while the just-inserted rows'
+            // heights are still being measured (unlike anchoring on a specific
+            // row's rect).
             let clip = scrollView.contentView
             let oldDocHeight = tableView.frame.height
             let savedOriginY = clip.bounds.origin.y
-            let inserted = IndexSet(integersIn: 0..<(newIDs.count - oldIDs.count))
             tableView.beginUpdates()
-            tableView.insertRows(at: inserted, withAnimation: [])
+            tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
             tableView.endUpdates()
             view.layoutSubtreeIfNeeded()
             let delta = tableView.frame.height - oldDocHeight
@@ -725,12 +718,138 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: savedOriginY + delta))
             scrollView.reflectScrolledClipView(clip)
             DispatchQueue.main.async { [weak self] in self?.isProgrammaticScrolling = false }
+
+        case .batchDiff(let removals, let insertions):
+            applyBatchDiff(old: old, new: new, removals: removals, insertions: insertions)
+
+        case .fullReload:
+            // Wholesale identity churn: a reload is cheaper than a huge batch.
+            reloadDataPreservingPin()
+            maintainBottomIfNeeded()
+        }
+    }
+
+    /// The common slide: sending in a window-capped conversation drops head
+    /// identities and appends the tail (load-earlier pages with a surviving
+    /// "load earlier" row land here too). reloadData here tore down every
+    /// realized cell — their NSTextViews lingering in the reuse pool — and
+    /// remounted the viewport synchronously: the main-thread stall and blank
+    /// beat on every send in a long conversation.
+    private func applyBatchDiff(
+        old: [ChatTimelineRow],
+        new: [ChatTimelineRow],
+        removals: IndexSet,
+        insertions: IndexSet
+    ) {
+        let clip = scrollView.contentView
+        let savedOriginY = clip.bounds.origin.y
+        let anchor = shouldMaintainBottom
+            ? nil
+            : reconcileAnchor(old: old, new: new, visibleTop: scrollView.documentVisibleRect.minY)
+        let anchorMinYBefore = anchor.map { tableView.rect(ofRow: $0.oldIndex).minY }
+
+        tableView.beginUpdates()
+        tableView.removeRows(at: removals, withAnimation: [])
+        tableView.insertRows(at: insertions, withAnimation: [])
+        tableView.endUpdates()
+
+        refreshLoadEarlierLabelIfNeeded(old: old, new: new)
+
+        if shouldMaintainBottom {
+            maintainBottomIfNeeded()
             return
         }
+        guard let anchor, let anchorMinYBefore else { return }
+        // Keep the anchor row pixel-stationary: it moved by `delta` in
+        // document coordinates, so the origin moves by the same amount from
+        // its pre-update value (robust even if AppKit adjusted the clip
+        // during endUpdates).
+        view.layoutSubtreeIfNeeded()
+        let delta = tableView.rect(ofRow: anchor.newIndex).minY - anchorMinYBefore
+        guard abs(delta) > 0.5 else { return }
+        let topLimit = -scrollView.contentInsets.top
+        let maxOriginY = tableView.frame.height - clip.bounds.height + scrollView.contentInsets.bottom
+        let targetY = min(max(savedOriginY + delta, topLimit), max(topLimit, maxOriginY))
+        isProgrammaticScrolling = true
+        clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
+        scrollView.reflectScrolledClipView(clip)
+        DispatchQueue.main.async { [weak self] in self?.isProgrammaticScrolling = false }
+    }
 
-        // General change (deletions, reordering): full reload.
-        reloadDataPreservingPin()
-        maintainBottomIfNeeded()
+    /// The row whose screen position the user should keep through a batch
+    /// mutation: the first surviving MESSAGE row that intersects or sits below
+    /// the viewport top. Skips the load-earlier row deliberately — anchoring
+    /// on it would pin the header and push the user's reading position down
+    /// when a page of older messages lands between the two.
+    private func reconcileAnchor(
+        old: [ChatTimelineRow],
+        new: [ChatTimelineRow],
+        visibleTop: CGFloat
+    ) -> (oldIndex: Int, newIndex: Int)? {
+        var oldIndexByID: [String: Int] = [:]
+        oldIndexByID.reserveCapacity(old.count)
+        for (index, row) in old.enumerated() {
+            oldIndexByID[row.identity] = index
+        }
+        var fallback: (oldIndex: Int, newIndex: Int)?
+        for (newIndex, row) in new.enumerated() {
+            guard case .message = row, let oldIndex = oldIndexByID[row.identity] else { continue }
+            if fallback == nil { fallback = (oldIndex, newIndex) }
+            if tableView.rect(ofRow: oldIndex).maxY > visibleTop - 0.5 {
+                return (oldIndex, newIndex)
+            }
+        }
+        return fallback
+    }
+
+    /// The load-earlier row keeps a constant identity through a slide, but its
+    /// "N earlier messages" label carries `hiddenCount`. Almost always
+    /// off-screen when this fires (the user is at the bottom sending), so the
+    /// reload realizes nothing.
+    private func refreshLoadEarlierLabelIfNeeded(old: [ChatTimelineRow], new: [ChatTimelineRow]) {
+        guard case .loadEarlier(let oldHidden, _)? = old.first,
+              case .loadEarlier(let newHidden, _)? = new.first,
+              oldHidden != newHidden else { return }
+        tableView.reloadData(forRowIndexes: IndexSet(integer: 0), columnIndexes: IndexSet(integer: 0))
+        tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: 0))
+    }
+
+    /// On-device proof of the reconcile behavior: sends in a long conversation
+    /// must log `batchDiff` with a handful of mutations, never `fullReload`.
+    /// `.identical` applies (pin flips, composer growth) are deliberately not
+    /// logged — they fire often and mutate nothing.
+    private func logReconcilePlan(_ plan: ChatTimelineReconcilePlanner.Plan, oldCount: Int, newCount: Int) {
+        let name: String
+        var mutations = 0
+        switch plan {
+        case .identical:
+            return
+        case .reloadInPlace(let changed):
+            name = "reloadInPlace"
+            mutations = changed.count
+        case .appendTail(let inserted):
+            name = "appendTail"
+            mutations = inserted.count
+        case .prependHead(let inserted):
+            name = "prependHead"
+            mutations = inserted.count
+        case .batchDiff(let removals, let insertions):
+            name = "batchDiff"
+            mutations = removals.count + insertions.count
+        case .fullReload:
+            name = "fullReload"
+        }
+        ChatDiagnosticLogger.log(
+            runId: "scroll-perf",
+            hypothesisId: "reconcile",
+            message: "reconcile_plan",
+            data: [
+                "plan": name,
+                "mutations": String(mutations),
+                "oldCount": String(oldCount),
+                "newCount": String(newCount),
+            ]
+        )
     }
 
     /// Re-pushes SwiftUI content into the cells currently on screen (after a
