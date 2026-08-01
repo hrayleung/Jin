@@ -52,9 +52,10 @@ extension ProviderConfigFormView {
 
     private var nameRow: some View {
         JinSettingsControlRow("Name") {
-            TextField("Provider name", text: $provider.name)
-                .textFieldStyle(.roundedBorder)
-                .onChange(of: provider.name) { _, _ in try? modelContext.save() }
+            // Local-draft field so transforming bindings cannot kill key-repeat;
+            // persist is debounced (see scheduleConfigurationSave).
+            JinSettingsTextField("Provider name", text: $provider.name)
+                .onChange(of: provider.name) { _, _ in scheduleConfigurationSave() }
         }
     }
 
@@ -86,7 +87,7 @@ extension ProviderConfigFormView {
 
                     Button("Reset") {
                         provider.baseURL = defaultBaseURL
-                        try? modelContext.save()
+                        flushConfigurationSave()
                     }
                     .disabled((provider.baseURL ?? defaultBaseURL) == defaultBaseURL)
                     .buttonStyle(.borderless)
@@ -141,8 +142,16 @@ extension ProviderConfigFormView {
         Binding(
             get: { provider.baseURL ?? defaultBaseURL },
             set: { newValue in
-                provider.baseURL = ProviderFormSupport.baseURLForEditing(newValue, defaultBaseURL: defaultBaseURL)
-                try? modelContext.save()
+                // Blank → nil (runtime falls back to default). Do not materialize
+                // defaultBaseURL into storage on clear — that snapped the field
+                // back to the full default and fought Delete key-repeat.
+                let stored = ProviderFormSupport.baseURLForEditing(
+                    newValue,
+                    defaultBaseURL: defaultBaseURL
+                )
+                guard provider.baseURL != stored else { return }
+                provider.baseURL = stored
+                scheduleConfigurationSave()
             }
         )
     }

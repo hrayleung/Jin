@@ -11,6 +11,10 @@ struct ProviderConfigFormView: View {
     @State var hasLoadedCredentials = false
     @State var credentialSaveError: String?
     @State var credentialSaveTask: Task<Void, Never>?
+    /// Debounces SwiftData persistence for free-text configuration fields
+    /// (name / base URL) so key-repeat is not interrupted by disk I/O, while
+    /// in-memory entity values still update on every keystroke.
+    @State var configurationSaveTask: Task<Void, Never>?
     @State var testStatus: TestStatus = .idle
     @State var isFetchingModels = false
     @State var modelsError: String?

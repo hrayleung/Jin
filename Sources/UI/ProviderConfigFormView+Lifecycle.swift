@@ -14,6 +14,8 @@ extension ProviderConfigFormView {
                 handleServiceAccountJSONChanged()
             }
             .onDisappear {
+                // Persist any debounced configuration edits before the form goes away.
+                flushConfigurationSave()
                 cancelProviderFormTasks()
             }
     }
@@ -54,8 +56,22 @@ extension ProviderConfigFormView {
         scheduleCredentialSave()
     }
 
+    func scheduleConfigurationSave() {
+        configurationSaveTask?.cancel()
+        configurationSaveTask = PluginAutosave.schedule {
+            try? modelContext.save()
+        }
+    }
+
+    func flushConfigurationSave() {
+        configurationSaveTask?.cancel()
+        configurationSaveTask = nil
+        try? modelContext.save()
+    }
+
     func cancelProviderFormTasks() {
         credentialSaveTask?.cancel()
+        configurationSaveTask?.cancel()
         openRouterUsageTask?.cancel()
         claudeManagedRefreshTask?.cancel()
     }

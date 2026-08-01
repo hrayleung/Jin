@@ -117,8 +117,21 @@ extension ProviderFormSupport {
         return normalizedOptionalString(baseURL)
     }
 
-    static func baseURLForEditing(_ baseURL: String, defaultBaseURL: String) -> String {
-        normalizedOptionalString(baseURL) ?? defaultBaseURL
+    /// Value to persist while the user is editing a base URL field.
+    ///
+    /// - Blank / whitespace-only → `nil` (call sites treat nil as “use default”).
+    /// - Otherwise → trimmed URL.
+    ///
+    /// Important: do **not** rewrite blank input to `defaultBaseURL` here. That
+    /// made the field snap back to the full default on the last Delete, and
+    /// combined with per-keystroke saves it broke keyboard key-repeat.
+    ///
+    /// `defaultBaseURL` is kept so call sites stay explicit about the field’s
+    /// default, even though blank no longer materializes that string.
+    static func baseURLForEditing(_ baseURL: String, defaultBaseURL: String) -> String? {
+        // Silence unused-parameter warnings while preserving the labeled API.
+        let _ = defaultBaseURL
+        return normalizedOptionalString(baseURL)
     }
 
     static func normalizedIconID(_ iconID: String?) -> String? {
