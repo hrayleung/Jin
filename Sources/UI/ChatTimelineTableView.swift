@@ -450,6 +450,14 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// `nil` (fresh controller / new conversation) always counts as changed.
     private var lastAppliedContentEpoch: ChatTimelineContentEpoch?
 
+    // Scroll-ahead markdown prewarm (see ChatTimelineScrollPrewarmPlanner).
+    // Debounce and warm tasks are held separately: cancelling the debounce
+    // before it fires prevents a wave; the warm task is detached and needs
+    // its own cancellation on conversation switch.
+    private var scrollPrewarmDebounceTask: Task<Void, Never>?
+    private var scrollPrewarmTask: Task<Void, Never>?
+    private var lastScrollPrewarmTopRow = Int.min
+
     /// Weak on BOTH sides — the model already holds a weak `controller`, and a
     /// strong reference here would close the cycle. `nil` also means "the rail
     /// is switched off", which `reportMinimapPosition` uses to short-circuit.
@@ -621,6 +629,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             lastHeightCommitUptime.removeAll(keepingCapacity: true)
             cancelTrailingBottomPin()
             estimateCache.removeAll(keepingCapacity: true)
+            cancelScrollPrewarm()
             seedHeightsFromStore()
             reloadDataPreservingPin()
             // Deterministic open-at-bottom: pin once now; every later height
@@ -1216,6 +1225,72 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // which produces no live-scroll notifications) → resume follow.
             shouldMaintainBottom = true
         }
+        // Behind the same gesture gate: streaming re-layouts and programmatic
+        // scrolls (conversation open, chevron) have no recent wheel event and
+        // must not trigger prewarm waves.
+        scheduleScrollPrewarm()
+    }
+
+    // MARK: - Scroll-ahead markdown prewarm
+
+    /// One wave per top-row change, debounced to ride out momentum. The wave
+    /// itself is cheap to repeat — `NativeMarkdownCache.prewarm` skips
+    /// already-cached keys without dispatching.
+    private func scheduleScrollPrewarm() {
+        let visible = tableView.rows(in: tableView.visibleRect)
+        guard visible.length > 0 else { return }
+        guard visible.location != lastScrollPrewarmTopRow else { return }
+        lastScrollPrewarmTopRow = visible.location
+        scrollPrewarmDebounceTask?.cancel()
+        scrollPrewarmDebounceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.scrollPrewarmDebounceTask = nil
+            self.performScrollPrewarm()
+        }
+    }
+
+    private func performScrollPrewarm() {
+        guard let model else { return }
+        let visible = tableView.rows(in: tableView.visibleRect)
+        guard visible.length > 0 else { return }
+        let candidates = ChatTimelineScrollPrewarmPlanner.candidateRows(
+            rowCount: rows.count,
+            visibleRange: visible.location..<(visible.location + visible.length)
+        )
+
+        var items: [NativeMarkdownCache.PrewarmItem] = []
+        for row in candidates {
+            guard row < rows.count, case .message(let item, let index) = rows[row] else { continue }
+            items.append(contentsOf: ChatTimelineScrollPrewarmPlanner.prewarmItems(
+                for: item,
+                renderMode: model.shared.effectiveRenderMode(index, item)
+            ))
+            if items.count >= ChatTimelineScrollPrewarmPlanner.maxItemsPerWave { break }
+        }
+        guard !items.isEmpty else { return }
+
+        // The controller sits outside SwiftUI's AppStorage flow; reading the
+        // preference directly matches the scroller-style precedent above.
+        let defaults = UserDefaults.standard
+        let appFontFamily = defaults.string(forKey: AppPreferenceKeys.appFontFamily)
+            ?? JinTypography.systemFontPreferenceValue
+        let codeFontFamily = defaults.string(forKey: AppPreferenceKeys.codeFontFamily)
+            ?? JinTypography.systemFontPreferenceValue
+        scrollPrewarmTask?.cancel()
+        scrollPrewarmTask = NativeMarkdownCache.prewarm(
+            items: Array(items.prefix(ChatTimelineScrollPrewarmPlanner.maxItemsPerWave)),
+            appFontFamily: appFontFamily,
+            codeFontFamily: codeFontFamily
+        )
+    }
+
+    private func cancelScrollPrewarm() {
+        scrollPrewarmDebounceTask?.cancel()
+        scrollPrewarmDebounceTask = nil
+        scrollPrewarmTask?.cancel()
+        scrollPrewarmTask = nil
+        lastScrollPrewarmTopRow = Int.min
     }
 
     @objc private func userWillStartLiveScroll() {

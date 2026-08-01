@@ -278,20 +278,12 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
         var items: [NativeMarkdownCache.PrewarmItem] = []
         items.reserveCapacity(messages.count)
         for (index, message) in messages.enumerated() {
-            guard message.isAssistant else { continue }
-            let renderMode = effectiveRenderMode(index: index, message: message)
-            guard renderMode != .collapsedPreview else { continue }
-            let renderPlainText = renderMode == .nativeText
-
-            for block in message.renderedBlocks {
-                guard case .content(_, let part) = block else { continue }
-                guard case .text(let text) = part else { continue }
-                guard !text.isEmpty else { continue }
-                items.append(NativeMarkdownCache.PrewarmItem(
-                    markdownText: text,
-                    renderPlainText: renderPlainText
-                ))
-            }
+            // Shared with the controller's scroll-ahead waves so the two
+            // prewarm callers can't drift on the render-mode rules.
+            items.append(contentsOf: ChatTimelineScrollPrewarmPlanner.prewarmItems(
+                for: message,
+                renderMode: effectiveRenderMode(index: index, message: message)
+            ))
         }
         return items
     }
