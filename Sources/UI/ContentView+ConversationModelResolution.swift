@@ -122,6 +122,12 @@ extension ContentView {
         if providerID == "baseten", let kimiK3 = models.first(where: { $0.id == "moonshotai/Kimi-K3" }) {
             return kimiK3.id
         }
+        if providerID == "modal", let kimiK3 = models.first(where: { $0.id == "moonshotai/Kimi-K3" }) {
+            return kimiK3.id
+        }
+        if providerID == "modal", let inkling = models.first(where: { $0.id == "thinkingmachines/Inkling-NVFP4" }) {
+            return inkling.id
+        }
         if providerID == "together", let kimiK3 = models.first(where: { $0.id == "moonshotai/Kimi-K3" }) {
             return kimiK3.id
         }
@@ -186,6 +192,7 @@ extension ContentView {
         "fireworks": "accounts/fireworks/models/kimi-k3",
         "together": "moonshotai/Kimi-K3",
         "baseten": "moonshotai/Kimi-K3",
+        "modal": "moonshotai/Kimi-K3",
         "opencode-go": "glm-5.2",
         "cerebras": "qwen-3-235b-a22b-instruct-2507",
         "sambanova": "MiniMax-M2.5",

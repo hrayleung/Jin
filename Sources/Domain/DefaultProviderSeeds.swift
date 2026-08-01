@@ -35,6 +35,7 @@ enum DefaultProviderSeeds {
             fireworks,
             sambaNova,
             databricks,
+            modal,
             morphLLM,
             opencodeGo,
             gemini,
@@ -331,6 +332,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .databricks),
             baseURL: ProviderType.databricks.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .databricks)
+        )
+    }
+
+    static var modal: ProviderConfig {
+        ProviderConfig(
+            id: "modal",
+            name: "Modal",
+            type: .modal,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .modal),
+            baseURL: ProviderType.modal.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .modal)
         )
     }
 

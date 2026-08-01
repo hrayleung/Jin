@@ -74,6 +74,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case mimoTokenPlanAnthropic
     case mimoTokenPlanOpenAI
     case mistral
+    case modal
     case morphllm
     case openai
     case openaiCompatible
@@ -120,6 +121,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .cerebras: return "Cerebras"
         case .sambanova: return "SambaNova"
         case .databricks: return "Databricks"
+        case .modal: return "Modal"
         case .morphllm: return "MorphLLM"
         case .gemini: return "Gemini (AI Studio)"
         case .vertexai: return "Vertex AI"
@@ -187,6 +189,10 @@ enum ProviderType: String, Codable, CaseIterable {
         case .cerebras: return "https://api.cerebras.ai/v1"
         case .sambanova: return "https://api.sambanova.ai/v1"
         case .databricks: return "https://dbc-00000000-0000.cloud.databricks.com/serving-endpoints"
+        // Modal Shared API. The routing region is part of the host — swap
+        // `us-west` for us-east / ca-central / eu-west / ap-south, or paste an
+        // Auto Endpoint's own URL.
+        case .modal: return "https://inference.us-west.modal.direct/v1"
         case .morphllm: return "https://api.morphllm.com/v1"
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta"
         case .vertexai: return nil

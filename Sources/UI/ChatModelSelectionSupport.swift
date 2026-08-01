@@ -60,6 +60,10 @@ enum ChatModelSelectionSupport {
         "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B",
         "openai/gpt-oss-120b",
     ]
+    static let preferredModalModelOrder: [String] = [
+        "moonshotai/Kimi-K3",
+        "thinkingmachines/Inkling-NVFP4",
+    ]
     static let preferredDatabricksModelOrder: [String] = [
         "databricks-claude-sonnet-4-6",
         "databricks-claude-opus-5",
@@ -154,6 +158,13 @@ enum ChatModelSelectionSupport {
             return nil
         case .baseten:
             for preferredID in preferredBasetenModelOrder {
+                if let modelID = models.first(where: { $0.id == preferredID })?.id {
+                    return modelID
+                }
+            }
+            return nil
+        case .modal:
+            for preferredID in preferredModalModelOrder {
                 if let modelID = models.first(where: { $0.id == preferredID })?.id {
                     return modelID
                 }

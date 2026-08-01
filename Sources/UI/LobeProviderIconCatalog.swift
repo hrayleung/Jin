@@ -174,6 +174,10 @@ enum LobeProviderIconCatalog {
         LobeProviderIcon(id: "Microsoft", docsSlug: "microsoft", filename: "microsoft.svg"),
         LobeProviderIcon(id: "MiniMax", docsSlug: "minimax", filename: "minimax.svg"),
         LobeProviderIcon(id: "Mistral", docsSlug: "mistral", filename: "mistral.svg"),
+        // Not a Lobe icon — Modal has no lobe-icons entry, so the bundled PNGs are
+        // rendered from the silhouette of Modal's own mark, monochrome to match the
+        // rest of the set (black on light, white on dark).
+        LobeProviderIcon(id: "Modal", docsSlug: "modal", filename: "modal.svg"),
         LobeProviderIcon(id: "ModelScope", docsSlug: "model-scope", filename: "modelscope.svg"),
         LobeProviderIcon(id: "Monica", docsSlug: "monica", filename: "monica.svg"),
         LobeProviderIcon(id: "Moonshot", docsSlug: "moonshot", filename: "moonshot.svg"),
@@ -307,6 +311,8 @@ enum LobeProviderIconCatalog {
             return "SambaNova"
         case .databricks:
             return "Dbrx"
+        case .modal:
+            return "Modal"
         case .morphllm:
             return "Morph"
         case .opencodeGo:

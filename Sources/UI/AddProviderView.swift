@@ -101,6 +101,21 @@ struct AddProviderView: View {
                             revealHelp: ProviderFormSupport.apiKeyRevealHelp(for: providerType),
                             concealHelp: ProviderFormSupport.apiKeyConcealHelp(for: providerType)
                         )
+                    case .proxyTokenPair:
+                        JinSettingsSecureFieldRow(
+                            "Token ID",
+                            text: ProviderFormSupport.proxyTokenIDBinding($apiKey),
+                            isRevealed: $isKeyVisible,
+                            revealHelp: "Show token ID",
+                            concealHelp: "Hide token ID"
+                        )
+                        JinSettingsSecureFieldRow(
+                            "Token Secret",
+                            text: ProviderFormSupport.proxyTokenSecretBinding($apiKey),
+                            isRevealed: $isKeyVisible,
+                            revealHelp: "Show token secret",
+                            concealHelp: "Hide token secret"
+                        )
                     case .serviceAccountJSON:
                         JinSettingsBlockRow(
                             "Service Account JSON",

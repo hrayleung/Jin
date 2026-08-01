@@ -1,9 +1,13 @@
 import Foundation
+import SwiftUI
 
 extension ProviderFormSupport {
     enum CredentialKind: Equatable {
         case apiKey
         case serviceAccountJSON
+        /// Two fields that pack into the single stored credential (Modal's
+        /// `wk-…` token ID plus `ws-…` secret).
+        case proxyTokenPair
     }
 
     struct OpenRouterUsagePresentation: Equatable {
@@ -19,9 +23,41 @@ extension ProviderFormSupport {
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
              .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .gemini, .zyphra, .meta, .kimiForCoding:
             return .apiKey
+        case .modal:
+            return .proxyTokenPair
         case .vertexai:
             return .serviceAccountJSON
         }
+    }
+
+    /// Bindings that project the two proxy-token fields onto the single stored
+    /// credential. Pasting a whole `wk-….ws-…` value into either field splits it.
+    static func proxyTokenIDBinding(_ stored: Binding<String>) -> Binding<String> {
+        Binding(
+            get: { ModalProxyToken.fields(from: stored.wrappedValue).id },
+            set: { newValue in
+                if let pasted = ModalProxyToken.parse(newValue) {
+                    stored.wrappedValue = pasted.combined
+                    return
+                }
+                let secret = ModalProxyToken.fields(from: stored.wrappedValue).secret
+                stored.wrappedValue = ModalProxyToken.storedValue(id: newValue, secret: secret)
+            }
+        )
+    }
+
+    static func proxyTokenSecretBinding(_ stored: Binding<String>) -> Binding<String> {
+        Binding(
+            get: { ModalProxyToken.fields(from: stored.wrappedValue).secret },
+            set: { newValue in
+                if let pasted = ModalProxyToken.parse(newValue) {
+                    stored.wrappedValue = pasted.combined
+                    return
+                }
+                let id = ModalProxyToken.fields(from: stored.wrappedValue).id
+                stored.wrappedValue = ModalProxyToken.storedValue(id: id, secret: newValue)
+            }
+        )
     }
 
     static func apiKeyFieldTitle(for providerType: ProviderType?) -> String {
@@ -65,6 +101,8 @@ extension ProviderFormSupport {
             return "Use a Databricks workspace personal access token (starts with `dapi…`, from Settings → Developer → Access tokens — not an account-level or narrow-scoped token, or you'll get a 403 `model-serving` scope error). The Base URL selects the surface, auto-detected: (1) Foundation Model APIs — workspace host `https://dbc-xxxx.cloud.databricks.com`; Jin queries `/serving-endpoints/chat/completions` and lists models via `/api/2.0/serving-endpoints` (e.g. `databricks-claude-sonnet-4-6`). (2) Unity AI Gateway, your own OpenAI key — base `https://dbc-xxxx.cloud.databricks.com/ai-gateway/openai/v1`. (3) Unity AI Gateway, your own Anthropic key — base `https://dbc-xxxx.cloud.databricks.com/ai-gateway/anthropic/v1`. For gateway modes, Fetch Models offers a curated set of current models (Databricks doesn't expose your provider's allowed list) — remove any your gateway rejects, or add others by ID. The provider service defaults to `workspace.default.<openai|anthropic>`; if yours lives elsewhere, append `?service=<catalog>.<schema>.<name>` to the Base URL (e.g. `…/ai-gateway/openai/v1?service=main.default.openai_prod`)."
         case .githubCopilot:
             return "Uses GitHub Models at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access."
+        case .modal:
+            return "Create a proxy token with `modal workspace proxy-tokens create` (or in the dashboard) and paste its ID (`wk-…`) and secret (`ws-…`) above. Defaults to the us-west Shared API — swap the region (`us-east`, `ca-central`, `eu-west`, `ap-south`) or paste an Auto Endpoint URL such as `https://<workspace>--<app>-server.us-west.modal.direct`. Models are scoped to your token, so use Fetch Models."
         default:
             return nil
         }
@@ -184,6 +222,10 @@ extension ProviderFormSupport {
         switch kind {
         case .apiKey:
             return normalizedOptionalString(apiKey) == nil
+        case .proxyTokenPair:
+            // Half a token can't authenticate, so don't let Test Connection or
+            // Fetch Models fire on it.
+            return ModalProxyToken.parse(apiKey) == nil
         case .serviceAccountJSON:
             return normalizedOptionalString(serviceAccountJSON) == nil
         }

@@ -58,17 +58,23 @@ Resources/    → HTML templates, provider icons
 
 All providers implement the `LLMProviderAdapter` protocol (`sendMessage`, `validateAPIKey`, `fetchAvailableModels`, `translateTools`). Adapters return `AsyncThrowingStream<StreamEvent, Error>` for streaming.
 
-**Provider types** (see `ProviderType` enum in `GenerationControls.swift`): openai, openaiCompatible, openrouter, anthropic, perplexity, groq, cohere, mistral, deepinfra, xai, deepseek, fireworks, cerebras, gemini, vertexai.
+**Provider types**: see the `ProviderType` enum in `Sources/Domain/ProviderTypes.swift` — it is the single source of truth and currently lists ~35 cases (openai, openaiCompatible, openrouter, anthropic, gemini, vertexai, xai, baseten, modal, databricks, …).
 
 **Shared core**: `OpenAIChatCompletionsCore.swift` provides shared request/response decoding for all OpenAI-compatible adapters (OpenAI, DeepSeek, Cerebras, Fireworks, Groq, Perplexity, OpenRouter, OpenAICompatible). `OpenAICompatibleAdapter` is the generic base.
 
 **Anthropic-specific**: `AnthropicRequestPreflight.swift` preprocesses requests, `AnthropicToolUseNormalizer.swift` normalizes tool use. `AnthropicModelLimits.swift` tracks model-specific limits.
 
-**Adding a new provider**:
+**Adding a new provider** touches ~15 sites, not 3. Mirror the newest existing provider (`baseten`, or `modal` for a token-gated OpenAI-compatible gateway) and grep for its enum case to find every one. In rough order:
 
-1. Create `Sources/Adapters/NewProviderAdapter.swift` implementing `LLMProviderAdapter`
-2. Add case to `ProviderType` enum in `GenerationControls.swift`
-3. Add factory case in `ProviderManager.createAdapter(for:)`
+1. `Sources/Domain/ProviderTypes.swift` — enum case, `displayName`, `defaultBaseURL`
+2. `Sources/Adapters/` — either join the shared `OpenAICompatibleAdapter` case in `ProviderManager.createAdapter(for:)`, or add the usual triplet: `XAdapter.swift` + `XAdapter+ModelCatalog.swift` + `XRequestSupport.swift`, plus a factory case
+3. `Sources/Domain/ModelCatalogRecords+*.swift` — `xRecords`, registered in `ModelCatalogRecords.orderedRecords`
+4. `Sources/Domain/DefaultProviderSeeds.swift` — `static var x` + an entry in `allProviders()` (this alone backfills the provider into existing installs via `ContentView+Bootstrap`)
+5. `Sources/Domain/ModelCapabilityRegistry.swift` — `requestShape`, `supportsWebSearch`, `supportsCodeExecution`, `supportsGoogleMaps` are all exhaustive; add reasoning-effort ID sets + `supportedReasoningEfforts` / `supportsOpenAIStyleMaxEffort` arms if the provider exposes effort
+6. `Sources/UI/LobeProviderIconCatalog.swift` — catalog row + `defaultIconID` arm, plus `Sources/Resources/ProviderIcons/{light,dark}/{light,dark}_x.png` (a catalog row without both PNGs fails `ProviderIconResourcesTests`)
+7. ~20 exhaustive `switch providerType` sites under `Sources/UI/` — `swift build` names every one
+8. `ProviderFormCredentialSupport` (`credentialKind`, `providerDetailsText`), `ChatModelSelectionSupport.preferredModelID` (use an ordered-list loop, never a long `??` chain — it blows the type-checker), `ContentView+ConversationModelResolution.absoluteFallbackModelIDs`
+9. `Tests/JinTests/XProviderIntegrationTests.swift` + request-shape tests in `ChatCompletionsAdaptersTests.swift`; `README.md` provider list
 
 ### Domain Layer
 

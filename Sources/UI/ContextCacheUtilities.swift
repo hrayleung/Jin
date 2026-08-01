@@ -248,7 +248,7 @@ enum ContextCacheUtilities {
         case .xai, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding:
+             .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding:
             break
         }
 

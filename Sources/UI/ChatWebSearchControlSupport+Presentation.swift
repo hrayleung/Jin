@@ -42,7 +42,7 @@ extension ChatAuxiliaryControlSupport {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .anthropic, .claudeManagedAgents,
              .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
+             .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             return "On"
         }
     }
@@ -93,7 +93,7 @@ extension ChatAuxiliaryControlSupport {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .baseten, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
-             .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
+             .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
             return "On"
         }
     }
