@@ -126,10 +126,10 @@ final class ModalProviderIntegrationTests: XCTestCase {
     }
 
     func testProxyTokenFieldRoundTrip() {
-        // Half-typed credentials survive without becoming a broken `wk-abc.`.
+        // A secret-less ID needs no trailing separator.
         XCTAssertEqual(ModalProxyToken.storedValue(id: "wk-abc", secret: ""), "wk-abc")
-        XCTAssertEqual(ModalProxyToken.storedValue(id: "", secret: "ws-def"), "ws-def")
         XCTAssertEqual(ModalProxyToken.storedValue(id: "wk-abc", secret: "ws-def"), "wk-abc.ws-def")
+        XCTAssertEqual(ModalProxyToken.storedValue(id: "", secret: ""), "")
 
         let split = ModalProxyToken.fields(from: "wk-abc.ws-def")
         XCTAssertEqual(split.id, "wk-abc")
@@ -139,6 +139,58 @@ final class ModalProviderIntegrationTests: XCTestCase {
         let unknown = ModalProxyToken.fields(from: "sk-plain-key")
         XCTAssertEqual(unknown.id, "sk-plain-key")
         XCTAssertEqual(unknown.secret, "")
+
+        // `fields` must invert `storedValue` for every combination, including a
+        // secret with no ID yet — otherwise a keystroke lands in the wrong field.
+        for id in ["", "wk-abc", "wk"] {
+            for secret in ["", "ws-def", "w"] {
+                let restored = ModalProxyToken.fields(from: ModalProxyToken.storedValue(id: id, secret: secret))
+                XCTAssertEqual(restored.id, id, "id round trip for (\(id), \(secret))")
+                XCTAssertEqual(restored.secret, secret, "secret round trip for (\(id), \(secret))")
+            }
+        }
+    }
+
+    /// Replays what the two bindings do on every keystroke: read the field out of
+    /// the stored credential, append a character, write the recombined value back.
+    private func typeIntoProxyTokenField(
+        _ text: String,
+        into field: WritableKeyPath<(id: String, secret: String), String>,
+        startingFrom stored: String
+    ) -> String {
+        var stored = stored
+        for character in text {
+            var fields = ModalProxyToken.fields(from: stored)
+            fields[keyPath: field].append(character)
+            stored = ModalProxyToken.storedValue(id: fields.id, secret: fields.secret)
+        }
+        return stored
+    }
+
+    func testTypingTheSecretCharacterByCharacterDoesNotCorruptTheCredential() {
+        // Regression: the separator-less encoding used to fold each in-progress
+        // secret keystroke into the ID field, compounding into `wk-abc.w.s.-…`.
+        let stored = typeIntoProxyTokenField("ws-def", into: \.secret, startingFrom: "wk-abc")
+        XCTAssertEqual(stored, "wk-abc.ws-def")
+        XCTAssertEqual(ModalProxyToken.parse(stored), ModalProxyToken(id: "wk-abc", secret: "ws-def"))
+    }
+
+    func testTypingTheSecretBeforeTheIDDoesNotCorruptTheCredential() {
+        // Same in reverse: a lone `ws-…` must not read back as an ID.
+        let secretOnly = typeIntoProxyTokenField("ws-def", into: \.secret, startingFrom: "")
+        XCTAssertEqual(ModalProxyToken.fields(from: secretOnly).secret, "ws-def")
+        XCTAssertEqual(ModalProxyToken.fields(from: secretOnly).id, "")
+
+        let stored = typeIntoProxyTokenField("wk-abc", into: \.id, startingFrom: secretOnly)
+        XCTAssertEqual(stored, "wk-abc.ws-def")
+        XCTAssertEqual(ModalProxyToken.parse(stored), ModalProxyToken(id: "wk-abc", secret: "ws-def"))
+    }
+
+    func testClearingTheIDKeepsTheSecretInItsOwnField() {
+        let cleared = ModalProxyToken.storedValue(id: "", secret: "ws-def")
+        let fields = ModalProxyToken.fields(from: cleared)
+        XCTAssertEqual(fields.id, "")
+        XCTAssertEqual(fields.secret, "ws-def")
     }
 
     func testModalUsesTwoCredentialFieldsAndRequiresBothHalves() {
@@ -175,9 +227,14 @@ final class ModalProviderIntegrationTests: XCTestCase {
 
     func testHostnameModelIDsGetAFriendlyDisplayName() {
         // Auto Endpoints reached through the shared gateway are addressed by hostname.
-        XCTAssertEqual(ModalAdapter.displayName(forModelID: "my-endpoint.us-west.modal.direct"), "my-endpoint")
-        // Shared API models keep their repo ID.
-        XCTAssertEqual(ModalAdapter.displayName(forModelID: "moonshotai/Kimi-K3"), "moonshotai/Kimi-K3")
+        XCTAssertEqual(
+            ModalAdapter.endpointDisplayName(forModelID: "my-endpoint.us-west.modal.direct"),
+            "my-endpoint"
+        )
+        // Anything else defers to the catalog, so a Shared API model still shows
+        // "Kimi K3" rather than its repo ID.
+        XCTAssertNil(ModalAdapter.endpointDisplayName(forModelID: "moonshotai/Kimi-K3"))
+        XCTAssertNil(ModalAdapter.endpointDisplayName(forModelID: ".us-west.modal.direct"))
     }
 
     func testPreferredModelIsKimiK3() {

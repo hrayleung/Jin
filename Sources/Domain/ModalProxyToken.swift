@@ -58,25 +58,43 @@ struct ModalProxyToken: Equatable {
         parse(rawValue)?.combined ?? rawValue.trimmed
     }
 
-    /// Rebuilds the stored credential from the two entry fields. An incomplete
-    /// pair stores just what has been typed so far rather than a broken `wk-abc.`.
+    /// Rebuilds the stored credential from the two entry fields.
+    ///
+    /// `storedValue` and `fields` are inverses, which is what keeps character-by-
+    /// character entry stable: each keystroke round-trips through the stored
+    /// string and back into the field it was typed into. That requires keeping
+    /// the separator whenever a secret has been started, even with no ID yet —
+    /// otherwise a lone `ws-…` is indistinguishable from a lone `wk-…` and
+    /// reappears in the wrong field. A secret-less ID needs no trailing dot,
+    /// since a separator-free value already reads back as the ID.
     static func storedValue(id: String, secret: String) -> String {
         let trimmedID = id.trimmed
         let trimmedSecret = secret.trimmed
 
-        if trimmedID.isEmpty { return trimmedSecret }
         if trimmedSecret.isEmpty { return trimmedID }
         return "\(trimmedID).\(trimmedSecret)"
     }
 
-    /// Splits a stored credential for display in the two entry fields. Falls back
-    /// to putting the whole value in the ID field so a partially typed or
-    /// unrecognized credential is never dropped.
+    /// Splits a stored credential for display in the two entry fields.
+    ///
+    /// A half-typed credential can't parse yet, so fall back to the separator
+    /// itself; only a value with no separator at all is treated as an ID. That
+    /// way an in-progress keystroke stays in the field it was typed into instead
+    /// of collapsing into the ID field.
     static func fields(from rawValue: String) -> (id: String, secret: String) {
         if let token = parse(rawValue) {
             return (token.id, token.secret)
         }
-        return (rawValue.trimmed, "")
+
+        let trimmed = rawValue.trimmed
+        guard let separator = trimmed.firstIndex(of: ".") else {
+            return (trimmed, "")
+        }
+
+        return (
+            String(trimmed[trimmed.startIndex..<separator]),
+            String(trimmed[trimmed.index(after: separator)...])
+        )
     }
 
     private static func make(id: String, secret: String) -> ModalProxyToken? {

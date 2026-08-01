@@ -42,7 +42,7 @@ extension ModalAdapter {
                 ModelCatalog.modelInfo(
                     for: remote.id,
                     provider: .modal,
-                    name: ModalAdapter.displayName(forModelID: remote.id)
+                    name: ModalAdapter.endpointDisplayName(forModelID: remote.id)
                 )
             }
         }
@@ -51,13 +51,19 @@ extension ModalAdapter {
     }
 
     /// The shared gateway routes on the `model` field, so an Auto Endpoint shows up
-    /// as its own hostname (`my-endpoint.us-west.modal.direct`). Show just the
-    /// endpoint name in the picker; Shared API models keep their repo ID.
-    static func displayName(forModelID modelID: String) -> String {
+    /// as its own hostname (`my-endpoint.us-west.modal.direct`); show just the
+    /// endpoint name in the picker.
+    ///
+    /// Returns nil for anything else so the catalog's own display name wins —
+    /// passing a name here overrides it, which would render a Shared API model as
+    /// its raw repo ID instead of "Kimi K3".
+    static func endpointDisplayName(forModelID modelID: String) -> String? {
         let trimmed = modelID.trimmed
-        guard trimmed.lowercased().hasSuffix(".modal.direct") else { return trimmed }
+        guard trimmed.lowercased().hasSuffix(".modal.direct") else { return nil }
 
-        let label = trimmed.split(separator: ".", maxSplits: 1).first.map(String.init) ?? trimmed
-        return label.isEmpty ? trimmed : label
+        // `prefix(while:)` rather than `split`, which drops a leading empty label
+        // and would turn `.us-west.modal.direct` into "us-west".
+        let label = String(trimmed.prefix(while: { $0 != "." }))
+        return label.isEmpty ? nil : label
     }
 }

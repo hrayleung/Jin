@@ -6573,6 +6573,76 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(sawText)
     }
 
+    func testModalAdapterFetchModelsUsesProxyTokenPairAndCatalogMetadata() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(
+                request.url?.absoluteString,
+                "https://inference.us-west.modal.direct/v1/models"
+            )
+            // Discovery must authenticate the same way the chat request does.
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Modal-Key"), "wk-abc")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Modal-Secret"), "ws-def")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+
+            let response: [String: Any] = [
+                "object": "list",
+                "data": [
+                    ["id": "moonshotai/Kimi-K3", "object": "model"],
+                    ["id": "my-endpoint.us-west.modal.direct", "object": "model"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: makeModalProviderConfig(),
+            apiKey: "wk-abc.ws-def",
+            networkManager: networkManager
+        )
+        let models = try await adapter.fetchAvailableModels()
+
+        XCTAssertEqual(models.map(\.id), ["moonshotai/Kimi-K3", "my-endpoint.us-west.modal.direct"])
+
+        // A Shared API model picks up its catalog metadata…
+        let kimi = try XCTUnwrap(models.first)
+        XCTAssertEqual(kimi.name, "Kimi K3")
+        XCTAssertEqual(kimi.contextWindow, 1_048_576)
+        XCTAssertTrue(kimi.capabilities.contains(.vision))
+
+        // …while an Auto Endpoint reached by hostname gets a readable name and the
+        // conservative fallback, since its model is unknowable from the ID.
+        let endpoint = models[1]
+        XCTAssertEqual(endpoint.name, "my-endpoint")
+        XCTAssertEqual(endpoint.contextWindow, 128_000)
+        XCTAssertFalse(endpoint.capabilities.contains(.vision))
+    }
+
+    func testModalAdapterFetchModelsFallsBackToBearerForANonPairCredential() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-plain-key")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Modal-Key"))
+
+            let data = try JSONSerialization.data(withJSONObject: ["object": "list", "data": []])
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: makeModalProviderConfig(),
+            apiKey: "sk-plain-key",
+            networkManager: networkManager
+        )
+        let models = try await adapter.fetchAvailableModels()
+        XCTAssertTrue(models.isEmpty)
+    }
+
     func testModalAdapterTargetsAutoEndpointURLWhenPasted() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
