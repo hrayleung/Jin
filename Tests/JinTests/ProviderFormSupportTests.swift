@@ -79,10 +79,14 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertNil(ProviderFormSupport.normalizedBaseURL("https://example.com", providerType: .vertexai))
     }
 
-    func testBaseURLForEditingFallsBackToDefaultWhenBlank() {
-        XCTAssertEqual(
-            ProviderFormSupport.baseURLForEditing(" ", defaultBaseURL: "https://api.example.com"),
-            "https://api.example.com"
+    func testBaseURLForEditingPreservesBlankAsNilAndTrimsCustomURL() {
+        // Blank must not snap back to the default string — that broke Delete
+        // key-repeat and made the field impossible to clear while editing.
+        XCTAssertNil(
+            ProviderFormSupport.baseURLForEditing(" ", defaultBaseURL: "https://api.example.com")
+        )
+        XCTAssertNil(
+            ProviderFormSupport.baseURLForEditing("", defaultBaseURL: "https://api.example.com")
         )
         XCTAssertEqual(
             ProviderFormSupport.baseURLForEditing(" https://custom.example.com ", defaultBaseURL: "https://api.example.com"),

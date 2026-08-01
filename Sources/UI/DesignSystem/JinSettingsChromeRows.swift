@@ -1,9 +1,20 @@
 import SwiftUI
 
+/// Settings text field that keeps keystrokes local while the user is editing.
+///
+/// Binding writes (and any parent re-render / SwiftData save they trigger) are
+/// debounced until typing pauses, focus leaves, or the view disappears. That
+/// preserves macOS key-repeat (hold Delete/Backspace) which SwiftUI otherwise
+/// interrupts when the external binding rewrites the field every character.
 struct JinSettingsTextField: View {
     let title: String
     @Binding var text: String
     var usesMonospacedFont = false
+
+    @State private var draft = ""
+    @State private var lastPushedValue: String?
+    @State private var pushTask: Task<Void, Never>?
+    @FocusState private var isFocused: Bool
 
     init(
         _ title: String,
@@ -16,6 +27,41 @@ struct JinSettingsTextField: View {
     }
 
     var body: some View {
+        styledField
+            .focused($isFocused)
+            .onAppear {
+                // Seed once per appear; identity changes (e.g. switching provider)
+                // recreate the view and re-run this.
+                if lastPushedValue == nil {
+                    draft = text
+                    lastPushedValue = text
+                }
+            }
+            .onChange(of: draft) { _, newValue in
+                guard newValue != lastPushedValue else { return }
+                schedulePush(newValue)
+            }
+            .onChange(of: text) { _, newValue in
+                // External updates (Reset, provider switch, AppStorage reload).
+                // Ignore echoes of our own debounced pushes.
+                guard newValue != lastPushedValue else { return }
+                lastPushedValue = newValue
+                draft = newValue
+                pushTask?.cancel()
+                pushTask = nil
+            }
+            .onChange(of: isFocused) { _, focused in
+                if !focused {
+                    flushPush()
+                }
+            }
+            .onDisappear {
+                flushPush()
+            }
+    }
+
+    @ViewBuilder
+    private var styledField: some View {
         if usesMonospacedFont {
             baseTextField
                 .font(.system(.body, design: .monospaced))
@@ -25,8 +71,37 @@ struct JinSettingsTextField: View {
     }
 
     private var baseTextField: some View {
-        TextField(title, text: $text)
+        TextField(title, text: $draft)
             .textFieldStyle(.roundedBorder)
+    }
+
+    private func schedulePush(_ value: String) {
+        pushTask?.cancel()
+        pushTask = PluginAutosave.schedule {
+            pushToExternal(value)
+        }
+    }
+
+    private func flushPush() {
+        pushTask?.cancel()
+        pushTask = nil
+        pushToExternal(draft)
+    }
+
+    private func pushToExternal(_ value: String) {
+        // Record the intended value first so transforming bindings (e.g. blank
+        // base URL → default) don't bounce the draft while the user is mid-edit.
+        lastPushedValue = value
+        if text != value {
+            text = value
+        }
+        // If the binding rewrites the stored value (normalize / default fill),
+        // remember the resolved value so the onChange echo is ignored, but keep
+        // `draft` as what the user typed until focus ends or an external edit.
+        let resolved = text
+        if resolved != value {
+            lastPushedValue = resolved
+        }
     }
 }
 

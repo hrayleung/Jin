@@ -52,8 +52,9 @@ extension ProviderConfigFormView {
 
     private var nameRow: some View {
         JinSettingsControlRow("Name") {
-            TextField("Provider name", text: $provider.name)
-                .textFieldStyle(.roundedBorder)
+            // Buffered field so key-repeat (hold Delete) isn't interrupted by
+            // per-keystroke SwiftData observation + save.
+            JinSettingsTextField("Provider name", text: $provider.name)
                 .onChange(of: provider.name) { _, _ in try? modelContext.save() }
         }
     }
@@ -139,7 +140,15 @@ extension ProviderConfigFormView {
         Binding(
             get: { provider.baseURL ?? defaultBaseURL },
             set: { newValue in
-                provider.baseURL = ProviderFormSupport.baseURLForEditing(newValue, defaultBaseURL: defaultBaseURL)
+                // Blank → nil (runtime falls back to default). Do not materialize
+                // defaultBaseURL into storage on clear — that snapped the field
+                // back to the full default and fought Delete key-repeat.
+                let stored = ProviderFormSupport.baseURLForEditing(
+                    newValue,
+                    defaultBaseURL: defaultBaseURL
+                )
+                guard provider.baseURL != stored else { return }
+                provider.baseURL = stored
                 try? modelContext.save()
             }
         )
