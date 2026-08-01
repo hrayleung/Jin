@@ -12,7 +12,11 @@ import SwiftUI
 struct ChatConversationMinimapRail: View {
     let turnList: ChatConversationMinimapGeometry.TurnList
     let assistantDisplayName: String
-    @ObservedObject var model: ChatConversationMinimapModel
+    /// Observed here and ONLY here: the active-turn tick is the one piece of
+    /// scroll-frequency state, and its publishes must re-render just the rail
+    /// (the stage view owns the outer model as `@StateObject`, which must
+    /// never publish — see `ChatConversationMinimapModel`).
+    @ObservedObject var railState: ChatConversationMinimapRailState
     let onJump: (UUID) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -33,7 +37,7 @@ struct ChatConversationMinimapRail: View {
     private var turns: [ChatConversationMinimapGeometry.Turn] { turnList.turns }
 
     private var activeTurnIndex: Int? {
-        turnList.turnIndex(forMessageID: model.activeMessageID)
+        turnList.turnIndex(forMessageID: railState.activeMessageID)
     }
 
     private var assistantRoleLabel: String {

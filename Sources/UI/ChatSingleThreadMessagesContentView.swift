@@ -171,7 +171,9 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
         ChatConversationMinimapRail(
             turnList: ChatConversationMinimapGeometry.turnList(from: allMessages),
             assistantDisplayName: assistantDisplayName,
-            model: minimapModel,
+            // Plain stored-property access — registers no dependency on the
+            // rail's scroll-frequency publishes for THIS view.
+            railState: minimapModel.railState,
             onJump: jumpToTurn
         )
         // Mirrors the table's own content insets so the rail never sits under
