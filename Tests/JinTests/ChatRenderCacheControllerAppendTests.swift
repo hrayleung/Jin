@@ -149,6 +149,45 @@ final class ChatRenderCacheControllerAppendTests: XCTestCase {
         controller.cancelPendingWork()
     }
 
+    func testAsyncRebuildFromEmptyPaintsTheProvisionalTailImmediately() async throws {
+        let controller = ChatRenderCacheController()
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        // A big head message trips the async heuristics; 30 messages total so
+        // the provisional tail (24) is distinguishable from the full decode.
+        var messages = [try makeMessageEntity(
+            role: .user,
+            text: String(repeating: "Long prompt line with embedded context.\n", count: 900)
+        )]
+        for index in 0..<29 {
+            messages.append(try makeMessageEntity(
+                role: index.isMultiple(of: 2) ? .assistant : .user,
+                text: "message \(index)"
+            ))
+        }
+
+        controller.rebuild(
+            request: makeRequest(messages: messages, updatedAt: t0),
+            assistantProviderIconID: { _ in nil },
+            isStillCurrent: { _, _ in true },
+            onContextApplied: {},
+            onHistoryReady: {}
+        )
+
+        // Synchronously after rebuild() returns: the tail is already painted.
+        XCTAssertEqual(controller.visibleMessages.count, ChatRenderProvisionalTailPolicy.maxMessages)
+        XCTAssertEqual(controller.visibleMessages.last?.id, messages.last?.id)
+
+        // The full decode then applies over the provisional state.
+        let deadline = Date().addingTimeInterval(5)
+        while controller.visibleMessages.count != messages.count {
+            guard Date() < deadline else {
+                return XCTFail("full decode never applied over the provisional tail")
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(controller.cachedTotalMessageCount, messages.count)
+    }
+
     // MARK: - Fixtures
 
     private func rebuildSynchronously(

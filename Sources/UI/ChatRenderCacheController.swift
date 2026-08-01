@@ -97,6 +97,17 @@ final class ChatRenderCacheController {
         }
 
         let snapshots = request.orderedMessages.map(PersistedMessageSnapshot.init)
+
+        // Paint the tail immediately so a switch into a large conversation
+        // never shows an empty timeline while the full decode runs. Gated on
+        // an EMPTY cache: send-path rebuilds (content already painted) and
+        // in-place edits must not regress to a tail-only view. Bookkeeping is
+        // deliberately untouched so the full decode still applies over this
+        // provisional state.
+        if visibleMessages.isEmpty {
+            applyProvisionalTailContext(from: snapshots, request: request)
+        }
+
         let buildToken = UUID()
         activeBuildToken = buildToken
 
@@ -268,6 +279,38 @@ final class ChatRenderCacheController {
             toolResultsByCallID: toolResultsByCallID,
             artifactCatalog: artifactCatalog
         )
+    }
+
+    /// Synchronous tail-only decode for the first paint after a conversation
+    /// switch. Sets ONLY the display-facing properties: `lastRebuild*` stay
+    /// untouched (the full decode must still run and apply), `isHistoryReady`
+    /// keeps gating the token gauge, and `artifactCatalog` is left alone —
+    /// tail-local artifact version numbers would be wrong, and the full apply
+    /// corrects the chips moments later.
+    private func applyProvisionalTailContext(
+        from snapshots: [PersistedMessageSnapshot],
+        request: ChatRenderCacheRebuildRequest
+    ) {
+        let tail = ChatRenderProvisionalTailPolicy.tailSlice(of: snapshots)
+        guard !tail.isEmpty else { return }
+
+        let context = ChatMessageRenderPipeline.makeDecodedRenderContext(
+            from: tail,
+            fallbackModelLabel: request.fallbackModelLabel,
+            artifactsEnabled: request.artifactsEnabled,
+            assistantProviderIconsByID: request.providerIconsByID
+        )
+        guard !context.visibleMessages.isEmpty else { return }
+
+        let tailIDs = Set(tail.map(\.id))
+        visibleMessages = context.visibleMessages
+        messageEntitiesByID = Dictionary(
+            uniqueKeysWithValues: request.orderedMessages
+                .filter { tailIDs.contains($0.id) }
+                .map { ($0.id, $0) }
+        )
+        toolResultsByCallID = context.toolResultsByCallID
+        version &+= 1
     }
 
     private func applyDecodedRenderContext(
