@@ -169,6 +169,54 @@ final class ChatRenderCacheController {
         }
     }
 
+    /// Fast path for the send flow: appends a just-persisted user turn without
+    /// re-decoding the conversation (which the async heuristics turn into a
+    /// detached full-conversation decode on essentially every real
+    /// conversation — the just-sent message stayed invisible until it landed).
+    ///
+    /// The append itself is unconditional so the row paints immediately.
+    /// Bookkeeping advances ONLY when the controller was quiescent and in sync
+    /// with the pre-append entity state — then the observer-driven
+    /// `rebuildIfNeeded` stays a no-op because this append IS the rebuild's
+    /// result for a tail user message (artifacts and tool results are
+    /// assistant/tool-role products and cannot change). Returns `false` when a
+    /// build/history decode/debounce was in flight or the cache was stale; the
+    /// caller must then run a full rebuild to true-up. Every non-exact case
+    /// degrades to today's behavior, never worse.
+    func appendUserTurn(
+        entity: MessageEntity,
+        historyMessage: Message,
+        renderItem: MessageRenderItem,
+        previousUpdatedAt: Date,
+        newUpdatedAt: Date,
+        totalMessageCount: Int
+    ) -> Bool {
+        // The debounce check closes a real hole: an edit whose rebuild is
+        // still pending would otherwise be suppressed forever once the
+        // fast-path bookkeeping moved `lastRebuildUpdatedAt` past it.
+        let isExactIncrement = renderContextBuildTask == nil
+            && renderContextDecodeTask == nil
+            && historyDecodeTask == nil
+            && updatedAtDebounceTask == nil
+            && isHistoryReady
+            && lastRebuildMessageCount == totalMessageCount - 1
+            && lastRebuildUpdatedAt == previousUpdatedAt
+
+        visibleMessages.append(renderItem)
+        messageEntitiesByID[entity.id] = entity
+        activeThreadHistory.append(historyMessage)
+        if cachedTotalMessageCount != totalMessageCount {
+            cachedTotalMessageCount = totalMessageCount
+        }
+        version &+= 1
+
+        if isExactIncrement {
+            lastRebuildMessageCount = totalMessageCount
+            lastRebuildUpdatedAt = newUpdatedAt
+        }
+        return isExactIncrement
+    }
+
     func scheduleDebouncedRebuild(
         after delay: Duration,
         action: @escaping @MainActor () -> Void

@@ -33,6 +33,44 @@ extension ChatView {
         renderCache.cancelBuild()
     }
 
+    /// Send-path fast append: paint the just-persisted user turn immediately
+    /// instead of waiting for the full-conversation decode. Falls back to the
+    /// full rebuild whenever the single-message decode fails or the cache
+    /// wasn't provably in sync (see `ChatRenderCacheController.appendUserTurn`).
+    func applyAppendedUserTurnToRenderCaches(
+        entity: MessageEntity,
+        message: Message,
+        previousUpdatedAt: Date
+    ) {
+        let decoded = ChatMessageRenderPipeline.makeDecodedRenderContext(
+            from: [PersistedMessageSnapshot(entity)],
+            fallbackModelLabel: currentModelName,
+            artifactsEnabled: conversationEntity.artifactsEnabled == true,
+            assistantProviderIconsByID: [:]
+        )
+        guard let renderItem = decoded.visibleMessages.first else {
+            // A just-encoded message should always decode; never lose the row.
+            rebuildMessageCaches()
+            return
+        }
+        let appliedExactly = renderCache.appendUserTurn(
+            entity: entity,
+            historyMessage: message,
+            renderItem: renderItem,
+            previousUpdatedAt: previousUpdatedAt,
+            newUpdatedAt: conversationEntity.updatedAt,
+            totalMessageCount: conversationEntity.messages.count
+        )
+        if appliedExactly {
+            // The artifact catalog is untouched (user messages never produce
+            // artifacts), so syncArtifactSelection would no-op; only the token
+            // gauge needs the one appended history message.
+            refreshContextUsageEstimate(debounced: false)
+        } else {
+            rebuildMessageCaches()
+        }
+    }
+
     func syncArtifactSelection() {
         let catalog = renderCache.artifactCatalog
         guard !catalog.isEmpty else {
