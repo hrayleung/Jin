@@ -140,6 +140,52 @@ private func chatTimelineCenteredContent<Content: View>(
         .environment(\.colorScheme, shared.colorScheme)
 }
 
+// MARK: - Content epoch (apply gating)
+
+/// Inputs that change what a cell displays for an UNCHANGED row-identity
+/// list. When consecutive applies carry equal epochs (and the column width is
+/// stable), the visible cells are already current and the same-IDs reconcile
+/// can skip the wholesale rootView re-push + noteHeightOfRows(all rows) —
+/// pin flips and composer-height applies land there with nothing
+/// content-relevant changed.
+///
+/// Layout-only inputs (composerHeight, viewportHeight, pin state) are
+/// deliberately absent: they must NOT defeat the gate, and width changes are
+/// covered by the reconcile's separate `widthChanged` disjunct. Inputs whose
+/// content-relevant changes also change row identities (isStreaming,
+/// messageRenderLimit, message counts) are absent for the same reason — the
+/// hidden-head case is covered by `hiddenCount` + `renderRevision`. Per-token
+/// streaming text flows through the cell's own `@ObservedObject` and never
+/// needs a re-push.
+struct ChatTimelineContentEpoch: Equatable {
+    let renderRevision: Int
+    let hiddenCount: Int
+    let eagerCodeHighlightStartIndex: Int
+    let layoutCenterOffsetBucket: Int
+    let assistantDisplayName: String
+    let providerType: ProviderType?
+    let providerIconID: String?
+    let toolResultsByCallID: [String: ToolResult]
+    let entityCount: Int
+    let editingUserMessageID: UUID?
+    let editSlashCommandKey: ChatEditSlashCommandEquatableKey
+    let textToSpeechEnabled: Bool
+    let textToSpeechConfigured: Bool
+    let textToSpeechPlaybackState: TextToSpeechPlaybackManager.State
+    let expandedCollapsedMessageIDs: Set<UUID>
+    /// Re-injected environment — a freshly hosted cell doesn't inherit it.
+    let colorScheme: ColorScheme
+    /// Hosted subtrees self-update via AppStorage, but the gate must not
+    /// suppress the re-push/re-measure a font swap needs.
+    let appFontFamily: String
+    let codeFontFamily: String
+    /// The constant "streaming" identity can carry a NEW state object across
+    /// consecutive turns.
+    let streamingObjectID: ObjectIdentifier?
+    let streamingModelLabel: String?
+    let streamingModelID: String?
+}
+
 // MARK: - Scroll handle (SwiftUI ⇆ controller bridge)
 
 /// Lets the SwiftUI overlay (the "scroll to bottom" chevron) drive the
@@ -164,6 +210,7 @@ struct ChatTimelineTableRepresentable: NSViewControllerRepresentable {
     let conversationID: UUID
     let rows: [ChatTimelineRow]
     let shared: ChatTimelineSharedInputs
+    let contentEpoch: ChatTimelineContentEpoch
     let streamingMessage: StreamingMessageState?
     let streamingModelLabel: String?
     let streamingModelID: String?
@@ -196,6 +243,7 @@ struct ChatTimelineTableRepresentable: NSViewControllerRepresentable {
                 conversationID: conversationID,
                 rows: rows,
                 shared: shared,
+                contentEpoch: contentEpoch,
                 streamingMessage: streamingMessage,
                 topInset: topInset,
                 bottomInset: bottomInset,
@@ -361,6 +409,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let conversationID: UUID
         let rows: [ChatTimelineRow]
         let shared: ChatTimelineSharedInputs
+        let contentEpoch: ChatTimelineContentEpoch
         let streamingMessage: StreamingMessageState?
         let topInset: CGFloat
         let bottomInset: CGFloat
@@ -397,6 +446,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
     private var currentColumnWidth: CGFloat = 0
     private var lastConversationID: UUID?
+    /// Epoch of the last applied model, for the same-IDs reconcile gate.
+    /// `nil` (fresh controller / new conversation) always counts as changed.
+    private var lastAppliedContentEpoch: ChatTimelineContentEpoch?
 
     /// Weak on BOTH sides — the model already holds a weak `controller`, and a
     /// strong reference here would close the cycle. `nil` also means "the rail
@@ -535,10 +587,12 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let previousRows = rows
         let widthChanged = abs(currentColumnWidth - newModel.shared.columnWidth) > 0.5
         let conversationChanged = lastConversationID != newModel.conversationID
+        let epochChanged = lastAppliedContentEpoch != newModel.contentEpoch
 
         model = newModel
         rows = newModel.rows
         currentColumnWidth = newModel.shared.columnWidth
+        lastAppliedContentEpoch = newModel.contentEpoch
 
         scrollView.scrollerStyle = preferredScrollerStyle()
         let current = scrollView.contentInsets
@@ -581,7 +635,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             return
         }
 
-        reconcile(old: previousRows, new: rows, widthChanged: widthChanged)
+        reconcile(old: previousRows, new: rows, widthChanged: widthChanged, epochChanged: epochChanged)
     }
 
     /// `reloadData` + re-note all row heights. On macOS 13.0 the automatic
@@ -603,7 +657,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
     /// Diff old→new rows and apply the minimal table mutation, preserving
     /// scroll position (and follow-to-bottom) wherever possible.
-    private func reconcile(old: [ChatTimelineRow], new: [ChatTimelineRow], widthChanged: Bool) {
+    private func reconcile(old: [ChatTimelineRow], new: [ChatTimelineRow], widthChanged: Bool, epochChanged: Bool) {
         let oldIDs = old.map(\.identity)
         let newIDs = new.map(\.identity)
 
@@ -612,6 +666,16 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // and/or an in-place content edit. Re-push content into the visible
             // cells (rebuilds with the current shared.columnWidth + new content),
             // which makes them re-self-size, then re-note heights.
+            //
+            // Pin flips and composer-height applies land here with nothing
+            // content-relevant changed; re-pushing every visible rootView
+            // (each swap forces a synchronous layoutSubtreeIfNeeded in the
+            // next cell.layout()) plus noteHeightOfRows(all) was the
+            // scroll-time invalidation storm.
+            guard widthChanged || epochChanged else {
+                maintainBottomIfNeeded()
+                return
+            }
             reloadVisibleContent()
             if !new.isEmpty {
                 tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<new.count))

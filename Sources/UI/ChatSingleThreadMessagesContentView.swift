@@ -85,6 +85,37 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
         return result
     }
 
+    /// See `ChatTimelineContentEpoch`: everything here can change what a
+    /// visible cell displays while the row-identity list stays identical.
+    /// Sourced from the stage key (content signals), the window (loadEarlier
+    /// label + highlight eagerness), and the two inputs the key doesn't carry
+    /// (environment colorScheme, font preferences).
+    private var contentEpoch: ChatTimelineContentEpoch {
+        ChatTimelineContentEpoch(
+            renderRevision: key.renderRevision,
+            hiddenCount: timelineWindow.hiddenCount,
+            eagerCodeHighlightStartIndex: timelineWindow.eagerCodeHighlightStartIndex,
+            layoutCenterOffsetBucket: key.layoutCenterOffsetBucket,
+            assistantDisplayName: assistantDisplayName,
+            providerType: providerType,
+            providerIconID: providerIconID,
+            toolResultsByCallID: toolResultsByCallID,
+            entityCount: messageEntitiesByID.count,
+            editingUserMessageID: key.editingUserMessageID,
+            editSlashCommandKey: key.editSlashCommandKey,
+            textToSpeechEnabled: key.textToSpeechEnabled,
+            textToSpeechConfigured: key.textToSpeechConfigured,
+            textToSpeechPlaybackState: key.textToSpeechPlaybackState,
+            expandedCollapsedMessageIDs: expandedCollapsedMessageIDs.wrappedValue,
+            colorScheme: colorScheme,
+            appFontFamily: appFontFamily,
+            codeFontFamily: codeFontFamily,
+            streamingObjectID: streamingMessage.map(ObjectIdentifier.init),
+            streamingModelLabel: streamingModelLabel,
+            streamingModelID: streamingModelID
+        )
+    }
+
     private func makeShared(
         layout: ChatMessageStagePresentationSupport.SingleThreadLayout
     ) -> ChatTimelineSharedInputs {
@@ -116,6 +147,7 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             conversationID: conversationID,
             rows: rows,
             shared: makeShared(layout: layout),
+            contentEpoch: contentEpoch,
             streamingMessage: streamingMessage,
             streamingModelLabel: streamingModelLabel,
             streamingModelID: streamingModelID,
