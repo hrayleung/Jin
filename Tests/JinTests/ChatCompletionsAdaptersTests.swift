@@ -2409,7 +2409,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     func testOpenCodeGoRoutesMiniMaxAndQwenToAnthropicMessagesEndpoint() {
         // OpenCode Go serves MiniMax + Qwen via the Anthropic /messages endpoint
         // (@ai-sdk/anthropic); DeepSeek/GLM/Kimi/MiMo/Hy3 use OpenAI /chat/completions.
-        for id in ["minimax-m3", "minimax-m2.7", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "claude-opus-4-8"] {
+        for id in ["minimax-m3", "minimax-m2.7", "qwen3.8-max", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "claude-opus-4-8"] {
             XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /messages")
         }
         for id in ["deepseek-v4-pro", "glm-5", "kimi-k3", "kimi-k2.6", "kimi-k2.7-code", "mimo-v2.5-pro", "hy3-preview"] {
@@ -2468,7 +2468,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /chat/completions")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /chat/completions")
         }
-        for id in ["minimax-m3", "minimax-m2.7", "minimax-m2.5", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus"] {
+        for id in ["minimax-m3", "minimax-m2.7", "minimax-m2.5", "qwen3.8-max", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus"] {
             XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /messages")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /messages")
         }
@@ -2479,6 +2479,56 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for id in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6", "gpt-5.6-luna-pro"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) must not prefix-match")
         }
+        // Routing stays exact-ID for the new flagship too: qwen3.8-max is served, but a
+        // near-miss sibling must not inherit its route.
+        XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("qwen3.8-max"))
+        XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("Qwen3.8-Max"))
+        for id in ["qwen3.8-max-preview", "qwen3.8-plus", "qwen3.8"] {
+            XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) must not prefix-match")
+        }
+    }
+
+    func testOpenCodeGoAdapterSendsQwen38MaxOverAnthropicMessagesWithThinkingBudget() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            // opencode.ai/docs/go's endpoint table routes qwen3.8-max to @ai-sdk/anthropic,
+            // and a live probe agrees (/responses answers "Model qwen3.8-max is not supported
+            // for format openai"), so this send must carry x-api-key — never a Bearer token.
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/messages")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "test-key")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "qwen3.8-max")
+
+            // Reasoning on this route is an Anthropic thinking budget, not an OpenAI effort
+            // string — sending either OpenAI reasoning shape here would be wrong.
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertEqual(thinking["budget_tokens"] as? Int, 10_000)
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["reasoning"])
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("data: [DONE]\n\n".utf8)
+            )
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "qwen3.8-max",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, budgetTokens: 10_000)),
+            tools: [],
+            streaming: true
+        )
+        for try await _ in stream {}
     }
 
     func testOpenCodeGoAdapterRoutesGPT56LunaToResponsesEndpointWithoutPlatformOnlyFields() async throws {

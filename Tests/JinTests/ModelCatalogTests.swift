@@ -374,6 +374,54 @@ final class ModelCatalogTests: XCTestCase {
         }
     }
 
+    func testOpenCodeGoQwen38MaxUsesVerifiedMetadata() {
+        // Alibaba's 2026-08-03 flagship, live on the Go /models list the same day.
+        // 1M context / 131,072 output per models.dev `opencode-go`, Alibaba Cloud's launch
+        // note and Qwen Cloud's model page — the output cap is the Max line's first move off
+        // qwen3.7-max's 65,536, so it must not be mirrored from the predecessor.
+        let qwen38 = ModelCatalog.modelInfo(for: "qwen3.8-max", provider: .opencodeGo)
+        XCTAssertEqual(qwen38.contextWindow, 1_000_000)
+        XCTAssertEqual(qwen38.maxOutputTokens, 131_072)
+        XCTAssertNotEqual(qwen38.maxOutputTokens, 65_536, "must not inherit qwen3.7-max's cap")
+        XCTAssertTrue(qwen38.capabilities.contains(.toolCalling))
+        XCTAssertTrue(qwen38.capabilities.contains(.vision))
+        XCTAssertTrue(qwen38.capabilities.contains(.reasoning))
+
+        // Reasoning is the Anthropic thinking-budget shape (it routes through /messages),
+        // not an OpenAI effort — a `.effort` config here would serialize the wrong field.
+        XCTAssertEqual(qwen38.reasoningConfig?.type, .budget)
+        XCTAssertEqual(qwen38.reasoningConfig?.defaultBudget, 10_000)
+        XCTAssertNil(qwen38.reasoningConfig?.defaultEffort)
+
+        // models.dev lists video input, but /messages translation swaps .video parts for a
+        // text notice — same policy as qwen3.7-plus / qwen3.5-plus. The gateway hosts no
+        // PDF/code-execution tooling and .opencodeGo has no context-cache controls.
+        XCTAssertFalse(qwen38.capabilities.contains(.videoInput))
+        XCTAssertFalse(qwen38.capabilities.contains(.nativePDF))
+        XCTAssertFalse(qwen38.capabilities.contains(.codeExecution))
+        XCTAssertFalse(qwen38.capabilities.contains(.promptCaching))
+
+        // Its thinking is toggleable (models.dev reasoning_options include a toggle), unlike
+        // grok-4.5 on the same provider.
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "qwen3.8-max"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.5"))
+
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "qwen3.8-max", provider: .opencodeGo))
+        let seeded = ModelCatalog.seededModels(for: .opencodeGo)
+        XCTAssertTrue(seeded.contains(where: { $0.id == "qwen3.8-max" }))
+        // Seeded, but not first: glm-5.2 stays OpenCode Go's first-launch default
+        // (preferredModelID = models.first).
+        XCTAssertEqual(seeded.first?.id, "glm-5.2")
+
+        // Near-miss IDs must fall back to the conservative default entry, not prefix-match.
+        for id in ["qwen3.8-max-preview", "qwen3.8-plus"] {
+            let unknown = ModelCatalog.modelInfo(for: id, provider: .opencodeGo)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
+            XCTAssertEqual(unknown.contextWindow, 128_000, id)
+            XCTAssertNil(unknown.reasoningConfig, id)
+        }
+    }
+
     func testOpenCodeGoQwen35PlusDoesNotClaimVideoInput() {
         // qwen3.5-plus routes through the Anthropic /messages endpoint, whose translation
         // replaces a .video part with an "unsupported video input" text notice — claiming
