@@ -50,12 +50,10 @@ enum ModelPickerSupport {
         _ agents: [ClaudeManagedAgentDescriptor],
         searchText: String
     ) -> [ClaudeManagedAgentDescriptor] {
-        let query = trimmedSearchText(searchText)
+        let query = FuzzyMatchQuery(trimmedSearchText(searchText))
         guard !query.isEmpty else { return agents }
 
-        return fuzzySortedMatches(agents, query: query) { agent in
-            [agent.name, agent.id, agent.modelDisplayName ?? "", agent.modelID ?? ""]
-        }
+        return FuzzyMatch.rank(agents, query: query, candidate: ModelSearchCandidate.managedAgent)
     }
 
     static func selectedManagedAgentName(
@@ -78,6 +76,10 @@ enum ModelPickerSupport {
         trimmedSearchText.isEmpty ? "No agents" : "No matches"
     }
 
+    /// With no query, provider sections stay alphabetical and each section keeps its
+    /// catalog order. With a query, sections are ordered by their best-matching
+    /// model, so typing "anthropic" floats Anthropic to the top instead of leaving
+    /// it filed under A-for-alphabetical.
     static func filteredSections(
         providers: [ProviderSnapshot],
         scope: ModelPickerScope,
@@ -85,39 +87,46 @@ enum ModelPickerSupport {
         managedAgentProviderID: String?,
         isFavorite: (String, String) -> Bool
     ) -> [ProviderSection] {
-        let query = trimmedSearchText(searchText)
-        return selectableProviders(
+        let query = FuzzyMatchQuery(trimmedSearchText(searchText))
+        let candidates = selectableProviders(
             from: providers,
             managedAgentProviderID: managedAgentProviderID
-        ).compactMap { provider in
-            section(
-                for: provider,
-                scope: scope,
-                query: query,
-                isFavorite: isFavorite
-            )
+        )
+
+        var ranked: [(section: ProviderSection, score: Int, index: Int)] = []
+        for (index, provider) in candidates.enumerated() {
+            let models = scopedSelectableModels(for: provider, scope: scope, isFavorite: isFavorite)
+            guard !models.isEmpty else { continue }
+
+            guard !query.isEmpty else {
+                ranked.append((ProviderSection(providerID: provider.id, models: models), 0, index))
+                continue
+            }
+
+            let context = ModelSearchCandidate.ProviderContext(provider)
+            let matches = FuzzyMatch.rankWithBestScore(models, query: query) { model in
+                ModelSearchCandidate.model(model, in: context)
+            }
+            guard !matches.values.isEmpty else { continue }
+            ranked.append((
+                ProviderSection(providerID: provider.id, models: matches.values),
+                matches.bestScore,
+                index
+            ))
         }
+
+        guard !query.isEmpty else { return ranked.map(\.section) }
+        return ranked
+            .sorted { lhs, rhs in
+                lhs.score != rhs.score ? lhs.score > rhs.score : lhs.index < rhs.index
+            }
+            .map(\.section)
     }
 
     static func scopedModels(providerID: String, models: [ModelInfo]) -> [ScopedModel] {
         models.enumerated().map { index, model in
             ScopedModel(providerID: providerID, model: model, index: index)
         }
-    }
-
-    private static func fuzzySortedMatches<Value>(
-        _ values: [Value],
-        query: String,
-        candidates: (Value) -> [String]
-    ) -> [Value] {
-        values
-            .compactMap { value -> (value: Value, score: Int)? in
-                let result = FuzzyMatch.bestMatch(query: query, candidates: candidates(value))
-                guard result.matched else { return nil }
-                return (value, result.score)
-            }
-            .sorted { $0.score > $1.score }
-            .map(\.value)
     }
 
     private static func selectableProviders(
@@ -133,42 +142,6 @@ enum ModelPickerSupport {
             }
     }
 
-    private static func section(
-        for provider: ProviderSnapshot,
-        scope: ModelPickerScope,
-        query: String,
-        isFavorite: (String, String) -> Bool
-    ) -> ProviderSection? {
-        let models = filteredModels(
-            for: provider,
-            scope: scope,
-            query: query,
-            isFavorite: isFavorite
-        )
-        guard !models.isEmpty else { return nil }
-        return ProviderSection(providerID: provider.id, models: models)
-    }
-
-    private static func filteredModels(
-        for provider: ProviderSnapshot,
-        scope: ModelPickerScope,
-        query: String,
-        isFavorite: (String, String) -> Bool
-    ) -> [ModelInfo] {
-        let models = scopedSelectableModels(
-            for: provider,
-            scope: scope,
-            isFavorite: isFavorite
-        )
-
-        guard !models.isEmpty, !query.isEmpty else { return models }
-        guard !providerMatches(provider, query: query) else { return models }
-
-        return fuzzySortedMatches(models, query: query) { model in
-            [model.name, model.id]
-        }
-    }
-
     private static func scopedSelectableModels(
         for provider: ProviderSnapshot,
         scope: ModelPickerScope,
@@ -176,12 +149,5 @@ enum ModelPickerSupport {
     ) -> [ModelInfo] {
         guard scope == .favorites else { return provider.selectableModels }
         return provider.selectableModels.filter { isFavorite(provider.id, $0.id) }
-    }
-
-    private static func providerMatches(_ provider: ProviderSnapshot, query: String) -> Bool {
-        FuzzyMatch.bestMatch(
-            query: query,
-            candidates: [provider.name, provider.typeRaw]
-        ).matched
     }
 }
