@@ -72,6 +72,7 @@ extension OpenAIWebSocketAdapter {
         OpenAIResponsesRequestSupport.applyProviderSpecificOverrides(
             to: &body,
             controls: controls,
+            providerType: providerConfig.type,
             supportsSamplingParameters: supportsSamplingParameters
         )
         OpenAIResponsesRequestSupport.applyRequiredIncludeFields(

@@ -102,6 +102,9 @@ enum ModelSettingsResolver {
         if providerType == .vercelAIGateway {
             return !vercelAIGatewayAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType == .opencodeGo {
+            return !opencodeGoAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
         if providerType == .meta {
             // Muse Spark's reasoning cannot be disabled (Meta docs: thinking
             // {type:"disabled"} / reasoning_effort "none" both return HTTP 400).
@@ -197,6 +200,17 @@ enum ModelSettingsResolver {
     /// xAI models where reasoning is always-on ("Reasoning cannot be disabled" per
     /// docs.x.ai for grok-4.5); only the effort is adjustable.
     private static let xaiAlwaysOnReasoningModelIDs: Set<String> = [
+        "grok-4.5",
+    ]
+
+    /// OpenCode Go models whose upstream reasoning cannot be disabled. Grok 4.5 is served
+    /// under its bare upstream slug there, so it inherits xAI's "Reasoning cannot be
+    /// disabled" constraint — the same lock the .xai, .openrouter and .vercelAIGateway sets
+    /// already apply to the identical model. Deliberately narrow: OpenCode Go's other
+    /// always-reasoning models (GLM, DeepSeek, Kimi, MiMo) follow the provider-wide
+    /// omit-to-disable convention documented in OpenCodeGoRequestSupport, and changing them
+    /// is out of scope here.
+    private static let opencodeGoAlwaysOnReasoningModelIDs: Set<String> = [
         "grok-4.5",
     ]
 

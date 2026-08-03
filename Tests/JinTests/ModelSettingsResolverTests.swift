@@ -1340,6 +1340,25 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedAnthropicFlash.reasoningConfig?.type, .toggle)
     }
 
+    func testResolverLocksReasoningOnForOpenCodeGoGrok45() {
+        // Grok 4.5 is served under its bare upstream slug on OpenCode Go, so it inherits
+        // xAI's "Reasoning cannot be disabled" constraint — offering a Thinking-off toggle
+        // would only omit reasoning_effort while the model keeps reasoning anyway.
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.5")
+        )
+        // Matches the lock the sibling providers already apply to the same model.
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.5"))
+        // Narrow by design: OpenCode Go's other models keep the provider-wide
+        // omit-to-disable convention.
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "glm-5.2")
+        )
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "hy3")
+        )
+    }
+
     func testResolverInfersOpenCodeGoDeepSeekV4MetadataForLegacyPersistedModels() {
         let proLegacy = ModelInfo(
             id: "deepseek-v4-pro",

@@ -259,6 +259,50 @@ final class ModelCapabilityRegistryTests: XCTestCase {
 
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "kimi-k2.6"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2.5-preview"))
+
+        // The 2026-08 additions are not MiMo IDs — the Go gateway hosts no web-search tool
+        // for them.
+        for id in ["gpt-5.6-luna", "grok-4.5", "hy3"] {
+            XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: id), id)
+        }
+    }
+
+    func testOpenCodeGoAugust2026ModelsUseVerifiedReasoningEffortBands() {
+        // Hy3 accepts only low/high — "medium" is not a valid value for the family.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "hy3"),
+            [.low, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "hy3-preview"),
+            [.low, .high]
+        )
+        // Grok 4.5's reasoning is always-on with the standard low/medium/high band.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "grok-4.5"),
+            [.low, .medium, .high]
+        )
+        // GPT-5.6 Luna adds xhigh and max on top of the standard band.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "gpt-5.6-luna"),
+            [.low, .medium, .high, .xhigh, .max]
+        )
+        // Existing bands are untouched.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "glm-5.2"),
+            [.high, .max]
+        )
+    }
+
+    func testResponsesOnlyReasoningControlsAreLimitedToNativeOpenAI() {
+        // `reasoning.mode` / `reasoning.context` are OpenAI-platform fields. Gateways that
+        // expose the Responses API on their own host (OpenCode Go) must not advertise them,
+        // or the strict proxy sees fields it does not know.
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleProMode(for: .openai, modelID: "gpt-5.6-sol"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsOpenAIStyleProMode(for: .opencodeGo, modelID: "gpt-5.6-luna"))
+        XCTAssertFalse(
+            ModelCapabilityRegistry.supportsOpenAIStyleReasoningContext(for: .opencodeGo, modelID: "gpt-5.6-luna")
+        )
     }
 
     func testMiMoTokenPlanWebSearchUsesExactSupportedModelIDs() {

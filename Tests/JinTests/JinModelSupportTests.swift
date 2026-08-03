@@ -304,6 +304,15 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.2-preview"))
     }
 
+    func testOpenCodeGoAugust2026ModelsUseExactFullySupportedIDs() {
+        for id in ["gpt-5.6-luna", "grok-4.5", "hy3"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: id), id)
+        }
+        for id in ["gpt-5.6-luna-pro", "gpt-5.6-sol", "grok-4.5-fast", "hy3-custom"] {
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: id), id)
+        }
+    }
+
     func testGeminiProvider3Point1PreviewIsMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-pro-preview"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.1-flash-image"))

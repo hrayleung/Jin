@@ -55,6 +55,7 @@ final class OpenAIResponsesRequestSupportTests: XCTestCase {
                     "custom": AnyCodable("value")
                 ]
             ),
+            providerType: .openai,
             supportsSamplingParameters: false
         )
 

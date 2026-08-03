@@ -1,6 +1,19 @@
 import Foundation
 
 enum OpenAIResponsesRequestSupport {
+    /// True only for the real OpenAI platform. Gateways that expose the Responses API on
+    /// their own host (OpenCode Go's `/zen/go/v1/responses`) get the minimal wire shape —
+    /// they reject unknown top-level fields, and OpenAI-platform extras like
+    /// `reasoning.summary` are not part of the documented gateway contract.
+    static func isNativeOpenAIPlatform(_ providerType: ProviderType?) -> Bool {
+        switch providerType {
+        case .openai, .openaiWebSocket, .none:
+            return true
+        default:
+            return false
+        }
+    }
+
     static func applyContextCacheControls(
         to body: inout [String: Any],
         controls: GenerationControls
@@ -50,7 +63,7 @@ enum OpenAIResponsesRequestSupport {
                     modelID: modelID
                 )
             }
-            if let summary = controls.reasoning?.summary {
+            if isNativeOpenAIPlatform(providerType), let summary = controls.reasoning?.summary {
                 reasoningDict["summary"] = summary.rawValue
             }
 
@@ -118,6 +131,7 @@ enum OpenAIResponsesRequestSupport {
     static func applyProviderSpecificOverrides(
         to body: inout [String: Any],
         controls: GenerationControls,
+        providerType: ProviderType?,
         supportsSamplingParameters: Bool
     ) {
         for (key, value) in controls.providerSpecific {
@@ -125,6 +139,12 @@ enum OpenAIResponsesRequestSupport {
                 continue
             }
             if !supportsSamplingParameters, key == "temperature" || key == "top_p" {
+                continue
+            }
+            // On a strict gateway, never let a custom param overwrite the computed `reasoning`
+            // object with a shape the endpoint rejects (mirrors the same guard in
+            // OpenCodeGoRequestSupport.buildOpenAIRequest).
+            if !isNativeOpenAIPlatform(providerType), key == "reasoning" {
                 continue
             }
             body[key] = value.value
