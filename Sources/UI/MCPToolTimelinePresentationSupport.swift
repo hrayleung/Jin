@@ -22,8 +22,8 @@ extension MCPToolTimelineSupport {
             return parsed.toolName
         }
 
-        let toolWord = entries.count == 1 ? "tool" : "tools"
-        return "MCP · \(summary) · \(entries.count) \(toolWord)"
+        // Singular tool returns earlier; this branch is always plural.
+        return "MCP · \(summary) · \(entries.count) tools"
     }
 
     static func expandedTitle(

@@ -119,7 +119,8 @@ struct MCPToolTimelineView: View {
             withAnimation(JinMotion.disclosure(expanding: true)) {
                 isExpanded = true
             }
-            onExpansionChanged()
+            // Layout invalidation comes from `.onChange(of: isExpanded)` only —
+            // an extra call here double-invalidated the parent row.
         }
     }
 

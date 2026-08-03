@@ -182,8 +182,9 @@ struct MCPSingleToolTimelineRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
-        .accessibilityLabel(Text(parsed.toolName))
+        .accessibilityLabel(Text(accessibilityLabelText))
         .accessibilityValue(Text(isExpanded ? "Expanded" : "Collapsed"))
+        .accessibilityHint(Text(isExpanded ? "Hides tool details" : "Shows tool details"))
     }
 
     /// Icon + duration only for success; keep a short word for error/running.
@@ -212,6 +213,7 @@ struct MCPSingleToolTimelineRow: View {
             }
         }
         .lineLimit(1)
+        .accessibilityHidden(true)
     }
 
     private var statusGlyph: String {
@@ -220,6 +222,19 @@ struct MCPSingleToolTimelineRow: View {
         case .success: return "checkmark.circle.fill"
         case .error: return "xmark.circle.fill"
         }
+    }
+
+    private var accessibilityLabelText: String {
+        var parts = [parsed.toolName]
+        switch status {
+        case .running: parts.append("Running")
+        case .success: parts.append("Succeeded")
+        case .error: parts.append("Failed")
+        }
+        if let durationText, status != .running {
+            parts.append(durationText)
+        }
+        return parts.joined(separator: ", ")
     }
 }
 

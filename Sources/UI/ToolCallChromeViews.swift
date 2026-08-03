@@ -43,7 +43,7 @@ struct ToolCallHeaderRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text(toolLabel))
+        .accessibilityLabel(Text(accessibilityLabelText))
         .accessibilityValue(Text(isExpanded ? "Expanded" : "Collapsed"))
         .accessibilityHint(Text(isExpanded ? "Hides tool output" : "Shows tool output"))
     }
@@ -68,6 +68,7 @@ struct ToolCallHeaderRow: View {
             }
         }
         .lineLimit(1)
+        .accessibilityHidden(true)
     }
 
     private var glyphName: String {
@@ -76,6 +77,26 @@ struct ToolCallHeaderRow: View {
         case .success: return "checkmark.circle.fill"
         case .error: return "xmark.circle.fill"
         }
+    }
+
+    private var accessibilityLabelText: String {
+        var parts = [toolLabel]
+        if showsServerTag {
+            parts.insert(serverLabel, at: 0)
+        }
+        if !statusLabel.isEmpty {
+            parts.append(statusLabel)
+        } else {
+            switch status {
+            case .running: parts.append("Running")
+            case .success: parts.append("Succeeded")
+            case .error: parts.append("Failed")
+            }
+        }
+        if let durationText, status != .running {
+            parts.append(durationText)
+        }
+        return parts.joined(separator: ", ")
     }
 }
 
@@ -147,7 +168,15 @@ struct ToolCallCodeBlockView: View {
         VStack(alignment: .leading, spacing: 4) {
             sectionHeader
             codeContent
+            if isOverflowing {
+                Text("Scroll for more · copy for full output")
+                    .font(.caption2)
+                    .foregroundStyle(JinSemanticColor.textTertiary)
+            }
         }
+        // Hover covers header + content so the copy button brightens when
+        // the pointer is on it (not only when over the body text).
+        .onHover { isHovering = $0 }
     }
 
     private var sectionHeader: some View {
@@ -172,16 +201,24 @@ struct ToolCallCodeBlockView: View {
     }
 
     private var codeContent: some View {
-        Text(displayText)
-            .font(.system(.caption2, design: .monospaced))
-            .foregroundStyle(JinSemanticColor.textSecondary)
-            .textSelection(.enabled)
-            .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.horizontal, JinSpacing.small)
-            .padding(.vertical, JinSpacing.xSmall + 2)
-            .frame(height: adaptiveHeight, alignment: .topLeading)
-            .clipped()
+        // Fixed-size shell reports a finite height to `JinCollapsibleContent`'s
+        // `fixedSize` probe. ScrollView is an overlay so its ideal content
+        // height cannot leak into the curtain measurement (the original
+        // residual-gray bug).
+        Color.clear
+            .frame(height: adaptiveHeight)
+            .overlay {
+                ScrollView(.vertical, showsIndicators: isOverflowing) {
+                    Text(displayText)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(JinSemanticColor.textSecondary)
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .padding(.horizontal, JinSpacing.small)
+                        .padding(.vertical, JinSpacing.xSmall + 2)
+                }
+            }
             .background(
                 RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
                     .fill(JinSemanticColor.subtleSurface.opacity(0.85))
@@ -195,17 +232,23 @@ struct ToolCallCodeBlockView: View {
                         lineWidth: JinStrokeWidth.hairline
                     )
             )
-            .onHover { isHovering = $0 }
+            .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
     }
 
     /// Short payloads get a tight window; long ones cap so the timeline stays calm.
     private var adaptiveHeight: CGFloat {
+        min(Self.maxContentHeight, max(Self.minContentHeight, estimatedContentHeight))
+    }
+
+    private var estimatedContentHeight: CGFloat {
         let lines = max(1, displayText.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).count)
-        // Also account for wrapped long lines roughly.
         let wrappedExtra = displayText.count > 120 ? displayText.count / 90 : 0
         let estimatedLines = lines + wrappedExtra
-        let raw = CGFloat(estimatedLines) * Self.lineHeight + Self.verticalPadding
-        return min(Self.maxContentHeight, max(Self.minContentHeight, raw))
+        return CGFloat(estimatedLines) * Self.lineHeight + Self.verticalPadding
+    }
+
+    private var isOverflowing: Bool {
+        estimatedContentHeight > Self.maxContentHeight || text.count > Self.displayCharacterCap
     }
 
     private var displayText: String {

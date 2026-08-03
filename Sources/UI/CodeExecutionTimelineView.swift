@@ -84,10 +84,24 @@ struct CodeExecutionTimelineView: View {
         Binding(
             get: { isExpanded },
             set: { newValue in
-                if newValue {
-                    hasEverExpanded = true
+                if !newValue {
+                    isExpanded = false
+                    return
                 }
-                isExpanded = newValue
+                // First expand: mount collapsed so the height probe warms,
+                // then open on the next turns (matches MCP / web search).
+                if hasEverExpanded {
+                    isExpanded = true
+                    return
+                }
+                hasEverExpanded = true
+                Task { @MainActor in
+                    await Task.yield()
+                    await Task.yield()
+                    withAnimation(JinMotion.disclosure(expanding: true)) {
+                        isExpanded = true
+                    }
+                }
             }
         )
     }
