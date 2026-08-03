@@ -1176,6 +1176,52 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // Grok 4.5 joined OpenCode Go's line-up alongside GPT-5.6 Luna (opencode.ai/docs/go,
+        // updated 2026-08-02, lists it first in "the current list of models"). That page's
+        // endpoint table routes grok-4.5 to /zen/go/v1/chat/completions via
+        // @ai-sdk/openai-compatible, and a live unauthenticated probe of /zen/go/v1/messages
+        // confirms the gateway rejects it there ("Model grok-4.5 is not supported for format
+        // anthropic"), so it must stay out of `anthropicMessagesModelIDs`. 500K context is the
+        // real upstream Grok 4.5 number (down from 4.3's 1M), matching Jin's native xAI record.
+        // xAI publishes no separate max-output cap — models.dev's `output: 500000` merely
+        // echoes the context window — so none is recorded here, exactly as the native xAI,
+        // OpenRouter and Vercel grok-4.5 records do; recording it would make
+        // GenerationControlsResolver send a default max_tokens equal to the whole window.
+        // Reasoning is always-on with the low/medium/high band (docs.x.ai) and default high,
+        // which is precisely what the shared `mapReasoningEffortNoneDisabled` already emits,
+        // so no mapper arm is needed. .nativePDF/.codeExecution are deliberately not claimed:
+        // the Go entry lists no PDF modality, this adapter's OpenAI-compatible translation
+        // renders .file parts as text, and `supportsCodeExecution` is false for .opencodeGo.
+        Record(id: "grok-4.5", displayName: "Grok 4.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 500_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        // GPT-5.6 Luna is the first OpenCode Go model served on the OpenAI **Responses** API:
+        // opencode.ai/docs/go's endpoint table maps it to /zen/go/v1/responses via
+        // @ai-sdk/openai, while every other OpenAI-shaped Go model uses /chat/completions.
+        // Adding the ID here is NOT sufficient — routing lives in
+        // OpenCodeGoAdapter.openAIResponsesModelIDs, which forwards to an OpenAIAdapter
+        // delegate pinned to the Go base URL. 1,050,000 context / 128,000 output are OpenAI's
+        // published Luna limits (models.dev `opencode-go` agrees); the 272K figure on the Go
+        // pricing page is a billing-tier boundary, not a context cap. The effort band is
+        // low/medium/high/xhigh/max with a medium default — `xhigh` and `max` come from the
+        // provider-agnostic openAIStyle*EffortModelIDs sets, which already list this ID, and
+        // the Responses mapper emits both verbatim. temperature/top_p are never sent
+        // (models.dev marks the model temperature:false, and the Responses sampling gate
+        // already excludes reasoning-enabled gpt-5* models).
+        // .nativePDF is deliberately not claimed even though models.dev lists PDF input:
+        // .opencodeGo sits in ChatAttachmentCapabilitySupport's native-PDF deny arm, and
+        // whether the Go gateway forwards `input_file` (or hosts /files) is unverified — a
+        // failed hosted upload rethrows and kills the send, so PDFs go through Jin's
+        // text-extraction path instead. .codeExecution and .webSearch are not claimed either:
+        // the gateway hosts neither tool.
+        Record(id: "gpt-5.6-luna", displayName: "GPT-5.6 Luna",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
         Record(id: "glm-5", displayName: "GLM-5",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 202_752,
@@ -1296,9 +1342,33 @@ extension ModelCatalog {
                maxOutputTokens: 65_536,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        // Hy3 (Tencent's Hunyuan 3 reasoning model) is on opencode.ai/docs/go's current model
+        // list, pricing table and privacy table (page updated 2026-08-02), and its endpoint
+        // table routes hy3 to /zen/go/v1/chat/completions via @ai-sdk/openai-compatible — so
+        // it must NOT join `anthropicMessagesModelIDs`. 256K context / 64K output per
+        // models.dev `opencode-go` (OpenRouter's tencent/hy3 reports 262,144/128,000 for a
+        // different gateway — deliberately not imported here). Input is text-only
+        // (modalities.input = [text], attachment false), so no .vision/.nativePDF/.videoInput.
+        // reasoning_effort accepts only low/high — "medium" is NOT a valid value for this
+        // family, hence `opencodeGoHy3ReasoningEffortModelIDs` in ModelCapabilityRegistry and
+        // the matching mapper arm; "none" is expressed by disabling reasoning, which omits the
+        // field entirely (the gateway then applies its own default), the same convention Jin
+        // already uses for `tencent/hy3` on OpenRouter.
+        Record(id: "hy3", displayName: "Hy3",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 256_000,
+               maxOutputTokens: 64_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         // Catalog-only — recognized when fetched via the API
+        // .videoInput dropped: qwen3.5-plus is in `anthropicMessagesModelIDs`, and the
+        // Anthropic /messages translation replaces a .video part with an
+        // `unsupportedVideoInputNotice` text block rather than encoding it — so claiming it
+        // only made the attachment picker accept videos that were silently swapped for a
+        // sentence. Same policy the qwen3.7-plus record above already documents; this record
+        // predates it.
         Record(id: "qwen3.5-plus", displayName: "Qwen3.5 Plus",
-               capabilities: [.streaming, .toolCalling, .vision, .videoInput],
+               capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 1_000_000,
                maxOutputTokens: 65_536,
                reasoningConfig: nil,
@@ -1317,11 +1387,15 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Still served on the Go /models list but absent from the docs' current-model list —
+        // superseded by the seeded `hy3` above, so recognized-when-fetched rather than seeded.
+        // Shares Hy3's low/high-only effort band (see `opencodeGoHy3ReasoningEffortModelIDs`),
+        // so its default moves off the invalid `medium` it used to carry.
         Record(id: "hy3-preview", displayName: "Hy3 Preview",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 256_000,
                maxOutputTokens: 64_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "big-pickle", displayName: "Big Pickle",
                capabilities: [.streaming, .toolCalling],

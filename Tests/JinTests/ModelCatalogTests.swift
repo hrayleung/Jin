@@ -320,6 +320,70 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(mimoV25.reasoningConfig?.defaultEffort, .medium)
     }
 
+    func testOpenCodeGoAugust2026ModelsUseVerifiedMetadata() {
+        // The three models opencode.ai/docs/go added to the Go plan (page updated 2026-08-02).
+        let luna = ModelCatalog.modelInfo(for: "gpt-5.6-luna", provider: .opencodeGo)
+        XCTAssertEqual(luna.contextWindow, 1_050_000)
+        XCTAssertEqual(luna.maxOutputTokens, 128_000)
+        XCTAssertEqual(luna.reasoningConfig?.type, .effort)
+        XCTAssertEqual(luna.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertTrue(luna.capabilities.contains(.vision))
+        XCTAssertTrue(luna.capabilities.contains(.promptCaching))
+        // Not claimed: .opencodeGo is in the native-PDF deny arm and the gateway hosts no
+        // code-interpreter, so claiming these would light up controls that do nothing.
+        XCTAssertFalse(luna.capabilities.contains(.nativePDF))
+        XCTAssertFalse(luna.capabilities.contains(.codeExecution))
+        XCTAssertFalse(luna.capabilities.contains(.videoInput))
+
+        let grok = ModelCatalog.modelInfo(for: "grok-4.5", provider: .opencodeGo)
+        XCTAssertEqual(grok.contextWindow, 500_000)
+        // xAI publishes no separate output cap; recording one would default max_tokens to the
+        // whole context window.
+        XCTAssertNil(grok.maxOutputTokens)
+        XCTAssertEqual(grok.reasoningConfig?.type, .effort)
+        XCTAssertEqual(grok.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(grok.capabilities.contains(.vision))
+        XCTAssertFalse(grok.capabilities.contains(.nativePDF))
+        XCTAssertFalse(grok.capabilities.contains(.codeExecution))
+
+        let hy3 = ModelCatalog.modelInfo(for: "hy3", provider: .opencodeGo)
+        XCTAssertEqual(hy3.contextWindow, 256_000)
+        XCTAssertEqual(hy3.maxOutputTokens, 64_000)
+        XCTAssertEqual(hy3.reasoningConfig?.type, .effort)
+        XCTAssertEqual(hy3.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(hy3.capabilities.contains(.vision))  // text-only input
+
+        // hy3-preview shares Hy3's low/high-only band, so it must not default to `medium`.
+        let hy3Preview = ModelCatalog.modelInfo(for: "hy3-preview", provider: .opencodeGo)
+        XCTAssertEqual(hy3Preview.reasoningConfig?.defaultEffort, .high)
+
+        // All three are seeded, and glm-5.2 stays OpenCode Go's first-launch default.
+        let seeded = ModelCatalog.seededModels(for: .opencodeGo)
+        XCTAssertEqual(seeded.first?.id, "glm-5.2")
+        for id in ["gpt-5.6-luna", "grok-4.5", "hy3"] {
+            XCTAssertTrue(seeded.contains(where: { $0.id == id }), "\(id) should be seeded")
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .opencodeGo), id)
+        }
+
+        // Near-miss IDs must fall back to the conservative default entry, not prefix-match.
+        for id in ["gpt-5.6-luna-pro", "grok-4.5-fast", "hy3-custom"] {
+            let unknown = ModelCatalog.modelInfo(for: id, provider: .opencodeGo)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
+            XCTAssertEqual(unknown.contextWindow, 128_000, id)
+            XCTAssertNil(unknown.reasoningConfig, id)
+        }
+    }
+
+    func testOpenCodeGoQwen35PlusDoesNotClaimVideoInput() {
+        // qwen3.5-plus routes through the Anthropic /messages endpoint, whose translation
+        // replaces a .video part with an "unsupported video input" text notice — claiming
+        // .videoInput only made the attachment picker accept videos that were silently
+        // swapped for a sentence. Same policy the qwen3.7-plus record documents.
+        let model = ModelCatalog.modelInfo(for: "qwen3.5-plus", provider: .opencodeGo)
+        XCTAssertFalse(model.capabilities.contains(.videoInput))
+        XCTAssertTrue(model.capabilities.contains(.vision))
+    }
+
     func testOpenCodeGoGLM52CatalogUsesExactProviderIDs() {
         let glm52 = ModelCatalog.modelInfo(
             for: "glm-5.2",

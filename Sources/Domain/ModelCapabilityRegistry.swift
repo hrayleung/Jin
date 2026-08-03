@@ -384,6 +384,15 @@ enum ModelCapabilityRegistry {
     private static let opencodeGoGLMHighMaxReasoningEffortModelIDs: Set<String> = [
         "glm-5.2",
     ]
+    /// OpenCode Go's Tencent Hy3 line accepts only `low`/`high` — `medium` is not a valid
+    /// value (models.dev `opencode-go` reasoning_options for `hy3`, and OpenRouter's live
+    /// supported_efforts for `tencent/hy3`, agree). `none` is expressed by disabling
+    /// reasoning, which omits the field entirely. Mirrors `openRouterLowHighEffortModelIDs`
+    /// below, which encodes the same band for the same family on the other gateway.
+    private static let opencodeGoHy3ReasoningEffortModelIDs: Set<String> = [
+        "hy3",
+        "hy3-preview",
+    ]
     private static let openRouterDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek/deepseek-v4-flash",
         "deepseek/deepseek-v4-pro",
@@ -618,7 +627,16 @@ enum ModelCapabilityRegistry {
     }
 
     /// GPT-5.6 Responses API `reasoning.mode = "pro"` (not a separate model slug on OpenAI).
+    /// Limited to native OpenAI / OpenAI WebSocket providers — gateways may not forward the
+    /// field, and the strict OpenCode Go proxy rejects fields it does not know. Matches the
+    /// gating `supportsOpenAIStyleVerbosity` already applies.
     static func supportsOpenAIStyleProMode(for providerType: ProviderType?, modelID: String) -> Bool {
+        switch providerType {
+        case .openai, .openaiWebSocket, .none:
+            break
+        default:
+            return false
+        }
         guard supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) else {
             return false
         }
@@ -627,7 +645,14 @@ enum ModelCapabilityRegistry {
     }
 
     /// Responses API `reasoning.context` support (exact IDs).
+    /// Native OpenAI / OpenAI WebSocket only, for the same reason as `reasoning.mode` above.
     static func supportsOpenAIStyleReasoningContext(for providerType: ProviderType?, modelID: String) -> Bool {
+        switch providerType {
+        case .openai, .openaiWebSocket, .none:
+            break
+        default:
+            return false
+        }
         guard supportsOpenAIStyleReasoningEffort(for: providerType, modelID: modelID) else {
             return false
         }
@@ -733,6 +758,8 @@ enum ModelCapabilityRegistry {
             return [.high, .max]
         case .opencodeGo where opencodeGoGLMHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
+        case .opencodeGo where opencodeGoHy3ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high]
         case .meta:
             // Muse Spark accepts minimal..xhigh ("none" returns HTTP 400 and is handled
             // by omitting the field; "max" is not accepted).

@@ -2460,6 +2460,252 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(isValid)
     }
 
+    func testOpenCodeGoEndpointRoutingMatrixMatchesPublishedDocsTable() {
+        // opencode.ai/docs/go publishes a per-model endpoint table. Every model must land on
+        // exactly one of the three routes, matched by exact ID.
+        for id in ["grok-4.5", "hy3", "glm-5.2", "glm-5.1", "kimi-k3", "kimi-k2.7-code",
+                   "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "mimo-v2.5", "mimo-v2.5-pro"] {
+            XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /chat/completions")
+            XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /chat/completions")
+        }
+        for id in ["minimax-m3", "minimax-m2.7", "minimax-m2.5", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus"] {
+            XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /messages")
+            XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /messages")
+        }
+        XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("gpt-5.6-luna"))
+        XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("GPT-5.6-Luna"))
+        XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("gpt-5.6-luna"))
+        // Exact-ID only: the sibling GPT-5.6 tiers are not on OpenCode Go.
+        for id in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6", "gpt-5.6-luna-pro"] {
+            XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) must not prefix-match")
+        }
+    }
+
+    func testOpenCodeGoAdapterRoutesGPT56LunaToResponsesEndpointWithoutPlatformOnlyFields() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            // opencode.ai/docs/go endpoint table: gpt-5.6-luna → /zen/go/v1/responses.
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/responses")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(root["model"] as? String, "gpt-5.6-luna")
+            XCTAssertNotNil(root["input"])
+            XCTAssertNil(root["messages"])  // Responses shape, not chat/completions
+            XCTAssertEqual(root["max_output_tokens"] as? Int, 4096)
+            XCTAssertNil(root["max_tokens"])
+
+            // On /responses the NESTED reasoning object is the correct shape — the top-level
+            // `reasoning_effort` string is the /chat/completions-only workaround.
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "xhigh")
+            XCTAssertNil(root["reasoning_effort"])
+
+            // OpenAI-platform-only fields must never reach the strict Go gateway.
+            XCTAssertNil(reasoning["summary"])
+            XCTAssertNil(reasoning["mode"])
+            XCTAssertNil(reasoning["context"])
+            XCTAssertNil(root["service_tier"])
+            XCTAssertNil(root["prompt_cache_key"])
+            XCTAssertNil(root["prompt_cache_retention"])
+            XCTAssertNil(root["text"])          // no text.verbosity
+            XCTAssertNil(root["include"])
+            XCTAssertNil(root["temperature"])   // models.dev marks this model temperature:false
+            XCTAssertNil(root["top_p"])
+            let toolTypes = (root["tools"] as? [[String: Any]] ?? []).compactMap { $0["type"] as? String }
+            XCTAssertFalse(toolTypes.contains("code_interpreter"))
+            XCTAssertFalse(toolTypes.contains("web_search"))
+
+            let response: [String: Any] = [
+                "id": "resp_opencode_luna",
+                "output": [["type": "message", "content": [["type": "output_text", "text": "OK"]]]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        var controls = GenerationControls(
+            temperature: 0.7,
+            maxTokens: 4096,
+            reasoning: ReasoningControls(
+                enabled: true,
+                effort: .xhigh,
+                summary: .auto,
+                mode: .pro,
+                context: .allTurns
+            )
+        )
+        controls.topP = 0.9
+        controls.textVerbosity = .high
+        controls.openAIServiceTier = .priority
+        controls.contextCache = ContextCacheControls(mode: .implicit, ttl: .hour1, cacheKey: "k")
+        controls.codeExecution = CodeExecutionControls(enabled: true)
+        controls.webSearch = WebSearchControls(enabled: true)
+        controls.providerSpecific = ["reasoning": AnyCodable(["effort": "low"])]
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "gpt-5.6-luna",
+            controls: controls,
+            tools: [],
+            streaming: false
+        )
+
+        var messageID: String?
+        for try await event in stream {
+            if case .messageStart(let value) = event { messageID = value }
+        }
+        XCTAssertEqual(messageID, "resp_opencode_luna")
+    }
+
+    func testOpenCodeGoAdapterMapsHy3EffortsToLowHighOnly() async throws {
+        // Hy3 accepts only low/high — "medium" is not a valid reasoning_effort for the family.
+        for (effort, expected) in [(ReasoningEffort.low, "low"), (.medium, "high"), (.high, "high")] {
+            let (configuration, protocolType) = makeMockedSessionConfiguration()
+            let networkManager = NetworkManager(configuration: configuration)
+            let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+            protocolType.requestHandler = { request in
+                XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(root["model"] as? String, "hy3")
+                XCTAssertEqual(root["reasoning_effort"] as? String, expected)
+                XCTAssertNil(root["reasoning"])
+
+                let response: [String: Any] = [
+                    "id": "cmpl_opencode_hy3",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+
+            let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: "hy3",
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort)),
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+    }
+
+    func testOpenCodeGoAdapterOmitsReasoningEffortForHy3WhenReasoningDisabled() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            // "none" is expressed by omitting the field — the gateway rejects an invalid value.
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_hy3_off",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "hy3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testOpenCodeGoAdapterSendsGrok45OnChatCompletionsWithStandardEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            // The Go gateway rejects grok-4.5 on /messages ("not supported for format anthropic").
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "grok-4.5")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "medium")
+            XCTAssertNil(root["reasoning"])
+            // Unlike gpt-5.6-luna, Grok 4.5 does accept sampling parameters.
+            XCTAssertEqual(root["temperature"] as? Double, 0.1)
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_grok45",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "grok-4.5",
+            controls: GenerationControls(
+                temperature: 0.1,
+                reasoning: ReasoningControls(enabled: true, effort: .medium)
+            ),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testOpenCodeGoValidateAPIKeyUsesResponsesEndpointForGPT56Luna() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored",
+            models: [
+                ModelInfo(
+                    id: "gpt-5.6-luna",
+                    name: "GPT-5.6 Luna",
+                    capabilities: [.streaming, .toolCalling, .reasoning],
+                    contextWindow: 1_050_000
+                )
+            ]
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/responses")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "gpt-5.6-luna")
+            XCTAssertEqual(root["input"] as? String, "hi")
+            XCTAssertNil(root["messages"])
+
+            let data = try JSONSerialization.data(withJSONObject: ["id": "resp_validation"])
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "ignored", networkManager: networkManager)
+        let isValid = try await adapter.validateAPIKey("test-key")
+        XCTAssertTrue(isValid)
+    }
+
     func testOpenRouterAdapterOmitsWebPluginWhenModelWebSearchOverrideIsDisabled() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

@@ -29,7 +29,9 @@ extension OpenAIAdapter {
             "stream": streaming
         ]
 
-        OpenAIResponsesRequestSupport.applyContextCacheControls(to: &body, controls: controls)
+        if usesNativeOpenAIPlatform {
+            OpenAIResponsesRequestSupport.applyContextCacheControls(to: &body, controls: controls)
+        }
         OpenAIResponsesRequestSupport.applySamplingControls(
             to: &body,
             controls: controls,
@@ -38,7 +40,7 @@ extension OpenAIAdapter {
         if let maxTokens = controls.maxTokens {
             body["max_output_tokens"] = maxTokens
         }
-        if let serviceTier = resolvedOpenAIServiceTier(from: controls) {
+        if usesNativeOpenAIPlatform, let serviceTier = resolvedOpenAIServiceTier(from: controls) {
             body["service_tier"] = serviceTier
         }
         OpenAIResponsesRequestSupport.applyReasoningConfig(
@@ -64,6 +66,7 @@ extension OpenAIAdapter {
         OpenAIResponsesRequestSupport.applyProviderSpecificOverrides(
             to: &body,
             controls: controls,
+            providerType: providerConfig.type,
             supportsSamplingParameters: supportsSamplingParameters
         )
         OpenAIResponsesRequestSupport.applyRequiredIncludeFields(
@@ -81,12 +84,20 @@ extension OpenAIAdapter {
         )
     }
 
+    /// True only when this adapter is driving the real OpenAI platform. `OpenAIAdapter` is
+    /// also used as a delegate for gateways that expose the Responses API on their own host
+    /// (OpenCode Go's `/zen/go/v1/responses`), where OpenAI-platform-only wire fields are
+    /// rejected as unknown input.
+    var usesNativeOpenAIPlatform: Bool {
+        providerConfig.type == .openai || providerConfig.type == .openaiWebSocket
+    }
+
     func supportsNativePDF(_ modelID: String) -> Bool {
-        JinModelSupport.supportsNativePDF(providerType: .openai, modelID: modelID)
+        JinModelSupport.supportsNativePDF(providerType: providerConfig.type, modelID: modelID)
     }
 
     func supportsCodeExecution(_ modelID: String) -> Bool {
-        ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: modelID)
+        ModelCapabilityRegistry.supportsCodeExecution(for: providerConfig.type, modelID: modelID)
     }
 
     func supportsWebSearch(_ modelID: String) -> Bool {

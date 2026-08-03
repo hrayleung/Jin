@@ -10,6 +10,13 @@ extension OpenCodeGoAdapter {
         anthropicMessagesModelIDs.contains(modelID.lowercased())
     }
 
+    /// Models OpenCode Go serves via the OpenAI Responses `/responses` endpoint (per
+    /// opencode.ai/docs/go's endpoint table + models.dev `opencode-go` → `@ai-sdk/openai`).
+    /// Matched by exact ID (see `openAIResponsesModelIDs`), never by prefix.
+    static func usesOpenAIResponsesEndpoint(_ modelID: String) -> Bool {
+        openAIResponsesModelIDs.contains(modelID.lowercased())
+    }
+
     func buildOpenAIRequest(
         messages: [Message],
         modelID: String,
@@ -120,14 +127,20 @@ extension OpenCodeGoAdapter {
     }
 
     private func mapReasoningEffort(_ effort: ReasoningEffort, modelID: String) -> String {
-        // GLM-5.2 exposes only `high` and `max` (its native default). Honor `max` rather than
-        // clamping it to `high` like the shared none/low/medium/high mapping does, and never
-        // emit the invalid `low`/`medium` strings for it. The model's selectable efforts are
-        // already restricted to [.high, .max] in ModelCapabilityRegistry.
-        if modelID.lowercased() == "glm-5.2" {
+        switch modelID.lowercased() {
+        case "glm-5.2":
+            // GLM-5.2 exposes only `high` and `max` (its native default). Honor `max` rather
+            // than clamping it to `high` like the shared none/low/medium/high mapping does,
+            // and never emit the invalid `low`/`medium` strings for it. The model's selectable
+            // efforts are already restricted to [.high, .max] in ModelCapabilityRegistry.
             return (effort == .max || effort == .xhigh) ? "max" : "high"
+        case "hy3", "hy3-preview":
+            // Hy3 accepts only `low`/`high`; the shared mapper would emit an invalid "medium"
+            // for an effort inherited from another model that bypassed the registry's clamp.
+            return (effort == .minimal || effort == .low) ? "low" : "high"
+        default:
+            return mapReasoningEffortNoneDisabled(effort)
         }
-        return mapReasoningEffortNoneDisabled(effort)
     }
 
     private func buildWebSearchTool(from controls: WebSearchControls?) -> [String: Any] {
