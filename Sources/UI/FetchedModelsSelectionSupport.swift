@@ -74,23 +74,15 @@ enum FetchedModelsSelectionSupport {
         _ models: [ModelInfo],
         searchText: String
     ) -> [ModelInfo] {
-        guard let query = searchText.trimmedNonEmpty else { return models }
+        let query = FuzzyMatchQuery(searchText)
+        guard !query.isEmpty else { return models }
 
-        return models
-            .compactMap { model in
-                searchResult(for: model, query: query)
-            }
-            .sorted { $0.score > $1.score }
-            .map(\.model)
-    }
-
-    private static func searchResult(
-        for model: ModelInfo,
-        query: String
-    ) -> (model: ModelInfo, score: Int)? {
-        let result = FuzzyMatch.bestMatch(query: query, candidates: [model.name, model.id])
-        guard result.matched else { return nil }
-        return (model, result.score)
+        // The sheet is already scoped to one provider's fetch result, so there is no
+        // provider dimension to search across — `.none` keeps the field set to the
+        // model's own name and ID.
+        return FuzzyMatch.rank(models, query: query) { model in
+            ModelSearchCandidate.model(model, in: .none)
+        }
     }
 
     static func orderedModels(

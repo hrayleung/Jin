@@ -2,11 +2,16 @@ import Collections
 import Foundation
 
 extension ProviderFormSupport {
+    /// Filters, never reorders: this is a management surface, and having rows
+    /// resort under the cursor while you type makes it easy to edit the wrong model.
+    /// `.structural` for the same reason — the speculative subsequence tier belongs
+    /// in a chooser, not in an editor.
     static func filteredModels(_ models: [ModelInfo], searchText: String) -> [ModelInfo] {
-        guard let query = searchText.trimmedNonEmpty?.lowercased() else { return models }
+        let query = FuzzyMatchQuery(searchText)
+        guard !query.isEmpty else { return models }
 
-        return models.filter { model in
-            model.name.lowercased().contains(query) || model.id.lowercased().contains(query)
+        return FuzzyMatch.filter(models, query: query) { model in
+            ModelSearchCandidate.model(model, in: .none)
         }
     }
 
