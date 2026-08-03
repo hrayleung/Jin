@@ -91,7 +91,7 @@ final class MCPToolTimelineSupportTests: XCTestCase {
 
         XCTAssertEqual(
             MCPToolTimelineSupport.collapsedTitle(for: entries),
-            "MCP github, linear +1: 2 running"
+            "MCP · github, linear +1 · 2 running"
         )
     }
 
@@ -100,13 +100,13 @@ final class MCPToolTimelineSupportTests: XCTestCase {
             MCPToolTimelineSupport.collapsedTitle(
                 for: [entry(id: "first", name: "github__search", result: toolResult(callID: "first"))]
             ),
-            "MCP · search"
+            "search"
         )
         XCTAssertEqual(
             MCPToolTimelineSupport.collapsedTitle(
                 for: [entry(id: "first", name: "search", result: toolResult(callID: "first"))]
             ),
-            "MCP · search"
+            "search"
         )
     }
 
@@ -117,11 +117,11 @@ final class MCPToolTimelineSupportTests: XCTestCase {
 
         XCTAssertEqual(
             MCPToolTimelineSupport.collapsedTitle(for: entries, serverIDs: ["github", "linear"]),
-            "github: search"
+            "github · search"
         )
         XCTAssertEqual(
             MCPToolTimelineSupport.collapsedTitle(for: entries, serverIDs: [" github ", " linear "]),
-            "github: search"
+            "github · search"
         )
     }
 
@@ -133,7 +133,7 @@ final class MCPToolTimelineSupportTests: XCTestCase {
 
         XCTAssertEqual(
             MCPToolTimelineSupport.collapsedTitle(for: entries),
-            "MCP github, linear: 2 calls"
+            "MCP · github, linear · 2 tools"
         )
     }
 
@@ -229,6 +229,28 @@ final class MCPToolTimelineSupportTests: XCTestCase {
         XCTAssertEqual(
             MCPToolTimelineSupport.statusSummaryText(for: entries),
             "2 passed · 2 failed · 1.8s"
+        )
+    }
+
+    func testCompactDurationTextFormatsMillisAndSeconds() {
+        XCTAssertNil(MCPToolTimelineSupport.compactDurationText(for: [entry(id: "running", result: nil)]))
+        XCTAssertEqual(
+            MCPToolTimelineSupport.compactDurationText(
+                for: [entry(id: "fast", result: toolResult(callID: "fast", durationSeconds: 0.24))]
+            ),
+            "240ms"
+        )
+        XCTAssertEqual(
+            MCPToolTimelineSupport.compactDurationText(
+                for: [entry(id: "mid", result: toolResult(callID: "mid", durationSeconds: 4.0))]
+            ),
+            "4.0s"
+        )
+        XCTAssertEqual(
+            MCPToolTimelineSupport.compactDurationText(
+                for: [entry(id: "long", result: toolResult(callID: "long", durationSeconds: 12.4))]
+            ),
+            "12s"
         )
     }
 

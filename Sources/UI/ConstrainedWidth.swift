@@ -150,7 +150,14 @@ private struct MeasuringConstrainedWidth: Layout {
         subview: LayoutSubview,
         cache: inout Cache
     ) -> CGSize {
-        if let cachedWidth = cache.measuredWidth,
+        // Version-gated streaming rows intentionally reuse the last
+        // measurement until the parent bumps the content version (tokens,
+        // layoutEpoch). Automatic rows (completed messages) must always
+        // remeasure: MCP/thinking/search disclosures change height via
+        // internal `@State` without changing any layout value, and a stale
+        // cache left residual empty gray after collapse.
+        if case .version = cache.invalidation.mode,
+           let cachedWidth = cache.measuredWidth,
            let cachedSize = cache.measuredSize,
            abs(cachedWidth - proposedWidth) < 0.5 {
             return cachedSize

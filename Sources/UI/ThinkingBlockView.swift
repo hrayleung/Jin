@@ -5,10 +5,13 @@ import SwiftUI
 /// Collapsible thinking block for completed (non-streaming) messages.
 struct ThinkingBlockView: View {
     let thinking: ThinkingBlock
+    /// Optional height-invalidation hook for parents that version-gate layout.
+    var onExpansionChanged: () -> Void = {}
     @State private var isExpanded: Bool
 
-    init(thinking: ThinkingBlock) {
+    init(thinking: ThinkingBlock, onExpansionChanged: @escaping () -> Void = {}) {
         self.thinking = thinking
+        self.onExpansionChanged = onExpansionChanged
         let mode = Self.resolveDisplayMode()
         _isExpanded = State(
             initialValue: ThinkingBlockSupport.initialExpansionForCompletedBlock(
@@ -37,6 +40,9 @@ struct ThinkingBlockView: View {
             JinCollapsibleContent(isExpanded: isExpanded) {
                 ThinkingBlockExpandedTextContent(text: thinking.text)
             }
+        }
+        .onChange(of: isExpanded) { _, _ in
+            onExpansionChanged()
         }
     }
 

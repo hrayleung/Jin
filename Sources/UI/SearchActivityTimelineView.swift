@@ -5,17 +5,20 @@ struct SearchActivityTimelineView: View {
     let isStreaming: Bool
     let providerLabel: String?
     let modelLabel: String?
+    var onExpansionChanged: () -> Void = {}
 
     init(
         activities: [SearchActivity],
         isStreaming: Bool,
         providerLabel: String? = nil,
-        modelLabel: String? = nil
+        modelLabel: String? = nil,
+        onExpansionChanged: @escaping () -> Void = {}
     ) {
         self.activities = activities
         self.isStreaming = isStreaming
         self.providerLabel = providerLabel
         self.modelLabel = modelLabel
+        self.onExpansionChanged = onExpansionChanged
     }
 
     var body: some View {
@@ -26,7 +29,8 @@ struct SearchActivityTimelineView: View {
                         activities: activities,
                         isStreaming: isStreaming,
                         providerLabel: providerLabel,
-                        modelLabel: modelLabel
+                        modelLabel: modelLabel,
+                        onExpansionChanged: onExpansionChanged
                     )
                 }
 
@@ -34,7 +38,8 @@ struct SearchActivityTimelineView: View {
                     SearchActivityWebTimelinePanel(
                         content: webContent,
                         isStreaming: isStreaming,
-                        contextLabel: contextLabel
+                        contextLabel: contextLabel,
+                        onExpansionChanged: onExpansionChanged
                     )
                 }
             }

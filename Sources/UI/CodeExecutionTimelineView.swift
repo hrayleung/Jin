@@ -5,15 +5,21 @@ import SwiftUI
 struct CodeExecutionTimelineView: View {
     let activities: [CodeExecutionActivity]
     let isStreaming: Bool
+    var onExpansionChanged: () -> Void = {}
 
     @State private var isExpanded: Bool
     /// Expanded execution details stay unmounted until first expand when the
     /// display mode starts collapsed.
     @State private var hasEverExpanded: Bool
 
-    init(activities: [CodeExecutionActivity], isStreaming: Bool) {
+    init(
+        activities: [CodeExecutionActivity],
+        isStreaming: Bool,
+        onExpansionChanged: @escaping () -> Void = {}
+    ) {
         self.activities = activities
         self.isStreaming = isStreaming
+        self.onExpansionChanged = onExpansionChanged
         let mode = Self.resolveDisplayMode()
         let initiallyExpanded = CodeExecutionTimelineSupport.initialExpansion(
             isStreaming: isStreaming,
@@ -50,6 +56,9 @@ struct CodeExecutionTimelineView: View {
                         isExpanded = shouldExpand
                     }
                 }
+            }
+            .onChange(of: isExpanded) { _, _ in
+                onExpansionChanged()
             }
         }
     }

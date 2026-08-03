@@ -54,14 +54,16 @@ struct StreamingMessageView: View {
                                 activities: state.searchActivities,
                                 isStreaming: true,
                                 providerLabel: ChatConversationMinimapGeometry.customAssistantDisplayName(assistantDisplayName),
-                                modelLabel: modelLabel
+                                modelLabel: modelLabel,
+                                onExpansionChanged: { layoutEpoch &+= 1 }
                             )
                         }
 
                         if !visibleCodeExecutionActivities.isEmpty {
                             CodeExecutionTimelineView(
                                 activities: visibleCodeExecutionActivities,
-                                isStreaming: true
+                                isStreaming: true,
+                                onExpansionChanged: { layoutEpoch &+= 1 }
                             )
                         }
 
@@ -69,7 +71,8 @@ struct StreamingMessageView: View {
                             MCPToolTimelineView(
                                 toolCalls: visibleToolCalls,
                                 toolResultsByCallID: state.toolResultsByCallID,
-                                isStreaming: true
+                                isStreaming: true,
+                                onExpansionChanged: { layoutEpoch &+= 1 }
                             )
                         }
 
