@@ -12,6 +12,20 @@ import SwiftUI
 /// repositions every row below, and scroll-anchor compensation may also fire.
 /// That stack reads as **jitter**.
 ///
+/// ## Nested collapsibles
+///
+/// MCP nests collapsibles (list → per-call args/result). Height is measured
+/// **locally** via `GeometryReader` → `@State` (not a bubbling PreferenceKey),
+/// so an inner collapsible's ideal height cannot inflate an outer panel.
+///
+/// ## Smooth expand
+///
+/// Call sites should keep this view mounted while collapsed long enough for the
+/// probe to land (`measuredHeight > 0`) **before** flipping `isExpanded`.
+/// Expanding with a zero measure target snaps open when the probe arrives and
+/// reads as text flicker. Nested size changes while already open animate with
+/// the disclosure curve so parent panels ease instead of popping.
+///
 /// ## Contract
 ///
 /// 1. **One stable child identity** — never branch the view tree on measure
@@ -21,8 +35,6 @@ import SwiftUI
 ///    so the table can match the same wall-clock window.
 /// 4. **Child does not reflow** — `fixedSize` + top-aligned clip (curtain).
 /// 5. **No opacity / compositingGroup** — those caused ghosting earlier.
-/// 6. **No broad `.transaction { animation = nil }` on content** — that also
-///    killed legitimate nested animations (streaming indicators, etc.).
 ///
 /// Drive `isExpanded` with `withAnimation(JinMotion.disclosure(expanding:))`.
 /// Lazy-mount call sites keep their own `hasEverExpanded` latch.
@@ -54,7 +66,6 @@ struct JinCollapsibleContent<Content: View>: View {
         content()
             .fixedSize(horizontal: false, vertical: true)
             .background(heightProbe)
-            .onPreferenceChange(CollapsibleContentHeightKey.self, perform: storeMeasuredHeight)
             // Always the same modifier identity so `animatableData` can
             // interpolate from the previous height (no Group/if branch).
             .modifier(AnimatableHeightClip(height: clipHeight))
@@ -63,34 +74,67 @@ struct JinCollapsibleContent<Content: View>: View {
     }
 
     /// Expanded + not yet measured: use 0 until the probe lands (first-expand
-    /// call sites mount collapsed for one frame so the probe is ready before
-    /// the spring runs). Collapsed always 0.
+    /// call sites mount collapsed so the probe is ready before the spring runs).
+    /// Collapsed always 0.
     private var clipHeight: CGFloat {
         guard isExpanded else { return 0 }
         return max(0, measuredHeight)
     }
 
     private var heightProbe: some View {
-        // Sits inside `fixedSize` and outside the clip frame, so it keeps
-        // reporting the ideal height while the outer clip animates.
+        // Background GeometryReader is sized to the fixedSize content, so it
+        // reports ideal height without PreferenceKey bubbling to ancestors.
         GeometryReader { proxy in
-            Color.clear.preference(
-                key: CollapsibleContentHeightKey.self,
-                value: proxy.size.height
-            )
+            Color.clear
+                .onAppear {
+                    storeMeasuredHeight(proxy.size.height)
+                }
+                .onChange(of: proxy.size.height) { _, newHeight in
+                    storeMeasuredHeight(newHeight)
+                }
         }
     }
 
     private func storeMeasuredHeight(_ newHeight: CGFloat) {
-        // Ignore near-zero samples while fully collapsed so the next expand
-        // still has a solid target. Never animate measure writes — they must
-        // not retarget an in-flight height animation.
         guard newHeight > 1 else { return }
-        guard abs(newHeight - measuredHeight) > 0.5 else { return }
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            measuredHeight = newHeight
+        let previous = measuredHeight
+        guard abs(newHeight - previous) > 0.5 else { return }
+
+        // Collapsed: store target for next expand without animating the
+        // (already zero) clip.
+        if !isExpanded {
+            applyMeasuredHeight(newHeight, animated: false)
+            return
+        }
+
+        // Expanded but never measured: probe arrived after the expand click.
+        // Animate 0 → H so content curtains in instead of snapping (the snap
+        // was the main "text flicker" on first open).
+        if previous < 1 {
+            applyMeasuredHeight(newHeight, animated: true)
+            return
+        }
+
+        // Already open: nested child size change (tool args open/close inside
+        // MCP). Ease the outer curtain; skip sub-2pt noise.
+        if abs(newHeight - previous) < 2 {
+            applyMeasuredHeight(newHeight, animated: false)
+            return
+        }
+        applyMeasuredHeight(newHeight, animated: true)
+    }
+
+    private func applyMeasuredHeight(_ newHeight: CGFloat, animated: Bool) {
+        if animated {
+            withAnimation(JinMotion.disclosureExpand) {
+                measuredHeight = newHeight
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                measuredHeight = newHeight
+            }
         }
     }
 }
@@ -133,13 +177,5 @@ private struct AnimatableHeightClip: ViewModifier, Animatable {
         content
             .frame(height: max(0, height), alignment: .top)
             .clipped()
-    }
-}
-
-private enum CollapsibleContentHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }

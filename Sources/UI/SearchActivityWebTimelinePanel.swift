@@ -4,6 +4,7 @@ struct SearchActivityWebTimelinePanel: View {
     let content: SearchActivityTimelineSupport.ViewContent
     let isStreaming: Bool
     let contextLabel: String?
+    var onExpansionChanged: () -> Void = {}
 
     @State private var isExpanded = false
     /// Latched to `true` the first time the user expands. After that the
@@ -64,6 +65,9 @@ struct SearchActivityWebTimelinePanel: View {
                 }
             }
             .clipped()
+            .onChange(of: isExpanded) { _, _ in
+                onExpansionChanged()
+            }
             .task(id: SearchSourceEnrichmentState.taskKey(for: content.presentation.sources)) {
                 sourceEnrichmentState = await sourceEnrichmentResolver.resolve(
                     sources: content.presentation.sources,

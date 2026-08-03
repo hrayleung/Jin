@@ -37,6 +37,12 @@ struct MessageRow: View, Equatable {
     let renderMode: MessageRenderMode
     let onExpandCollapsedContent: (UUID) -> Void
 
+    /// Bumped when row-internal disclosures (MCP / thinking / code exec /
+    /// search) change height without the parent message data changing.
+    /// Folded into `ConstrainedWidth` so the bubble remeasures instead of
+    /// leaving residual empty gray after collapse.
+    @State private var layoutEpoch = 0
+
     var body: some View {
         let presentation = MessageRowPresentationSupport.Presentation(
             item: item,
@@ -118,14 +124,16 @@ struct MessageRow: View, Equatable {
                                             activities: item.searchActivities,
                                             isStreaming: false,
                                             providerLabel: ChatConversationMinimapGeometry.customAssistantDisplayName(assistantDisplayName),
-                                            modelLabel: presentation.assistantModelLabel
+                                            modelLabel: presentation.assistantModelLabel,
+                                            onExpansionChanged: { layoutEpoch &+= 1 }
                                         )
                                     }
 
                                     if !presentation.visibleCodeExecutionActivities.isEmpty {
                                         CodeExecutionTimelineView(
                                             activities: presentation.visibleCodeExecutionActivities,
-                                            isStreaming: false
+                                            isStreaming: false,
+                                            onExpansionChanged: { layoutEpoch &+= 1 }
                                         )
                                     }
 
@@ -163,7 +171,8 @@ struct MessageRow: View, Equatable {
                                         MCPToolTimelineView(
                                             toolCalls: presentation.visibleToolCalls,
                                             toolResultsByCallID: toolResultsByCallID,
-                                            isStreaming: false
+                                            isStreaming: false,
+                                            onExpansionChanged: { layoutEpoch &+= 1 }
                                         )
                                     }
                                 }
