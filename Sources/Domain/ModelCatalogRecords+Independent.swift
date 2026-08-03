@@ -1316,6 +1316,33 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: true),
         // Qwen + MiniMax are served via OpenCode Go's Anthropic /messages endpoint, where
         // reasoning is an Anthropic thinking budget (matches the minimax-* rows below).
+        // Qwen3.8 Max is Alibaba's new flagship (announced 2026-08-03: 2.4T-parameter sparse
+        // MoE, 95B active, natively multimodal) and joined the Go /models list the same day.
+        // opencode.ai/docs/go's endpoint table routes it to /zen/go/v1/messages via
+        // @ai-sdk/anthropic, and a live unauthenticated probe agrees — /messages accepts the
+        // model (it answers AuthError) while /responses rejects it outright ("Model
+        // qwen3.8-max is not supported for format openai") — so the ID must also be listed in
+        // OpenCodeGoAdapter.anthropicMessagesModelIDs; adding it here alone routes every send
+        // to the wrong endpoint. 1,000,000 context / 131,072 output per models.dev
+        // `opencode-go`, Alibaba Cloud's launch note ("context window of up to 1 million
+        // tokens") and Qwen Cloud's model page. The output cap is the Max line's first move
+        // off 65,536, so it is deliberately NOT mirrored from qwen3.7-max above.
+        // Reasoning is the Anthropic thinking budget shape (models.dev reasoning_options =
+        // toggle + budget_tokens up to 262,144), and it is genuinely toggleable — hence no
+        // entry in ModelSettingsResolver.opencodeGoAlwaysOnReasoningModelIDs.
+        // .videoInput is deliberately not claimed even though models.dev lists video input:
+        // this ID routes through /messages, whose translation replaces a .video part with an
+        // `unsupportedVideoInputNotice` text block — the exact trap the qwen3.7-plus and
+        // qwen3.5-plus records document. .promptCaching is not claimed either, matching every
+        // other /messages-routed Qwen/MiniMax row (.opencodeGo supports neither explicit cache
+        // mode nor TTL in ChatAuxiliaryControlSupport). Seeded, but placed after glm-5.2 so
+        // OpenCode Go's first-launch default (preferredModelID = models.first) is unchanged.
+        Record(id: "qwen3.8-max", displayName: "Qwen3.8 Max",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 10_000),
+               isFullySupported: true, isSeeded: true),
         Record(id: "qwen3.7-max", displayName: "Qwen3.7 Max",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_000_000,
