@@ -26,6 +26,7 @@ struct GoogleMapsResultsView: View {
     let isStreaming: Bool
     let providerLabel: String?
     let modelLabel: String?
+    var onExpansionChanged: () -> Void = {}
 
     @Environment(\.googleMapsLocationBias) var locationBias
     @State var isExpanded = false
@@ -55,6 +56,9 @@ struct GoogleMapsResultsView: View {
             .padding(JinSpacing.small)
             .jinSurface(.subtleStrong, cornerRadius: JinRadius.medium)
             .clipped()
+            .onChange(of: isExpanded) { _, _ in
+                onExpansionChanged()
+            }
         }
     }
 

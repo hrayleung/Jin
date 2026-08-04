@@ -10,19 +10,20 @@ extension MCPToolTimelineSupport {
         let summary = serverSummary(for: resolvedServerIDs)
 
         if counts.running > 0 {
-            return "MCP \(summary): \(counts.running) running"
+            return "MCP · \(summary) · \(counts.running) running"
         }
 
         if entries.count == 1 {
             let parsed = parseFunctionName(entries[0].call.name)
             if shouldShowPerCallServerTag(for: resolvedServerIDs) {
                 let serverID = ToolFunctionNameSupport.serverLabel(forServerID: parsed.serverID)
-                return "\(serverID): \(parsed.toolName)"
+                return "\(serverID) · \(parsed.toolName)"
             }
-            return "MCP · \(parsed.toolName)"
+            return parsed.toolName
         }
 
-        return "MCP \(summary): \(entries.count) calls"
+        // Singular tool returns earlier; this branch is always plural.
+        return "MCP · \(summary) · \(entries.count) tools"
     }
 
     static func expandedTitle(
@@ -75,15 +76,23 @@ extension MCPToolTimelineSupport {
         if counts.running > 0 {
             parts.append(summaryCountText(counts.running, singular: "running", plural: "running"))
         }
-        if let duration = totalDurationSeconds(for: entries) {
-            if duration < 1 {
-                parts.append("\(Int((duration * 1000).rounded()))ms")
-            } else {
-                parts.append("\(String(format: "%.1fs", duration))")
-            }
+        if let durationText = compactDurationText(for: entries) {
+            parts.append(durationText)
         }
 
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Compact wall-clock duration for the summary row (e.g. "4s", "240ms").
+    static func compactDurationText(for entries: [Entry]) -> String? {
+        guard let duration = totalDurationSeconds(for: entries), duration > 0 else { return nil }
+        if duration < 1 {
+            return "\(Int((duration * 1000).rounded()))ms"
+        }
+        if duration < 10 {
+            return String(format: "%.1fs", duration)
+        }
+        return "\(Int(duration.rounded()))s"
     }
 
     static func summaryCountText(_ count: Int, singular: String, plural: String) -> String {
