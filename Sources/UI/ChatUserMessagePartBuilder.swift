@@ -1,6 +1,37 @@
 import Foundation
 
 extension ChatMessagePreparationSupport {
+    /// True when building parts needs an `await` (PDF OCR / extraction).
+    /// Everything else is pure sync work and must paint on the same runloop
+    /// turn as the send keypress — hopping through `Task` + `await` is what
+    /// produced the blank gap between Enter and the user bubble.
+    static func requiresAsyncPreparation(attachments: [DraftAttachment]) -> Bool {
+        attachments.contains(where: \.isPDF)
+    }
+
+    /// Synchronous content-part build for drafts that do not need PDF work.
+    /// Call only when `requiresAsyncPreparation` is false.
+    static func buildUserMessagePartsSync(
+        quoteContents: [QuoteContent],
+        messageText: String,
+        attachments: [DraftAttachment],
+        remoteVideoURL: URL?,
+        profile: MessagePreparationProfile
+    ) throws -> [ContentPart] {
+        precondition(
+            !requiresAsyncPreparation(attachments: attachments),
+            "buildUserMessagePartsSync must not be used with PDF attachments"
+        )
+        return try assembleUserMessageParts(
+            quoteContents: quoteContents,
+            messageText: messageText,
+            attachments: attachments,
+            remoteVideoURL: remoteVideoURL,
+            profile: profile,
+            preparedPDF: nil
+        )
+    }
+
     static func buildUserMessageParts(
         quoteContents: [QuoteContent],
         messageText: String,
@@ -9,6 +40,59 @@ extension ChatMessagePreparationSupport {
         profile: MessagePreparationProfile,
         preparedContentForPDF: (DraftAttachment, MessagePreparationProfile, PDFProcessingMode, Int, Int, MistralOCRClient?, MinerUOCRClient?, DeepInfraDeepSeekOCRClient?, OpenRouterOCRClient?, FirecrawlPDFOCRClient?, CloudflareR2Uploader?) async throws -> PreparedPDFContent
     ) async throws -> [ContentPart] {
+        let pdfCount = attachments.filter(\.isPDF).count
+        let requestedMode = profile.pdfProcessingMode
+        if pdfCount > 0, requestedMode == .native, !profile.supportsNativePDF {
+            throw PDFProcessingError.nativePDFNotSupported(modelName: profile.modelName)
+        }
+
+        let pdfClients = try makePDFPreparationClients(
+            pdfCount: pdfCount,
+            requestedMode: requestedMode
+        )
+
+        var preparedByURL: [URL: PreparedPDFContent] = [:]
+        var pdfOrdinal = 0
+        for attachment in attachments where attachment.isPDF {
+            try Task.checkCancellation()
+            pdfOrdinal += 1
+            preparedByURL[attachment.fileURL] = try await preparedContentForPDF(
+                attachment,
+                profile,
+                requestedMode,
+                pdfCount,
+                pdfOrdinal,
+                pdfClients.mistralClient,
+                pdfClients.mineruClient,
+                pdfClients.deepSeekClient,
+                pdfClients.openRouterClient,
+                pdfClients.firecrawlClient,
+                pdfClients.r2Uploader
+            )
+        }
+
+        return try assembleUserMessageParts(
+            quoteContents: quoteContents,
+            messageText: messageText,
+            attachments: attachments,
+            remoteVideoURL: remoteVideoURL,
+            profile: profile,
+            preparedPDF: { attachment in
+                preparedByURL[attachment.fileURL]
+            }
+        )
+    }
+
+    /// Shared assembly for sync + async paths. `preparedPDF` is only invoked
+    /// for PDF attachments; the sync path never has PDFs so it stays nil.
+    private static func assembleUserMessageParts(
+        quoteContents: [QuoteContent],
+        messageText: String,
+        attachments: [DraftAttachment],
+        remoteVideoURL: URL?,
+        profile: MessagePreparationProfile,
+        preparedPDF: ((DraftAttachment) -> PreparedPDFContent?)?
+    ) throws -> [ContentPart] {
         var parts: [ContentPart] = []
         parts.reserveCapacity(quoteContents.count + attachments.count + (messageText.isEmpty ? 0 : 1) + (remoteVideoURL == nil ? 0 : 1))
 
@@ -35,21 +119,12 @@ extension ChatMessagePreparationSupport {
         }
 
         let pdfCount = attachments.filter(\.isPDF).count
-
         let requestedMode = profile.pdfProcessingMode
         if pdfCount > 0, requestedMode == .native, !profile.supportsNativePDF {
             throw PDFProcessingError.nativePDFNotSupported(modelName: profile.modelName)
         }
 
-        let pdfClients = try makePDFPreparationClients(
-            pdfCount: pdfCount,
-            requestedMode: requestedMode
-        )
-
-        var pdfOrdinal = 0
         for attachment in attachments {
-            try Task.checkCancellation()
-
             if attachment.isImage {
                 parts.append(.image(ImageContent(mimeType: attachment.mimeType, data: nil, url: attachment.fileURL)))
                 continue
@@ -66,21 +141,9 @@ extension ChatMessagePreparationSupport {
             }
 
             if attachment.isPDF {
-                pdfOrdinal += 1
-                let prepared = try await preparedContentForPDF(
-                    attachment,
-                    profile,
-                    requestedMode,
-                    pdfCount,
-                    pdfOrdinal,
-                    pdfClients.mistralClient,
-                    pdfClients.mineruClient,
-                    pdfClients.deepSeekClient,
-                    pdfClients.openRouterClient,
-                    pdfClients.firecrawlClient,
-                    pdfClients.r2Uploader
-                )
-
+                guard let prepared = preparedPDF?(attachment) else {
+                    throw LLMError.invalidRequest(message: "PDF preparation missing for \(attachment.filename).")
+                }
                 parts.append(
                     .file(
                         FileContent(

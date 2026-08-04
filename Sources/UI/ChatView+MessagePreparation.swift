@@ -16,14 +16,12 @@ extension ChatView {
         )
     }
 
-    func buildUserMessageParts(
+    /// Shared validation that media-generation models have a text prompt.
+    func validateUserMessagePartsRequest(
         quoteContents: [QuoteContent],
         messageText: String,
-        attachments: [DraftAttachment],
-        remoteVideoURL: URL?
-    ) async throws -> [ContentPart] {
-        try Task.checkCancellation()
-        let profile = try messagePreparationProfile()
+        profile: ChatMessagePreparationSupport.MessagePreparationProfile
+    ) throws {
         let hasTextualPrompt = ChatMessagePreparationSupport.hasTextualPrompt(
             messageText: messageText,
             quoteContents: quoteContents
@@ -32,6 +30,44 @@ extension ChatView {
             let mediaType = profile.supportsVideoGenerationControl ? "Video" : "Image"
             throw LLMError.invalidRequest(message: "\(mediaType) generation models require a text prompt. (\(profile.modelName))")
         }
+    }
+
+    /// Instant path used on the send keypress when no PDF OCR is needed.
+    /// Avoids the `Task` + `await` hop that left a blank frame after Enter.
+    func buildUserMessagePartsSync(
+        quoteContents: [QuoteContent],
+        messageText: String,
+        attachments: [DraftAttachment],
+        remoteVideoURL: URL?
+    ) throws -> [ContentPart] {
+        let profile = try messagePreparationProfile()
+        try validateUserMessagePartsRequest(
+            quoteContents: quoteContents,
+            messageText: messageText,
+            profile: profile
+        )
+        return try ChatMessagePreparationSupport.buildUserMessagePartsSync(
+            quoteContents: quoteContents,
+            messageText: messageText,
+            attachments: attachments,
+            remoteVideoURL: remoteVideoURL,
+            profile: profile
+        )
+    }
+
+    func buildUserMessageParts(
+        quoteContents: [QuoteContent],
+        messageText: String,
+        attachments: [DraftAttachment],
+        remoteVideoURL: URL?
+    ) async throws -> [ContentPart] {
+        try Task.checkCancellation()
+        let profile = try messagePreparationProfile()
+        try validateUserMessagePartsRequest(
+            quoteContents: quoteContents,
+            messageText: messageText,
+            profile: profile
+        )
 
         return try await buildUserMessageParts(
             quoteContents: quoteContents,

@@ -86,23 +86,26 @@ struct StreamingMessageView: View {
                         }
 
                         if !visibleText.isEmpty {
+                            // No cross-fade on token growth — animating the
+                            // markdown tree re-introduces stacked glyphs.
                             streamingTextView(visibleText)
+                                .transition(.identity)
                         }
 
                         if !state.artifacts.isEmpty {
                             ForEach(Array(state.artifacts.enumerated()), id: \.offset) { _, artifact in
                                 StreamingArtifactIndicator(artifact: artifact)
                             }
-                        } else if visibleThinkingChunks.isEmpty
-                                    && state.searchActivities.isEmpty
-                                    && visibleCodeExecutionActivities.isEmpty
-                                    && visibleToolCalls.isEmpty {
-                            HStack(spacing: 6) {
-                                ProgressView().scaleEffect(0.5)
-                                Text("Generating...")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                        } else if showsIdleGeneratingPlaceholder(
+                            visibleThinkingChunks: visibleThinkingChunks,
+                            visibleCodeExecutionActivities: visibleCodeExecutionActivities,
+                            visibleToolCalls: visibleToolCalls
+                        ) {
+                            // Elegant time-based idle chrome — never a system spinner.
+                            // Identity transition: opacity cross-fade with the first
+                            // token layer caused a one-frame glyph stack.
+                            JinStreamingPlaceholder(label: "Generating")
+                                .transition(.identity)
                         }
                     }
                     .padding(JinSpacing.medium)
@@ -133,6 +136,13 @@ struct StreamingMessageView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, JinSpacing.small)
+        // Streaming flushes must never inherit an ambient animation — that
+        // interpolated layouts between successive markdown trees and briefly
+        // stacked two font layers ("overlapping glyphs while generating").
+        .transaction { transaction in
+            transaction.animation = nil
+            transaction.disablesAnimations = true
+        }
         .onChange(of: state.renderTick) { _, _ in
             onContentUpdate()
         }
@@ -148,6 +158,21 @@ struct StreamingMessageView: View {
         } else {
             StreamingPlainTextChunksView(chunks: state.visibleTextChunks)
         }
+    }
+
+    /// True only while the model has produced nothing visible yet — no
+    /// thinking, tools, search, code-exec, artifacts, or text tokens.
+    private func showsIdleGeneratingPlaceholder(
+        visibleThinkingChunks: [String],
+        visibleCodeExecutionActivities: [CodeExecutionActivity],
+        visibleToolCalls: [ToolCall]
+    ) -> Bool {
+        visibleThinkingChunks.isEmpty
+            && state.searchActivities.isEmpty
+            && visibleCodeExecutionActivities.isEmpty
+            && visibleToolCalls.isEmpty
+            && state.visibleText.isEmpty
+            && state.artifacts.isEmpty
     }
 
     private var chatCodeFont: Font {

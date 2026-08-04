@@ -54,12 +54,21 @@ struct NativeMarkdownView: View {
         let retained = renderCoordinator.output
         let parsed = syncHit ?? (isLineageMatch(current: key, parsed: retained?.key) ? retained?.value : nil)
 
+        // No implicit animation on placeholder↔parsed swaps. Cross-fades left
+        // two text layers (SwiftUI Text + NSTextView) composited for a frame —
+        // the "fonts stacked on top of each other" flash while generating.
         return Group {
             if let parsed {
                 renderedBlocks(parsed: parsed, theme: theme)
+                    .transition(.identity)
             } else {
-                placeholder(theme: theme)
+                placeholder(theme: theme, markdownText: markdownText)
+                    .transition(.identity)
             }
+        }
+        .transaction { transaction in
+            transaction.animation = nil
+            transaction.disablesAnimations = true
         }
         .onAppear {
             renderCoordinator.request(key: key, theme: theme)
@@ -165,17 +174,38 @@ struct NativeMarkdownView: View {
     }
 
     @ViewBuilder
-    private func placeholder(theme: MarkdownTheme) -> some View {
-        // Cheap fallback shown for the (typically 10-50 ms) window before
-        // the async parse finishes. Uses SwiftUI Text — no NSTextView
-        // allocation — and matches the eventual layout closely enough that
-        // the swap is not visually jarring.
-        Text(markdownText)
-            .font(.body)
-            .foregroundStyle(Color(nsColor: theme.baseColor))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .opacity(0.85)
+    private func placeholder(theme: MarkdownTheme, markdownText: String) -> some View {
+        // Theme-matched TextKit placeholder (same body font + paragraph style
+        // as the eventual prose group). The previous SwiftUI `Text(.body)` used
+        // system metrics that disagreed with `theme.bodyFont` / line height —
+        // on the first parse promote, glyphs from both stacks painted for a
+        // frame and read as overlapping fonts while generating.
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: theme.bodyFont,
+            .foregroundColor: theme.baseColor,
+            .paragraphStyle: theme.bodyParagraphStyle,
+        ]
+        let attributed = CJKPunctuationSpacing.applied(
+            to: NSAttributedString(string: markdownText, attributes: attributes)
+        )
+        AttributedTextBlock(
+            attributedString: attributed,
+            contentSignature: placeholderSignature(for: markdownText)
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .opacity(0.92)
+    }
+
+    /// Stable, cheap signature so the placeholder TextKit view reuses storage
+    /// across body re-evals of the same growing prefix.
+    private func placeholderSignature(for text: String) -> UInt64 {
+        var hasher = FNVHasher()
+        hasher.combine("md-placeholder")
+        // Bound the fingerprint work: full-string hash on every streaming
+        // flush of a long reply is wasteful; length + tail is enough.
+        hasher.combine("\(text.utf8.count)")
+        hasher.combine(String(text.suffix(64)))
+        return hasher.value
     }
 }
 

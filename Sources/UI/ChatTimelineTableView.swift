@@ -443,6 +443,17 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// via scroll-to-bottom every frame. Cleared when the trailing pin runs.
     private var isDeferringBottomPin = false
     private var trailingBottomPinTask: Task<Void, Never>?
+    /// Coalesces many `maintainBottomIfNeeded` calls that land in one runloop
+    /// turn (user insert + streaming insert + height flush + composer inset)
+    /// into a single pin. Without this, each call snaps the viewport and the
+    /// history appears to "jump / push up" on send.
+    private var coalescedBottomPinScheduled = false
+
+    /// Row identities that should play the soft entrance animation. Populated
+    /// on insert (appendTail / batchDiff insertions) and cleared after the
+    /// appear window so a later rootView reconfigure does not re-play.
+    private var appearAnimatingIdentities: Set<String> = []
+    private var appearClearTask: Task<Void, Never>?
 
     private var currentColumnWidth: CGFloat = 0
     private var lastConversationID: UUID?
@@ -628,6 +639,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             heightCache.removeAll(keepingCapacity: true)
             lastHeightCommitUptime.removeAll(keepingCapacity: true)
             cancelTrailingBottomPin()
+            appearAnimatingIdentities.removeAll(keepingCapacity: true)
+            appearClearTask?.cancel()
+            appearClearTask = nil
             estimateCache.removeAll(keepingCapacity: true)
             cancelScrollPrewarm()
             seedHeightsFromStore()
@@ -676,8 +690,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         case .identical:
             // Same rows: a width change (cells re-wrap at the new column width)
             // and/or an in-place content edit. Re-push content into the visible
-            // cells (rebuilds with the current shared.columnWidth + new content),
-            // which makes them re-self-size, then re-note heights.
+            // cells (rebuilds with the current shared.columnWidth + new content).
             //
             // Pin flips and composer-height applies land here with nothing
             // content-relevant changed; re-pushing every visible rootView
@@ -689,7 +702,13 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 return
             }
             reloadVisibleContent()
-            if !new.isEmpty {
+            // Width changes re-wrap every row — must re-note all heights.
+            // Epoch-only changes (TTS, tools, streaming model label, expand
+            // set) used to also noteHeightOfRows(0..<count), which re-laid out
+            // every historical row and snapped the pin mid-stream ("history
+            // jumps / fonts reflow"). Cells that actually resize self-report
+            // via the coalesced height flush instead.
+            if widthChanged, !new.isEmpty {
                 tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<new.count))
             }
             maintainBottomIfNeeded()
@@ -697,16 +716,37 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         case .reloadInPlace(let changed):
             // Same count but some rows differ in place (commonly the streaming
             // row being replaced by the finished message at the same tail index).
+            // No soft-enter here: the finished assistant message must appear
+            // fully opaque immediately (appear animation is streaming-only).
             tableView.reloadData(forRowIndexes: changed, columnIndexes: IndexSet(integer: 0))
             tableView.noteHeightOfRows(withIndexesChanged: changed)
             maintainBottomIfNeeded()
 
         case .appendTail(let inserted):
             // Pure append at the tail (new messages / streaming row appears).
+            // Soft entrance lives inside the hosted SwiftUI cell — AppKit row
+            // slide animations fight measured heights and read as jitter.
+            markAppearAnimating(identities: new[inserted].map(\.identity))
+            // Pre-seed height cache with estimates so the first layout doesn't
+            // go estimate→measure with a large delta for each new row.
+            for index in inserted {
+                guard index >= 0, index < new.count else { continue }
+                let row = new[index]
+                let key = heightKey(row.identity)
+                if heightCache[key] == nil {
+                    heightCache[key] = estimatedHeight(for: row)
+                }
+            }
             tableView.beginUpdates()
             tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
             tableView.endUpdates()
-            maintainBottomIfNeeded()
+            // One coalesced pin this turn + a short trailing pin after first
+            // real measures — never pin twice in the same call (that was the
+            // double-snap on user-row + streaming-row send).
+            if shouldMaintainBottom {
+                maintainBottomIfNeeded()
+                scheduleTrailingBottomPin(delayNanoseconds: 160_000_000)
+            }
 
         case .prependHead(let inserted):
             // Pure prepend. Preserve the viewport with the canonical
@@ -757,6 +797,15 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             : reconcileAnchor(old: old, new: new, visibleTop: scrollView.documentVisibleRect.minY)
         let anchorMinYBefore = anchor.map { tableView.rect(ofRow: $0.oldIndex).minY }
 
+        // Soft-enter only the rows that actually appeared (not the removals).
+        if !insertions.isEmpty {
+            let insertedIDs = insertions.compactMap { index -> String? in
+                guard index >= 0, index < new.count else { return nil }
+                return new[index].identity
+            }
+            markAppearAnimating(identities: insertedIDs)
+        }
+
         tableView.beginUpdates()
         tableView.removeRows(at: removals, withAnimation: [])
         tableView.insertRows(at: insertions, withAnimation: [])
@@ -765,7 +814,21 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         refreshLoadEarlierLabelIfNeeded(old: old, new: new)
 
         if shouldMaintainBottom {
+            // Pre-seed inserted row estimates so the first height query is stable.
+            for index in insertions {
+                guard index >= 0, index < new.count else { continue }
+                let row = new[index]
+                let key = heightKey(row.identity)
+                if heightCache[key] == nil {
+                    heightCache[key] = estimatedHeight(for: row)
+                }
+            }
             maintainBottomIfNeeded()
+            // Window-slide send: head drop + tail append often remeasures the
+            // new tail twice — one trailing pin after measures settle.
+            if !insertions.isEmpty {
+                scheduleTrailingBottomPin(delayNanoseconds: 160_000_000)
+            }
             return
         }
         guard let anchor, let anchorMinYBefore else { return }
@@ -921,7 +984,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         case .loadEarlier:
             return 56
         case .streaming:
-            return 120
+            // Empty streaming chrome: header + padding + `JinStreamingPlaceholder`
+            // (~28pt). Keep the estimate tight so the first real measure does
+            // not yank the bottom pin.
+            return 108
         case .message(let item, _):
             let key = heightKey(row.identity)
             if let memoized = estimateCache[key] { return memoized }
@@ -987,9 +1053,16 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let now = ProcessInfo.processInfo.systemUptime
         let lastCommit = lastHeightCommitUptime[identity] ?? 0
         // Updates closer than ~2 frames are almost always a continuous
-        // disclosure (or streaming) height animation — not a one-shot
-        // estimate correction.
-        let isRapidHeightStream = (now - lastCommit) < 0.034
+        // disclosure height animation — not a one-shot estimate correction.
+        let isDisclosureStream = (now - lastCommit) < 0.034
+        // Streaming token flushes land every ~80–120 ms (above the 2-frame
+        // window). Treat last-row streaming growth as a continuous stream so
+        // we don't pin-on-every-token (that was the "dialog jumps while
+        // generating" feel).
+        let isStreamingTailGrowth = shouldMaintainBottom
+            && identity == "streaming"
+            && index == rows.count - 1
+        let isRapidHeightStream = isDisclosureStream || isStreamingTailGrowth
         lastHeightCommitUptime[identity] = now
 
         // Arm deferred pin *before* noteHeightOfRows so the document-frame
@@ -997,7 +1070,11 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         // the animation after we skipped maintainBottomIfNeeded here).
         let deferBottomPin = shouldMaintainBottom && isRapidHeightStream
         if deferBottomPin {
-            scheduleTrailingBottomPin()
+            // Streaming growth uses a shorter quiet window so follow-bottom
+            // still tracks; disclosure keeps the longer collapse-matched delay.
+            scheduleTrailingBottomPin(
+                delayNanoseconds: isStreamingTailGrowth ? 90_000_000 : 240_000_000
+            )
         }
 
         // Apply the new height immediately (duration 0). Smoothness comes from
@@ -1010,6 +1087,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
         if shouldMaintainBottom {
             // Pinned: the bottom anchor wins; never also compensate.
+            // Coalesced so multiple height flushes in one turn share one pin.
             if !deferBottomPin {
                 maintainBottomIfNeeded()
             }
@@ -1046,14 +1124,15 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     }
 
     /// Coalesces bottom-pin corrections that arrive during a rapid height
-    /// stream into a single pin after the stream goes quiet.
-    private func scheduleTrailingBottomPin() {
+    /// stream (or a multi-row send insert) into a single pin after things quiet.
+    private func scheduleTrailingBottomPin(delayNanoseconds: UInt64 = 240_000_000) {
         isDeferringBottomPin = true
         trailingBottomPinTask?.cancel()
         trailingBottomPinTask = Task { @MainActor [weak self] in
-            // Slightly longer than a disclosure collapse window so we pin once
-            // after the last height sample, not between frames.
-            try? await Task.sleep(nanoseconds: 240_000_000)
+            // Default is slightly longer than a disclosure collapse window so
+            // we pin once after the last height sample, not between frames.
+            // Send inserts use a shorter delay (~140ms) — just past first measure.
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
             guard let self, !Task.isCancelled else { return }
             self.trailingBottomPinTask = nil
             self.isDeferringBottomPin = false
@@ -1066,6 +1145,25 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         trailingBottomPinTask?.cancel()
         trailingBottomPinTask = nil
         isDeferringBottomPin = false
+    }
+
+    /// Marks newly inserted row identities for the soft entrance animation.
+    private func markAppearAnimating(identities: [String]) {
+        guard !identities.isEmpty else { return }
+        appearAnimatingIdentities.formUnion(identities)
+        appearClearTask?.cancel()
+        appearClearTask = Task { @MainActor [weak self] in
+            // Slightly past `JinMotion.messageAppearDuration` so a late
+            // onAppear still sees the flag, then clear to avoid re-play.
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.appearAnimatingIdentities.removeAll(keepingCapacity: true)
+            self.appearClearTask = nil
+        }
+    }
+
+    private func shouldAppearAnimate(identity: String) -> Bool {
+        appearAnimatingIdentities.contains(identity)
     }
 
     /// First-measurement estimate-error telemetry, for tuning
@@ -1120,6 +1218,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     private func content(for row: ChatTimelineRow) -> AnyView {
         guard let model else { return AnyView(EmptyView()) }
         let shared = model.shared
+        let animateAppear = shouldAppearAnimate(identity: row.identity)
         switch row {
         case .loadEarlier(let hiddenCount, let pageSize):
             return AnyView(chatTimelineCenteredContent(
@@ -1132,6 +1231,8 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             ))
 
         case .message(let item, let index):
+            // User/assistant rows paint fully opaque immediately. Soft appear
+            // was hiding just-sent user bubbles (opacity 0) and felt like lag.
             return AnyView(chatTimelineCenteredContent(
                 ChatTimelineMessageContent(item: item, index: index, shared: shared),
                 shared: shared
@@ -1148,7 +1249,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                     providerType: shared.providerType,
                     providerIconID: shared.providerIconID,
                     onContentUpdate: { }
-                ),
+                )
+                // Streaming placeholder only — never user bubbles.
+                .jinMessageAppear(enabled: animateAppear),
                 shared: shared
             ))
         }
@@ -1181,11 +1284,15 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         // streaming tokens). Keep the viewport pinned to the bottom if we're
         // following, but never fight an active user scroll — and never re-pin
         // while a disclosure height stream has deferred pinning armed.
+        //
+        // Route through `maintainBottomIfNeeded` so many document-frame events
+        // in one runloop turn share the coalesced pin (direct scrollToBottom
+        // here used to issue N bottom scrolls per height burst).
         guard shouldMaintainBottom,
               !isProgrammaticScrolling,
               !isUserLiveScrolling,
               !isDeferringBottomPin else { return }
-        scrollToBottom(animated: false, force: false)
+        maintainBottomIfNeeded()
     }
 
     // MARK: Pin / follow-to-bottom
@@ -1327,7 +1434,18 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
     private func maintainBottomIfNeeded() {
         guard shouldMaintainBottom, !isUserLiveScrolling else { return }
-        scrollToBottom(animated: false, force: false)
+        // Collapse N pin requests in the same runloop turn (send: user row +
+        // streaming row + height flushes + bottomInset) into ONE pin after
+        // layout has settled. Immediate multi-pin was the "history pushes up
+        // then snaps" send choreography.
+        guard !coalescedBottomPinScheduled else { return }
+        coalescedBottomPinScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.coalescedBottomPinScheduled = false
+            guard self.shouldMaintainBottom, !self.isUserLiveScrolling else { return }
+            self.scrollToBottom(animated: false, force: false)
+        }
     }
 
     func scrollToBottom(animated: Bool, force: Bool) {

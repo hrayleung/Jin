@@ -61,25 +61,17 @@ extension ToolTimelinePresentationSupport {
     }
 
     struct RunningIndicator: View {
-        @State private var isAnimating = false
-
         var body: some View {
-            HStack(spacing: 2.5) {
-                ForEach(0..<3, id: \.self) { index in
-                    Circle()
-                        .fill(Color.secondary.opacity(0.6))
-                        .frame(width: 3.5, height: 3.5)
-                        .offset(y: isAnimating ? -2.5 : 2.5)
-                        .animation(
-                            .easeInOut(duration: 0.45)
-                                .repeatForever(autoreverses: true)
-                                .delay(Double(index) * 0.12),
-                            value: isAnimating
-                        )
-                }
-            }
+            // Time-based wave — never freezes mid-bounce when the hosting
+            // cell reconfigures mid-stream.
+            JinWaveDots(
+                dotSize: 3.5,
+                spacing: 2.5,
+                amplitude: 2.5,
+                color: Color.secondary.opacity(0.6),
+                staggerFraction: 0.13
+            )
             .frame(height: 10)
-            .onAppear { isAnimating = true }
         }
     }
 

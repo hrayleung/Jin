@@ -35,9 +35,14 @@ extension CompactComposerOverlayView {
                 .symbolRenderingMode(.hierarchical)
                 .frame(width: 22, height: 22)
                 .foregroundStyle(isBusy ? Color.secondary : (canSendDraft ? Color.accentColor : .gray))
+                // Soft morph between send ↔ stop so the busy flip doesn't pop.
+                .contentTransition(.symbolEffect(.replace.downUp))
+                .animation(JinMotion.sendGlyph, value: sendButtonPresentation.compactSystemImage)
+                .animation(JinMotion.sendGlyph, value: isBusy)
         }
         .buttonStyle(.plain)
         .disabled(sendButtonPresentation.isDisabled)
         .padding(.bottom, 2)
+        .accessibilityLabel(sendButtonPresentation.isBusy ? "Stop" : "Send")
     }
 }

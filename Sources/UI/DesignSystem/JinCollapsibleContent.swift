@@ -142,6 +142,10 @@ struct JinCollapsibleContent<Content: View>: View {
 // MARK: - Rotating disclosure chevron
 
 /// SF Symbol chevron that rotates 90° instead of swapping glyphs.
+///
+/// Uses fixed-duration ease (not a spring) so an interrupted transaction —
+/// e.g. `NSHostingView` rootView swap mid-toggle — lands on a clean rest
+/// angle rather than freezing halfway between 0° and 90°.
 struct JinDisclosureChevron: View {
     let isExpanded: Bool
     var font: Font = .caption2.weight(.semibold)
@@ -151,10 +155,15 @@ struct JinDisclosureChevron: View {
         Image(systemName: "chevron.right")
             .font(font)
             .foregroundStyle(foregroundStyle)
-            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+            // Explicit angle + value-based animation; identity is stable so
+            // SwiftUI interpolates the angle rather than swapping views.
+            .rotationEffect(.degrees(isExpanded ? 90 : 0), anchor: .center)
             .animation(JinMotion.disclosureIndicator, value: isExpanded)
             .frame(width: 8, height: 10, alignment: .center)
             .contentShape(Rectangle())
+            // Drawing in a fixed frame keeps the glyph from shifting the
+            // header baseline while the angle interpolates.
+            .compositingGroup()
     }
 }
 

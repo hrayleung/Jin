@@ -48,6 +48,11 @@ struct ToolCallView: View {
                 inlineChrome
             }
         }
+        // Status chrome only — expand height is driven by `withAnimation` on
+        // the header button so we don't double-drive the panel. Fixed ease
+        // (not spring) so a mid-stream reconfigure cannot leave status chrome
+        // half-interpolated.
+        .animation(.easeInOut(duration: 0.18), value: resolvedStatus)
         .onAppear {
             updatePulseAnimation(for: resolvedStatus)
             if !hasMountedExpandedContent {
