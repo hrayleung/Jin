@@ -105,9 +105,20 @@ extension ChatView {
                 // Keep isPreparingToSend true until streaming arms so the send
                 // button cannot flip back to Send for one frame (double-send).
                 // Yield first so the user bubble paints before save + snapshot work.
-                Task { @MainActor in
+                // Assign to prepareToSendTask so Stop during the yield window
+                // actually cancels (user turn stays painted; we just skip stream).
+                let task = Task { @MainActor in
                     await Task.yield()
+                    guard !Task.isCancelled else {
+                        // User already committed on-screen; do not restore draft.
+                        self.finishPrepareToSendChrome()
+                        return
+                    }
                     try? self.modelContext.save()
+                    guard !Task.isCancelled else {
+                        self.finishPrepareToSendChrome()
+                        return
+                    }
                     self.startStreamingResponse(
                         triggeredByUserSend: true,
                         diagnosticRunID: diagnosticRunID,
@@ -115,6 +126,7 @@ extension ChatView {
                     )
                     self.finishPrepareToSendChrome()
                 }
+                prepareToSendTask = task
             } catch {
                 restoreDraftAfterFailedPrepare(
                     draft: draftSnapshot,
@@ -161,7 +173,16 @@ extension ChatView {
                 }
                 // Yield so the user row paints before streaming setup.
                 await Task.yield()
+                guard !Task.isCancelled else {
+                    // Parts already painted; cancel means skip stream only.
+                    await MainActor.run { self.finishPrepareToSendChrome() }
+                    return
+                }
                 await MainActor.run {
+                    guard !Task.isCancelled else {
+                        self.finishPrepareToSendChrome()
+                        return
+                    }
                     self.startStreamingResponse(
                         triggeredByUserSend: true,
                         diagnosticRunID: diagnosticRunID,
@@ -170,6 +191,9 @@ extension ChatView {
                     self.finishPrepareToSendChrome()
                 }
             } catch {
+                // Cancellation here is only from pre-commit prepare (PDF OCR
+                // etc.). Post-commit cancel is handled above after yield and
+                // leaves the painted user turn in place.
                 await MainActor.run {
                     self.restoreDraftAfterFailedPrepare(
                         draft: draftSnapshot,

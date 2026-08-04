@@ -1284,11 +1284,15 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         // streaming tokens). Keep the viewport pinned to the bottom if we're
         // following, but never fight an active user scroll — and never re-pin
         // while a disclosure height stream has deferred pinning armed.
+        //
+        // Route through `maintainBottomIfNeeded` so many document-frame events
+        // in one runloop turn share the coalesced pin (direct scrollToBottom
+        // here used to issue N bottom scrolls per height burst).
         guard shouldMaintainBottom,
               !isProgrammaticScrolling,
               !isUserLiveScrolling,
               !isDeferringBottomPin else { return }
-        scrollToBottom(animated: false, force: false)
+        maintainBottomIfNeeded()
     }
 
     // MARK: Pin / follow-to-bottom
