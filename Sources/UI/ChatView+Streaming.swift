@@ -75,6 +75,57 @@ extension ChatView {
         prepareToSendStatus = nil
         prepareToSendCancellationReason = nil
 
+        // ── Fast path: no PDF OCR ──────────────────────────────────────────
+        // Build parts + paint the user bubble on THIS runloop turn (same as
+        // the keypress). Hopping through `Task { await build… }` always
+        // suspends once even when the builder never awaits, which left a
+        // multi-frame blank after Enter. Streaming setup is deferred to the
+        // next turn so `startStreamingResponse`'s snapshot work cannot block
+        // the first paint of the user row.
+        let needsAsyncPrepare = ChatMessagePreparationSupport.requiresAsyncPreparation(
+            attachments: draftSnapshot.attachments
+        )
+        if !needsAsyncPrepare {
+            do {
+                let parts = try buildUserMessagePartsSync(
+                    quoteContents: draftSnapshot.quoteContents,
+                    messageText: draftSnapshot.messageText,
+                    attachments: draftSnapshot.attachments,
+                    remoteVideoURL: remoteVideoURLSnapshot
+                )
+                // Paint the user bubble on this keypress turn — skip SwiftData
+                // save here so a disk flush cannot delay the first frame.
+                commitPreparedUserTurn(
+                    parts: parts,
+                    draft: draftSnapshot,
+                    diagnosticRunID: diagnosticRunID,
+                    persistToDisk: false
+                )
+                let perMessageIDs = draftSnapshot.perMessageMCPServerIDs
+                // Keep isPreparingToSend true until streaming arms so the send
+                // button cannot flip back to Send for one frame (double-send).
+                // Yield first so the user bubble paints before save + snapshot work.
+                Task { @MainActor in
+                    await Task.yield()
+                    try? self.modelContext.save()
+                    self.startStreamingResponse(
+                        triggeredByUserSend: true,
+                        diagnosticRunID: diagnosticRunID,
+                        perMessageMCPServerIDs: perMessageIDs
+                    )
+                    self.finishPrepareToSendChrome()
+                }
+            } catch {
+                restoreDraftAfterFailedPrepare(
+                    draft: draftSnapshot,
+                    error: error,
+                    wasCancellation: false
+                )
+            }
+            return
+        }
+
+        // ── Slow path: PDF (or other) async preparation ────────────────────
         let task = Task {
             do {
                 let prepareStartedAt = ProcessInfo.processInfo.systemUptime
@@ -102,104 +153,147 @@ extension ChatView {
                 // #endregion
 
                 await MainActor.run {
-                    let persistBlockStartedAt = ProcessInfo.processInfo.systemUptime
-
-                    // #region agent log
-                    ChatDiagnosticLogger.log(
-                        runId: diagnosticRunID,
-                        hypothesisId: "H1",
-                        message: "chat_persist_block_start",
-                        data: [
-                            "conversationID": conversationEntity.id.uuidString,
-                            "messageCountBeforePersist": String(conversationEntity.messages.count)
-                        ]
-                    )
-                    // #endregion
-
-                    let rebuildStartedAt = ProcessInfo.processInfo.systemUptime
-                    ChatUserTurnPersistence.appendPreparedUserMessage(
+                    self.commitPreparedUserTurn(
                         parts: parts,
                         draft: draftSnapshot,
-                        toolCapable: threadSupportsMCPTools(
-                            providerType: providerType,
-                            resolvedModelSettings: resolvedModelSettings
-                        ),
-                        conversationEntity: conversationEntity,
-                        isChatNamingPluginEnabled: isChatNamingPluginEnabled,
-                        persistConversationIfNeeded: onPersistConversationIfNeeded,
-                        makeConversationTitle: makeConversationTitle(from:),
-                        applyRenderCaches: applyAppendedUserTurnToRenderCaches
+                        diagnosticRunID: diagnosticRunID
                     )
-                    let rebuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - rebuildStartedAt) * 1000)
-
-                    // #region agent log
-                    ChatDiagnosticLogger.log(
-                        runId: diagnosticRunID,
-                        hypothesisId: "H1",
-                        message: "chat_persist_rebuild_complete",
-                        data: [
-                            "conversationID": conversationEntity.id.uuidString,
-                            "messageCountAfterAppend": String(conversationEntity.messages.count),
-                            "cachedVisibleCount": String(renderCache.visibleMessages.count),
-                            "cachedHistoryCount": String(renderCache.activeThreadHistory.count),
-                            "historyCacheReady": String(renderCache.isHistoryReady),
-                            "durationMs": String(rebuildDurationMs)
-                        ]
-                    )
-                    // #endregion
-
-                    let saveStartedAt = ProcessInfo.processInfo.systemUptime
-                    try? modelContext.save()
-                    let saveDurationMs = Int((ProcessInfo.processInfo.systemUptime - saveStartedAt) * 1000)
-                    let totalPersistDurationMs = Int((ProcessInfo.processInfo.systemUptime - persistBlockStartedAt) * 1000)
-
-                    // #region agent log
-                    ChatDiagnosticLogger.log(
-                        runId: diagnosticRunID,
-                        hypothesisId: "H1",
-                        message: "chat_persist_save_complete",
-                        data: [
-                            "conversationID": conversationEntity.id.uuidString,
-                            "messageCountAfterSave": String(conversationEntity.messages.count),
-                            "saveDurationMs": String(saveDurationMs),
-                            "totalPersistDurationMs": String(totalPersistDurationMs)
-                        ]
-                    )
-                    // #endregion
                 }
-
+                // Yield so the user row paints before streaming setup.
+                await Task.yield()
                 await MainActor.run {
-                    isPreparingToSend = false
-                    prepareToSendStatus = nil
-                    prepareToSendTask = nil
-                    prepareToSendCancellationReason = nil
-                    perMessageMCPServerIDs = []
-                    startStreamingResponse(
+                    self.startStreamingResponse(
                         triggeredByUserSend: true,
                         diagnosticRunID: diagnosticRunID,
                         perMessageMCPServerIDs: draftSnapshot.perMessageMCPServerIDs
                     )
+                    self.finishPrepareToSendChrome()
                 }
             } catch {
                 await MainActor.run {
-                    let cancellationReason = prepareToSendCancellationReason
-                    isPreparingToSend = false
-                    prepareToSendStatus = nil
-                    prepareToSendTask = nil
-                    prepareToSendCancellationReason = nil
-                    if !(error is CancellationError) || cancellationReason == .userCancelled {
-                        messageText = draftSnapshot.messageText
-                        remoteVideoInputURLText = draftSnapshot.remoteVideoURLText
-                        draftAttachments = draftSnapshot.attachments
-                        draftQuotes = draftSnapshot.quotes
-                    }
-                    if !(error is CancellationError) {
-                        presentError(error.localizedDescription)
-                    }
+                    self.restoreDraftAfterFailedPrepare(
+                        draft: draftSnapshot,
+                        error: error,
+                        wasCancellation: error is CancellationError
+                    )
                 }
             }
         }
 
         prepareToSendTask = task
+    }
+
+    /// Append the user turn to SwiftData + render cache so the bubble is in
+    /// the table model. Does **not** start streaming — callers schedule that
+    /// after a yield so the user row is free to paint first.
+    ///
+    /// - Parameter persistToDisk: when false (fast path), skip `modelContext.save()`
+    ///   so a disk flush cannot delay the first paint; the caller must save
+    ///   before/with streaming setup.
+    @MainActor
+    private func commitPreparedUserTurn(
+        parts: [ContentPart],
+        draft: ChatSendDraftSnapshot,
+        diagnosticRunID: String,
+        persistToDisk: Bool = true
+    ) {
+        let persistBlockStartedAt = ProcessInfo.processInfo.systemUptime
+
+        // #region agent log
+        ChatDiagnosticLogger.log(
+            runId: diagnosticRunID,
+            hypothesisId: "H1",
+            message: "chat_persist_block_start",
+            data: [
+                "conversationID": conversationEntity.id.uuidString,
+                "messageCountBeforePersist": String(conversationEntity.messages.count)
+            ]
+        )
+        // #endregion
+
+        let rebuildStartedAt = ProcessInfo.processInfo.systemUptime
+        ChatUserTurnPersistence.appendPreparedUserMessage(
+            parts: parts,
+            draft: draft,
+            toolCapable: threadSupportsMCPTools(
+                providerType: providerType,
+                resolvedModelSettings: resolvedModelSettings
+            ),
+            conversationEntity: conversationEntity,
+            isChatNamingPluginEnabled: isChatNamingPluginEnabled,
+            persistConversationIfNeeded: onPersistConversationIfNeeded,
+            makeConversationTitle: makeConversationTitle(from:),
+            applyRenderCaches: applyAppendedUserTurnToRenderCaches
+        )
+        let rebuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - rebuildStartedAt) * 1000)
+
+        // #region agent log
+        ChatDiagnosticLogger.log(
+            runId: diagnosticRunID,
+            hypothesisId: "H1",
+            message: "chat_persist_rebuild_complete",
+            data: [
+                "conversationID": conversationEntity.id.uuidString,
+                "messageCountAfterAppend": String(conversationEntity.messages.count),
+                "cachedVisibleCount": String(renderCache.visibleMessages.count),
+                "cachedHistoryCount": String(renderCache.activeThreadHistory.count),
+                "historyCacheReady": String(renderCache.isHistoryReady),
+                "durationMs": String(rebuildDurationMs)
+            ]
+        )
+        // #endregion
+
+        if persistToDisk {
+            let saveStartedAt = ProcessInfo.processInfo.systemUptime
+            try? modelContext.save()
+            let saveDurationMs = Int((ProcessInfo.processInfo.systemUptime - saveStartedAt) * 1000)
+            let totalPersistDurationMs = Int((ProcessInfo.processInfo.systemUptime - persistBlockStartedAt) * 1000)
+
+            // #region agent log
+            ChatDiagnosticLogger.log(
+                runId: diagnosticRunID,
+                hypothesisId: "H1",
+                message: "chat_persist_save_complete",
+                data: [
+                    "conversationID": conversationEntity.id.uuidString,
+                    "messageCountAfterSave": String(conversationEntity.messages.count),
+                    "saveDurationMs": String(saveDurationMs),
+                    "totalPersistDurationMs": String(totalPersistDurationMs)
+                ]
+            )
+            // #endregion
+        }
+
+        // Leave isPreparingToSend true until streaming arms (see
+        // finishPrepareToSendChrome) so isBusy stays continuous Send→Stop.
+        prepareToSendStatus = nil
+        perMessageMCPServerIDs = []
+    }
+
+    @MainActor
+    private func finishPrepareToSendChrome() {
+        isPreparingToSend = false
+        prepareToSendStatus = nil
+        prepareToSendTask = nil
+        prepareToSendCancellationReason = nil
+    }
+
+    @MainActor
+    private func restoreDraftAfterFailedPrepare(
+        draft: ChatSendDraftSnapshot,
+        error: Error,
+        wasCancellation: Bool
+    ) {
+        let cancellationReason = prepareToSendCancellationReason
+        finishPrepareToSendChrome()
+        if !wasCancellation || cancellationReason == .userCancelled {
+            messageText = draft.messageText
+            remoteVideoInputURLText = draft.remoteVideoURLText
+            draftAttachments = draft.attachments
+            draftQuotes = draft.quotes
+        }
+        if !wasCancellation {
+            presentError(error.localizedDescription)
+        }
     }
 }

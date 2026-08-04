@@ -84,7 +84,11 @@ struct ThinkingBlockHeaderButton: View {
                 .font(.subheadline)
                 .foregroundStyle(.primary)
         case .streaming:
-            ThinkingPulseIcon()
+            JinPulseChrome {
+                Image(systemName: "brain")
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+            }
         }
     }
 
@@ -97,7 +101,8 @@ struct ThinkingBlockHeaderButton: View {
     @ViewBuilder
     private var streamingIndicator: some View {
         if style == .streaming, !isExpanded {
-            ThinkingWaveDotsView()
+            JinWaveDots(dotSize: 4, spacing: 3, amplitude: 2.5)
+                .padding(.leading, 2)
                 .transition(.opacity)
         }
     }
@@ -224,59 +229,4 @@ struct ThinkingHeaderCopyButton: View {
     }
 }
 
-private struct ThinkingPulseIcon: View {
-    @State private var isPulsing = false
 
-    var body: some View {
-        Image(systemName: "brain")
-            .font(.subheadline)
-            .foregroundStyle(.primary)
-            .scaleEffect(pulseScale)
-            .opacity(pulseOpacity)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                    isPulsing = true
-                }
-            }
-    }
-
-    private var pulseScale: CGFloat {
-        isPulsing ? 1.1 : 1.0
-    }
-
-    private var pulseOpacity: Double {
-        isPulsing ? 1.0 : 0.65
-    }
-}
-
-private struct ThinkingWaveDotsView: View {
-    @State private var isAnimating = false
-
-    var body: some View {
-        HStack(spacing: 3) {
-            ForEach(0..<3, id: \.self) { index in
-                dot(at: index)
-            }
-        }
-        .padding(.leading, 2)
-        .onAppear { isAnimating = true }
-    }
-
-    private func dot(at index: Int) -> some View {
-        Circle()
-            .fill(.secondary)
-            .frame(width: 4, height: 4)
-            .offset(y: dotOffset)
-            .animation(dotAnimation(for: index), value: isAnimating)
-    }
-
-    private var dotOffset: CGFloat {
-        isAnimating ? -2.5 : 2.5
-    }
-
-    private func dotAnimation(for index: Int) -> Animation {
-        .easeInOut(duration: 0.5)
-            .repeatForever(autoreverses: true)
-            .delay(Double(index) * 0.15)
-    }
-}

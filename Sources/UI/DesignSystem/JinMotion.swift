@@ -1,10 +1,18 @@
 import SwiftUI
 
-/// Shared motion curves for timeline disclosures and other chrome expand/collapse.
+/// Shared motion curves for timeline disclosures, message appearance, and chrome.
 ///
-/// Disclosure panel height must use **fixed-duration** easing — not springs.
-/// Springs emit micro overshoot/corrections that re-measure the timeline row
-/// every frame and read as jitter against `NSTableView` row geometry.
+/// ## Rules of the road
+///
+/// 1. **Row-height-driving motion** (disclosure panels) must use **fixed-duration**
+///    easing — not springs. Springs emit micro overshoot/corrections that
+///    re-measure the timeline row every frame and read as jitter against
+///    `NSTableView` row geometry.
+/// 2. **Continuous chrome** (wave dots, pulses) must be **time-based** via
+///    `TimelineView` (`JinContinuousMotion`) — never `@State + repeatForever`,
+///    which freezes mid-pose when an `NSHostingView` reconfigures.
+/// 3. **Message appearance** uses opacity/offset only so measured height stays
+///    stable for the whole entrance.
 enum JinMotion {
     /// Wall-clock duration for disclosure height (SwiftUI + table stay matched).
     static let disclosureDuration: TimeInterval = 0.22
@@ -22,9 +30,17 @@ enum JinMotion {
     /// Default when direction is unknown.
     static let disclosure: Animation = disclosureExpand
 
-    /// Chevron may stay a short critically-damped spring — it does not affect
-    /// row height, so it cannot jitter the table.
-    static let disclosureIndicator: Animation = .spring(response: 0.20, dampingFraction: 1.0)
+    /// Chevron rotation — fixed-duration ease matching the panel family so a
+    /// killed transaction never leaves a spring mid-angle. Springs used to
+    /// look slightly softer but stuck at half-rotation after cell reconfigure.
+    static let disclosureIndicator: Animation = .easeInOut(duration: 0.18)
+
+    /// Newly inserted timeline row (opacity + y-offset only).
+    static let messageAppearDuration: TimeInterval = 0.22
+    static let messageAppear: Animation = .easeOut(duration: messageAppearDuration)
+
+    /// Composer send ↔ stop glyph swap.
+    static let sendGlyph: Animation = .easeInOut(duration: 0.16)
 
     /// Hover / micro affordances.
     static let hover: Animation = .easeOut(duration: 0.12)

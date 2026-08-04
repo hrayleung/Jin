@@ -192,10 +192,13 @@ struct ExpandedComposerFooter: View {
                     sendButtonPresentation.expandedTitle,
                     systemImage: sendButtonPresentation.expandedSystemImage
                 )
+                .contentTransition(.symbolEffect(.replace.downUp))
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .tint(isBusy ? .red : .accentColor)
+            .animation(JinMotion.sendGlyph, value: sendButtonPresentation.expandedSystemImage)
+            .animation(JinMotion.sendGlyph, value: isBusy)
             .keyboardShortcut(.return, modifiers: sendWithCommandEnter ? [.command] : [])
             .disabled(sendButtonPresentation.isDisabled)
         }

@@ -70,9 +70,11 @@ struct ToolCallView: View {
             .padding(.vertical, JinSpacing.small)
             .jinSurface(.subtle, cornerRadius: JinRadius.small)
         }
-        // Status pulse only — expand height is driven by `withAnimation` on
-        // the header button so we don't double-spring the panel.
-        .animation(.spring(duration: 0.24, bounce: 0), value: resolvedStatus)
+        // Status chrome only — expand height is driven by `withAnimation` on
+        // the header button so we don't double-drive the panel. Fixed ease
+        // (not spring) so a mid-stream reconfigure cannot leave status chrome
+        // half-interpolated.
+        .animation(.easeInOut(duration: 0.18), value: resolvedStatus)
         .onAppear {
             updatePulseAnimation(for: resolvedStatus)
         }

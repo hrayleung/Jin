@@ -33,7 +33,7 @@ struct CodeExecutionEntryView: View {
             .padding(.vertical, JinSpacing.small)
             .jinSurface(.subtle, cornerRadius: JinRadius.small)
         }
-        .animation(.spring(duration: 0.25, bounce: 0), value: executionStatus)
+        .animation(.easeInOut(duration: 0.18), value: executionStatus)
         .onAppear {
             updatePulseAnimation(for: executionStatus)
         }
