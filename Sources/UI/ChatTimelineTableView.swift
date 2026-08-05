@@ -740,11 +740,14 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             tableView.beginUpdates()
             tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
             tableView.endUpdates()
-            // One coalesced pin this turn + a short trailing pin after first
-            // real measures — never pin twice in the same call (that was the
-            // double-snap on user-row + streaming-row send).
+            // SYNCHRONOUS pin after insert. The coalesced `maintainBottomIfNeeded`
+            // defers to the next runloop turn — one frame where the new bubble
+            // is already in the document but still below the viewport, which
+            // reads as "blank after send". Layout + pin now; trailing pin
+            // still absorbs first real fittingSize corrections.
             if shouldMaintainBottom {
-                maintainBottomIfNeeded()
+                view.layoutSubtreeIfNeeded()
+                scrollToBottom(animated: false, force: false)
                 scheduleTrailingBottomPin(delayNanoseconds: 160_000_000)
             }
 
@@ -823,9 +826,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                     heightCache[key] = estimatedHeight(for: row)
                 }
             }
-            maintainBottomIfNeeded()
-            // Window-slide send: head drop + tail append often remeasures the
-            // new tail twice — one trailing pin after measures settle.
+            // Sync pin (same rationale as appendTail): async coalesce left a
+            // frame with the new tail below the viewport on long-chat sends.
+            view.layoutSubtreeIfNeeded()
+            scrollToBottom(animated: false, force: false)
             if !insertions.isEmpty {
                 scheduleTrailingBottomPin(delayNanoseconds: 160_000_000)
             }

@@ -192,6 +192,44 @@ enum ChatMessageRenderPipeline {
 
     /// Produces the exact native-markdown cache entries the persisted row will
     /// request. This mirrors the render pipeline's artifact splitting and
+    /// Send-path zero-JSON render item: domain `Message` → `MessageRenderItem`
+    /// without encode/decode. Matches the single-snapshot pipeline for a tail
+    /// user message (parity tests cover the decode path; this skips the cost).
+    static func makeUserTurnRenderItem(
+        from message: Message,
+        artifactsEnabled: Bool
+    ) -> MessageRenderItem {
+        let renderedContent = ChatRenderedContentDecoder.renderedContentParts(
+            from: message.content,
+            messageID: message.id
+        )
+        var artifactVersionCounts: [String: Int] = [:]
+        var artifactVersionsByID: OrderedDictionary<String, [RenderedArtifactVersion]> = [:]
+        // A just-sent user turn has no following assistant response yet, so
+        // `canDeleteResponse` is false — same result as the one-element
+        // snapshot pipeline.
+        return makeRenderItem(
+            id: message.id,
+            role: message.role.rawValue,
+            timestamp: message.timestamp,
+            messageRole: message.role,
+            renderedContent: renderedContent,
+            toolCalls: message.toolCalls ?? [],
+            searchActivities: message.searchActivities ?? [],
+            codeExecutionActivities: message.codeExecutionActivities ?? [],
+            assistantModelLabel: nil,
+            assistantModelID: nil,
+            assistantProviderIconID: nil,
+            responseMetrics: nil,
+            highlightSnapshots: [],
+            canDeleteResponse: false,
+            perMessageMCPServerNames: message.perMessageMCPServerNames ?? [],
+            artifactsEnabled: artifactsEnabled,
+            artifactVersionCounts: &artifactVersionCounts,
+            artifactVersionsByID: &artifactVersionsByID
+        )
+    }
+
     /// rich-vs-plain mode inference so the streaming-to-persisted handoff does
     /// not warm a similar-but-different key and still expose raw Markdown.
     static func markdownPrewarmItems(
