@@ -713,7 +713,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             rows = newModel.rows
             if insetsChanged {
                 applyContentInsets(top: newModel.topInset, bottom: newModel.bottomInset)
-                if shouldMaintainBottom {
+                // Match maintainBottomIfNeeded: never yank the viewport while
+                // the user is mid-gesture (scrollToBottom has no live-scroll guard).
+                if shouldMaintainBottom, !isUserLiveScrolling {
                     view.layoutSubtreeIfNeeded()
                     scrollToBottom(animated: false, force: false)
                 }
@@ -826,7 +828,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // is already in the document but still below the viewport, which
             // reads as "blank after send". Layout + pin now; trailing pin
             // still absorbs first real fittingSize corrections.
-            if shouldMaintainBottom {
+            // Guard live scroll like maintainBottomIfNeeded — scrollToBottom
+            // has no isUserLiveScrolling check and would override an in-flight
+            // user gesture if an insert arrives mid-scroll.
+            if shouldMaintainBottom, !isUserLiveScrolling {
                 view.layoutSubtreeIfNeeded()
                 scrollToBottom(animated: false, force: false)
                 scheduleTrailingBottomPin(delayNanoseconds: 160_000_000)
@@ -919,9 +924,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
         refreshLoadEarlierLabelIfNeeded(old: old, new: new)
 
-        if shouldMaintainBottom {
+        if shouldMaintainBottom, !isUserLiveScrolling {
             // Sync pin (same rationale as appendTail): async coalesce left a
             // frame with the new tail below the viewport on long-chat sends.
+            // Live-scroll guard mirrors maintainBottomIfNeeded.
             view.layoutSubtreeIfNeeded()
             scrollToBottom(animated: false, force: false)
             if !insertions.isEmpty {

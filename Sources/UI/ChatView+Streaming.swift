@@ -111,10 +111,10 @@ extension ChatView {
                 // cancels streaming without undoing the painted turn.
                 let task = Task { @MainActor in
                     await Task.yield()
-                    guard !Task.isCancelled else {
-                        self.finishPrepareToSendChrome()
-                        return
-                    }
+                    // Always persist the already-painted user turn before any
+                    // cancel exit — commit used persistToDisk: false so Stop
+                    // in the yield window would otherwise leave the message
+                    // only in-memory and lose it on relaunch.
                     try? self.modelContext.save()
                     guard !Task.isCancelled else {
                         self.finishPrepareToSendChrome()
