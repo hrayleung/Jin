@@ -42,11 +42,11 @@ final class BuiltinSearchExaPayloadTests: XCTestCase {
     func testExaBodyEmitsCategoryWhenSetInSettings() {
         let body = BuiltinSearchToolHub.makeExaRequestBody(
             args: makeArgs(),
-            settings: makeSettings(exaCategory: "research paper"),
+            settings: makeSettings(exaCategory: "publication"),
             overrides: nil
         )
 
-        XCTAssertEqual(body["category"] as? String, "research paper")
+        XCTAssertEqual(body["category"] as? String, "publication")
     }
 
     func testExaBodyOverrideCategoryWinsOverSettings() {
@@ -91,14 +91,36 @@ final class BuiltinSearchExaPayloadTests: XCTestCase {
 
     // MARK: - Structured contents
 
-    func testExaBodyOmitsContentsByDefault() {
+    func testExaBodyEmitsHighlightsWhenNotIncludingRawContent() throws {
         let body = BuiltinSearchToolHub.makeExaRequestBody(
             args: makeArgs(),
             settings: makeSettings(),
             overrides: nil
         )
 
-        XCTAssertNil(body["contents"])
+        let contents = try XCTUnwrap(body["contents"] as? [String: Any])
+        XCTAssertEqual(contents["highlights"] as? Bool, true)
+        XCTAssertNil(contents["text"])
+    }
+
+    func testExaBodyMapsLegacyResearchPaperCategoryToPublication() {
+        let body = BuiltinSearchToolHub.makeExaRequestBody(
+            args: makeArgs(),
+            settings: makeSettings(exaCategory: "research paper"),
+            overrides: nil
+        )
+
+        XCTAssertEqual(body["category"] as? String, "publication")
+    }
+
+    func testExaBodyNeverEmitsRetiredNeuralType() {
+        let body = BuiltinSearchToolHub.makeExaRequestBody(
+            args: makeArgs(),
+            settings: makeSettings(exaSearchType: .neural),
+            overrides: nil
+        )
+
+        XCTAssertEqual(body["type"] as? String, "auto")
     }
 
     func testExaBodyEmitsStructuredContentsWhenIncludeRawContent() throws {

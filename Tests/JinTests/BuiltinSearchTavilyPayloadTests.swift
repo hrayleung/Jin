@@ -98,7 +98,7 @@ final class BuiltinSearchTavilyPayloadTests: XCTestCase {
         XCTAssertEqual(body["chunks_per_source"] as? Int, 3)
     }
 
-    func testTavilyBodyEmitsChunksPerSourceForAdvancedDepth() {
+    func testTavilyBodyEmitsChunksPerSourceForSupportedDepths() {
         let advanced = BuiltinSearchToolHub.makeTavilyRequestBody(
             args: makeArgs(),
             settings: makeSettings(tavilySearchDepth: "advanced"),
@@ -111,7 +111,21 @@ final class BuiltinSearchTavilyPayloadTests: XCTestCase {
             settings: makeSettings(tavilySearchDepth: "basic"),
             overrides: nil
         )
-        XCTAssertNil(basic["chunks_per_source"])
+        XCTAssertEqual(basic["chunks_per_source"] as? Int, 3)
+
+        let fast = BuiltinSearchToolHub.makeTavilyRequestBody(
+            args: makeArgs(),
+            settings: makeSettings(tavilySearchDepth: "fast"),
+            overrides: nil
+        )
+        XCTAssertEqual(fast["chunks_per_source"] as? Int, 3)
+
+        let ultra = BuiltinSearchToolHub.makeTavilyRequestBody(
+            args: makeArgs(),
+            settings: makeSettings(tavilySearchDepth: "ultra-fast"),
+            overrides: nil
+        )
+        XCTAssertNil(ultra["chunks_per_source"], "ultra-fast does not support chunks_per_source.")
     }
 
     func testTavilyBodyEmitsStartAndEndDatesForRecency() {

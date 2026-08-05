@@ -60,14 +60,9 @@ extension BuiltinSearchToolHub {
         overrides: SearchPluginControls?
     ) -> [String: Any] {
         let maxResults = args.maxResults.clamped(to: firecrawlMaxResultsRange)
-        let augmentedQuery = firecrawlAugmentedQuery(
-            args.query,
-            includeDomains: args.includeDomains,
-            excludeDomains: args.excludeDomains
-        )
 
         var body: [String: Any] = [
-            "query": augmentedQuery,
+            "query": args.query,
             "limit": maxResults,
             "ignoreInvalidURLs": true
         ]
@@ -80,8 +75,15 @@ extension BuiltinSearchToolHub {
             body["country"] = country
         }
 
-        if let language = settings.firecrawlLanguage?.trimmedNonEmpty {
-            body["lang"] = language
+        // Native domain filters (mutually exclusive per Firecrawl docs). Prefer include.
+        let domainFilters = firecrawlDomainFilters(
+            includeDomains: args.includeDomains,
+            excludeDomains: args.excludeDomains
+        )
+        if let includes = domainFilters.includeDomains {
+            body["includeDomains"] = includes
+        } else if let excludes = domainFilters.excludeDomains {
+            body["excludeDomains"] = excludes
         }
 
         if !settings.firecrawlSources.isEmpty {
@@ -94,6 +96,61 @@ extension BuiltinSearchToolHub {
         }
 
         return body
+    }
+
+    /// Builds Firecrawl domain filter arrays. Include and exclude are mutually exclusive;
+    /// when both are present, include wins (graceful degrade, same policy as Perplexity).
+    /// Hostnames only (no protocol/path). Cap at 20 entries.
+    nonisolated static func firecrawlDomainFilters(
+        includeDomains: [String],
+        excludeDomains: [String]
+    ) -> (includeDomains: [String]?, excludeDomains: [String]?) {
+        let includes = firecrawlNormalizedHostnames(includeDomains)
+        if !includes.isEmpty {
+            return (includes, nil)
+        }
+        let excludes = firecrawlNormalizedHostnames(excludeDomains)
+        if !excludes.isEmpty {
+            return (nil, excludes)
+        }
+        return (nil, nil)
+    }
+
+    nonisolated static func firecrawlNormalizedHostnames(_ domains: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        result.reserveCapacity(min(20, domains.count))
+
+        for raw in domains {
+            guard let hostname = firecrawlHostname(from: raw) else { continue }
+            let key = hostname.lowercased()
+            guard seen.insert(key).inserted else { continue }
+            result.append(hostname)
+            if result.count >= 20 { break }
+        }
+        return result
+    }
+
+    /// Extracts a bare hostname from a domain-ish string (strips scheme/path/port).
+    nonisolated static func firecrawlHostname(from raw: String) -> String? {
+        guard let trimmed = raw.trimmedNonEmpty else { return nil }
+        if let url = URL(string: trimmed), let host = url.host, !host.isEmpty {
+            return host
+        }
+        // Bare host or host/path without scheme.
+        let withoutScheme: String
+        if let range = trimmed.range(of: "://") {
+            withoutScheme = String(trimmed[range.upperBound...])
+        } else {
+            withoutScheme = trimmed
+        }
+        let hostPart = withoutScheme.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: true)
+            .first
+            .map(String.init) ?? withoutScheme
+        let hostOnly = hostPart.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: true)
+            .first
+            .map(String.init) ?? hostPart
+        return hostOnly.trimmedNonEmpty
     }
 
     /// Pure recency-window mapper duplicated as a `nonisolated static` so the body builder can

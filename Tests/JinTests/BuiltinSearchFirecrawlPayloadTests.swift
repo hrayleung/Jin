@@ -43,9 +43,9 @@ final class BuiltinSearchFirecrawlPayloadTests: XCTestCase {
         XCTAssertEqual(body["country"] as? String, "JP")
     }
 
-    // MARK: - Domain operators
+    // MARK: - Native domain filters
 
-    func testFirecrawlBodyAugmentsQueryWithSiteOperators() {
+    func testFirecrawlBodyUsesNativeIncludeDomainsAndLeavesQueryBare() {
         let body = BuiltinSearchToolHub.makeFirecrawlRequestBody(
             args: makeArgs(
                 query: "swift concurrency",
@@ -56,21 +56,37 @@ final class BuiltinSearchFirecrawlPayloadTests: XCTestCase {
             overrides: nil
         )
 
-        let augmented = body["query"] as? String
-        XCTAssertEqual(augmented, "swift concurrency (site:apple.com OR site:swift.org) -site:medium.com")
+        XCTAssertEqual(body["query"] as? String, "swift concurrency")
+        XCTAssertEqual(body["includeDomains"] as? [String], ["apple.com", "swift.org"])
+        XCTAssertNil(body["excludeDomains"], "Include wins when both are set (mutually exclusive).")
     }
 
-    func testFirecrawlBodyOmitsParensForSingleIncludeDomain() {
+    func testFirecrawlBodyUsesNativeExcludeDomainsWhenNoInclude() {
         let body = BuiltinSearchToolHub.makeFirecrawlRequestBody(
-            args: makeArgs(query: "swift", includeDomains: ["apple.com"]),
+            args: makeArgs(query: "swift", excludeDomains: ["medium.com"]),
             settings: makeSettings(),
             overrides: nil
         )
 
-        XCTAssertEqual(body["query"] as? String, "swift site:apple.com")
+        XCTAssertEqual(body["query"] as? String, "swift")
+        XCTAssertEqual(body["excludeDomains"] as? [String], ["medium.com"])
+        XCTAssertNil(body["includeDomains"])
     }
 
-    func testFirecrawlBodyDoesNotAugmentWhenNoDomainFilters() {
+    func testFirecrawlBodyStripsSchemeAndPathFromDomains() {
+        let body = BuiltinSearchToolHub.makeFirecrawlRequestBody(
+            args: makeArgs(
+                query: "swift",
+                includeDomains: ["https://docs.swift.org/guide", "apple.com/path"]
+            ),
+            settings: makeSettings(),
+            overrides: nil
+        )
+
+        XCTAssertEqual(body["includeDomains"] as? [String], ["docs.swift.org", "apple.com"])
+    }
+
+    func testFirecrawlBodyOmitsDomainArraysWhenEmpty() {
         let body = BuiltinSearchToolHub.makeFirecrawlRequestBody(
             args: makeArgs(query: "swift"),
             settings: makeSettings(),
@@ -78,6 +94,8 @@ final class BuiltinSearchFirecrawlPayloadTests: XCTestCase {
         )
 
         XCTAssertEqual(body["query"] as? String, "swift")
+        XCTAssertNil(body["includeDomains"])
+        XCTAssertNil(body["excludeDomains"])
     }
 
     // MARK: - Sources
@@ -117,7 +135,7 @@ final class BuiltinSearchFirecrawlPayloadTests: XCTestCase {
         XCTAssertEqual(body["ignoreInvalidURLs"] as? Bool, true)
     }
 
-    func testFirecrawlBodyIncludesLanguageWhenSet() {
+    func testFirecrawlBodyNeverSendsLangParameter() {
         let settings = makeSettings(firecrawlLanguage: "en")
 
         let body = BuiltinSearchToolHub.makeFirecrawlRequestBody(
@@ -126,7 +144,7 @@ final class BuiltinSearchFirecrawlPayloadTests: XCTestCase {
             overrides: nil
         )
 
-        XCTAssertEqual(body["lang"] as? String, "en")
+        XCTAssertNil(body["lang"], "Firecrawl v2 search schema has no lang field.")
     }
 
     func testFirecrawlBodyMapsRecencyDaysToTBS() {

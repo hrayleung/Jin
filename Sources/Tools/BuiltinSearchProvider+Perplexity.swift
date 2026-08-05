@@ -76,8 +76,10 @@ extension BuiltinSearchToolHub {
             body["search_language_filter"] = [language]
         }
 
+        // Prefer the documented primary content-depth control over a fixed max_tokens cap.
+        // Docs: omit search_context_size when using max_tokens / max_tokens_per_page.
         if args.includeRawContent {
-            body["max_tokens"] = 4_096
+            body["search_context_size"] = "high"
         }
 
         return body
