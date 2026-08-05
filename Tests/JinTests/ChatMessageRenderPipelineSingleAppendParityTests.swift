@@ -74,6 +74,29 @@ final class ChatMessageRenderPipelineSingleAppendParityTests: XCTestCase {
         XCTAssertTrue(context.toolResultsByCallID.isEmpty)
     }
 
+    func testDomainUserTurnRenderItemMatchesSnapshotPipeline() throws {
+        // Zero-JSON send path must match the snapshot decode path so the
+        // painted bubble is identical to a full rebuild of the same turn.
+        let entity = try makeUserEntity(
+            text: "Hello **world** with a quote-less plain tail.",
+            perMessageMCPServerNames: ["files"]
+        )
+        let message = try entity.toDomain()
+        let fromDomain = ChatMessageRenderPipeline.makeUserTurnRenderItem(
+            from: message,
+            artifactsEnabled: true
+        )
+        let fromSnapshot = try XCTUnwrap(
+            ChatMessageRenderPipeline.makeDecodedRenderContext(
+                from: [PersistedMessageSnapshot(entity)],
+                fallbackModelLabel: "Model",
+                artifactsEnabled: true,
+                assistantProviderIconsByID: [:]
+            ).visibleMessages.first
+        )
+        assertItemsEqual(fromDomain, fromSnapshot)
+    }
+
     // MARK: - Fixtures
 
     private func assertItemsEqual(

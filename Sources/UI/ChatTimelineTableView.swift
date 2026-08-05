@@ -297,12 +297,24 @@ final class ChatTimelineHostingCell: NSTableCellView {
     /// warm-start store.
     private var hostHasPendingRootSwap = false
 
+    /// True for the first height report after a rootView swap — published
+    /// synchronously so `noteHeightOfRows` lands the same turn as first paint
+    /// (yielded flushes left a tall estimated row with a 0-height host).
+    private var flushFirstMeasureImmediately = false
+
     override init(frame frameRect: NSRect) {
         host = NSHostingView(rootView: AnyView(EmptyView()))
         super.init(frame: frameRect)
         // Clip subviews that briefly exceed the row during disclosure
         // animation so content cannot paint into the row below.
         clipsToBounds = true
+        // Match the chat stage surface so a not-yet-committed host never
+        // flashes AppKit default white / controlBackground through clear
+        // scroll layers (the "一片白" beat on send).
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+        host.wantsLayer = true
+        host.layer?.backgroundColor = NSColor.clear.cgColor
         // Leading/trailing fix width = column width; top-align the host so
         // when the table row is mid-animation (shorter or taller than the
         // SwiftUI intrinsic size for a frame) we curtain from the top instead
@@ -328,10 +340,23 @@ final class ChatTimelineHostingCell: NSTableCellView {
         lastReportedHeight = -1
         pendingMeasuredHeight = nil
         heightFlushScheduled = false
+        flushFirstMeasureImmediately = true
         host.rootView = content
         hostHasPendingRootSwap = true
         host.invalidateIntrinsicContentSize()
-        // Guarantee layout() runs even if AppKit didn't dirty us.
+        // Windowed cells: commit the root swap NOW so the first display pass
+        // already has SwiftUI content (not EmptyView / stale predecessor).
+        // Windowless dequeues still defer to layout().
+        if window != nil {
+            host.needsLayout = true
+            host.layoutSubtreeIfNeeded()
+            hostHasPendingRootSwap = false
+            let measured = ceil(host.fittingSize.height)
+            if measured > 0 {
+                pendingMeasuredHeight = measured
+                scheduleHeightFlush(for: identity)
+            }
+        }
         needsLayout = true
     }
 
@@ -348,9 +373,8 @@ final class ChatTimelineHostingCell: NSTableCellView {
             // NSHostingView commits a pending rootView swap during ITS OWN
             // layout(), which (top-down) runs AFTER ours in this pass — flush
             // it now so `fittingSize` reflects the new content, not the
-            // recycled predecessor's. Done here rather than in `configure()`
-            // because a dequeued cell may still be windowless there, where
-            // hosting-view updates can defer.
+            // recycled predecessor's. Done here rather than only in
+            // `configure()` because a dequeued cell may still be windowless.
             host.needsLayout = true
             host.layoutSubtreeIfNeeded()
         }
@@ -365,8 +389,19 @@ final class ChatTimelineHostingCell: NSTableCellView {
     }
 
     private func scheduleHeightFlush(for identity: String) {
-        // Coalesce to the next main-actor turn so multiple layout invalidations
-        // in one frame publish a single height (latest wins).
+        // First measure after a root swap: publish synchronously so the
+        // table does not keep a tall estimate with an unpainted short host.
+        if flushFirstMeasureImmediately {
+            flushFirstMeasureImmediately = false
+            heightFlushScheduled = false
+            guard let measured = pendingMeasuredHeight else { return }
+            pendingMeasuredHeight = nil
+            guard measured != lastReportedHeight else { return }
+            lastReportedHeight = measured
+            onMeasuredHeight?(identity, measured)
+            return
+        }
+        // Later invalidations (streaming, disclosure): coalesce to one per turn.
         guard !heightFlushScheduled else { return }
         heightFlushScheduled = true
         Task { @MainActor [weak self] in
@@ -607,22 +642,21 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let widthChanged = abs(currentColumnWidth - newModel.shared.columnWidth) > 0.5
         let conversationChanged = lastConversationID != newModel.conversationID
         let epochChanged = lastAppliedContentEpoch != newModel.contentEpoch
+        let rowIDsChanged = previousRows.map(\.identity) != newModel.rows.map(\.identity)
+        let insetsChanged = abs(scrollView.contentInsets.top - newModel.topInset) > 0.5
+            || abs(scrollView.contentInsets.bottom - newModel.bottomInset) > 0.5
 
         model = newModel
-        rows = newModel.rows
+        // Keep `rows` as previousRows until reconcile mutates the table when
+        // identities change — advertising the new count while the table still
+        // holds old row views is a classic blank-frame source mid-apply.
+        if !rowIDsChanged {
+            rows = newModel.rows
+        }
         currentColumnWidth = newModel.shared.columnWidth
         lastAppliedContentEpoch = newModel.contentEpoch
 
         scrollView.scrollerStyle = preferredScrollerStyle()
-        let current = scrollView.contentInsets
-        if abs(current.top - newModel.topInset) > 0.5 || abs(current.bottom - newModel.bottomInset) > 0.5 {
-            scrollView.contentInsets = NSEdgeInsets(top: newModel.topInset, left: 0, bottom: newModel.bottomInset, right: 0)
-            // AppKit insets the overlay scroller track by `contentInsets`, so
-            // with the composer-sized bottom inset the knob could never reach
-            // the bottom of the window even at max scroll. Negative
-            // `scrollerInsets` cancel that and restore a full-height track.
-            scrollView.scrollerInsets = NSEdgeInsets(top: -newModel.topInset, left: 0, bottom: -newModel.bottomInset, right: 0)
-        }
 
         // Heights are width-dependent (keyed by ceil(columnWidth)); drop the
         // caches on a width change so rows re-measure at the new wrap width.
@@ -634,6 +668,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         }
 
         if conversationChanged {
+            rows = newModel.rows
             lastConversationID = newModel.conversationID
             shouldMaintainBottom = true
             heightCache.removeAll(keepingCapacity: true)
@@ -644,6 +679,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             appearClearTask = nil
             estimateCache.removeAll(keepingCapacity: true)
             cancelScrollPrewarm()
+            applyContentInsets(top: newModel.topInset, bottom: newModel.bottomInset)
             seedHeightsFromStore()
             reloadDataPreservingPin()
             // Deterministic open-at-bottom: pin once now; every later height
@@ -658,7 +694,44 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             return
         }
 
-        reconcile(old: previousRows, new: rows, widthChanged: widthChanged, epochChanged: epochChanged)
+        // Composer height changes bottomInset on the same turn as a send
+        // insert. Applying insets BEFORE row mutation resizes the clip and
+        // briefly shows surface through empty geometry. Defer insets until
+        // after reconcile when row identities also change.
+        if insetsChanged, !rowIDsChanged {
+            applyContentInsets(top: newModel.topInset, bottom: newModel.bottomInset)
+        }
+
+        if rowIDsChanged {
+            // Pass newModel.rows explicitly; `self.rows` is still previous.
+            reconcile(
+                old: previousRows,
+                new: newModel.rows,
+                widthChanged: widthChanged,
+                epochChanged: epochChanged
+            )
+            rows = newModel.rows
+            if insetsChanged {
+                applyContentInsets(top: newModel.topInset, bottom: newModel.bottomInset)
+                // Match maintainBottomIfNeeded: never yank the viewport while
+                // the user is mid-gesture (scrollToBottom has no live-scroll guard).
+                if shouldMaintainBottom, !isUserLiveScrolling {
+                    view.layoutSubtreeIfNeeded()
+                    scrollToBottom(animated: false, force: false)
+                }
+            }
+        } else {
+            reconcile(old: previousRows, new: rows, widthChanged: widthChanged, epochChanged: epochChanged)
+        }
+    }
+
+    private func applyContentInsets(top: CGFloat, bottom: CGFloat) {
+        scrollView.contentInsets = NSEdgeInsets(top: top, left: 0, bottom: bottom, right: 0)
+        // AppKit insets the overlay scroller track by `contentInsets`, so
+        // with the composer-sized bottom inset the knob could never reach
+        // the bottom of the window even at max scroll. Negative
+        // `scrollerInsets` cancel that and restore a full-height track.
+        scrollView.scrollerInsets = NSEdgeInsets(top: -top, left: 0, bottom: -bottom, right: 0)
     }
 
     /// `reloadData` + re-note all row heights. On macOS 13.0 the automatic
@@ -718,6 +791,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // row being replaced by the finished message at the same tail index).
             // No soft-enter here: the finished assistant message must appear
             // fully opaque immediately (appear animation is streaming-only).
+            rows = new
             tableView.reloadData(forRowIndexes: changed, columnIndexes: IndexSet(integer: 0))
             tableView.noteHeightOfRows(withIndexesChanged: changed)
             maintainBottomIfNeeded()
@@ -729,6 +803,8 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             markAppearAnimating(identities: new[inserted].map(\.identity))
             // Pre-seed height cache with estimates so the first layout doesn't
             // go estimate→measure with a large delta for each new row.
+            // `self.rows` may still be the previous list until apply finishes
+            // assigning; estimate against `new`.
             for index in inserted {
                 guard index >= 0, index < new.count else { continue }
                 let row = new[index]
@@ -737,14 +813,27 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                     heightCache[key] = estimatedHeight(for: row)
                 }
             }
-            tableView.beginUpdates()
-            tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
-            tableView.endUpdates()
-            // One coalesced pin this turn + a short trailing pin after first
-            // real measures — never pin twice in the same call (that was the
-            // double-snap on user-row + streaming-row send).
-            if shouldMaintainBottom {
-                maintainBottomIfNeeded()
+            // Install new row list immediately before table mutation so
+            // dataSource/heightOfRow match insertRows.
+            rows = new
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0
+                context.allowsImplicitAnimation = false
+                tableView.beginUpdates()
+                tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
+                tableView.endUpdates()
+            }
+            // SYNCHRONOUS pin after insert. The coalesced `maintainBottomIfNeeded`
+            // defers to the next runloop turn — one frame where the new bubble
+            // is already in the document but still below the viewport, which
+            // reads as "blank after send". Layout + pin now; trailing pin
+            // still absorbs first real fittingSize corrections.
+            // Guard live scroll like maintainBottomIfNeeded — scrollToBottom
+            // has no isUserLiveScrolling check and would override an in-flight
+            // user gesture if an insert arrives mid-scroll.
+            if shouldMaintainBottom, !isUserLiveScrolling {
+                view.layoutSubtreeIfNeeded()
+                scrollToBottom(animated: false, force: false)
                 scheduleTrailingBottomPin(delayNanoseconds: 160_000_000)
             }
 
@@ -758,6 +847,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             let clip = scrollView.contentView
             let oldDocHeight = tableView.frame.height
             let savedOriginY = clip.bounds.origin.y
+            rows = new
             tableView.beginUpdates()
             tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
             tableView.endUpdates()
@@ -773,6 +863,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
         case .fullReload:
             // Wholesale identity churn: a reload is cheaper than a huge batch.
+            rows = new
             reloadDataPreservingPin()
             maintainBottomIfNeeded()
         }
@@ -806,26 +897,39 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             markAppearAnimating(identities: insertedIDs)
         }
 
-        tableView.beginUpdates()
-        tableView.removeRows(at: removals, withAnimation: [])
-        tableView.insertRows(at: insertions, withAnimation: [])
-        tableView.endUpdates()
+        // Pre-seed BEFORE beginUpdates (mirror appendTail). Seeding after
+        // endUpdates left the batch mid-mutation querying uncached heights
+        // and painted tall empty clear bands on long-chat window slides.
+        for index in insertions {
+            guard index >= 0, index < new.count else { continue }
+            let row = new[index]
+            let key = heightKey(row.identity)
+            if heightCache[key] == nil {
+                heightCache[key] = estimatedHeight(for: row)
+            }
+        }
+
+        // Install new list before mutation so dataSource matches the batch.
+        rows = new
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            context.allowsImplicitAnimation = false
+            tableView.beginUpdates()
+            // Removals are OLD indexes; after `rows = new` AppKit still uses
+            // the IndexSet we computed from the old list (batch contract).
+            tableView.removeRows(at: removals, withAnimation: [])
+            tableView.insertRows(at: insertions, withAnimation: [])
+            tableView.endUpdates()
+        }
 
         refreshLoadEarlierLabelIfNeeded(old: old, new: new)
 
-        if shouldMaintainBottom {
-            // Pre-seed inserted row estimates so the first height query is stable.
-            for index in insertions {
-                guard index >= 0, index < new.count else { continue }
-                let row = new[index]
-                let key = heightKey(row.identity)
-                if heightCache[key] == nil {
-                    heightCache[key] = estimatedHeight(for: row)
-                }
-            }
-            maintainBottomIfNeeded()
-            // Window-slide send: head drop + tail append often remeasures the
-            // new tail twice — one trailing pin after measures settle.
+        if shouldMaintainBottom, !isUserLiveScrolling {
+            // Sync pin (same rationale as appendTail): async coalesce left a
+            // frame with the new tail below the viewport on long-chat sends.
+            // Live-scroll guard mirrors maintainBottomIfNeeded.
+            view.layoutSubtreeIfNeeded()
+            scrollToBottom(animated: false, force: false)
             if !insertions.isEmpty {
                 scheduleTrailingBottomPin(delayNanoseconds: 160_000_000)
             }
@@ -984,10 +1088,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         case .loadEarlier:
             return 56
         case .streaming:
-            // Empty streaming chrome: header + padding + `JinStreamingPlaceholder`
-            // (~28pt). Keep the estimate tight so the first real measure does
-            // not yank the bottom pin.
-            return 108
+            // Header (~22) + bubble padding + JinStreamingPlaceholder (28) +
+            // vertical row padding. Overshoot paints empty clear under the
+            // host and reads as a white band until first measure.
+            return 96
         case .message(let item, _):
             let key = heightKey(row.identity)
             if let memoized = estimateCache[key] { return memoized }
