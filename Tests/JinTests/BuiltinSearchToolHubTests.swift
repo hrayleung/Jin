@@ -236,12 +236,26 @@ final class BuiltinSearchToolHubTests: XCTestCase {
         XCTAssertNil(ExaSearchType.resolved(from: nil))
     }
 
+    func testExaSearchTypeLegacyNeuralMapsToAutoAndIsNotPublic() {
+        XCTAssertEqual(ExaSearchType.resolved(from: "neural"), .auto)
+        XCTAssertEqual(ExaSearchType.neural.wireValue, "auto")
+        XCTAssertFalse(ExaSearchType.publicCases.contains(.neural))
+    }
+
+    func testExaCategoryLegacyResearchPaperMapsToPublication() {
+        XCTAssertEqual(ExaCategory.resolved(from: "research paper"), .publication)
+        XCTAssertEqual(ExaCategory.resolved(from: "research_paper"), .publication)
+        XCTAssertEqual(ExaCategory.resolved(from: "publication"), .publication)
+        XCTAssertEqual(ExaCategory.publication.rawValue, "publication")
+    }
+
     func testExaSearchTypeIncludesNewDeepVariants() {
         XCTAssertEqual(ExaSearchType.resolved(from: "deep-lite"), .deepLite)
         XCTAssertEqual(ExaSearchType.resolved(from: "deep-reasoning"), .deepReasoning)
         XCTAssertEqual(ExaSearchType.resolved(from: "deep"), .deep)
         XCTAssertTrue(ExaSearchType.publicCases.contains(.deepLite))
         XCTAssertTrue(ExaSearchType.publicCases.contains(.deepReasoning))
+        XCTAssertTrue(ExaSearchType.publicCases.contains(.instant))
     }
 
     func testWebSearchPluginSettingsLoadMapsLegacyExaType() {

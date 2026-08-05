@@ -146,13 +146,28 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
 enum ExaSearchType: String, Codable, CaseIterable, Sendable {
     case auto
     case fast
+    /// Legacy value retained for decoding only. Not in Exa's documented type enum;
+    /// `resolved` and `wireValue` map it to `auto`.
     case neural
     case deepLite = "deep-lite"
     case deep
     case deepReasoning = "deep-reasoning"
     case instant
 
-    static let publicCases: [ExaSearchType] = [.auto, .fast, .neural, .deepLite, .deep, .deepReasoning, .instant]
+    /// Search types Exa currently documents on `/search`.
+    static let publicCases: [ExaSearchType] = [
+        .auto, .fast, .instant, .deepLite, .deep, .deepReasoning
+    ]
+
+    /// Value sent on the wire. Never emits retired types such as `neural`.
+    var wireValue: String {
+        switch self {
+        case .neural:
+            return ExaSearchType.auto.rawValue
+        default:
+            return rawValue
+        }
+    }
 
     static func resolved(from rawValue: String?) -> ExaSearchType? {
         guard let value = rawValue?.trimmedNonEmpty?.lowercased() else {
@@ -160,17 +175,24 @@ enum ExaSearchType: String, Codable, CaseIterable, Sendable {
         }
 
         // Keep compatibility with legacy UI/config values.
-        if value == "keyword" {
+        switch value {
+        case "keyword":
             return .fast
+        case "neural":
+            // Neural is no longer documented; Instant absorbed "neural quality".
+            // Map to auto as the balanced default successor.
+            return .auto
+        default:
+            return ExaSearchType(rawValue: value)
         }
-        return ExaSearchType(rawValue: value)
     }
 }
 
 /// Exa per-request category filter. Validated against Exa's documented allowlist.
 enum ExaCategory: String, Codable, CaseIterable, Sendable {
     case company
-    case researchPaper = "research paper"
+    /// Scholarly publications (papers, preprints, journals). Replaces legacy `"research paper"`.
+    case publication
     case news
     case personalSite = "personal site"
     case financialReport = "financial report"
@@ -180,7 +202,14 @@ enum ExaCategory: String, Codable, CaseIterable, Sendable {
         guard let value = rawValue?.trimmedNonEmpty?.lowercased() else {
             return nil
         }
-        return ExaCategory(rawValue: value)
+
+        // Exa replaced `research paper` with `publication`.
+        switch value {
+        case "research paper", "research_paper", "researchpaper":
+            return .publication
+        default:
+            return ExaCategory(rawValue: value)
+        }
     }
 }
 

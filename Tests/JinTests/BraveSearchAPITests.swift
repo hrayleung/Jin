@@ -90,5 +90,100 @@ final class BraveSearchAPITests: XCTestCase {
 
         XCTAssertEqual(value, "2026-05-02to2026-05-09")
     }
+
+    func testMakeLLMContextURLIncludesCoreQueryItems() throws {
+        let url = try XCTUnwrap(
+            BraveSearchAPI.makeLLMContextURL(
+                query: "swift concurrency",
+                count: 8,
+                maximumNumberOfURLs: 8,
+                freshness: "2026-01-01to2026-02-01",
+                country: "US",
+                searchLanguage: "en",
+                safesearch: "moderate",
+                enableSourceMetadata: true
+            )
+        )
+
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(components.path, "/res/v1/llm/context")
+        let queryItems = components.queryItems ?? []
+
+        XCTAssertTrue(queryItems.contains(where: { $0.name == "q" && $0.value == "swift concurrency" }))
+        XCTAssertTrue(queryItems.contains(where: { $0.name == "count" && $0.value == "8" }))
+        XCTAssertTrue(queryItems.contains(where: { $0.name == "maximum_number_of_urls" && $0.value == "8" }))
+        XCTAssertTrue(queryItems.contains(where: { $0.name == "freshness" && $0.value == "2026-01-01to2026-02-01" }))
+        XCTAssertTrue(queryItems.contains(where: { $0.name == "country" && $0.value == "US" }))
+        XCTAssertTrue(queryItems.contains(where: { $0.name == "search_lang" && $0.value == "en" }))
+        XCTAssertTrue(queryItems.contains(where: { $0.name == "safesearch" && $0.value == "moderate" }))
+        XCTAssertTrue(queryItems.contains(where: { $0.name == "enable_source_metadata" && $0.value == "true" }))
+    }
+
+    func testMakeLLMContextURLClampsCountToMaximum() throws {
+        let url = try XCTUnwrap(
+            BraveSearchAPI.makeLLMContextURL(query: "test", count: 99)
+        )
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let queryItems = components.queryItems ?? []
+        XCTAssertTrue(queryItems.contains(where: { $0.name == "count" && $0.value == "50" }))
+        XCTAssertTrue(queryItems.contains(where: { $0.name == "maximum_number_of_urls" && $0.value == "50" }))
+    }
+
+    func testMakeBraveLLMContextRowsMapsGroundingAndSources() {
+        let json: [String: Any] = [
+            "grounding": [
+                "generic": [
+                    [
+                        "url": "https://example.com/a",
+                        "title": "A",
+                        "snippets": ["First chunk", "Second chunk"]
+                    ],
+                    [
+                        "url": "https://example.com/a",
+                        "title": "A dup",
+                        "snippets": ["dup"]
+                    ],
+                    [
+                        "url": "https://example.com/b",
+                        "snippets": ["Only B"]
+                    ]
+                ]
+            ],
+            "sources": [
+                "https://example.com/b": [
+                    "title": "B from sources",
+                    "hostname": "example.com",
+                    "age": ["Monday", "2024-01-15", "long ago"]
+                ]
+            ]
+        ]
+
+        let rows = BuiltinSearchToolHub.makeBraveLLMContextRows(from: json, maxResults: 5)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows[0].url, "https://example.com/a")
+        XCTAssertEqual(rows[0].title, "A")
+        XCTAssertEqual(rows[0].snippet, "First chunk\nSecond chunk")
+        XCTAssertEqual(rows[1].url, "https://example.com/b")
+        XCTAssertEqual(rows[1].title, "B from sources")
+        XCTAssertEqual(rows[1].publishedAt, "2024-01-15")
+        XCTAssertEqual(rows[1].source, "example.com")
+    }
+
+    func testMakeBraveLLMContextRowsRespectsMaxResultsCap() {
+        let json: [String: Any] = [
+            "grounding": [
+                "generic": (1...5).map { index in
+                    [
+                        "url": "https://example.com/\(index)",
+                        "title": "T\(index)",
+                        "snippets": ["s\(index)"]
+                    ] as [String: Any]
+                }
+            ]
+        ]
+
+        let rows = BuiltinSearchToolHub.makeBraveLLMContextRows(from: json, maxResults: 2)
+        XCTAssertEqual(rows.map(\.url), ["https://example.com/1", "https://example.com/2"])
+    }
 }
 

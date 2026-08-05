@@ -25,7 +25,6 @@ struct WebSearchPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.pluginWebSearchJinaLocale) private var jinaLocale = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchFirecrawlExtractContent) private var firecrawlExtractContent = true
     @AppStorage(AppPreferenceKeys.pluginWebSearchFirecrawlCountry) private var firecrawlCountry = ""
-    @AppStorage(AppPreferenceKeys.pluginWebSearchFirecrawlLanguage) private var firecrawlLanguage = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchFirecrawlSources) private var firecrawlSourcesRaw = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchTavilySearchDepth) private var tavilySearchDepth = "basic"
     @AppStorage(AppPreferenceKeys.pluginWebSearchTavilyTopic) private var tavilyTopic = "general"
@@ -94,7 +93,6 @@ struct WebSearchPluginSettingsView: View {
             .modifier(FirecrawlProviderObservers(
                 firecrawlExtractContent: firecrawlExtractContent,
                 firecrawlCountry: firecrawlCountry,
-                firecrawlLanguage: firecrawlLanguage,
                 firecrawlSourcesRaw: firecrawlSourcesRaw,
                 onChange: notifyCredentialsChanged
             ))
@@ -112,6 +110,7 @@ struct WebSearchPluginSettingsView: View {
             ))
             .onAppear {
                 initializeCredentialEditorProviderIfNeeded()
+                normalizeLegacyExaPreferencesIfNeeded()
             }
     }
 
@@ -216,7 +215,6 @@ struct WebSearchPluginSettingsView: View {
             jinaLocale: $jinaLocale,
             firecrawlExtractContent: $firecrawlExtractContent,
             firecrawlCountry: $firecrawlCountry,
-            firecrawlLanguage: $firecrawlLanguage,
             firecrawlSourcesRaw: $firecrawlSourcesRaw,
             tavilySearchDepth: $tavilySearchDepth,
             tavilyTopic: $tavilyTopic,
@@ -269,6 +267,19 @@ struct WebSearchPluginSettingsView: View {
             configuredProviders: configuredProviders,
             defaultProvider: defaultProvider
         ).rawValue
+    }
+
+    /// Rewrites retired Exa AppStorage values so pickers show a valid selection.
+    private func normalizeLegacyExaPreferencesIfNeeded() {
+        if let resolvedType = ExaSearchType.resolved(from: exaSearchTypeRaw),
+           resolvedType.wireValue != exaSearchTypeRaw {
+            exaSearchTypeRaw = resolvedType.wireValue
+        }
+
+        if let resolvedCategory = ExaCategory.resolved(from: exaCategory),
+           resolvedCategory.rawValue != exaCategory {
+            exaCategory = resolvedCategory.rawValue
+        }
     }
 
     private func notifyCredentialsChanged() {

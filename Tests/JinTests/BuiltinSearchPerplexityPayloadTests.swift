@@ -41,19 +41,21 @@ final class BuiltinSearchPerplexityPayloadTests: XCTestCase {
         XCTAssertEqual(body["search_language_filter"] as? [String], ["en"])
     }
 
-    func testPerplexityBodyEmitsMaxTokensOnlyForRawContent() {
+    func testPerplexityBodyEmitsSearchContextSizeForRawContent() {
         let withRaw = BuiltinSearchToolHub.makePerplexityRequestBody(
             args: makeArgs(includeRawContent: true),
             settings: makeSettings(),
             overrides: nil
         )
-        XCTAssertEqual(withRaw["max_tokens"] as? Int, 4_096)
+        XCTAssertEqual(withRaw["search_context_size"] as? String, "high")
+        XCTAssertNil(withRaw["max_tokens"], "Prefer search_context_size over fixed max_tokens.")
 
         let withoutRaw = BuiltinSearchToolHub.makePerplexityRequestBody(
             args: makeArgs(includeRawContent: false),
             settings: makeSettings(),
             overrides: nil
         )
+        XCTAssertNil(withoutRaw["search_context_size"])
         XCTAssertNil(withoutRaw["max_tokens"])
     }
 

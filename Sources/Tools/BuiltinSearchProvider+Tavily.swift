@@ -89,7 +89,9 @@ extension BuiltinSearchToolHub {
             body["auto_parameters"] = true
         }
 
-        if body["search_depth"] as? String == "advanced" {
+        // chunks_per_source is documented for advanced, basic, and fast (not ultra-fast).
+        if let depth = body["search_depth"] as? String,
+           depth == "advanced" || depth == "basic" || depth == "fast" {
             body["chunks_per_source"] = 3
         }
 

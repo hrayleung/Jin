@@ -58,7 +58,7 @@ extension BuiltinSearchToolHub {
         ]
 
         if let searchType = overrides?.exaSearchType ?? settings.exaSearchType {
-            body["type"] = searchType.rawValue
+            body["type"] = searchType.wireValue
         }
 
         let category = ExaCategory.resolved(from: overrides?.exaCategory ?? settings.exaCategory)
@@ -99,6 +99,9 @@ extension BuiltinSearchToolHub {
                 contents["maxAgeHours"] = recencyDays * 24
             }
             body["contents"] = contents
+        } else {
+            // Query-relevant highlights improve snippet quality without full page text.
+            body["contents"] = ["highlights": true]
         }
 
         return body

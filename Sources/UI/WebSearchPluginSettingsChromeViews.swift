@@ -46,7 +46,6 @@ struct WebSearchAdvancedProviderSettingsView: View {
 
     @Binding var firecrawlExtractContent: Bool
     @Binding var firecrawlCountry: String
-    @Binding var firecrawlLanguage: String
     @Binding var firecrawlSourcesRaw: String
 
     @Binding var tavilySearchDepth: String
@@ -166,13 +165,6 @@ struct WebSearchAdvancedProviderSettingsView: View {
             "Country",
             fieldTitle: "e.g. US",
             text: $firecrawlCountry,
-            usesMonospacedFont: true
-        )
-
-        JinSettingsTextFieldRow(
-            "Language",
-            fieldTitle: "e.g. en",
-            text: $firecrawlLanguage,
             usesMonospacedFont: true
         )
 
@@ -313,7 +305,6 @@ struct JinaProviderObservers: ViewModifier {
 struct FirecrawlProviderObservers: ViewModifier {
     let firecrawlExtractContent: Bool
     let firecrawlCountry: String
-    let firecrawlLanguage: String
     let firecrawlSourcesRaw: String
     let onChange: () -> Void
 
@@ -321,7 +312,6 @@ struct FirecrawlProviderObservers: ViewModifier {
         content
             .onChange(of: firecrawlExtractContent) { _, _ in onChange() }
             .onChange(of: firecrawlCountry) { _, _ in onChange() }
-            .onChange(of: firecrawlLanguage) { _, _ in onChange() }
             .onChange(of: firecrawlSourcesRaw) { _, _ in onChange() }
     }
 }
@@ -358,7 +348,7 @@ private func exaSearchTypeLabel(for value: ExaSearchType) -> String {
     switch value {
     case .auto: return "Auto"
     case .fast: return "Fast"
-    case .neural: return "Neural"
+    case .neural: return "Auto" // legacy case; not shown in publicCases
     case .deepLite: return "Deep Lite"
     case .deep: return "Deep"
     case .deepReasoning: return "Deep Reasoning"
@@ -369,7 +359,7 @@ private func exaSearchTypeLabel(for value: ExaSearchType) -> String {
 private func exaCategoryLabel(for value: ExaCategory) -> String {
     switch value {
     case .company: return "Company"
-    case .researchPaper: return "Research paper"
+    case .publication: return "Publication"
     case .news: return "News"
     case .personalSite: return "Personal site"
     case .financialReport: return "Financial report"
