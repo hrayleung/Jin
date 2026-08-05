@@ -2720,6 +2720,66 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenCodeGoAdapterOmitsTemperatureForFixedTempKimiModels() async throws {
+        // Kimi K3 / K2.7 Code (and K2.5 / K2.6) reject non-default temperatures with
+        // HTTP 400 ("invalid temperature: only 1 is allowed for this model"). Assistant
+        // defaults of 0.1 must never reach the gateway — omit the field entirely so the
+        // upstream applies the only legal value.
+        let fixedTempModelIDs = ["kimi-k3", "kimi-k2.7-code", "kimi-k2.6", "kimi-k2.5"]
+        for modelID in fixedTempModelIDs {
+            XCTAssertFalse(
+                OpenCodeGoAdapter.supportsCustomTemperature(modelID),
+                "\(modelID) must be treated as fixed-temperature"
+            )
+        }
+        XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("glm-5.2"))
+        XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("grok-4.5"))
+        // Unknown kimi-* IDs must not prefix-match into the fixed-temp set.
+        XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("kimi-k4"))
+
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        for modelID in fixedTempModelIDs {
+            protocolType.requestHandler = { request in
+                XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(root["model"] as? String, modelID)
+                XCTAssertNil(root["temperature"], "\(modelID) must omit temperature (gateway rejects non-default)")
+                // top_p is not locked by Moonshot's fixed-temp rule; still allowed.
+                XCTAssertEqual(root["top_p"] as? Double, 0.95)
+                XCTAssertEqual(root["max_tokens"] as? Int, 256)
+
+                let response: [String: Any] = [
+                    "id": "cmpl_opencode_\(modelID)",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+
+            var controls = GenerationControls(
+                temperature: 0.1,
+                maxTokens: 256
+            )
+            controls.topP = 0.95
+            // Stale providerSpecific temperature must also be stripped.
+            controls.providerSpecific = ["temperature": AnyCodable(0.7)]
+
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: modelID,
+                controls: controls,
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+    }
+
     func testOpenCodeGoValidateAPIKeyUsesResponsesEndpointForGPT56Luna() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

@@ -17,6 +17,12 @@ extension OpenCodeGoAdapter {
         openAIResponsesModelIDs.contains(modelID.lowercased())
     }
 
+    /// Whether this `/chat/completions` model accepts a caller-supplied `temperature`.
+    /// Matched by exact ID (see `temperatureUnsupportedChatCompletionsModelIDs`).
+    static func supportsCustomTemperature(_ modelID: String) -> Bool {
+        !temperatureUnsupportedChatCompletionsModelIDs.contains(modelID.lowercased())
+    }
+
     func buildOpenAIRequest(
         messages: [Message],
         modelID: String,
@@ -30,7 +36,12 @@ extension OpenCodeGoAdapter {
             "stream": streaming
         ]
 
-        if let temperature = controls.temperature {
+        // Moonshot Kimi models on Go reject non-default temperatures with HTTP 400
+        // ("invalid temperature: only 1 is allowed for this model"). Jin's assistant
+        // default is 0.1, so always omit rather than force 1.0 — the gateway applies the
+        // only legal value (and the mode-correct 1.0/0.6 pair for K2.5/K2.6).
+        let supportsTemperature = Self.supportsCustomTemperature(modelID)
+        if supportsTemperature, let temperature = controls.temperature {
             body["temperature"] = temperature
         }
         if let maxTokens = controls.maxTokens {
@@ -73,6 +84,9 @@ extension OpenCodeGoAdapter {
             // Never let a custom param reintroduce the nested `reasoning` object the strict
             // gateway rejects (HTTP 400); reasoning is controlled via `reasoning_effort` above.
             guard key != "reasoning" else { continue }
+            // Same for temperature on fixed-temp models — a stale providerSpecific value
+            // would re-trigger the gateway's "only 1 is allowed" 400.
+            if !supportsTemperature, key == "temperature" { continue }
             body[key] = value.value
         }
 
