@@ -242,6 +242,10 @@ extension ChatView {
         )
         // #endregion
 
+        // SwiftData count/updatedAt observers would fire a parallel
+        // rebuildMessageCachesIfNeeded during the append — racing the fast
+        // path and often forcing a full cell reconfigure (white flash).
+        defersObservedMessageCacheRebuild = true
         let rebuildStartedAt = ProcessInfo.processInfo.systemUptime
         ChatUserTurnPersistence.appendPreparedUserMessage(
             parts: parts,
@@ -256,6 +260,12 @@ extension ChatView {
             makeConversationTitle: makeConversationTitle(from:),
             applyRenderCaches: applyAppendedUserTurnToRenderCaches
         )
+        // Keep the defer armed until the next turn so the observer that
+        // already queued for this mutation still no-ops; clear on the next
+        // main-queue pass after paint has been applied.
+        DispatchQueue.main.async {
+            self.defersObservedMessageCacheRebuild = false
+        }
         let rebuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - rebuildStartedAt) * 1000)
 
         // #region agent log

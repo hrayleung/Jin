@@ -61,7 +61,12 @@ extension ChatView {
             // gauge needs the one appended history message.
             refreshContextUsageEstimate(debounced: false)
         } else {
-            rebuildMessageCaches()
+            // Bubble is already painted. A synchronous full rebuild here
+            // re-decodes the whole conversation and bumps renderRevision,
+            // which forces reloadVisibleContent on every on-screen cell —
+            // the intermittent full-stage white flash on send. True-up on
+            // the existing debounced path instead.
+            scheduleUpdatedAtDrivenCacheRebuild()
         }
     }
 
