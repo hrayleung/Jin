@@ -71,6 +71,25 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         "gpt-5.6-luna",
     ]
 
+    /// Exact model IDs on the OpenAI-compatible `/chat/completions` path whose upstream
+    /// rejects any non-default `temperature` (HTTP 400: "invalid temperature: only 1 is
+    /// allowed for this model", or the mode-locked 1.0/0.6 pair for K2.5/K2.6).
+    ///
+    /// Sources (exact IDs, never prefix):
+    /// - models.dev `opencode-go` marks `kimi-k3` and `kimi-k2.7-code` as `temperature: false`
+    /// - Moonshot docs: K3 / K2.7 Code are fixed at 1.0; K2.5 / K2.6 are fixed at 1.0
+    ///   (thinking) or 0.6 (instant) — "Do not pass temperature explicitly"
+    ///
+    /// `gpt-5.6-luna` is also `temperature: false` on models.dev, but it is handled by the
+    /// Responses sampling gate (`supportsOpenAIResponsesSamplingParameters`) rather than this
+    /// set, because it never reaches `buildOpenAIRequest`.
+    static let temperatureUnsupportedChatCompletionsModelIDs: Set<String> = [
+        "kimi-k3",
+        "kimi-k2.7-code",
+        "kimi-k2.6",
+        "kimi-k2.5",
+    ]
+
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
         self.providerConfig = providerConfig
         self.apiKey = apiKey
