@@ -347,4 +347,103 @@ final class ChatReasoningSupportTests: XCTestCase {
         XCTAssertFalse(ChatReasoningSupport.cerebrasPreservesThinking(controls: controls))
         XCTAssertNil(controls.providerSpecific["clear_thinking"])
     }
+
+    func testEffortLevelsForReasoningMenuDropsNoneWhenDisableToggleIsShown() {
+        // Kimi K3 / Inkling-style bands include `.none` ("Off") as a wire effort.
+        // The composer also renders a dedicated Off toggle — keep only one "Off".
+        let kimiK3Band: [ReasoningEffort] = [.none, .low, .high, .max]
+        XCTAssertEqual(
+            ChatReasoningSupport.effortLevelsForReasoningMenu(
+                supported: kimiK3Band,
+                includesDisableToggle: true
+            ),
+            [.low, .high, .max]
+        )
+        XCTAssertEqual(
+            ChatReasoningSupport.effortLevelsForReasoningMenu(
+                supported: kimiK3Band,
+                includesDisableToggle: false
+            ),
+            kimiK3Band
+        )
+
+        let fullBand: [ReasoningEffort] = [.none, .minimal, .low, .medium, .high, .xhigh, .max]
+        XCTAssertEqual(
+            ChatReasoningSupport.effortLevelsForReasoningMenu(
+                supported: fullBand,
+                includesDisableToggle: true
+            ),
+            [.minimal, .low, .medium, .high, .xhigh, .max]
+        )
+
+        // Models without a `.none` effort keep the full list either way.
+        let openAIBand: [ReasoningEffort] = [.low, .medium, .high]
+        XCTAssertEqual(
+            ChatReasoningSupport.effortLevelsForReasoningMenu(
+                supported: openAIBand,
+                includesDisableToggle: true
+            ),
+            openAIBand
+        )
+    }
+
+    func testReasoningOffMenuSelectionTreatsNoneEffortAsOffWhenToggleOwnsLabel() {
+        XCTAssertTrue(
+            ChatReasoningSupport.isReasoningOffMenuSelected(
+                isReasoningEnabled: false,
+                currentEffort: .high,
+                includesDisableToggle: true
+            )
+        )
+        XCTAssertTrue(
+            ChatReasoningSupport.isReasoningOffMenuSelected(
+                isReasoningEnabled: true,
+                currentEffort: .none,
+                includesDisableToggle: true
+            )
+        )
+        XCTAssertFalse(
+            ChatReasoningSupport.isReasoningOffMenuSelected(
+                isReasoningEnabled: true,
+                currentEffort: .high,
+                includesDisableToggle: true
+            )
+        )
+        // Without the dedicated toggle, effort.none is a normal effort row — Off is not
+        // separately selected via the disable control.
+        XCTAssertFalse(
+            ChatReasoningSupport.isReasoningOffMenuSelected(
+                isReasoningEnabled: true,
+                currentEffort: .none,
+                includesDisableToggle: false
+            )
+        )
+    }
+
+    func testKimiK3SupportedEffortsStillIncludeNoneForAPIAndModelSettings() {
+        // Registry keeps `.none` for adapters / default-effort pickers; only the menu
+        // presentation layer dedupes the Off label.
+        for (provider, modelID) in [
+            (ProviderType.baseten, "moonshotai/Kimi-K3"),
+            (.modal, "moonshotai/Kimi-K3"),
+            (.fireworks, "accounts/fireworks/models/kimi-k3")
+        ] {
+            let efforts = ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: provider,
+                modelID: modelID
+            )
+            XCTAssertTrue(
+                efforts.contains(.none),
+                "\(provider.rawValue)/\(modelID) should keep .none in supported efforts"
+            )
+            XCTAssertEqual(
+                ChatReasoningSupport.effortLevelsForReasoningMenu(
+                    supported: efforts,
+                    includesDisableToggle: true
+                ).filter { $0 == .none },
+                [],
+                "Composer menu must not list .none beside the Off toggle for \(provider.rawValue)"
+            )
+        }
+    }
 }

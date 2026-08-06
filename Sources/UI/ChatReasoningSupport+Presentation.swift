@@ -56,4 +56,36 @@ extension ChatReasoningSupport {
             return nil
         }
     }
+
+    /// Effort levels rendered next to the dedicated "Off" disable row.
+    ///
+    /// `ReasoningEffort.none.displayName` is also `"Off"`. When the composer already
+    /// shows a disable toggle, including `.none` would duplicate that label (e.g. Kimi
+    /// K3 on Baseten/Modal/Fireworks: Off, Off, Low, High, Max). Keep `.none` only when
+    /// the disable toggle is unavailable — it is then the sole "Off" affordance.
+    static func effortLevelsForReasoningMenu(
+        supported: [ReasoningEffort],
+        includesDisableToggle: Bool
+    ) -> [ReasoningEffort] {
+        guard includesDisableToggle else { return supported }
+        return supported.filter { $0 != .none }
+    }
+
+    /// Whether the dedicated "Off" row should appear selected.
+    ///
+    /// Treats explicit `effort == .none` as Off when the disable toggle owns that
+    /// label, so a previously selected `.none` effort still highlights correctly.
+    static func isReasoningOffMenuSelected(
+        isReasoningEnabled: Bool,
+        currentEffort: ReasoningEffort?,
+        includesDisableToggle: Bool
+    ) -> Bool {
+        if !isReasoningEnabled {
+            return true
+        }
+        if includesDisableToggle, currentEffort == ReasoningEffort.none {
+            return true
+        }
+        return false
+    }
 }
