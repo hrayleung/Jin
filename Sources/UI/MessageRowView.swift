@@ -39,8 +39,9 @@ struct MessageRow: View, Equatable {
 
     /// Bumped when row-internal disclosures (MCP / thinking / code exec /
     /// search) change height without the parent message data changing.
-    /// Folded into `ConstrainedWidth` so the bubble remeasures instead of
-    /// leaving residual empty gray after collapse.
+    /// Touched in `body` so the write invalidates this row; do **not** feed it
+    /// into `ConstrainedWidth` `.version(...)` — that would cache the first
+    /// fittingSize and clip async markdown / edit-height growth on macOS < 27.
     @State private var layoutEpoch = 0
 
     var body: some View {
@@ -51,6 +52,10 @@ struct MessageRow: View, Equatable {
             renderMode: renderMode,
             editingUserMessageID: editingUserMessageID
         )
+        // Keep a body dependency on `layoutEpoch` so disclosure expand/collapse
+        // re-runs this row without switching ConstrainedWidth into version-gated
+        // cache mode (which would stale-cache async markdown / edit heights).
+        let _ = layoutEpoch
         Group {
             if !presentation.rendersRow {
                 EmptyView()
@@ -223,15 +228,6 @@ struct MessageRow: View, Equatable {
                         .frame(
                             maxWidth: .infinity,
                             alignment: presentation.isUser ? .trailing : .leading
-                        )
-                        // Disclosure expand/collapse bumps `layoutEpoch` without
-                        // changing the render item; fold it into ConstrainedWidth
-                        // so the row remeasures instead of leaving residual empty
-                        // gray under a stale height (especially on macOS 27's
-                        // frame+fixedSize path).
-                        .layoutValue(
-                            key: ConstrainedWidthContentVersionKey.self,
-                            value: .version(layoutEpoch)
                         )
                     }
                     .padding(.horizontal, presentation.isUser ? 0 : JinSpacing.small)
