@@ -24,7 +24,13 @@ enum ChatTimelineHeightEstimator {
     private static let headingHeight = 34.0
     private static let tableRowHeight = 30.0
     private static let blankLineSpacing = 6.0
-    private static let rowChrome = 64.0          // bubble padding + header/footer
+    // Header (~18) + bubble padding (12×2) + footer actions (~22) +
+    // VStack spacing/footer top pad (~8) + row vertical padding (8×2).
+    // The previous 64 under-counted the footer strip by ~one action-row,
+    // so just-sent user rows were pre-seeded short: the copy/regenerate
+    // cluster painted into the streaming bubble until the first real
+    // measure landed (the "buttons overlap on send" glitch).
+    private static let rowChrome = 96.0
 
     static func estimate(text: String, columnWidth: CGFloat) -> CGFloat {
         let columnsPerLine = max(16.0, Double(columnWidth) / 7.5)
@@ -63,7 +69,8 @@ enum ChatTimelineHeightEstimator {
             height += max(1.0, (columns / columnsPerLine).rounded(.up)) * bodyLineHeight
         }
 
-        return CGFloat(max(height, 44))
+        // Short user turns still need the full chrome (header + footer).
+        return CGFloat(max(height, rowChrome))
     }
 
     /// East-Asian-wide scalar ranges: these occupy ≈2 Latin columns.

@@ -39,8 +39,9 @@ struct MessageRow: View, Equatable {
 
     /// Bumped when row-internal disclosures (MCP / thinking / code exec /
     /// search) change height without the parent message data changing.
-    /// Folded into `ConstrainedWidth` so the bubble remeasures instead of
-    /// leaving residual empty gray after collapse.
+    /// Touched in `body` so the write invalidates this row; do **not** feed it
+    /// into `ConstrainedWidth` `.version(...)` — that would cache the first
+    /// fittingSize and clip async markdown / edit-height growth on macOS < 27.
     @State private var layoutEpoch = 0
 
     var body: some View {
@@ -51,6 +52,10 @@ struct MessageRow: View, Equatable {
             renderMode: renderMode,
             editingUserMessageID: editingUserMessageID
         )
+        // Keep a body dependency on `layoutEpoch` so disclosure expand/collapse
+        // re-runs this row without switching ConstrainedWidth into version-gated
+        // cache mode (which would stale-cache async markdown / edit heights).
+        let _ = layoutEpoch
         Group {
             if !presentation.rendersRow {
                 EmptyView()
@@ -61,6 +66,11 @@ struct MessageRow: View, Equatable {
                     }
 
                     ConstrainedWidth(presentation.effectiveMaxBubbleWidth) {
+                        // User rows must expand to the full proposed max width and
+                        // trail-align children. Hugging alone + ConstrainedWidth's
+                        // leading frame parks a short bubble mid-column (macOS 27
+                        // frame+fixedSize path). Footer actions hug; this frame
+                        // is what pins them under the bubble's right edge.
                         VStack(alignment: presentation.isUser ? .trailing : .leading, spacing: 6) {
                             VStack(alignment: .leading, spacing: JinSpacing.small) {
                                 MessageRowHeaderView(
@@ -215,6 +225,10 @@ struct MessageRow: View, Equatable {
                                 .padding(.top, 2)
                             }
                         }
+                        .frame(
+                            maxWidth: .infinity,
+                            alignment: presentation.isUser ? .trailing : .leading
+                        )
                     }
                     .padding(.horizontal, presentation.isUser ? 0 : JinSpacing.small)
 

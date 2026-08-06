@@ -313,8 +313,14 @@ final class ChatTimelineHostingCell: NSTableCellView {
         // scroll layers (the "一片白" beat on send).
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
+        // Explicit masks so a short first-measure row cannot let the hosted
+        // footer action strip paint into the streaming bubble below (macOS 27
+        // NSHostingView was observed drawing past the cell without this).
+        layer?.masksToBounds = true
         host.wantsLayer = true
+        host.clipsToBounds = true
         host.layer?.backgroundColor = NSColor.clear.cgColor
+        host.layer?.masksToBounds = true
         // Leading/trailing fix width = column width; top-align the host so
         // when the table row is mid-animation (shorter or taller than the
         // SwiftUI intrinsic size for a frame) we curtain from the top instead
