@@ -40,7 +40,14 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
         if let reasoningConfig, reasoningConfig.type != .none {
             if supportsReasoningDisableToggle {
                 Button(action: onSetReasoningOff) {
-                    menuItemLabel("Off", !isReasoningEnabled)
+                    menuItemLabel(
+                        "Off",
+                        ChatReasoningSupport.isReasoningOffMenuSelected(
+                            isReasoningEnabled: isReasoningEnabled,
+                            currentEffort: currentReasoningEffort,
+                            includesDisableToggle: true
+                        )
+                    )
                 }
             }
 
@@ -62,7 +69,7 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
                         menuItemLabel("Configure thinking…", isReasoningEnabled)
                     }
                 } else {
-                    ForEach(availableReasoningEffortLevels, id: \.self) { level in
+                    ForEach(menuEffortLevels, id: \.self) { level in
                         Button {
                             onSetReasoningEffort(level)
                         } label: {
@@ -182,6 +189,15 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
             Text("Not supported")
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// Effort rows for the menu. Drops `.none` when the dedicated Off toggle is shown
+    /// so its "Off" label is not duplicated (`ReasoningEffort.none.displayName == "Off"`).
+    private var menuEffortLevels: [ReasoningEffort] {
+        ChatReasoningSupport.effortLevelsForReasoningMenu(
+            supported: availableReasoningEffortLevels,
+            includesDisableToggle: supportsReasoningDisableToggle
+        )
     }
 
     private func effortLabel(for level: ReasoningEffort) -> String {
