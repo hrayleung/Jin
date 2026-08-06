@@ -22,7 +22,7 @@ extension ChatAuxiliaryControlSupport {
         )
 
         switch providerType {
-        case .openai, .openaiWebSocket:
+        case .openai, .openaiWebSocket, .meta:
             return ContextCacheControls(mode: .implicit)
         case .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .kimiForCoding:
             return nil
@@ -49,7 +49,7 @@ extension ChatAuxiliaryControlSupport {
             return ContextCacheControls(mode: .implicit, ttl: .minutes5)
         case .githubCopilot, .openaiCompatible, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
              .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks,
-             .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .meta:
+             .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra:
             return nil
         }
     }

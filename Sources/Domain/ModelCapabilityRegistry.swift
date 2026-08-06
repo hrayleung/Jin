@@ -901,9 +901,24 @@ enum ModelCapabilityRegistry {
             return MiMoModelIDs.tokenPlanExactModelIDs.contains(lowerModelID)
         case .mimoTokenPlanOpenAI:
             return MiMoModelIDs.tokenPlanExactModelIDs.contains(lowerModelID)
+        case .meta:
+            return isMetaMuseSparkModelID(lowerModelID)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .zyphra, .meta, .kimiForCoding, .none:
+             .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .zyphra, .kimiForCoding, .none:
+            return false
+        }
+    }
+
+    /// Exact Muse Spark IDs on the Meta Model API (and bare IDs without gateway prefix).
+    static func isMetaMuseSparkModelID(_ lowerModelID: String) -> Bool {
+        let bare = lowerModelID.hasPrefix("meta/")
+            ? String(lowerModelID.dropFirst("meta/".count))
+            : lowerModelID
+        switch bare {
+        case "muse-spark-1.1", "muse-spark-1.2", "muse-spark-1.2-contributor":
+            return true
+        default:
             return false
         }
     }

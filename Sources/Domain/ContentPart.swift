@@ -22,6 +22,7 @@ enum ContentPart: Codable, Sendable {
         case thinking
         case signature
         case redactedData
+        case redactedItemID
         case provider
     }
 
@@ -67,7 +68,8 @@ enum ContentPart: Codable, Sendable {
         case .redactedThinking:
             let data = try container.decode(String.self, forKey: .redactedData)
             let provider = try container.decodeIfPresent(String.self, forKey: .provider)
-            self = .redactedThinking(RedactedThinkingBlock(data: data, provider: provider))
+            let id = try container.decodeIfPresent(String.self, forKey: .redactedItemID)
+            self = .redactedThinking(RedactedThinkingBlock(data: data, provider: provider, id: id))
         }
     }
 
@@ -102,6 +104,7 @@ enum ContentPart: Codable, Sendable {
             try container.encode(ContentType.redactedThinking, forKey: .type)
             try container.encode(thinking.data, forKey: .redactedData)
             try container.encodeIfPresent(thinking.provider, forKey: .provider)
+            try container.encodeIfPresent(thinking.id, forKey: .redactedItemID)
         }
     }
 }

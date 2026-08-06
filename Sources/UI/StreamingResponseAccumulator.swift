@@ -100,8 +100,8 @@ struct StreamingResponseAccumulator {
             )
             assistantPartRefs.append(.thinking(idx))
 
-        case .redacted(let data):
-            assistantPartRefs.append(.redacted(RedactedThinkingBlock(data: data)))
+        case .redacted(let data, let id):
+            assistantPartRefs.append(.redacted(RedactedThinkingBlock(data: data, id: id)))
         }
     }
 
@@ -155,7 +155,8 @@ struct StreamingResponseAccumulator {
             case .redacted(let redacted):
                 let taggedRedacted = RedactedThinkingBlock(
                     data: redacted.data,
-                    provider: redacted.provider ?? providerTypeRawValue
+                    provider: redacted.provider ?? providerTypeRawValue,
+                    id: redacted.id
                 )
                 parts.append(.redactedThinking(taggedRedacted))
             }

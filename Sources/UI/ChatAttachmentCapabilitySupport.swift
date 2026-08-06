@@ -49,12 +49,12 @@ extension ChatModelCapabilitySupport {
         guard let providerType else { return false }
 
         switch providerType {
-        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .perplexity, .xai, .gemini, .vertexai:
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .perplexity, .xai, .gemini, .vertexai, .meta:
             break
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
              .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo,
-             .zyphra, .meta, .kimiForCoding:
+             .zyphra, .kimiForCoding:
             return false
         }
 

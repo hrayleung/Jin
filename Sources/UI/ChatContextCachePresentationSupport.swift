@@ -11,9 +11,11 @@ extension ChatAuxiliaryControlSupport {
             return "OpenAI uses prompt cache hints. A stable key and retention hint can improve reuse across similar prompts."
         case .xai:
             return "xAI supports prompt cache hints and optional conversation scoping for continuity across related turns."
+        case .meta:
+            return "Meta Muse Spark uses implicit prompt caching. An optional cache key and retention hint (in-memory or 24h) can improve reuse."
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .kimiForCoding, .none:
             return "Context cache controls are only available for providers with native prompt caching support."
         }
     }
@@ -22,13 +24,13 @@ extension ChatAuxiliaryControlSupport {
         switch providerType {
         case .gemini, .vertexai:
             return "Explicit mode requires a valid cached content resource name. Keep it stable across requests to reuse cached tokens."
-        case .openai, .openaiWebSocket, .xai:
+        case .openai, .openaiWebSocket, .xai, .meta:
             return "Use a stable cache key when your prompt prefix is consistent."
         case .anthropic, .claudeManagedAgents:
             return "For best results, keep system prompts and tool descriptions stable so Anthropic can reuse cacheable blocks."
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .kimiForCoding, .none:
             return "Use explicit mode for Gemini/Vertex cached content resources. Other providers use implicit cache hints."
         }
     }

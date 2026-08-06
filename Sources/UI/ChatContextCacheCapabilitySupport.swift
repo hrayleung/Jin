@@ -32,12 +32,12 @@ extension ChatAuxiliaryControlSupport {
 
     static func supportsContextCacheTTL(providerType: ProviderType?) -> Bool {
         switch providerType {
-        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai:
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .meta:
             return true
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .gemini, .vertexai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
+             .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .kimiForCoding, .none:
             return false
         }
     }
@@ -46,6 +46,6 @@ extension ChatAuxiliaryControlSupport {
         providerType: ProviderType?,
         supportsContextCacheTTL: Bool
     ) -> Bool {
-        supportsContextCacheTTL || providerType == .openai || providerType == .xai
+        supportsContextCacheTTL || providerType == .openai || providerType == .xai || providerType == .meta
     }
 }

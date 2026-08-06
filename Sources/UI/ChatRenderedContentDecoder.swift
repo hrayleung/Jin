@@ -223,7 +223,8 @@ enum ChatRenderedContentDecoder {
         return .redactedThinking(
             RedactedThinkingBlock(
                 data: data,
-                provider: rawPart["provider"] as? String
+                provider: rawPart["provider"] as? String,
+                id: rawPart["redactedItemID"] as? String ?? rawPart["id"] as? String
             )
         )
     }

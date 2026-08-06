@@ -690,11 +690,24 @@ extension ModelCatalog {
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
 
-        // Meta — Muse Spark 1.1 confirmed on Vercel AI Gateway (vercel.com model page +
-        // models.dev `vercel` provider, 2026-07-11): 1,048,576 context / 131,072 output
-        // per Meta's own docs. Reasoning is always-on upstream (minimal..xhigh; "none"
-        // is rejected with HTTP 400, so disabling reasoning must omit the field).
+        // Meta Muse Spark family on Vercel AI Gateway (live /v1/models, 2026-08-06):
+        // 1,048,576 context; standard 1.1/1.2 plus contributor tier for 1.2.
+        // Reasoning is always-on upstream (minimal..xhigh; omit field to leave default).
+        // Gateway transport is OpenAI-compatible; claim vision/reasoning/promptCaching only
+        // (native PDF/video stay on Meta's own Responses surface).
+        Record(id: "meta/muse-spark-1.2", displayName: "Muse Spark 1.2",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         Record(id: "meta/muse-spark-1.1", displayName: "Muse Spark 1.1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "meta/muse-spark-1.2-contributor", displayName: "Muse Spark 1.2 Contributor",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,

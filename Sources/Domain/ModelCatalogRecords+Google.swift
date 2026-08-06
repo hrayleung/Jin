@@ -290,6 +290,22 @@ extension ModelCatalog {
     // MARK: OpenRouter
 
     static let openRouterRecords: [Record] = [
+        // Meta Muse Spark (OpenRouter live /models, 2026-08-06): 1M context, always-on
+        // reasoning (mandatory=true, minimal..xhigh). OpenRouter chat path still
+        // text-fallbacks files — claim vision/reasoning/promptCaching only.
+        Record(id: "meta/muse-spark-1.2", displayName: "Meta: Muse Spark 1.2",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "meta/muse-spark-1.1", displayName: "Meta: Muse Spark 1.1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+
         // OpenRouter: no native PDF path (adapter text-fallbacks files). Effort default
         // is `low` per OpenRouter model card; context for 4.20 family is 2M on OR.
         Record(id: "x-ai/grok-4.3", displayName: "xAI: Grok 4.3",
