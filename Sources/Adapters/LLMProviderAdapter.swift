@@ -3,7 +3,9 @@ import Foundation
 /// Streaming reasoning delta (provider-specific details are optional)
 enum ThinkingDelta: Sendable {
     case thinking(textDelta: String, signature: String?)
-    case redacted(data: String)
+    /// Opaque / encrypted reasoning payload. Optional `id` is used by Meta Responses
+    /// (`rs_…` item id) when replaying `encrypted_content` on later turns.
+    case redacted(data: String, id: String?)
 }
 
 /// Stream event from LLM provider (normalized)

@@ -9,7 +9,7 @@ final class StreamingResponseAccumulatorTests: XCTestCase {
         accumulator.appendTextDelta("lo")
         accumulator.appendThinkingDelta(.thinking(textDelta: "think", signature: "sig_1"))
         accumulator.appendThinkingDelta(.thinking(textDelta: "ing", signature: "sig_1"))
-        accumulator.appendThinkingDelta(.redacted(data: "redacted"))
+        accumulator.appendThinkingDelta(.redacted(data: "redacted", id: nil))
 
         let snapshot = accumulator.snapshot()
 
@@ -33,6 +33,20 @@ final class StreamingResponseAccumulatorTests: XCTestCase {
         }
         XCTAssertEqual(redacted.data, "redacted")
         XCTAssertEqual(redacted.provider, ProviderType.anthropic.rawValue)
+        XCTAssertNil(redacted.id)
+    }
+
+    func testSnapshotPreservesMetaEncryptedReasoningItemID() {
+        var accumulator = StreamingResponseAccumulator(providerType: .meta)
+        accumulator.appendThinkingDelta(.redacted(data: "enc_blob_abc", id: "rs_123"))
+
+        let snapshot = accumulator.snapshot()
+        guard case .redactedThinking(let redacted) = snapshot.assistantParts.first else {
+            return XCTFail("Expected redacted thinking")
+        }
+        XCTAssertEqual(redacted.data, "enc_blob_abc")
+        XCTAssertEqual(redacted.id, "rs_123")
+        XCTAssertEqual(redacted.provider, ProviderType.meta.rawValue)
     }
 
     func testSnapshotMergesToolCallsAndKeepsToolOnlyOutputNonRenderable() throws {

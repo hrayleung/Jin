@@ -222,6 +222,8 @@ enum ModelSettingsResolver {
         "x-ai/grok-4.5",
         "anthropic/claude-fable-5",
         "sakana/fugu-ultra",
+        "meta/muse-spark-1.1",
+        "meta/muse-spark-1.2",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.5 and
@@ -232,6 +234,8 @@ enum ModelSettingsResolver {
     private static let vercelAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
         "xai/grok-4.5",
         "meta/muse-spark-1.1",
+        "meta/muse-spark-1.2",
+        "meta/muse-spark-1.2-contributor",
     ]
 
     /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list

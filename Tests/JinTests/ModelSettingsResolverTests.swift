@@ -2099,13 +2099,20 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "anthropic/claude-sonnet-5"))
 
         // Vercel AI Gateway twins of always-on upstream models.
-        for id in ["xai/grok-4.5", "meta/muse-spark-1.1"] {
+        for id in ["xai/grok-4.5", "meta/muse-spark-1.1", "meta/muse-spark-1.2", "meta/muse-spark-1.2-contributor"] {
             XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: id), id)
         }
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "openai/gpt-5.6-sol"))
 
+        // OpenRouter Muse Spark twins are always-on reasoning.
+        for id in ["meta/muse-spark-1.1", "meta/muse-spark-1.2"] {
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: id), id)
+        }
+
         // Meta's Muse Spark rejects disabled thinking with HTTP 400.
-        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .meta, modelID: "muse-spark-1.1"))
+        for id in ["muse-spark-1.1", "muse-spark-1.2", "muse-spark-1.2-contributor"] {
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .meta, modelID: id), id)
+        }
     }
 
 }

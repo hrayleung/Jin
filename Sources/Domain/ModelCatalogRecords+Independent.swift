@@ -1463,18 +1463,28 @@ extension ModelCatalog {
 
     // MARK: Meta
 
-    // Muse Spark 1.1 — Meta's first paid API model (Meta Model API public preview,
-    // launched 2026-07-09; verified against dev.meta.ai docs): 1,048,576 context /
-    // 131,072 output ("Limits: context 1048576, output 131072" in Meta's overview),
-    // text+image(+video/PDF) input, text output. Reasoning is always-on — sending
-    // reasoning_effort "none" returns HTTP 400 — with minimal..xhigh efforts and a
-    // model-determined default when omitted. Caching is implicit server-side with an
-    // optional prompt_cache_key hint. .videoInput/.nativePDF are deliberately not
-    // claimed: the Chat Completions wire format Jin uses has no verified video/PDF
-    // part encoding, so those attachments go through Jin's extraction paths instead.
+    // Muse Spark family (Meta Model API, verified against dev.meta.ai/docs/models
+    // 2026-08-06): three IDs share modalities and a 1,048,576-token context window.
+    // Max output 131,072 per Meta overview / LiteLLM (not models.dev's stale 32k).
+    // Jin targets the Responses API for Meta: text/image/video/PDF input, tool calling,
+    // web_search grounding, and always-on reasoning (minimal..xhigh; "none" is rejected —
+    // omit the field instead). Contributor tier is the same 1.2 checkpoint at a discount
+    // in exchange for training-data consent.
     static let metaRecords: [Record] = [
+        Record(id: "muse-spark-1.2", displayName: "Muse Spark 1.2",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .nativePDF, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
         Record(id: "muse-spark-1.1", displayName: "Muse Spark 1.1",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .nativePDF, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "muse-spark-1.2-contributor", displayName: "Muse Spark 1.2 Contributor",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .nativePDF, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),

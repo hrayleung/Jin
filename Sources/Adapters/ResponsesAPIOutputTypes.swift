@@ -80,6 +80,10 @@ struct ResponsesAPIOutputItemAddedEvent: Codable {
         let status: String?
         let action: WebSearchAction?
         let content: [ResponsesAPIOutputContent]?
+        let summary: [ResponsesAPIOutputContent]?
+        /// Meta Muse Spark encrypted CoT for stateless multi-turn replay
+        /// (`include: ["reasoning.encrypted_content"]`).
+        let encryptedContent: String?
         // Code interpreter fields
         let code: String?
         let containerId: String?
@@ -121,6 +125,8 @@ struct ResponsesAPIOutputItem: Codable {
     let action: ResponsesAPIOutputItemAddedEvent.WebSearchAction?
     let content: [ResponsesAPIOutputContent]?
     let summary: [ResponsesAPIOutputContent]?
+    /// Meta Muse Spark encrypted CoT (`include: ["reasoning.encrypted_content"]`).
+    let encryptedContent: String?
     // Code interpreter fields
     let code: String?
     let containerId: String?

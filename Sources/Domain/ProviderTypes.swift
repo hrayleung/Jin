@@ -141,7 +141,7 @@ enum ProviderType: String, Codable, CaseIterable {
     /// Providers that support native prompt caching features.
     var supportsNativePromptCaching: Bool {
         switch self {
-        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .gemini, .vertexai:
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .gemini, .vertexai, .meta:
             return true
         default:
             return false
@@ -151,7 +151,7 @@ enum ProviderType: String, Codable, CaseIterable {
     /// Providers that support native PDF file uploads (as opposed to OCR extraction).
     var supportsNativePDFUpload: Bool {
         switch self {
-        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .perplexity, .xai, .gemini, .vertexai:
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .perplexity, .xai, .gemini, .vertexai, .meta:
             return true
         default:
             return false

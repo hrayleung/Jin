@@ -199,6 +199,6 @@ extension ContentView {
         "databricks": "databricks-claude-sonnet-4-6",
         "vercel-ai-gateway": "openai/gpt-5.2",
         "vertexai": "gemini-3-pro-preview",
-        "meta": "muse-spark-1.1",
+        "meta": "muse-spark-1.2",
     ]
 }

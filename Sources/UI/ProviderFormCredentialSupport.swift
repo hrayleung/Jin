@@ -103,6 +103,8 @@ extension ProviderFormSupport {
             return "Uses GitHub Models at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access."
         case .modal:
             return "Create a proxy token with `modal workspace proxy-tokens create` (or in the dashboard) and paste its ID (`wk-…`) and secret (`ws-…`) above. Defaults to the us-west Shared API — swap the region (`us-east`, `ca-central`, `eu-west`, `ap-south`) or paste an Auto Endpoint URL such as `https://<workspace>--<app>-server.us-west.modal.direct`. Models are scoped to your token, so use Fetch Models."
+        case .meta:
+            return "Meta Model API at `https://api.meta.ai/v1` (Bearer key from Meta AI developer console). Seeded models: `muse-spark-1.2` (default), `muse-spark-1.1`, and `muse-spark-1.2-contributor` (discounted training-consent tier). Jin uses the Responses API for multimodal input, tools, and web search. Reasoning is always-on (minimal…xhigh)."
         default:
             return nil
         }

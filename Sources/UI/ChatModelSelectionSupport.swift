@@ -201,7 +201,12 @@ enum ChatModelSelectionSupport {
         case .opencodeGo:
             return models.first?.id
         case .meta:
-            return models.first(where: { $0.id == "muse-spark-1.1" })?.id
+            for preferredID in ["muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.2-contributor"] {
+                if let exact = models.first(where: { $0.id == preferredID }) {
+                    return exact.id
+                }
+            }
+            return nil
         case .zyphra:
             return models.first(where: { $0.id == "zyphra/ZAYA1-8B" })?.id
                 ?? models.first(where: { $0.id == "moonshotai/Kimi-K2.6" })?.id

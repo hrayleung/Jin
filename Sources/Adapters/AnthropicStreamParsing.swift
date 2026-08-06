@@ -48,7 +48,7 @@ extension AnthropicAdapter {
                     return .thinkingDelta(.thinking(textDelta: "", signature: currentThinkingSignature))
                 }
                 if contentBlock.type == "redacted_thinking", let data = contentBlock.data {
-                    return .thinkingDelta(.redacted(data: data))
+                    return .thinkingDelta(.redacted(data: data, id: nil))
                 }
 
                 if contentBlock.type == "server_tool_use" {
