@@ -46,8 +46,13 @@ struct StreamingMessageView: View {
                                     .jinTagStyle()
                             }
 
-                            Spacer(minLength: 0)
+                            // No greedy Spacer: on macOS 27's ConstrainedWidth
+                            // (frame+fixedSize) a Spacer can inflate the bubble
+                            // to a tall empty gray plate while the real chrome
+                            // fails to paint. The header is already leading-
+                            // aligned inside a full-width column.
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                         if !state.searchActivities.isEmpty {
                             SearchActivityTimelineView(

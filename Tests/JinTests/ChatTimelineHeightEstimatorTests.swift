@@ -11,10 +11,12 @@ final class ChatTimelineHeightEstimatorTests: XCTestCase {
     func testCJKEstimatesTallerThanSameCountLatin() {
         let latin = String(repeating: "a", count: 400)
         let cjk = String(repeating: "汉", count: 400)
-        XCTAssertGreaterThan(
-            ChatTimelineHeightEstimator.estimate(text: cjk, columnWidth: width),
-            ChatTimelineHeightEstimator.estimate(text: latin, columnWidth: width) * 1.5
-        )
+        let latinHeight = ChatTimelineHeightEstimator.estimate(text: latin, columnWidth: width)
+        let cjkHeight = ChatTimelineHeightEstimator.estimate(text: cjk, columnWidth: width)
+        // Wide scalars ≈2× Latin columns; shared row chrome dilutes the ratio
+        // on absolute heights, so assert a clear separation rather than 1.5×.
+        XCTAssertGreaterThan(cjkHeight, latinHeight)
+        XCTAssertGreaterThan(cjkHeight - latinHeight, 80)
     }
 
     func testCodeFenceAddsPerLineHeight() {
@@ -52,9 +54,20 @@ final class ChatTimelineHeightEstimatorTests: XCTestCase {
     }
 
     func testMinimumHeightForTinyMessages() {
+        // Short turns still need full chrome (header + bubble pad + footer
+        // actions + row pad). Under-counting here was the send-path overlap
+        // where the action strip painted into the streaming bubble.
         XCTAssertGreaterThanOrEqual(
             ChatTimelineHeightEstimator.estimate(text: "好", columnWidth: width),
-            44
+            96
         )
+    }
+
+    func testShortUserTurnReservesFooterChrome() {
+        let shortCJK = "foot和zsh区别"
+        let estimate = ChatTimelineHeightEstimator.estimate(text: shortCJK, columnWidth: width)
+        // Must clear bubble+header+footer (~110) so the first paint does not
+        // clip the action cluster into the next row.
+        XCTAssertGreaterThanOrEqual(estimate, 110)
     }
 }

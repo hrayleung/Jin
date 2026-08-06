@@ -107,6 +107,14 @@ struct MessageRowFooterView: View {
     }
 
     private var userFooter: some View {
+        // Do NOT use a leading `Spacer` to trail-align these actions.
+        // On macOS 27 the message stack is hosted under
+        // `ConstrainedWidth` → `.frame(maxWidth:).fixedSize(...)` (the custom
+        // Layout path crashes there). A greedy Spacer inside that nest often
+        // fails to expand, so the copy/regenerate/edit cluster sits on the
+        // *leading* edge of the bubble and visually collides with the
+        // streaming row below. Hug the buttons and let the parent
+        // `VStack(alignment: .trailing)` park them on the bubble's right rail.
         HStack(spacing: JinSpacing.small) {
             if isEditingUserMessage {
                 actionIconButton(systemName: "xmark", helpText: "Cancel editing") {
@@ -117,8 +125,6 @@ struct MessageRowFooterView: View {
                     onSubmitUserEdit(itemID)
                 }
             } else {
-                Spacer(minLength: 0)
-
                 if showsCopyButton {
                     CopyToPasteboardButton(text: copyText, helpText: "Copy message", useProminentStyle: false)
                         .accessibilityLabel("Copy message")
@@ -157,7 +163,11 @@ struct MessageRowFooterView: View {
                 .help("More actions")
             }
         }
+        // Keep the trailing rail flush with the bubble's inner padding.
         .padding(.horizontal, JinSpacing.medium)
+        // Reserve a stable strip so the row-height estimator / first measure
+        // never paints the streaming bubble up through the action icons.
+        .frame(minHeight: 20, alignment: .center)
     }
 
     @ViewBuilder

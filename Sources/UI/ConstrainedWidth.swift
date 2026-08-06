@@ -36,6 +36,13 @@ struct ConstrainedWidth<Content: View>: View {
             // probes nested message stacks from NSHostingView intrinsic sizing.
             // Use standard frame layout on that OS family to avoid the
             // LayoutSubview.sizeThatFits path entirely.
+            //
+            // Vertical `fixedSize` keeps fittingSize = full ideal height
+            // (bubble + footer). Horizontal stays flexible so prose wraps at
+            // `maxWidth`. Call sites that need trailing (user rows) apply
+            // their own `.frame(maxWidth: .infinity, alignment: .trailing)`
+            // inside `content` — do not bake leading-only alignment into a
+            // hug-width child or short user bubbles park mid-column.
             content
                 .frame(maxWidth: width, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)

@@ -53,26 +53,29 @@ struct MessageRowHeaderView: View {
         headerRow
     }
 
+    @ViewBuilder
     private var headerRow: some View {
-        HStack(spacing: JinSpacing.small - 2) {
-            if isUser {
-                // No trailing Spacer here: the user bubble sizes itself to its
-                // content (up to `userBubbleMaxWidth`), and a greedy Spacer in
-                // the header would pin every bubble — even a two-word one — to
-                // that maximum. The enclosing VStack is `.leading`-aligned, so
-                // the label already sits on the bubble's inner rail.
-                Text(ChatConversationMinimapGeometry.userRoleLabel)
-                    .jinSectionHeader()
-                    .foregroundStyle(JinSemanticColor.textTertiary)
-            } else {
+        if isUser {
+            // No trailing Spacer: the user bubble sizes itself to its content
+            // (up to `userBubbleMaxWidth`). A greedy Spacer would pin every
+            // bubble — even a two-word one — to that maximum.
+            Text(ChatConversationMinimapGeometry.userRoleLabel)
+                .jinSectionHeader()
+                .foregroundStyle(JinSemanticColor.textTertiary)
+        } else {
+            // No trailing Spacer either: under macOS 27's ConstrainedWidth
+            // (frame+fixedSize) a greedy Spacer can inflate the bubble into a
+            // tall empty gray plate with no chrome painted inside. Stretch the
+            // header with an explicit frame so it still spans the column.
+            HStack(spacing: JinSpacing.small - 2) {
                 if !isTool {
                     ProviderBadgeIcon(iconID: providerIconID)
                 }
 
                 identityLabel
                 modelLabel
-                Spacer(minLength: 0)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
