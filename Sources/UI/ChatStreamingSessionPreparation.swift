@@ -18,6 +18,7 @@ extension ChatStreamingOrchestrator {
             data: [
                 "conversationID": ctx.conversationID.uuidString,
                 "snapshotCount": String(ctx.messageSnapshots.count),
+                "prebuiltHistoryCount": String(ctx.prebuiltHistory?.count ?? 0),
                 "historyCount": String(history.count),
                 "shouldTruncateMessages": String(ctx.shouldTruncateMessages),
                 "maxHistoryMessages": ctx.maxHistoryMessages.map(String.init) ?? "nil",

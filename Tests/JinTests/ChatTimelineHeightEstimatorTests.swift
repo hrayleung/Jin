@@ -70,4 +70,32 @@ final class ChatTimelineHeightEstimatorTests: XCTestCase {
         // clip the action cluster into the next row.
         XCTAssertGreaterThanOrEqual(estimate, 110)
     }
+
+    func testUserWrapWidthEstimatesTallerThanFullColumnForLongProse() {
+        // Continuous prose (few newlines) wraps more in the narrower user
+        // bubble (~70% column). Estimating against full column width under-
+        // counted those wraps and left a clear band once the real height
+        // landed shorter/taller than the seed.
+        let prose = String(repeating: "这是一段很长的中文歌词内容用于测试折行高度估算。", count: 40)
+        let fullColumn = ChatTimelineHeightEstimator.estimate(
+            text: prose,
+            columnWidth: width,
+            isUser: false
+        )
+        let userBubble = ChatTimelineHeightEstimator.estimate(
+            text: prose,
+            columnWidth: width,
+            isUser: true
+        )
+        XCTAssertGreaterThan(userBubble, fullColumn)
+    }
+
+    func testEstimateCapsPathologicalLineCounts() {
+        let huge = Array(repeating: "字", count: 50_000).joined(separator: "\n")
+        let estimate = ChatTimelineHeightEstimator.estimate(text: huge, columnWidth: width)
+        // Must stay finite and within the soft cap so a bad seed cannot open
+        // a multi-thousand-pixel clear canyon under a short first paint.
+        XCTAssertLessThan(estimate, 12_000)
+        XCTAssertGreaterThan(estimate, 96)
+    }
 }

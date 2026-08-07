@@ -36,6 +36,9 @@ final class StreamingMessageStateTests: XCTestCase {
 
         state.appendDeltas(textDelta: "   \n\t", thinkingDelta: "")
         XCTAssertFalse(state.hasVisibleText)
+        // Whitespace-only must not count as "visible" — StreamingMessageView
+        // keeps the Generating placeholder until non-whitespace arrives.
+        XCTAssertFalse(state.hasVisibleText)
 
         state.appendDeltas(textDelta: "a", thinkingDelta: "")
         XCTAssertTrue(state.hasVisibleText)

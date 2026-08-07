@@ -34,6 +34,13 @@ final class ConversationStreamingStore: ObservableObject {
         sessionsByConversationID[conversationID] != nil
     }
 
+    /// True when a generation task is already running for this conversation.
+    /// An armed-but-idle session (placeholder painted before the network task
+    /// starts) returns false so `startStreamingResponse` can attach work to it.
+    func hasActiveStreamingTask(conversationID: UUID) -> Bool {
+        sessionsByConversationID[conversationID]?.task != nil
+    }
+
     func streamingState(conversationID: UUID) -> StreamingMessageState? {
         sessionsByConversationID[conversationID]?.state
     }
@@ -62,14 +69,19 @@ final class ConversationStreamingStore: ObservableObject {
         }
 
         if let existing = sessionsByConversationID[conversationID] {
-            if (existing.modelLabel == nil && modelLabel != nil) || (existing.modelID == nil && modelID != nil) {
-                var updated = existing
-                if updated.modelLabel == nil {
-                    updated.modelLabel = modelLabel
-                }
-                if updated.modelID == nil {
-                    updated.modelID = modelID
-                }
+            // Prefer fresher labels from the real startStreaming setup over the
+            // provisional ones stamped when the placeholder was armed on send.
+            var updated = existing
+            var changed = false
+            if let modelLabel, updated.modelLabel != modelLabel {
+                updated.modelLabel = modelLabel
+                changed = true
+            }
+            if let modelID, updated.modelID != modelID {
+                updated.modelID = modelID
+                changed = true
+            }
+            if changed {
                 sessionsByConversationID[conversationID] = updated
             }
             return existing.state
@@ -103,7 +115,17 @@ final class ConversationStreamingStore: ObservableObject {
     }
 
     func cancel(conversationID: UUID) {
-        sessionsByConversationID[conversationID]?.task?.cancel()
+        guard let session = sessionsByConversationID[conversationID] else { return }
+        if let task = session.task {
+            // Live generation: cooperative cancel; `onSessionEnd` tears the
+            // session down once the orchestrator observes CancellationError.
+            task.cancel()
+        } else {
+            // Armed placeholder with no task yet (send paint → yield window).
+            // Nothing is running to observe cancel, so end immediately or the
+            // conversation stays "busy" with an empty streaming row forever.
+            endSession(conversationID: conversationID)
+        }
     }
 
     /// Records a streaming error so the UI can surface it.

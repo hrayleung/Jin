@@ -25,12 +25,16 @@ struct JinStreamingPlaceholder: View {
     static let preferredMinHeight: CGFloat = 28
 
     var body: some View {
+        // No trailing Spacer: inside macOS 27's ConstrainedWidth
+        // (frame+fixedSize) a greedy Spacer can inflate the streaming bubble
+        // into a tall empty plate while the activity cluster fails to paint —
+        // the "blank Generating row" glitch. Hug content; the parent bubble
+        // already expands to the column width.
         HStack(alignment: .center, spacing: JinSpacing.small) {
             activityCluster
             labelView
-            Spacer(minLength: 0)
         }
-        .frame(minHeight: Self.preferredMinHeight, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: Self.preferredMinHeight, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(label))
         .accessibilityAddTraits(.updatesFrequently)

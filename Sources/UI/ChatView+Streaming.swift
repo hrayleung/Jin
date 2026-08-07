@@ -12,13 +12,17 @@ extension ChatView {
     func sendMessageInternal() {
         let diagnosticRunID = UUID().uuidString
         // #region agent log
+        // Never touch `conversationEntity.messages` here — faulting the full
+        // relationship on Enter is a common "wait a beat before the bubble"
+        // stall on long chats. Use the denormalized / cache counters only.
         ChatDiagnosticLogger.log(
             runId: diagnosticRunID,
             hypothesisId: "H4",
             message: "chat_send_entry",
             data: [
                 "conversationID": conversationEntity.id.uuidString,
-                "messageCount": String(conversationEntity.messages.count),
+                "messageCount": String(conversationEntity.resolvedMessageCount),
+                "cachedMessageCount": String(renderCache.cachedTotalMessageCount),
                 "isStreaming": String(isStreaming),
                 "isPreparingToSend": String(isPreparingToSend),
                 "isImportingDropAttachments": String(isImportingDropAttachments),
@@ -26,14 +30,16 @@ extension ChatView {
             ]
         )
         // #endregion
-        if isStreaming {
+        // Stop: cancel in-flight generation and/or the prepare window. With
+        // early-armed streaming placeholders, both flags can be true at once —
+        // cancel the prepare task AND the store so we never resume into a new
+        // startStreamingResponse after the user hit Stop.
+        if isStreaming || isPreparingToSend {
+            if isPreparingToSend {
+                prepareToSendCancellationReason = .userCancelled
+                prepareToSendTask?.cancel()
+            }
             streamingStore.cancel(conversationID: conversationEntity.id)
-            return
-        }
-
-        if isPreparingToSend {
-            prepareToSendCancellationReason = .userCancelled
-            prepareToSendTask?.cancel()
             return
         }
 
@@ -46,9 +52,16 @@ extension ChatView {
             return
         }
 
-        let selectedPerMessageMCPServers = eligibleMCPServers
-            .filter { perMessageMCPServerIDs.contains($0.id) }
-            .map { (id: $0.id, name: $0.name) }
+        // Snapshot draft with the lightest work possible. MCP name lookup is
+        // only needed for the painted badge; keep the filter tight.
+        let selectedPerMessageMCPServers: [(id: String, name: String)]
+        if perMessageMCPServerIDs.isEmpty {
+            selectedPerMessageMCPServers = []
+        } else {
+            selectedPerMessageMCPServers = eligibleMCPServers
+                .filter { perMessageMCPServerIDs.contains($0.id) }
+                .map { (id: $0.id, name: $0.name) }
+        }
         let draftSnapshot = ChatSendDraftSnapshot(
             messageText: trimmedMessageText,
             remoteVideoURLText: trimmedRemoteVideoInputURLText,
@@ -80,8 +93,12 @@ extension ChatView {
         //    the window (drop head + insert tail = batchDiff). That is the
         //    intermittent full-stage white flash on long chats. Grow the
         //    limit while pinned so send is pure appendTail instead.
+        // 4. Heavy setup (SwiftData save, provider resolve, full-history
+        //    snapshot) must NOT run on this turn — it steals the first paint
+        //    and makes Enter feel laggy. Paint → return → yield → heavy work.
         //
-        // Order: expand window → paint bubble → busy flag → clear composer → stream.
+        // Order: expand window → paint bubble → arm Generating → busy flag →
+        //        clear composer → return; stream after paint yields.
         let needsAsyncPrepare = ChatMessagePreparationSupport.requiresAsyncPreparation(
             attachments: draftSnapshot.attachments
         )
@@ -94,6 +111,8 @@ extension ChatView {
                     remoteVideoURL: remoteVideoURLSnapshot
                 )
                 // Avoid long-chat window slide on this send (see expand helper).
+                // +1 user turn +1 streaming placeholder so the window does not
+                // slide when the Generating row appears on the same send.
                 expandRenderWindowForPinnedSendIfNeeded(additionalMessages: 1)
                 // 1) Paint first — bubble lands in renderCache.
                 commitPreparedUserTurn(
@@ -102,6 +121,9 @@ extension ChatView {
                     diagnosticRunID: diagnosticRunID,
                     persistToDisk: false
                 )
+                // 1b) Arm streaming session immediately so the Generating
+                // placeholder paints in the same turn as the user bubble.
+                armStreamingPlaceholderSession(diagnosticRunID: diagnosticRunID)
                 // 2) Busy chrome after paint (Stop button) — not before.
                 isPreparingToSend = true
                 // 3) Clear draft only AFTER paint is in the cache.
@@ -110,18 +132,27 @@ extension ChatView {
                 // Assign to prepareToSendTask so Stop during the yield window
                 // cancels streaming without undoing the painted turn.
                 let task = Task { @MainActor in
+                    // First yield: let SwiftUI commit the user bubble +
+                    // Generating row before any disk / provider work.
                     await Task.yield()
-                    // Always persist the already-painted user turn before any
-                    // cancel exit — commit used persistToDisk: false so Stop
-                    // in the yield window would otherwise leave the message
-                    // only in-memory and lose it on relaunch.
-                    try? self.modelContext.save()
                     guard !Task.isCancelled else {
+                        self.streamingStore.cancel(conversationID: self.conversationEntity.id)
                         self.finishPrepareToSendChrome()
                         return
                     }
-                    // Streaming row will append; keep window large enough so
-                    // we do not slide again on the second apply.
+                    // Persist after the first paint frame so a disk flush
+                    // cannot delay Enter→bubble. Still before network so Stop
+                    // mid-yield cannot drop the turn on relaunch.
+                    try? self.modelContext.save()
+                    // Second yield: save can be expensive; give layout another
+                    // chance before startStreamingResponse resolves providers
+                    // and (on cache miss) walks full history.
+                    await Task.yield()
+                    guard !Task.isCancelled else {
+                        self.streamingStore.cancel(conversationID: self.conversationEntity.id)
+                        self.finishPrepareToSendChrome()
+                        return
+                    }
                     self.expandRenderWindowForPinnedSendIfNeeded(additionalMessages: 0)
                     self.startStreamingResponse(
                         triggeredByUserSend: true,
@@ -182,16 +213,24 @@ extension ChatView {
                         draft: draftSnapshot,
                         diagnosticRunID: diagnosticRunID
                     )
+                    // Arm Generating immediately after the user bubble so a
+                    // multi-second OCR wait is not followed by another blank
+                    // gap while startStreamingResponse resolves providers.
+                    self.armStreamingPlaceholderSession(diagnosticRunID: diagnosticRunID)
                 }
-                // Yield so the user row paints before streaming setup.
+                // Yield so the user + streaming rows paint before network setup.
                 await Task.yield()
                 guard !Task.isCancelled else {
                     // Parts already painted; cancel means skip stream only.
-                    await MainActor.run { self.finishPrepareToSendChrome() }
+                    await MainActor.run {
+                        self.streamingStore.cancel(conversationID: self.conversationEntity.id)
+                        self.finishPrepareToSendChrome()
+                    }
                     return
                 }
                 await MainActor.run {
                     guard !Task.isCancelled else {
+                        self.streamingStore.cancel(conversationID: self.conversationEntity.id)
                         self.finishPrepareToSendChrome()
                         return
                     }
@@ -242,7 +281,7 @@ extension ChatView {
             message: "chat_persist_block_start",
             data: [
                 "conversationID": conversationEntity.id.uuidString,
-                "messageCountBeforePersist": String(conversationEntity.messages.count)
+                "messageCountBeforePersist": String(conversationEntity.resolvedMessageCount)
             ]
         )
         // #endregion
@@ -280,7 +319,7 @@ extension ChatView {
             message: "chat_persist_rebuild_complete",
             data: [
                 "conversationID": conversationEntity.id.uuidString,
-                "messageCountAfterAppend": String(conversationEntity.messages.count),
+                "messageCountAfterAppend": String(conversationEntity.resolvedMessageCount),
                 "cachedVisibleCount": String(renderCache.visibleMessages.count),
                 "cachedHistoryCount": String(renderCache.activeThreadHistory.count),
                 "historyCacheReady": String(renderCache.isHistoryReady),
@@ -302,7 +341,7 @@ extension ChatView {
                 message: "chat_persist_save_complete",
                 data: [
                     "conversationID": conversationEntity.id.uuidString,
-                    "messageCountAfterSave": String(conversationEntity.messages.count),
+                    "messageCountAfterSave": String(conversationEntity.resolvedMessageCount),
                     "saveDurationMs": String(saveDurationMs),
                     "totalPersistDurationMs": String(totalPersistDurationMs)
                 ]
@@ -334,6 +373,31 @@ extension ChatView {
         composerTextContentHeight = 36
         draftAttachments = []
         draftQuotes = []
+    }
+
+    /// Creates an idle streaming session so `StreamingMessageView` can paint
+    /// the Generating placeholder immediately after the user turn. Safe to
+    /// call when a session already exists (beginSession reuses it). The real
+    /// network task is attached later by `startStreamingResponse`.
+    @MainActor
+    private func armStreamingPlaceholderSession(diagnosticRunID: String) {
+        let conversationID = conversationEntity.id
+        // Do not clobber an in-flight generation.
+        guard !streamingStore.hasActiveStreamingTask(conversationID: conversationID) else { return }
+        let provisionalModelID = conversationEntity.modelID.trimmedNonEmpty
+        let state = streamingStore.beginSession(
+            conversationID: conversationID,
+            modelLabel: streamingModelLabel ?? provisionalModelID,
+            modelID: provisionalModelID
+        )
+        state.debugContext = StreamingDebugContext(
+            conversationID: conversationID,
+            diagnosticRunID: diagnosticRunID
+        )
+        // Fresh idle chrome — never carry leftovers from a prior turn.
+        state.reset()
+        // Ensure the streaming row identity has room in the suffix window.
+        expandRenderWindowForPinnedSendIfNeeded(additionalMessages: 0)
     }
 
     /// While pinned to bottom, grow `messageRenderLimit` so an outgoing send

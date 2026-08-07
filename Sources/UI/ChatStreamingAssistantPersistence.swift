@@ -42,6 +42,11 @@ extension ChatStreamingOrchestrator {
         let hasRenderableContent = response.hasRenderableAssistantContent
 
         guard hasRenderableContent || !response.toolCalls.isEmpty else {
+            // Surface empty completions so the UI does not silently collapse
+            // the streaming row into a blank gap under the user message.
+            await MainActor.run {
+                callbacks.showError("The model returned an empty response. Try sending again, or switch models.")
+            }
             return AssistantPersistenceResult(
                 message: nil,
                 persistedMessageID: nil,

@@ -53,13 +53,17 @@ extension ChatView {
             renderItem: renderItem,
             previousUpdatedAt: previousUpdatedAt,
             newUpdatedAt: conversationEntity.updatedAt,
-            totalMessageCount: conversationEntity.messages.count
+            // Prefer the denormalized counter — `messages.count` can re-fault
+            // the full relationship on a large conversation and stall Enter.
+            totalMessageCount: conversationEntity.resolvedMessageCount
         )
         if appliedExactly {
             // The artifact catalog is untouched (user messages never produce
             // artifacts), so syncArtifactSelection would no-op; only the token
             // gauge needs the one appended history message.
-            refreshContextUsageEstimate(debounced: false)
+            // Debounce: an immediate recompute races the first paint and makes
+            // Enter feel laggy on long histories.
+            refreshContextUsageEstimate(debounced: true)
         } else {
             // Bubble is already painted. A synchronous full rebuild here
             // re-decodes the whole conversation and bumps renderRevision,

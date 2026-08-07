@@ -90,7 +90,11 @@ struct StreamingMessageView: View {
                             )
                         }
 
-                        if !visibleText.isEmpty {
+                        // Prefer real tokens when the model has produced
+                        // non-whitespace text. Whitespace-only prefixes used to
+                        // hide the Generating placeholder and paint an empty
+                        // markdown tree — the "blank bubble while busy" glitch.
+                        if state.hasVisibleText {
                             // No cross-fade on token growth — animating the
                             // markdown tree re-introduces stacked glyphs.
                             streamingTextView(visibleText)
@@ -166,7 +170,7 @@ struct StreamingMessageView: View {
     }
 
     /// True only while the model has produced nothing visible yet — no
-    /// thinking, tools, search, code-exec, artifacts, or text tokens.
+    /// thinking, tools, search, code-exec, artifacts, or non-whitespace text.
     private func showsIdleGeneratingPlaceholder(
         visibleThinkingChunks: [String],
         visibleCodeExecutionActivities: [CodeExecutionActivity],
@@ -176,7 +180,7 @@ struct StreamingMessageView: View {
             && state.searchActivities.isEmpty
             && visibleCodeExecutionActivities.isEmpty
             && visibleToolCalls.isEmpty
-            && state.visibleText.isEmpty
+            && !state.hasVisibleText
             && state.artifacts.isEmpty
     }
 
