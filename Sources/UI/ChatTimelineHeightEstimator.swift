@@ -32,12 +32,32 @@ enum ChatTimelineHeightEstimator {
     // measure landed (the "buttons overlap on send" glitch).
     private static let rowChrome = 96.0
 
-    static func estimate(text: String, columnWidth: CGFloat) -> CGFloat {
-        let columnsPerLine = max(16.0, Double(columnWidth) / 7.5)
+    /// - Parameter columnWidth: the timeline column width (full message rail).
+    /// - Parameter isUser: user bubbles wrap at ~70% of the column; estimating
+    ///   against the full width under-counts wraps for long pastes, while a
+    ///   stale too-tall cache leaves a clear band under a short bubble. Pass
+    ///   the role so the wrap width matches the real bubble.
+    static func estimate(text: String, columnWidth: CGFloat, isUser: Bool = false) -> CGFloat {
+        let wrapWidth: CGFloat
+        if isUser {
+            wrapWidth = ChatConversationLayoutMetrics.userBubbleMaxWidth(for: columnWidth)
+        } else {
+            wrapWidth = max(1, columnWidth)
+        }
+        return estimateWrapped(text: text, wrapWidth: wrapWidth)
+    }
+
+    /// Core wrap-aware estimate against an explicit content width.
+    static func estimateWrapped(text: String, wrapWidth: CGFloat) -> CGFloat {
+        // ~7.5 pt per Latin column at default body size; floor so a zero/unknown
+        // width cannot explode the line count into thousands of pixels.
+        let columnsPerLine = max(16.0, Double(max(wrapWidth, 160)) / 7.5)
         var height = rowChrome
         var inCodeFence = false
+        var lineCount = 0
 
         for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            lineCount += 1
             let trimmed = line.drop(while: { $0 == " " })
 
             if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
@@ -69,8 +89,13 @@ enum ChatTimelineHeightEstimator {
             height += max(1.0, (columns / columnsPerLine).rounded(.up)) * bodyLineHeight
         }
 
+        // Guard against pathological pastes producing multi-viewport estimates
+        // that paint a clear band under a short first-measure host before the
+        // real fittingSize lands. Cap is generous (~3× a tall laptop viewport).
+        let capped = min(height, 4_000.0 + Double(min(lineCount, 200)) * 4.0)
+
         // Short user turns still need the full chrome (header + footer).
-        return CGFloat(max(height, rowChrome))
+        return CGFloat(max(capped, rowChrome))
     }
 
     /// East-Asian-wide scalar ranges: these occupy ≈2 Latin columns.

@@ -152,7 +152,13 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
                 || providerType == .anthropic
                 || providerType == .claudeManagedAgents
                 || providerType == .xai
-            let expectsAdvancedOptions = expectsTTL || providerType == .openai || providerType == .xai
+                || providerType == .meta
+            // Advanced options follow TTL, plus the providers that always expose
+            // cache-key / retention controls (OpenAI, xAI, Meta).
+            let expectsAdvancedOptions = expectsTTL
+                || providerType == .openai
+                || providerType == .xai
+                || providerType == .meta
 
             XCTAssertEqual(
                 ChatAuxiliaryControlSupport.supportsExplicitContextCacheMode(providerType: providerType),

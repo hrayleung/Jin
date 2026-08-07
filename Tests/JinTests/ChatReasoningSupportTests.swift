@@ -395,10 +395,12 @@ final class ChatReasoningSupportTests: XCTestCase {
                 includesDisableToggle: true
             )
         )
+        // Qualify `ReasoningEffort.none` — bare `.none` is Optional.none (nil)
+        // for a `ReasoningEffort?` parameter and would never match the effort.
         XCTAssertTrue(
             ChatReasoningSupport.isReasoningOffMenuSelected(
                 isReasoningEnabled: true,
-                currentEffort: .none,
+                currentEffort: ReasoningEffort.none,
                 includesDisableToggle: true
             )
         )
@@ -414,7 +416,7 @@ final class ChatReasoningSupportTests: XCTestCase {
         XCTAssertFalse(
             ChatReasoningSupport.isReasoningOffMenuSelected(
                 isReasoningEnabled: true,
-                currentEffort: .none,
+                currentEffort: ReasoningEffort.none,
                 includesDisableToggle: false
             )
         )

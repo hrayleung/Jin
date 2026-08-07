@@ -11,7 +11,10 @@ extension ChatView {
         perMessageMCPServerIDs: Set<String> = []
     ) {
         let conversationID = conversationEntity.id
-        guard !streamingStore.isStreaming(conversationID: conversationID) else { return }
+        // Allow an armed-but-idle session (user bubble already painted with a
+        // Generating placeholder) to proceed. Only refuse when a real task is
+        // already draining the stream.
+        guard !streamingStore.hasActiveStreamingTask(conversationID: conversationID) else { return }
 
         let threadControls: GenerationControls
         do {
@@ -67,9 +70,38 @@ extension ChatView {
             conversationID: conversationID,
             diagnosticRunID: diagnosticRunID
         )
-        streamingState.reset()
+        // Early-armed sessions are already empty — skip a redundant
+        // objectWillChange that would re-invalidate the just-painted row.
+        if streamingState.renderTick != 0
+            || streamingState.hasVisibleText
+            || !streamingState.thinkingChunks.isEmpty
+            || !streamingState.streamingToolCalls.isEmpty
+            || !streamingState.searchActivities.isEmpty
+            || !streamingState.codeExecutionActivities.isEmpty
+            || !streamingState.artifacts.isEmpty {
+            streamingState.reset()
+        }
+
+        // Prefer in-memory render-cache history on the send hot path, but only
+        // when it is complete and count-aligned with the conversation.
+        // `clearForConversationSwitch` leaves `isHistoryReady == true` with an
+        // empty history; provisional tail paint also leaves history empty until
+        // the full decode lands. Using that cache would drop prior turns from
+        // the provider request.
         let snapshotBuildStartedAt = ProcessInfo.processInfo.systemUptime
-        let messageSnapshots = orderedConversationMessages().map(PersistedMessageSnapshot.init)
+        let expectedHistoryCount = conversationEntity.resolvedMessageCount
+        let cachedHistory = renderCache.activeThreadHistory
+        let canUsePrebuiltHistory = renderCache.isHistoryReady
+            && cachedHistory.count == expectedHistoryCount
+        let prebuiltHistory: [Message]?
+        let messageSnapshots: [PersistedMessageSnapshot]
+        if canUsePrebuiltHistory {
+            prebuiltHistory = cachedHistory
+            messageSnapshots = []
+        } else {
+            prebuiltHistory = nil
+            messageSnapshots = orderedConversationMessages().map(PersistedMessageSnapshot.init)
+        }
         let snapshotBuildDurationMs = Int((ProcessInfo.processInfo.systemUptime - snapshotBuildStartedAt) * 1000)
 
         // #region agent log
@@ -81,7 +113,10 @@ extension ChatView {
                 "conversationID": conversationID.uuidString,
                 "triggeredByUserSend": String(triggeredByUserSend),
                 "snapshotCount": String(messageSnapshots.count),
-                "conversationMessageCount": String(conversationEntity.messages.count),
+                "prebuiltHistoryCount": String(prebuiltHistory?.count ?? 0),
+                "usedPrebuiltHistory": String(canUsePrebuiltHistory),
+                "expectedHistoryCount": String(expectedHistoryCount),
+                "conversationMessageCount": String(conversationEntity.resolvedMessageCount),
                 "durationMs": String(snapshotBuildDurationMs)
             ]
         )
@@ -155,6 +190,7 @@ extension ChatView {
             modelNameSnapshot: modelSnapshot.modelName,
             resolvedModelSettings: modelSnapshot.resolvedSettings,
             messageSnapshots: messageSnapshots,
+            prebuiltHistory: prebuiltHistory,
             systemPrompt: systemPrompt,
             controlsToUse: controlsToUse,
             shouldTruncateMessages: historySettings.shouldTruncateMessages,

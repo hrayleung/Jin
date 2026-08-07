@@ -58,13 +58,22 @@ struct MessageRow: View, Equatable {
         let _ = layoutEpoch
         Group {
             if !presentation.rendersRow {
-                EmptyView()
+                // Collapse non-visible assistant turns (e.g. managed-agent
+                // thinking-only) to zero height. Returning bare EmptyView still
+                // left the table row at its copyText estimate — a blank white
+                // band between messages that looked like a missing reply.
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 0)
+                    .accessibilityHidden(true)
             } else {
+                // Do NOT use a leading/trailing Spacer to rail-align bubbles.
+                // On macOS 27 (ConstrainedWidth → frame+fixedSize) a greedy
+                // Spacer inside the hosted stack can inflate the row into a
+                // multi-viewport clear plate under a short bubble — the long-
+                // paste "empty canyon between user and model" glitch. Align
+                // with an outer frame instead.
                 HStack(alignment: .top, spacing: 0) {
-                    if presentation.isUser {
-                        Spacer(minLength: 0)
-                    }
-
                     ConstrainedWidth(presentation.effectiveMaxBubbleWidth) {
                         // User rows must expand to the full proposed max width and
                         // trail-align children. Hugging alone + ConstrainedWidth's
@@ -231,10 +240,6 @@ struct MessageRow: View, Equatable {
                         )
                     }
                     .padding(.horizontal, presentation.isUser ? 0 : JinSpacing.small)
-
-                    if !presentation.isUser {
-                        Spacer(minLength: 0)
-                    }
                 }
                 .frame(maxWidth: .infinity, alignment: presentation.isUser ? .trailing : .leading)
                 .padding(.vertical, JinSpacing.small)

@@ -10,7 +10,11 @@ extension ChatStreamingOrchestrator {
         let modelID: String
         let modelNameSnapshot: String
         let resolvedModelSettings: ResolvedModelSettings?
+        /// Prefer `prebuiltHistory` on the send hot path when the render cache
+        /// already holds domain messages — avoids re-faulting every SwiftData
+        /// row and JSON-decoding content again before the first token.
         let messageSnapshots: [PersistedMessageSnapshot]
+        let prebuiltHistory: [Message]?
         let systemPrompt: String?
         let controlsToUse: GenerationControls
         let shouldTruncateMessages: Bool

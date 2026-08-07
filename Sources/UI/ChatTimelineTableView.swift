@@ -829,6 +829,12 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
                 tableView.endUpdates()
             }
+            // Force a true fittingSize for every newly inserted visible row
+            // before we pin. Long pastes used to keep the pre-seeded estimate
+            // for a frame (or permanently if the first host measure was 0),
+            // leaving a multi-viewport clear band under a short user bubble.
+            view.layoutSubtreeIfNeeded()
+            remeasureRows(at: IndexSet(integersIn: inserted))
             // SYNCHRONOUS pin after insert. The coalesced `maintainBottomIfNeeded`
             // defers to the next runloop turn — one frame where the new bubble
             // is already in the document but still below the viewport, which
@@ -842,6 +848,13 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 scrollToBottom(animated: false, force: false)
                 scheduleTrailingBottomPin(delayNanoseconds: 160_000_000)
             }
+            // Late text layout (long plain-text pastes) can revise intrinsic
+            // height after the first pin — catch it on the next turn.
+            let insertedIdentities = inserted.compactMap { index -> String? in
+                guard index >= 0, index < new.count else { return nil }
+                return new[index].identity
+            }
+            scheduleDeferredRemeasure(identities: insertedIdentities)
 
         case .prependHead(let inserted):
             // Pure prepend. Preserve the viewport with the canonical
@@ -929,6 +942,18 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         }
 
         refreshLoadEarlierLabelIfNeeded(old: old, new: new)
+
+        // Same long-paste remeasure as appendTail — batchDiff is the long-chat
+        // send path (window slide + tail insert) and used to keep tall seeds.
+        if !insertions.isEmpty {
+            view.layoutSubtreeIfNeeded()
+            remeasureRows(at: insertions)
+            let insertedIdentities = insertions.compactMap { index -> String? in
+                guard index >= 0, index < new.count else { return nil }
+                return new[index].identity
+            }
+            scheduleDeferredRemeasure(identities: insertedIdentities)
+        }
 
         if shouldMaintainBottom, !isUserLiveScrolling {
             // Sync pin (same rationale as appendTail): async coalesce left a
@@ -1099,11 +1124,31 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // host and reads as a white band until first measure.
             return 96
         case .message(let item, _):
+            // Assistant turns with nothing user-visible (filtered thinking /
+            // empty content) collapse to zero — do not estimate from copyText
+            // or the table reserves a blank white band for EmptyView.
+            if item.isAssistant,
+               let shared = model?.shared,
+               !MessageRowPresentationSupport.Presentation(
+                   item: item,
+                   maxBubbleWidth: shared.maxBubbleWidth,
+                   providerType: shared.providerType,
+                   renderMode: shared.effectiveRenderMode(
+                       // Index is only used for highlight eagerness on visible
+                       // rows; for height estimates pass 0.
+                       0,
+                       item
+                   ),
+                   editingUserMessageID: nil
+               ).rendersRow {
+                return 1
+            }
             let key = heightKey(row.identity)
             if let memoized = estimateCache[key] { return memoized }
             let estimate = ChatTimelineHeightEstimator.estimate(
                 text: item.copyText,
-                columnWidth: currentColumnWidth
+                columnWidth: currentColumnWidth,
+                isUser: item.isUser
             )
             estimateCache[key] = estimate
             return estimate
@@ -1358,7 +1403,14 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                     modelID: streamingModelID,
                     providerType: shared.providerType,
                     providerIconID: shared.providerIconID,
-                    onContentUpdate: { }
+                    onContentUpdate: { [weak self] in
+                        // NSHostingView sometimes keeps a stale fittingSize
+                        // across ObservedObject flushes (especially the first
+                        // token after Generating). Force a layout pass so the
+                        // row height tracks content instead of leaving a blank
+                        // band or clipping the first tokens.
+                        self?.invalidateStreamingRowLayout()
+                    }
                 )
                 // Streaming placeholder only — never user bubbles.
                 .jinMessageAppear(enabled: animateAppear),
@@ -1384,10 +1436,80 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         streamingModelID = id
     }
 
-    // NOTE: the streaming row's growth is handled by the same path as every
-    // other row — the realized cell's `layout()` re-reports its `fittingSize`
-    // as tokens arrive, which re-notes that one row + re-pins. No separate
-    // objectWillChange subscription is needed.
+    /// Forces the realized streaming cell to remeasure after a content flush.
+    /// Safe no-op when the streaming row is off-screen (not realized).
+    private func invalidateStreamingRowLayout() {
+        guard let index = rows.firstIndex(where: {
+            if case .streaming = $0 { return true }
+            return false
+        }) else { return }
+        if let cell = tableView.view(atColumn: 0, row: index, makeIfNecessary: false) as? ChatTimelineHostingCell {
+            cell.host.invalidateIntrinsicContentSize()
+            cell.host.needsLayout = true
+            cell.needsLayout = true
+            cell.layoutSubtreeIfNeeded()
+        }
+    }
+
+    /// Remeasure only already-realized or currently-visible rows so pre-seeded
+    /// estimates are replaced by true fittingSize before the user can see a
+    /// tall clear band. Never `makeIfNecessary: true` for off-screen indexes —
+    /// that would realize a whole insert page and break virtualization.
+    private func remeasureRows(at indexes: IndexSet) {
+        guard !indexes.isEmpty else { return }
+        let visible = tableView.rows(in: tableView.visibleRect)
+        let visibleRange: Range<Int>? = visible.length > 0
+            ? visible.location..<(visible.location + visible.length)
+            : nil
+        for index in indexes.sorted() {
+            guard index >= 0, index < rows.count else { continue }
+            let identity = rows[index].identity
+            let isVisible = visibleRange?.contains(index) == true
+            // Prefer an already-resident cell; only force-realize when the row
+            // is in the current viewport (AppKit may still defer view creation
+            // past endUpdates for on-screen inserts).
+            let cell: ChatTimelineHostingCell?
+            if let existing = tableView.view(atColumn: 0, row: index, makeIfNecessary: false)
+                    as? ChatTimelineHostingCell {
+                cell = existing
+            } else if isVisible {
+                cell = tableView.view(atColumn: 0, row: index, makeIfNecessary: true)
+                    as? ChatTimelineHostingCell
+            } else {
+                continue
+            }
+            guard let cell else { continue }
+            cell.host.invalidateIntrinsicContentSize()
+            cell.host.needsLayout = true
+            cell.needsLayout = true
+            cell.layoutSubtreeIfNeeded()
+            let measured = ceil(cell.host.fittingSize.height)
+            guard measured > 0 else { continue }
+            cellDidMeasureHeight(identity: identity, height: measured)
+        }
+    }
+
+    /// Long plain-text pastes can revise intrinsic height one turn after the
+    /// first host layout. Remeasure once more so a stale tall seed cannot
+    /// stick as a clear canyon under the bubble.
+    private func scheduleDeferredRemeasure(identities: [String]) {
+        guard !identities.isEmpty else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            var indexes = IndexSet()
+            for identity in identities {
+                if let index = self.rows.firstIndex(where: { $0.identity == identity }) {
+                    indexes.insert(index)
+                }
+            }
+            guard !indexes.isEmpty else { return }
+            self.view.layoutSubtreeIfNeeded()
+            self.remeasureRows(at: indexes)
+            if self.shouldMaintainBottom, !self.isUserLiveScrolling {
+                self.maintainBottomIfNeeded()
+            }
+        }
+    }
 
     @objc private func documentFrameDidChange() {
         // The table grew/shrank because rows self-sized (async content resolving,
