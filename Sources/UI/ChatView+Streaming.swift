@@ -135,15 +135,23 @@ extension ChatView {
                     // First yield: let SwiftUI commit the user bubble +
                     // Generating row before any disk / provider work.
                     await Task.yield()
+                    // Always persist the painted user turn before any cancel
+                    // exit or network start — commit used persistToDisk: false
+                    // so Stop in the yield window would otherwise leave the
+                    // message only in-memory and lose it on relaunch.
+                    do {
+                        try self.modelContext.save()
+                    } catch {
+                        self.streamingStore.cancel(conversationID: self.conversationEntity.id)
+                        self.finishPrepareToSendChrome()
+                        self.presentError("Failed to save chat: \(error.localizedDescription)")
+                        return
+                    }
                     guard !Task.isCancelled else {
                         self.streamingStore.cancel(conversationID: self.conversationEntity.id)
                         self.finishPrepareToSendChrome()
                         return
                     }
-                    // Persist after the first paint frame so a disk flush
-                    // cannot delay Enter→bubble. Still before network so Stop
-                    // mid-yield cannot drop the turn on relaunch.
-                    try? self.modelContext.save()
                     // Second yield: save can be expensive; give layout another
                     // chance before startStreamingResponse resolves providers
                     // and (on cache miss) walks full history.

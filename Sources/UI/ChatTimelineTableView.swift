@@ -1451,17 +1451,34 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         }
     }
 
-    /// Realize + measure the given rows so pre-seeded estimates are replaced
-    /// by true fittingSize before the user can see a tall clear band.
+    /// Remeasure only already-realized or currently-visible rows so pre-seeded
+    /// estimates are replaced by true fittingSize before the user can see a
+    /// tall clear band. Never `makeIfNecessary: true` for off-screen indexes —
+    /// that would realize a whole insert page and break virtualization.
     private func remeasureRows(at indexes: IndexSet) {
         guard !indexes.isEmpty else { return }
+        let visible = tableView.rows(in: tableView.visibleRect)
+        let visibleRange: Range<Int>? = visible.length > 0
+            ? visible.location..<(visible.location + visible.length)
+            : nil
         for index in indexes.sorted() {
             guard index >= 0, index < rows.count else { continue }
             let identity = rows[index].identity
-            // makeIfNecessary so a just-inserted on-screen row is realized even
-            // if AppKit deferred view creation past endUpdates.
-            guard let cell = tableView.view(atColumn: 0, row: index, makeIfNecessary: true)
-                    as? ChatTimelineHostingCell else { continue }
+            let isVisible = visibleRange?.contains(index) == true
+            // Prefer an already-resident cell; only force-realize when the row
+            // is in the current viewport (AppKit may still defer view creation
+            // past endUpdates for on-screen inserts).
+            let cell: ChatTimelineHostingCell?
+            if let existing = tableView.view(atColumn: 0, row: index, makeIfNecessary: false)
+                    as? ChatTimelineHostingCell {
+                cell = existing
+            } else if isVisible {
+                cell = tableView.view(atColumn: 0, row: index, makeIfNecessary: true)
+                    as? ChatTimelineHostingCell
+            } else {
+                continue
+            }
+            guard let cell else { continue }
             cell.host.invalidateIntrinsicContentSize()
             cell.host.needsLayout = true
             cell.needsLayout = true

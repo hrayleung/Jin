@@ -82,14 +82,21 @@ extension ChatView {
             streamingState.reset()
         }
 
-        // Prefer in-memory render-cache history when ready (send hot path).
-        // Fall back to SwiftData snapshots only when the cache is incomplete
-        // (e.g. mid conversation-switch decode).
+        // Prefer in-memory render-cache history on the send hot path, but only
+        // when it is complete and count-aligned with the conversation.
+        // `clearForConversationSwitch` leaves `isHistoryReady == true` with an
+        // empty history; provisional tail paint also leaves history empty until
+        // the full decode lands. Using that cache would drop prior turns from
+        // the provider request.
         let snapshotBuildStartedAt = ProcessInfo.processInfo.systemUptime
+        let expectedHistoryCount = conversationEntity.resolvedMessageCount
+        let cachedHistory = renderCache.activeThreadHistory
+        let canUsePrebuiltHistory = renderCache.isHistoryReady
+            && cachedHistory.count == expectedHistoryCount
         let prebuiltHistory: [Message]?
         let messageSnapshots: [PersistedMessageSnapshot]
-        if renderCache.isHistoryReady {
-            prebuiltHistory = renderCache.activeThreadHistory
+        if canUsePrebuiltHistory {
+            prebuiltHistory = cachedHistory
             messageSnapshots = []
         } else {
             prebuiltHistory = nil
@@ -107,7 +114,8 @@ extension ChatView {
                 "triggeredByUserSend": String(triggeredByUserSend),
                 "snapshotCount": String(messageSnapshots.count),
                 "prebuiltHistoryCount": String(prebuiltHistory?.count ?? 0),
-                "usedPrebuiltHistory": String(prebuiltHistory != nil),
+                "usedPrebuiltHistory": String(canUsePrebuiltHistory),
+                "expectedHistoryCount": String(expectedHistoryCount),
                 "conversationMessageCount": String(conversationEntity.resolvedMessageCount),
                 "durationMs": String(snapshotBuildDurationMs)
             ]
