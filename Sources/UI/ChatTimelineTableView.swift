@@ -129,14 +129,44 @@ struct ChatTimelineMessageContent: View {
 /// created `NSHostingView` does not inherit the parent SwiftUI environment, so
 /// this re-injection is required.
 @ViewBuilder
-private func chatTimelineCenteredContent<Content: View>(
+func chatTimelineCenteredContent<Content: View>(
     _ content: Content,
-    shared: ChatTimelineSharedInputs
+    shared: ChatTimelineSharedInputs,
+    onContentHeight: @escaping (CGFloat) -> Void
 ) -> some View {
     content
         .frame(width: shared.columnWidth, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .center)
         .offset(x: shared.layoutCenterOffset)
+        // In-tree height observer, attached BELOW the slot-filling frame so
+        // it reads the content's NATURAL laid-out height, not the host's
+        // slot. This is the authoritative row-height channel: AppKit-side
+        // reads (`fittingSize` == `intrinsicContentSize` under
+        // [.intrinsicContentSize]) are SwiftUI's IDEAL-size answer and go
+        // stale across in-tree growth the hosting boundary never surfaces
+        // (async favicon/source enrichment, disclosure mounts, highlight
+        // upgrades) — rows sat clipped mid-content with nothing left to
+        // re-measure them. Layout observation has neither problem.
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { onContentHeight(proxy.size.height) }
+                    .onChange(of: proxy.size.height) { _, newHeight in
+                        onContentHeight(newHeight)
+                    }
+            }
+        )
+        // TOP-align the root inside whatever slot the host provides. The
+        // host's frame follows `intrinsicContentSize` (its ideal size) while
+        // the row height follows the width-wrapped measurement — when the two
+        // disagree, an unaligned root CENTERS the content in the mismatched
+        // slot: a too-short host clipped glyphs at BOTH edges (the header's
+        // top half and the footer icons' bottom few points — the
+        // long-standing "clipped icons / half last line" bug), a too-tall
+        // one floated the bubble mid-row with phantom gaps above and below.
+        // Pinned to the top, any residual mismatch is bottom whitespace
+        // only, which the post-settle height audit then corrects.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .environment(\.colorScheme, shared.colorScheme)
 }
 
@@ -271,6 +301,18 @@ struct ChatTimelineTableRepresentable: NSViewControllerRepresentable {
 final class ChatTimelineHostingCell: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("ChatTimelineHostingCell")
 
+    /// `NSTableCellView` is NOT flipped by default, which makes raw subview
+    /// coordinates bottom-anchored: the hosted content is pinned to our top
+    /// via Auto Layout, so every height change moves its raw origin, and any
+    /// resize that isn't followed by a constraint pass leaves it at the old
+    /// one. Measured on a live cell resized the way the table re-tiles rows
+    /// (frame only, no forced layout): the host ended up 260pt ABOVE the
+    /// cell's top after a shrink — masked away, so the reply lost its header
+    /// and first lines until a scroll forced layout — and 300pt below it
+    /// after a growth. Flipped, "pinned to the top" is origin.y == 0 at every
+    /// height, so the content cannot drift out of the clip box at all.
+    override var isFlipped: Bool { true }
+
     let host: NSHostingView<AnyView>
 
     /// Row identity this cell is currently showing, so a measured-height report
@@ -306,21 +348,24 @@ final class ChatTimelineHostingCell: NSTableCellView {
         host = NSHostingView(rootView: AnyView(EmptyView()))
         super.init(frame: frameRect)
         // Clip subviews that briefly exceed the row during disclosure
-        // animation so content cannot paint into the row below.
+        // animation so content cannot paint into the row below. The CELL is
+        // the only clip boundary: masking the HOST as well (a #419 addition)
+        // clipped content at the host's intrinsic-sized frame, which can sit
+        // a few points short of the width-wrapped content — that, plus the
+        // root centering in the mismatched slot, WAS the "clipped footer
+        // icons / half last line" bug. The top-aligned root (see
+        // `chatTimelineCenteredContent`) keeps overflow strictly downward,
+        // where this cell-level mask still stops it bleeding into the next
+        // row — the original macOS 27 draw-past-the-cell problem stays fixed.
         clipsToBounds = true
         // Match the chat stage surface so a not-yet-committed host never
         // flashes AppKit default white / controlBackground through clear
         // scroll layers (the "一片白" beat on send).
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
-        // Explicit masks so a short first-measure row cannot let the hosted
-        // footer action strip paint into the streaming bubble below (macOS 27
-        // NSHostingView was observed drawing past the cell without this).
         layer?.masksToBounds = true
         host.wantsLayer = true
-        host.clipsToBounds = true
         host.layer?.backgroundColor = NSColor.clear.cgColor
-        host.layer?.masksToBounds = true
         // Leading/trailing fix width = column width; top-align the host so
         // when the table row is mid-animation (shorter or taller than the
         // SwiftUI intrinsic size for a frame) we curtain from the top instead
@@ -341,12 +386,148 @@ final class ChatTimelineHostingCell: NSTableCellView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    deinit {
+        if let rowFrameObservation {
+            NotificationCenter.default.removeObserver(rowFrameObservation)
+        }
+    }
+
+    // MARK: Keeping the clip boundary honest
+
+    /// Observation of the enclosing `NSTableRowView`'s frame.
+    ///
+    /// AppKit sizes a cell view when it PLACES it in a row and does not
+    /// re-frame it when that row's height later changes: after a height
+    /// correction the row view is the new height while its cell keeps the old
+    /// one (measured: row 330pt / host 314pt / cell stuck at its 221pt
+    /// estimate, `rowView.needsLayout == false`, and forcing the row to lay
+    /// out changes nothing). Since this view is the clip boundary, a stale
+    /// short frame cuts the message mid-line and leaves the remainder of the
+    /// row painted blank — exactly the reported "bubble cut off with a
+    /// viewport-sized gap under it". Autoresizing alone doesn't save us: the
+    /// mask is right (`.height`) but the table's re-tile never runs it.
+    private var rowFrameObservation: NSObjectProtocol?
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        if let rowFrameObservation {
+            NotificationCenter.default.removeObserver(rowFrameObservation)
+            self.rowFrameObservation = nil
+        }
+        guard let rowView = superview as? NSTableRowView else { return }
+        rowView.postsFrameChangedNotifications = true
+        // `queue: nil` = delivered synchronously on the posting (main) thread,
+        // so the corrected clip box is in place before the row draws.
+        rowFrameObservation = NotificationCenter.default.addObserver(
+            forName: NSView.frameDidChangeNotification,
+            object: rowView,
+            queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.syncFrameToRowView() }
+        }
+        syncFrameToRowView()
+    }
+
+    /// Resizes to fill the row view, preserving the vertical margins AppKit
+    /// placed us with (half the table's intercell spacing on each side). A
+    /// no-op in the overwhelmingly common case, so the per-scroll frame
+    /// notifications cost one comparison.
+    private func syncFrameToRowView() {
+        // Only inside a real row: elsewhere (tests, any future reparenting)
+        // the enclosing view is not a row wrapper and must not drive our size.
+        guard let rowView = superview as? NSTableRowView else { return }
+        // A row view is `heightOfRow + intercellSpacing.height` tall and AppKit
+        // places the cell inside it with half that spacing above and below, so
+        // the cell's height IS `heightOfRow`. Take the spacing from the table
+        // itself; `frame.origin.y` is only a fallback for the beat before
+        // AppKit has placed us.
+        let spacing = (rowView.superview as? NSTableView)?.intercellSpacing.height ?? (frame.origin.y * 2)
+        let target = max(0, rowView.bounds.height - max(0, spacing))
+        guard target > 0, abs(frame.height - target) > 0.5 else { return }
+        setFrameSize(NSSize(width: frame.width, height: target))
+    }
+
+    override func layout() {
+        // Belt and braces: every path that measures this cell first lays it
+        // out, so a stale clip box can never survive a measurement either.
+        syncFrameToRowView()
+        performHeightReportingLayout()
+    }
+
+    /// Latest content height reported from INSIDE the hosted SwiftUI tree
+    /// (GeometryReader preference on the row content — see
+    /// `chatTimelineCenteredContent`). This is the layout system's own
+    /// number and keeps flowing when the AppKit-side reads go stale:
+    /// NSHostingView keeps a stale `fittingSize` across internal
+    /// state-driven growth (async favicon/source enrichment, disclosure
+    /// mounts — the streaming path already force-flushes around the same
+    /// defect), which left rows clipped mid-content with the audit blind.
+    /// Reset on every root swap so a recycled cell can't serve the
+    /// previous row's height.
+    private var lastSwiftUIReportedHeight: CGFloat = 0
+
+    /// Banks a height observed by the hosted SwiftUI tree and publishes it
+    /// through the coalesced flush. NEVER the synchronous first-measure
+    /// path: this can fire from inside a SwiftUI update (GeometryReader
+    /// onAppear/onChange during `layoutSubtreeIfNeeded`), where a
+    /// synchronous `noteHeightOfRows` would re-enter AppKit layout.
+    func reportSwiftUIContentHeight(_ height: CGFloat) {
+        let rounded = ceil(height)
+        guard rounded > 0, rounded != lastSwiftUIReportedHeight else { return }
+        lastSwiftUIReportedHeight = rounded
+        // The row height now follows this in-tree number, but the SwiftUI
+        // host's own frame still follows its intrinsic size — and the growth
+        // that makes this fire (late markdown/highlight/attachment
+        // resolution) does not always reach the hosting boundary. Left alone,
+        // the row can end up taller than the slot the content paints into,
+        // which is a bottom clip with reserved blank under it. Re-asking for
+        // the intrinsic size keeps the two in step.
+        host.invalidateIntrinsicContentSize()
+        guard let identity = currentIdentity else { return }
+        guard rounded != lastReportedHeight else { return }
+        pendingMeasuredHeight = rounded
+        scheduleCoalescedHeightFlush(for: identity)
+    }
+
+    /// The height the row must be to show everything this cell paints.
+    /// Prefers the in-tree SwiftUI report (fresh even when the hosting
+    /// boundary goes stale); falls back to the width-wrapped `fittingSize`
+    /// until the first report lands. Deliberately NOT
+    /// `intrinsicContentSize` and NOT a max — intrinsic is the host's IDEAL
+    /// size and diverges wildly on CJK/markdown content (giant blank-gap
+    /// regression), and a max() would freeze any stale-HIGH fitting value.
+    /// Call only after the pending root swap has been flushed (both callers
+    /// do) — the reads are engine-cached, so this adds no layout passes.
+    func measuredContentHeight() -> CGFloat {
+        if lastSwiftUIReportedHeight > 0 { return lastSwiftUIReportedHeight }
+        return ceil(host.fittingSize.height)
+    }
+
+    /// Forgets the last reported height so the next `layout()` measurement
+    /// publishes even when it equals the previous value. The controller calls
+    /// this when it clears its height cache (width/conversation change): the
+    /// equality guard in `layout()` would otherwise swallow the re-report —
+    /// a cell realized in the overdraw band then re-measures the same number,
+    /// never publishes, and its row falls back to the estimator forever.
+    /// Clearing `pendingMeasuredHeight` also stops a pre-clear measurement
+    /// from flushing under the new cache key.
+    func resetHeightReportingBaseline() {
+        lastReportedHeight = -1
+        pendingMeasuredHeight = nil
+        // Match configure(): the first post-reset measurement may publish
+        // synchronously, so a width change doesn't leave the row on its
+        // estimate for an extra runloop turn.
+        flushFirstMeasureImmediately = true
+        needsLayout = true
+    }
+
     func configure(identity: String, content: AnyView) {
         currentIdentity = identity
         lastReportedHeight = -1
         pendingMeasuredHeight = nil
         heightFlushScheduled = false
         flushFirstMeasureImmediately = true
+        lastSwiftUIReportedHeight = 0
         host.rootView = content
         hostHasPendingRootSwap = true
         host.invalidateIntrinsicContentSize()
@@ -357,7 +538,7 @@ final class ChatTimelineHostingCell: NSTableCellView {
             host.needsLayout = true
             host.layoutSubtreeIfNeeded()
             hostHasPendingRootSwap = false
-            let measured = ceil(host.fittingSize.height)
+            let measured = measuredContentHeight()
             if measured > 0 {
                 pendingMeasuredHeight = measured
                 scheduleHeightFlush(for: identity)
@@ -366,7 +547,7 @@ final class ChatTimelineHostingCell: NSTableCellView {
         needsLayout = true
     }
 
-    override func layout() {
+    private func performHeightReportingLayout() {
         super.layout()
         // `fittingSize` is the content's natural (width-wrapped) height and is
         // independent of our imposed frame, so this reports the TRUE height even
@@ -384,7 +565,7 @@ final class ChatTimelineHostingCell: NSTableCellView {
             host.needsLayout = true
             host.layoutSubtreeIfNeeded()
         }
-        let measured = ceil(host.fittingSize.height)
+        let measured = measuredContentHeight()
         guard measured > 0 else { return }
         // Coalesce: many SwiftUI animation frames can invalidate layout more
         // than once before the run loop drains. Keep the latest value and
@@ -407,7 +588,12 @@ final class ChatTimelineHostingCell: NSTableCellView {
             onMeasuredHeight?(identity, measured)
             return
         }
-        // Later invalidations (streaming, disclosure): coalesce to one per turn.
+        scheduleCoalescedHeightFlush(for: identity)
+    }
+
+    /// Later invalidations (streaming, disclosure, in-tree reports):
+    /// coalesce to one publish per runloop turn.
+    private func scheduleCoalescedHeightFlush(for identity: String) {
         guard !heightFlushScheduled else { return }
         heightFlushScheduled = true
         Task { @MainActor [weak self] in
@@ -479,6 +665,24 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// disclosure animation streams (many updates in a short window) so we
     /// skip scroll-anchor compensation that would fight the row motion.
     private var lastHeightCommitUptime: [String: TimeInterval] = [:]
+    /// Identities whose measurement landed while the row was absent from
+    /// `rows` and whose one-shot retry also missed (multi-step reconcile).
+    /// The height cache already holds the right value for these — the next
+    /// `apply` drains them with a re-note so the correct height can't sit
+    /// unqueried forever.
+    private var orphanMeasuredIdentities: Set<String> = []
+    /// Debounced post-settle height audit (see `performHeightAudit`).
+    private var heightAuditTask: Task<Void, Never>?
+    /// Identities of assistant turns that currently render NOTHING.
+    /// Reasoning-only turns are VISIBLE while their thinking/stage UI shows,
+    /// then collapse to `rendersRow == false` once the answer lands — their
+    /// cells legitimately measure ZERO, which every report path discards as
+    /// a transient (`measured > 0` guards), so a height cached while visible
+    /// would otherwise pin the now-empty row at hundreds of points forever:
+    /// the "giant blank gap between a user message and the reply" bug.
+    /// Precomputed once per content-relevant apply (`Presentation` is too
+    /// expensive for `heightOfRow`, which AppKit calls per row per pass).
+    private var nonRenderingIdentities: Set<String> = []
     /// While true, `documentFrameDidChange` must not re-pin — otherwise
     /// `noteHeightOfRows` during a disclosure stream fights the animation
     /// via scroll-to-bottom every frame. Cleared when the trailing pin runs.
@@ -653,12 +857,31 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             || abs(scrollView.contentInsets.bottom - newModel.bottomInset) > 0.5
 
         model = newModel
+        // Visibility (rendersRow) inputs all live in the content epoch;
+        // rebuild the set whenever they can have changed — BEFORE any table
+        // mutation so `heightOfRow` never classifies against a stale set.
+        // This is also the moment a reasoning-only turn flips visible →
+        // empty, which purges its stale cached height.
+        if epochChanged || conversationChanged || rowIDsChanged {
+            rebuildNonRenderingIdentities(for: newModel.rows, shared: newModel.shared)
+        }
         // Keep `rows` as previousRows until reconcile mutates the table when
         // identities change — advertising the new count while the table still
         // holds old row views is a classic blank-frame source mid-apply.
         if !rowIDsChanged {
             rows = newModel.rows
         }
+        // The streaming row keeps one constant identity, so its height-cache
+        // entry outlives the row itself and the NEXT stream would open at the
+        // PREVIOUS stream's final height for a beat. Drop it when the row
+        // leaves the list — BEFORE `currentColumnWidth` updates, since the
+        // entry lives under the width it was measured at.
+        let hadStreaming = previousRows.contains { if case .streaming = $0 { return true } else { return false } }
+        let hasStreaming = newModel.rows.contains { if case .streaming = $0 { return true } else { return false } }
+        if hadStreaming, !hasStreaming {
+            heightCache[heightKey("streaming")] = nil
+        }
+
         currentColumnWidth = newModel.shared.columnWidth
         lastAppliedContentEpoch = newModel.contentEpoch
 
@@ -671,6 +894,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             lastHeightCommitUptime.removeAll(keepingCapacity: true)
             cancelTrailingBottomPin()
             estimateCache.removeAll(keepingCapacity: true)
+            resetResidentHeightReportingBaselines()
         }
 
         if conversationChanged {
@@ -680,6 +904,8 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             heightCache.removeAll(keepingCapacity: true)
             lastHeightCommitUptime.removeAll(keepingCapacity: true)
             cancelTrailingBottomPin()
+            resetResidentHeightReportingBaselines()
+            orphanMeasuredIdentities.removeAll(keepingCapacity: true)
             appearAnimatingIdentities.removeAll(keepingCapacity: true)
             appearClearTask?.cancel()
             appearClearTask = nil
@@ -697,6 +923,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // of the bottom.
             view.layoutSubtreeIfNeeded()
             scrollToBottom(animated: false, force: true)
+            // Longer settle window on open: async markdown parses of the
+            // whole visible tail are still landing.
+            scheduleHeightAudit(reason: "conversation-open", delayNanoseconds: 700_000_000)
             return
         }
 
@@ -729,6 +958,206 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         } else {
             reconcile(old: previousRows, new: rows, widthChanged: widthChanged, epochChanged: epochChanged)
         }
+
+        drainOrphanMeasuredHeights()
+
+        // Self-healing backstop: audit resident rows once this burst of
+        // applies settles. Armed only for applies that could have changed
+        // content geometry — pure pin-flip/composer applies (no row, width,
+        // or epoch change) skip it, and scroll paths never arm it.
+        if rowIDsChanged || widthChanged || epochChanged {
+            scheduleHeightAudit(reason: widthChanged ? "width-change" : "apply-settle")
+        }
+    }
+
+    /// Settles measurements whose row was absent from `rows` when they landed
+    /// AND whose one-shot retry also missed. The height cache is already
+    /// correct for these — the table just never re-queried `heightOfRow`.
+    /// Identities present again get a re-note; the rest either left for good
+    /// or will re-measure through `viewFor` → `configure` when they realize,
+    /// so the whole set clears either way.
+    private func drainOrphanMeasuredHeights() {
+        guard !orphanMeasuredIdentities.isEmpty else { return }
+        var indexes = IndexSet()
+        for identity in orphanMeasuredIdentities {
+            if let index = rows.firstIndex(where: { $0.identity == identity }) {
+                indexes.insert(index)
+            }
+        }
+        orphanMeasuredIdentities.removeAll(keepingCapacity: true)
+        guard !indexes.isEmpty else { return }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            tableView.noteHeightOfRows(withIndexesChanged: indexes)
+        }
+        if shouldMaintainBottom { maintainBottomIfNeeded() }
+    }
+
+    // MARK: Post-settle height audit (self-healing backstop)
+
+    /// Arms (or re-arms) the audit. Debounced so a burst of applies (a
+    /// streaming settle is several in quick succession) runs ONE audit after
+    /// things quiet down; deferred once if the user is mid-gesture. Never
+    /// armed from scroll paths — steady-state scrolling costs nothing.
+    private func scheduleHeightAudit(reason: String, delayNanoseconds: UInt64 = 450_000_000) {
+        heightAuditTask?.cancel()
+        heightAuditTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: delayNanoseconds)
+            guard let self, !Task.isCancelled else { return }
+            self.heightAuditTask = nil
+            if self.isUserLiveScrolling {
+                // Preserve the caller's window when deferring mid-gesture.
+                self.scheduleHeightAudit(reason: reason, delayNanoseconds: delayNanoseconds)
+                return
+            }
+            self.performHeightAudit(reason: reason)
+        }
+    }
+
+    /// Compares, for every resident non-streaming row, the height the table
+    /// APPLIED (the cell's frame — the boundary the masks clip at) against
+    /// the height the cell's content actually needs. Any defect that leaves
+    /// the applied height short — a measurement raced by async content, a
+    /// report swallowed by the equality guard, a stale memo — used to be a
+    /// permanent bottom-clip because nothing re-examined settled rows. Two
+    /// phases: collect every sample against live geometry first, then act,
+    /// so one row's correction can't skew another's reading. Corrections are
+    /// logged as `height_audit`; a healthy steady state logs nothing.
+    private func performHeightAudit(reason: String) {
+        struct Sample {
+            let identity: String
+            let index: Int
+            let applied: CGFloat
+            let measured: CGFloat
+            let cached: CGFloat?
+            let action: ChatTimelineHeightAuditPlanner.Action
+        }
+        var samples: [Sample] = []
+        tableView.enumerateAvailableRowViews { rowView, row in
+            guard row >= 0, row < self.rows.count,
+                  let cell = rowView.view(atColumn: 0) as? ChatTimelineHostingCell else { return }
+            let rowModel = self.rows[row]
+            // The streaming row grows every flush and owns its own reporting.
+            if case .streaming = rowModel { return }
+            // A cell mid-recycle can briefly show another identity; auditing
+            // it would attribute the wrong measurement to this row.
+            guard cell.currentIdentity == rowModel.identity else { return }
+            // The height AppKit applied from `heightOfRow`. The row view's
+            // frame carries that height PLUS `intercellSpacing.height`
+            // (pinned by `testRowRectIncludesIntercellSpacingButHeightOfRow…`),
+            // so it has to come back out — comparing the raw frame against a
+            // content measurement made every settled row look exactly one
+            // spacing too tall, which is why production logs showed
+            // `applied == measured + 16` on every single audit sample: a
+            // permanent stream of no-op "corrections", each dragging the
+            // viewport by 16pt per above-fold row.
+            let applied = rowView.frame.height - self.tableView.intercellSpacing.height
+            // Non-rendering turns legitimately measure ZERO, which the
+            // planner's `measured > 0` guard treats as transient — special-
+            // case them here so a phantom-tall empty row still re-notes down
+            // to its pinned ~zero height.
+            if self.nonRenderingIdentities.contains(rowModel.identity) {
+                if applied > 1.5 {
+                    samples.append(Sample(
+                        identity: rowModel.identity,
+                        index: row,
+                        applied: applied,
+                        measured: 1,
+                        cached: self.heightCache[self.heightKey(rowModel.identity)],
+                        action: .renoteOnly
+                    ))
+                }
+                return
+            }
+            cell.layoutSubtreeIfNeeded()
+            let measured = cell.measuredContentHeight()
+            let cached = self.heightCache[self.heightKey(rowModel.identity)]
+            let action = ChatTimelineHeightAuditPlanner.action(
+                appliedRowHeight: applied,
+                measuredHeight: measured,
+                cachedHeight: cached
+            )
+            guard action != .none else { return }
+            samples.append(Sample(
+                identity: rowModel.identity,
+                index: row,
+                applied: applied,
+                measured: measured,
+                cached: cached,
+                action: action
+            ))
+        }
+        guard !samples.isEmpty else { return }
+
+        // Apply ALL corrections as one batch: one cache/store write pass, one
+        // zero-duration note, one scroll compensation from the summed
+        // above-viewport delta — N per-sample compensations lurched the
+        // viewport once per corrected row.
+        var correctedIndexes = IndexSet()
+        var aboveViewportDelta: CGFloat = 0
+        let visibleTop = scrollView.documentVisibleRect.minY
+        let now = ProcessInfo.processInfo.systemUptime
+        for sample in samples {
+            logHeightAudit(
+                identity: sample.identity,
+                applied: sample.applied,
+                measured: sample.measured,
+                cached: sample.cached,
+                action: sample.action,
+                reason: reason
+            )
+            heightCache[heightKey(sample.identity)] = sample.measured
+            lastHeightCommitUptime[sample.identity] = now
+            if sample.measured > 1.5 {
+                // Layout-derived value — safe to write through so a stale
+                // warm-start seed doesn't re-poison the next open.
+                storeMeasuredHeight(identity: sample.identity, height: sample.measured)
+            }
+            correctedIndexes.insert(sample.index)
+            if tableView.rect(ofRow: sample.index).minY < visibleTop - 0.5 {
+                aboveViewportDelta += sample.measured - sample.applied
+            }
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            tableView.noteHeightOfRows(withIndexesChanged: correctedIndexes)
+        }
+        if shouldMaintainBottom {
+            maintainBottomIfNeeded()
+        } else if abs(aboveViewportDelta) > 0.5 {
+            let clip = scrollView.contentView
+            let topLimit = -scrollView.contentInsets.top
+            let maxOriginY = tableView.frame.height - clip.bounds.height + scrollView.contentInsets.bottom
+            let targetY = min(max(clip.bounds.origin.y + aboveViewportDelta, topLimit), max(topLimit, maxOriginY))
+            isProgrammaticScrolling = true
+            clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
+            scrollView.reflectScrolledClipView(clip)
+            DispatchQueue.main.async { [weak self] in self?.isProgrammaticScrolling = false }
+        }
+    }
+
+    private func logHeightAudit(
+        identity: String,
+        applied: CGFloat,
+        measured: CGFloat,
+        cached: CGFloat?,
+        action: ChatTimelineHeightAuditPlanner.Action,
+        reason: String
+    ) {
+        ChatDiagnosticLogger.log(
+            runId: "scroll-perf",
+            hypothesisId: "height-audit",
+            message: "height_audit",
+            data: [
+                "identity": identity,
+                "applied": String(format: "%.1f", applied),
+                "measured": String(format: "%.1f", measured),
+                "cached": cached.map { String(format: "%.1f", $0) } ?? "nil",
+                "action": action == .renoteOnly ? "renote" : "report",
+                "reason": reason,
+                "width": String(format: "%.0f", currentColumnWidth),
+            ]
+        )
     }
 
     private func applyContentInsets(top: CGFloat, bottom: CGFloat) {
@@ -1059,15 +1488,27 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         )
     }
 
-    /// Re-pushes SwiftUI content into the cells currently on screen (after a
-    /// content edit or a streaming→finished swap at the same index).
+    /// Re-pushes SwiftUI content into every RESIDENT cell (after a content
+    /// edit or a streaming→finished swap at the same index). Resident, not
+    /// just `visibleRect`: AppKit keeps an overdraw band of realized cells
+    /// around the viewport, and a cell there receives no `viewFor` when it
+    /// scrolls back in — a visibleRect-only reload left those cells showing
+    /// pre-epoch content (and pre-epoch heights) forever.
     private func reloadVisibleContent() {
-        let range = tableView.rows(in: tableView.visibleRect)
-        guard range.length > 0 else { return }
-        for row in range.location..<(range.location + range.length) where row >= 0 && row < rows.count {
-            if let cell = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? ChatTimelineHostingCell {
-                cell.configure(identity: rows[row].identity, content: content(for: rows[row]))
-            }
+        tableView.enumerateAvailableRowViews { [weak self] rowView, row in
+            guard let self, row >= 0, row < self.rows.count,
+                  let cell = rowView.view(atColumn: 0) as? ChatTimelineHostingCell else { return }
+            cell.configure(identity: self.rows[row].identity, content: self.content(for: self.rows[row]))
+        }
+    }
+
+    /// Resets every resident cell's height-report baseline alongside a
+    /// height-cache wipe, so `layout()`'s equality guard cannot swallow the
+    /// first report against the fresh cache (see
+    /// `ChatTimelineHostingCell.resetHeightReportingBaseline`).
+    private func resetResidentHeightReportingBaselines() {
+        tableView.enumerateAvailableRowViews { rowView, _ in
+            (rowView.view(atColumn: 0) as? ChatTimelineHostingCell)?.resetHeightReportingBaseline()
         }
     }
 
@@ -1095,8 +1536,39 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         guard row >= 0, row < rows.count else { return 1 }
         let identity = rows[row].identity
+        // BEFORE the cache: a turn that currently renders nothing pins to
+        // ~zero even when a height was cached while it was still visible
+        // (its cell now measures 0, which the report paths discard as
+        // transient — the cache would never self-correct). Pure lookups
+        // only in this delegate: the set is precomputed per apply, and the
+        // stale-cache purge happens there too.
+        if nonRenderingIdentities.contains(identity) { return 1 }
         if let cached = heightCache[heightKey(identity)] { return cached }
         return estimatedHeight(for: rows[row])
+    }
+
+    /// Rebuilds the "renders nothing" identity set — one `Presentation` per
+    /// assistant row per content-relevant apply, never in `heightOfRow`.
+    /// Also drops the newly invisible rows' cached heights so the delegate
+    /// stays read-only.
+    private func rebuildNonRenderingIdentities(for rows: [ChatTimelineRow], shared: ChatTimelineSharedInputs) {
+        nonRenderingIdentities.removeAll(keepingCapacity: true)
+        for row in rows {
+            guard case .message(let item, _) = row, item.isAssistant else { continue }
+            let renders = MessageRowPresentationSupport.Presentation(
+                item: item,
+                maxBubbleWidth: shared.maxBubbleWidth,
+                providerType: shared.providerType,
+                // Index only affects highlight eagerness, not visibility.
+                renderMode: shared.effectiveRenderMode(0, item),
+                editingUserMessageID: nil
+            ).rendersRow
+            if !renders {
+                let identity = row.identity
+                nonRenderingIdentities.insert(identity)
+                heightCache[heightKey(identity)] = nil
+            }
+        }
     }
 
     // The table is display-only; no row should be selectable.
@@ -1127,28 +1599,22 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // Assistant turns with nothing user-visible (filtered thinking /
             // empty content) collapse to zero — do not estimate from copyText
             // or the table reserves a blank white band for EmptyView.
-            if item.isAssistant,
-               let shared = model?.shared,
-               !MessageRowPresentationSupport.Presentation(
-                   item: item,
-                   maxBubbleWidth: shared.maxBubbleWidth,
-                   providerType: shared.providerType,
-                   renderMode: shared.effectiveRenderMode(
-                       // Index is only used for highlight eagerness on visible
-                       // rows; for height estimates pass 0.
-                       0,
-                       item
-                   ),
-                   editingUserMessageID: nil
-               ).rendersRow {
+            if nonRenderingIdentities.contains(row.identity) {
                 return 1
             }
             let key = heightKey(row.identity)
             if let memoized = estimateCache[key] { return memoized }
+            let hasThinking = item.renderedBlocks.contains { block in
+                if case .content(_, let part) = block, case .thinking = part { return true }
+                return false
+            }
             let estimate = ChatTimelineHeightEstimator.estimate(
                 text: item.copyText,
                 columnWidth: currentColumnWidth,
-                isUser: item.isUser
+                isUser: item.isUser,
+                hasSearchActivities: !item.searchActivities.isEmpty,
+                hasThinking: hasThinking,
+                toolChromeRowCount: item.toolCalls.count + item.codeExecutionActivities.count
             )
             estimateCache[key] = estimate
             return estimate
@@ -1177,10 +1643,14 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // cache now holds the right value but nothing would re-query
             // `heightOfRow` until the next reload — in an idle chat that's
             // never, leaving the row clipped at its stale height. Re-note it
-            // once the current mutation settles.
+            // once the current mutation settles; if the identity is STILL
+            // absent then (multi-step reconcile), it stays parked in
+            // `orphanMeasuredIdentities` for the next apply's drain.
+            orphanMeasuredIdentities.insert(identity)
             DispatchQueue.main.async { [weak self] in
                 guard let self,
                       let retryIndex = self.rows.firstIndex(where: { $0.identity == identity }) else { return }
+                self.orphanMeasuredIdentities.remove(identity)
                 NSAnimationContext.runAnimationGroup { context in
                     context.duration = 0
                     self.tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: retryIndex))
@@ -1202,7 +1672,11 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let clip = scrollView.contentView
         let visibleTop = scrollView.documentVisibleRect.minY
         let oldRowRect = tableView.rect(ofRow: index)
-        let delta = height - oldRowRect.height
+        // `rect(ofRow:)` includes the intercell spacing; `height` is bare
+        // content. Subtract it or every anchor compensation is one spacing
+        // off — a 16pt downward creep per corrected row while scrolling
+        // through history.
+        let delta = height - (oldRowRect.height - tableView.intercellSpacing.height)
         let rowTopIsAboveViewport = oldRowRect.minY < visibleTop - 0.5
 
         let now = ProcessInfo.processInfo.systemUptime
@@ -1374,6 +1848,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         guard let model else { return AnyView(EmptyView()) }
         let shared = model.shared
         let animateAppear = shouldAppearAnimate(identity: row.identity)
+        let identity = row.identity
+        let onContentHeight: (CGFloat) -> Void = { [weak self] height in
+            self?.hostedContentDidReportHeight(identity: identity, height: height)
+        }
         switch row {
         case .loadEarlier(let hiddenCount, let pageSize):
             return AnyView(chatTimelineCenteredContent(
@@ -1382,7 +1860,8 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                     pageSize: pageSize,
                     onLoad: { [weak self] in self?.handleLoadEarlierTapped() }
                 ),
-                shared: shared
+                shared: shared,
+                onContentHeight: onContentHeight
             ))
 
         case .message(let item, let index):
@@ -1390,7 +1869,8 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // was hiding just-sent user bubbles (opacity 0) and felt like lag.
             return AnyView(chatTimelineCenteredContent(
                 ChatTimelineMessageContent(item: item, index: index, shared: shared),
-                shared: shared
+                shared: shared,
+                onContentHeight: onContentHeight
             ))
 
         case .streaming(let state):
@@ -1414,9 +1894,21 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 )
                 // Streaming placeholder only — never user bubbles.
                 .jinMessageAppear(enabled: animateAppear),
-                shared: shared
+                shared: shared,
+                onContentHeight: onContentHeight
             ))
         }
+    }
+
+    /// In-tree GeometryReader height reports, routed to the resident cell's
+    /// coalesced flush. `identity` is captured at content-build time, so a
+    /// late report from a recycled tree can't land on the wrong row.
+    private func hostedContentDidReportHeight(identity: String, height: CGFloat) {
+        guard let index = rows.firstIndex(where: { $0.identity == identity }),
+              let cell = tableView.view(atColumn: 0, row: index, makeIfNecessary: false)
+                as? ChatTimelineHostingCell,
+              cell.currentIdentity == identity else { return }
+        cell.reportSwiftUIContentHeight(height)
     }
 
     // The streaming model label/id live on the StreamingMessageView call site
@@ -1483,7 +1975,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             cell.host.needsLayout = true
             cell.needsLayout = true
             cell.layoutSubtreeIfNeeded()
-            let measured = ceil(cell.host.fittingSize.height)
+            let measured = cell.measuredContentHeight()
             guard measured > 0 else { continue }
             cellDidMeasureHeight(identity: identity, height: measured)
         }
@@ -1849,6 +2341,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let environmentToken = ChatTimelineRowHeightStore.environmentToken()
         for row in rows {
             guard case .message(let item, _) = row else { continue }
+            // A currently-invisible turn must stay at ~zero; its stored
+            // height (measured while its thinking/stage UI was visible)
+            // would resurrect the phantom-gap row.
+            guard !nonRenderingIdentities.contains(row.identity) else { continue }
             let key = ChatTimelineRowHeightStore.Key(
                 conversationID: conversationID,
                 rowIdentity: row.identity,

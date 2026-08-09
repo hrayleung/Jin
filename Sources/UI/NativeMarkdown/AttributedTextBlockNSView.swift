@@ -27,14 +27,39 @@ final class JinMessageTextView: NSTextView {
     weak var aggregator: SelectionAggregator?
     var blockID: UUID?
 
-    /// Cache of `(textStorage length, width) -> height` so repeated
+    /// Cache of `(content version, container width) -> height` so repeated
     /// `sizeThatFits` probes during a single SwiftUI layout pass don't
-    /// re-run `NSLayoutManager.ensureLayout`. Invalidated when the
-    /// attributed string is replaced.
-    private var cachedHeight: (hash: Int, width: CGFloat, height: CGFloat)?
+    /// re-run `NSLayoutManager.ensureLayout`. Keyed by a monotonic version
+    /// (NOT the storage length: recycled views see same-length different
+    /// content, and highlight upgrades swap attributes without changing a
+    /// single character — both must miss). Every storage mutation path calls
+    /// `invalidateHeightCache()`, which bumps the version.
+    private var cachedHeight: (version: UInt64, width: CGFloat, height: CGFloat)?
+    /// Same version-keyed memo for `naturalWidth` — the unconstrained code
+    /// path calls it on every `sizeThatFits` probe, and each miss walks
+    /// every line fragment after a full `ensureLayout` at ~10,000pt.
+    private var cachedNaturalWidth: (version: UInt64, maxWidth: CGFloat, width: CGFloat)?
+    private var contentVersion: UInt64 = 0
 
     func invalidateHeightCache() {
+        contentVersion &+= 1
         cachedHeight = nil
+        cachedNaturalWidth = nil
+        // The shared measuring stack keys on (view, version); bumping the
+        // version is enough to miss, but drop its copy too so a stale one
+        // cannot be revived by a version wrap-around.
+        JinTextMeasurementStack.invalidate(owner: ObjectIdentifier(self))
+    }
+
+    /// The memoized height must include the inset; a late inset change (the
+    /// code path sets it after the first string apply) would otherwise keep
+    /// serving pre-inset heights.
+    override var textContainerInset: NSSize {
+        didSet {
+            if oldValue != textContainerInset {
+                invalidateHeightCache()
+            }
+        }
     }
 
     /// Replace U+FFFC (OBJECT REPLACEMENT CHARACTER, the `NSAttachmentCharacter`)
@@ -60,9 +85,6 @@ final class JinMessageTextView: NSTextView {
         let scrubbed = Self.scrubbingBareObjectReplacementCharacters(in: attributed)
         textStorage.setAttributedString(scrubbed)
         lastAppliedSource = scrubbed
-        // The cache keys on storage LENGTH; a same-length replacement (e.g. a
-        // recycled cell whose new message happens to match the old one's
-        // UTF-16 count) would otherwise return the previous content's height.
         invalidateHeightCache()
     }
 
@@ -158,6 +180,9 @@ final class JinMessageTextView: NSTextView {
         )
         textStorage.endEditing()
         lastAppliedSource = Self.scrubbingBareObjectReplacementCharacters(in: attributed)
+        // The version key doesn't observe storage edits — every mutation
+        // path invalidates explicitly, including this one.
+        invalidateHeightCache()
         return .incremental
     }
 
@@ -381,14 +406,17 @@ final class JinMessageTextView: NSTextView {
 
     override var intrinsicContentSize: NSSize {
         guard let textContainer else { return super.intrinsicContentSize }
-        let width = textContainer.size.width
-        if width < 1 {
+        let containerWidth = textContainer.size.width
+        if containerWidth < 1 {
             return NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
         }
         // Route through `computeHeight(forWidth:)` so AppKit's repeated reads
-        // during scroll/layout hit the (storage-hash, width) cache instead
-        // of forcing `ensureLayout` every time.
-        return NSSize(width: NSView.noIntrinsicMetric, height: computeHeight(forWidth: width))
+        // during scroll/layout hit the (version, width) cache instead of
+        // forcing `ensureLayout` every time. `computeHeight` takes a VIEW
+        // width; the tracked container is already inset-shrunk, so add the
+        // inset back for an exact round-trip.
+        let viewWidth = containerWidth + textContainerInset.width * 2
+        return NSSize(width: NSView.noIntrinsicMetric, height: computeHeight(forWidth: viewWidth))
     }
 
     override func setFrameSize(_ newSize: NSSize) {
@@ -408,33 +436,116 @@ final class JinMessageTextView: NSTextView {
         }
     }
 
-    /// Lays out the receiver at `width` and returns the text's used height.
-    /// Memoized by `(textStorage hash, width)` so repeated probes within a
-    /// single SwiftUI layout pass don't re-run NSLayoutManager.
+    /// Lays out the receiver at VIEW width `width` and returns the height the
+    /// view needs to show all of it — text plus `textContainerInset` on both
+    /// axes, wrapping at the same container width render will use. The
+    /// previous version measured the bare `usedRect` at the full view width:
+    /// for inset views (code blocks: inset (14, 10)) that under-reported the
+    /// height by 20pt AND wrapped 28pt wider than the render pass — both
+    /// resolved as content clipped at the row's bottom mask. Memoized by
+    /// `(content version, view width)`.
+    ///
+    /// The measurement must be SIDE-EFFECT-FREE. SwiftUI probes
+    /// `sizeThatFits` at min/ideal/max widths, and those probes run INSIDE
+    /// AppKit's layout/constraint cycle, so any width other than the live one
+    /// is measured on `JinTextMeasurementStack` — a TextKit stack nobody
+    /// renders from. Two earlier designs both shipped crashes/corruption:
+    /// driving the view's own frame re-wrapped the on-screen text at whichever
+    /// probe width came last (text painted past its card, mid-line clips), and
+    /// resizing the live `textContainer` invalidated the live layout manager
+    /// mid-cycle — the later `ensureLayout` in the same cycle then walked a
+    /// layout hole past the storage end and threw
+    /// `-[NSRLEArray objectAtRunIndex:length:]` out of bounds (production
+    /// crash, 2026-08-09).
     func computeHeight(forWidth width: CGFloat) -> CGFloat {
         guard let textContainer, let layoutManager else { return 0 }
+        let inset = textContainerInset
         let safeWidth = max(1, width)
-        let storageHash = textStorage?.length ?? 0
-        if let cached = cachedHeight, cached.hash == storageHash, abs(cached.width - safeWidth) < 0.5 {
+        if let cached = cachedHeight, cached.version == contentVersion, abs(cached.width - safeWidth) < 0.5 {
             return cached.height
         }
-        if abs(textContainer.size.width - safeWidth) > 0.5 {
-            textContainer.size = NSSize(width: safeWidth, height: CGFloat.greatestFiniteMagnitude)
+        let containerWidth = max(1, safeWidth - inset.width * 2)
+        let height: CGFloat
+        if abs(textContainer.size.width - containerWidth) <= 0.5 {
+            // Live width — measure in place (steady-state path, and the only
+            // one `intrinsicContentSize` ever takes).
+            layoutManager.ensureLayout(for: textContainer)
+            height = ceil(layoutManager.usedRect(for: textContainer).height + inset.height * 2)
+        } else {
+            height = JinTextMeasurementStack.height(
+                of: measurementSnapshot(),
+                token: measurementToken,
+                containerWidth: containerWidth
+            ) + inset.height * 2
         }
-        layoutManager.ensureLayout(for: textContainer)
-        let used = layoutManager.usedRect(for: textContainer)
-        let height = ceil(used.height)
-        cachedHeight = (storageHash, safeWidth, height)
+        cachedHeight = (contentVersion, safeWidth, height)
         return height
     }
 
+    /// Unwrapped natural VIEW width: text laid out inside `maxWidth` minus
+    /// the horizontal insets, reported with the insets added back — so the
+    /// frame SwiftUI derives from it gives render the same container width
+    /// measured here. Same side-effect-free probing as
+    /// `computeHeight(forWidth:)`.
+    ///
+    /// Width comes from a per-line `lineFragmentUsedRect` scan, NOT the
+    /// aggregate `usedRect`: after a manual container resize TextKit 1
+    /// reports the aggregate's WIDTH as the full container width (measured
+    /// 9972 for a 152pt single line) while the per-fragment used rects stay
+    /// truthful. Heights are unaffected by this quirk.
     func naturalWidth(maxWidth: CGFloat = 10_000) -> CGFloat {
         guard let textContainer, let layoutManager else { return 0 }
-        if abs(textContainer.size.width - maxWidth) > 0.5 {
-            textContainer.size = NSSize(width: maxWidth, height: CGFloat.greatestFiniteMagnitude)
+        let inset = textContainerInset
+        let safeMaxWidth = max(1, maxWidth)
+        if let cached = cachedNaturalWidth, cached.version == contentVersion,
+           abs(cached.maxWidth - safeMaxWidth) < 0.5 {
+            return cached.width
         }
-        layoutManager.ensureLayout(for: textContainer)
-        return ceil(layoutManager.usedRect(for: textContainer).width)
+        let containerWidth = max(1, safeMaxWidth - inset.width * 2)
+        let width: CGFloat
+        if abs(textContainer.size.width - containerWidth) <= 0.5 {
+            layoutManager.ensureLayout(for: textContainer)
+            width = ceil(maxLineFragmentUsedRight(layoutManager, textContainer) + inset.width * 2)
+        } else {
+            width = JinTextMeasurementStack.maxLineRight(
+                of: measurementSnapshot(),
+                token: measurementToken,
+                containerWidth: containerWidth
+            ) + inset.width * 2
+        }
+        cachedNaturalWidth = (contentVersion, safeMaxWidth, width)
+        return width
+    }
+
+    /// Identity of this view's current content for the shared measuring stack.
+    private var measurementToken: JinTextMeasurementStack.Token {
+        JinTextMeasurementStack.Token(owner: ObjectIdentifier(self), version: contentVersion)
+    }
+
+    /// The exact bytes the live view would lay out — storage, not
+    /// `lastAppliedSource`: `processEditing` fixes fonts (CJK substitution)
+    /// and the selection aggregator paints highlight attributes straight into
+    /// storage, and both can change wrapping.
+    private func measurementSnapshot() -> NSAttributedString {
+        guard let textStorage else { return NSAttributedString() }
+        return NSAttributedString(attributedString: textStorage)
+    }
+
+    private func maxLineFragmentUsedRight(
+        _ layoutManager: NSLayoutManager,
+        _ textContainer: NSTextContainer
+    ) -> CGFloat {
+        let glyphs = layoutManager.glyphRange(for: textContainer)
+        var maxRight: CGFloat = 0
+        var index = glyphs.location
+        while index < NSMaxRange(glyphs) {
+            var effective = NSRange(location: index, length: 0)
+            let used = layoutManager.lineFragmentUsedRect(forGlyphAt: index, effectiveRange: &effective)
+            maxRight = max(maxRight, used.maxX)
+            guard NSMaxRange(effective) > index else { break }
+            index = NSMaxRange(effective)
+        }
+        return maxRight
     }
 
     // MARK: - Wheel forwarding (code-block horizontal-scroll trap escape)

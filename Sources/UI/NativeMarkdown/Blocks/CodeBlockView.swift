@@ -261,9 +261,12 @@ private struct HighlightedCodeView: NSViewRepresentable {
         coordinator.highlightTask?.cancel()
         coordinator.lastRequestedFingerprint = fingerprint
 
-        // Establish text + final layout metrics immediately. Syntax coloring
-        // is layout-neutral and upgrades asynchronously, so Highlight.js can
-        // never block AppKit's sizing pass or the main thread.
+        // Establish text immediately so Highlight.js never blocks AppKit's
+        // sizing pass or the main thread. The async upgrade is NOT
+        // layout-neutral: the renderer preserves bold/italic traits from the
+        // theme, and bold/italic CJK fallback fonts have different metrics —
+        // wraps (and therefore height) can change, so `apply` must re-signal
+        // sizing after every swap.
         let immediate = NSMutableAttributedString(
             string: source,
             attributes: [
@@ -321,6 +324,15 @@ private struct HighlightedCodeView: NSViewRepresentable {
             clamped(range: selectedRange, length: attributedString.length)
         )
         view.textContainerInset = NSSize(width: 14, height: CodeBlockBody.codeVerticalInset)
+        // Same trio as AttributedTextBlock.applyAttributedString. The async
+        // highlight upgrade lands outside any SwiftUI update, so without an
+        // explicit intrinsic invalidation nobody re-reads the (already
+        // invalidated) height memo and a wrap change from bold/italic
+        // upgrades leaves the row at a stale height — clipped at the bottom
+        // by the hosting cell's mask.
+        view.invalidateHeightCache()
+        view.invalidateIntrinsicContentSize()
+        view.needsDisplay = true
     }
 
     private func clamped(range: NSRange, length: Int) -> NSRange {
@@ -364,7 +376,6 @@ private struct CodeLineNumberGutterView: NSViewRepresentable {
     let font: NSFont
     let verticalInset: CGFloat
 
-    private static let horizontalInset: CGFloat = 8
 
     func makeNSView(context: Context) -> CodeLineNumberTextView {
         let view = CodeLineNumberTextView()
@@ -381,16 +392,36 @@ private struct CodeLineNumberGutterView: NSViewRepresentable {
         nsView: CodeLineNumberTextView,
         context: Context
     ) -> CGSize? {
-        apply(to: nsView)
-        return nsView.naturalSize()
+        // Do NOT apply here. `sizeThatFits` runs inside AppKit's layout cycle,
+        // and writing into a text storage while its layout manager may be
+        // typesetting is what corrupts TextKit (see the matching note in
+        // `AttributedTextBlock.sizeThatFits` — same defect, same crash class).
+        // The gutter's size is a pure function of the number of lines and the
+        // font, so it needs no live view at all.
+        let inset = NSSize(width: CodeLineNumberGutter.horizontalInset, height: verticalInset)
+        return JinTextMeasurementStack.size(
+            of: CodeLineNumberGutter.attributedNumbers(count: count, font: font),
+            token: JinTextMeasurementStack.Token(
+                key: "gutter:\(count):\(font.fontName):\(font.pointSize)",
+                version: 0
+            ),
+            inset: inset
+        )
     }
 
     private func apply(to view: CodeLineNumberTextView) {
-        view.textContainerInset = NSSize(width: Self.horizontalInset, height: verticalInset)
-        view.textStorage?.setAttributedString(Self.attributedNumbers(count: count, font: font))
+        view.textContainerInset = NSSize(width: CodeLineNumberGutter.horizontalInset, height: verticalInset)
+        view.textStorage?.setAttributedString(CodeLineNumberGutter.attributedNumbers(count: count, font: font))
     }
 
-    private static func attributedNumbers(count: Int, font: NSFont) -> NSAttributedString {
+}
+
+/// Line-number gutter content + metrics, shared by the representable and the
+/// measurement parity test so the two can never drift.
+enum CodeLineNumberGutter {
+    static let horizontalInset: CGFloat = 8
+
+    static func attributedNumbers(count: Int, font: NSFont) -> NSAttributedString {
         let total = max(1, count)
         let digitWidth = String(total).count
         let body = (1...total)
