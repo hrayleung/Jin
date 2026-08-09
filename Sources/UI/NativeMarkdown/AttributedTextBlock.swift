@@ -134,10 +134,20 @@ struct AttributedTextBlock: NSViewRepresentable {
         // survives); anything else falls back to a full scrubbed
         // setAttributedString. Both paths scrub U+FFFC — a bare one in LLM
         // text makes TextKit add a subview mid-`drawRect:` and crash.
+        //
+        // The signature is recorded BEFORE the apply, not after: writing the
+        // storage synchronously re-enters `updateNSView` (the layout manager's
+        // post-edit `setSelectedRange:` posts an accessibility notification and
+        // AppKit services it inline, which re-runs SwiftUI's view graph). A
+        // coordinator that still said "not applied" there started a second,
+        // nested storage edit inside the first one's notification fan-out —
+        // half of the build-658 crash. When the view defers an apply for the
+        // same reason it replays it once the outer edit unwinds, so claiming
+        // it here loses nothing.
+        coordinator.lastAppliedContentSignature = contentSignature
         view.applyAttributedStringPreferringIncremental(attributedString)
         view.invalidateHeightCache()
         view.invalidateIntrinsicContentSize()
-        coordinator.lastAppliedContentSignature = contentSignature
         // Covers the rare content-changed-but-same-size case the layer's
         // `.duringViewResize` policy wouldn't catch (e.g. a same-height text
         // swap), so the CALayer doesn't keep the previous content's raster.

@@ -253,28 +253,38 @@ final class SelectionAggregator: ObservableObject {
 
     private func applyHighlights(toBlock blockID: UUID) {
         guard let textView = blockTextViews[blockID]?.value,
-              let storage = textView.textStorage,
               let block = blocks.first(where: { $0.id == blockID }) else { return }
 
-        let fullRange = NSRange(location: 0, length: storage.length)
-        storage.enumerateAttribute(.jinHighlightID, in: fullRange, options: []) { value, range, _ in
-            if value != nil {
-                storage.removeAttribute(.backgroundColor, range: range)
-                storage.removeAttribute(.jinHighlightID, range: range)
+        // Routed through the text view so this edit joins the same reentrancy
+        // guard the content applies use. `register(blockID:textView:)` is
+        // called from inside `AttributedTextBlock.updateNSView`, which AppKit
+        // can re-enter from the middle of a storage edit — painting attributes
+        // there would nest a second edit inside the first one's notification
+        // fan-out. The view replays a turned-away mutation when the outer edit
+        // unwinds, so no highlight is lost.
+        let persistedHighlights = persistedHighlights
+        textView.performStorageMutation { [weak self] storage in
+            guard let self else { return }
+            let fullRange = NSRange(location: 0, length: storage.length)
+            storage.enumerateAttribute(.jinHighlightID, in: fullRange, options: []) { value, range, _ in
+                if value != nil {
+                    storage.removeAttribute(.backgroundColor, range: range)
+                    storage.removeAttribute(.jinHighlightID, range: range)
+                }
             }
-        }
 
-        for highlight in persistedHighlights {
-            guard intersects(highlight: highlight, with: block) else { continue }
-            let blockLocalRange = blockLocalRange(for: highlight, in: block)
-            guard blockLocalRange.length > 0 else { continue }
-            storage.addAttributes(
-                [
-                    .backgroundColor: highlight.colorStyle.color,
-                    .jinHighlightID: highlight.id,
-                ],
-                range: blockLocalRange
-            )
+            for highlight in persistedHighlights {
+                guard self.intersects(highlight: highlight, with: block) else { continue }
+                let blockLocalRange = self.blockLocalRange(for: highlight, in: block)
+                guard blockLocalRange.length > 0 else { continue }
+                storage.addAttributes(
+                    [
+                        .backgroundColor: highlight.colorStyle.color,
+                        .jinHighlightID: highlight.id,
+                    ],
+                    range: blockLocalRange
+                )
+            }
         }
     }
 

@@ -2,16 +2,19 @@ import AppKit
 import XCTest
 @testable import Jin
 
-/// Off-live-width probes are answered by `JinTextMeasurementStack` (an
-/// isolated TextKit stack) instead of by resizing the live text container,
-/// which is what crashed. That is only safe if the isolated stack wraps
+/// Off-live-width probes are answered on a SEPARATE layout manager (the
+/// per-view shadow one, or — while a storage edit is in flight — the isolated
+/// `JinTextMeasurementStack`) instead of by resizing the live text container,
+/// which is what crashed. That is only safe if the separate manager wraps
 /// EXACTLY like the live view — a one-line disagreement becomes a clipped
 /// row, i.e. trading a crash for the bug family this branch exists to fix.
 ///
 /// Each case measures a width two ways: through the live container (drive the
 /// view's frame to that width first, then measure in place) and through the
-/// isolated stack (measure while the live container sits at a different
-/// width). They must agree exactly.
+/// off-width path (measure while the live container sits somewhere else). They
+/// must agree exactly. The isolated stack's own parity is pinned here for the
+/// code gutter and, against a live view, by
+/// `JinMessageTextViewEditReentrancyTests`.
 @MainActor
 final class JinTextMeasurementParityTests: XCTestCase {
 

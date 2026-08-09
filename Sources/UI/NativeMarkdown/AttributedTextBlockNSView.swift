@@ -91,12 +91,124 @@ final class JinMessageTextView: NSTextView {
         )
     }
 
+    // MARK: - Storage-mutation reentrancy guard
+
+    /// Depth of text-storage edits this view is currently performing.
+    ///
+    /// A storage edit is NOT a leaf operation. `endEditing` fans the change
+    /// out to the layout managers; the live one fixes up the text view's
+    /// selection; `-[NSTextView setSelectedRanges:affinity:stillSelecting:]`
+    /// posts an accessibility notification. When anything is observing
+    /// accessibility, AppKit services that notification synchronously, which
+    /// re-enters SwiftUI's view graph and lands back in either
+    /// `AttributedTextBlock.updateNSView` (a second apply, nested inside the
+    /// first edit's fan-out) or `AttributedTextBlock.sizeThatFits` (a
+    /// measurement against layout managers that have not been told about the
+    /// edit yet). Both corrupt TextKit; the second is the build-658 crash.
+    private var storageMutationDepth = 0
+
+    /// True while this view is inside one of its own text-storage edits. No
+    /// layout manager attached to this storage may be driven while it is set,
+    /// and no second edit may start.
+    var isMutatingTextStorage: Bool { storageMutationDepth > 0 }
+
+    /// Work that arrived while an edit was already in flight, replayed when
+    /// the outermost edit unwinds — deferred, never dropped.
+    private var deferredApplySource: NSAttributedString?
+    private var deferredStorageMutations: [(NSTextStorage) -> Void] = []
+    private var servedMeasurementDuringMutation = false
+    private var isDrainingDeferredWork = false
+
+    private var hasDeferredWork: Bool {
+        deferredApplySource != nil || !deferredStorageMutations.isEmpty || servedMeasurementDuringMutation
+    }
+
+    private func withStorageMutation(_ body: () -> Void) {
+        storageMutationDepth += 1
+        defer {
+            storageMutationDepth -= 1
+            if storageMutationDepth == 0, hasDeferredWork { drainDeferredWork() }
+        }
+        body()
+    }
+
+    /// Replays whatever the reentrancy guard turned away, then makes the owner
+    /// re-read the size: anything measured during the window was answered off
+    /// the isolated stack and deliberately not memoized.
+    private func drainDeferredWork() {
+        guard !isDrainingDeferredWork else { return }
+        isDrainingDeferredWork = true
+        defer { isDrainingDeferredWork = false }
+        servedMeasurementDuringMutation = false
+        // Each replay writes for real, so this terminates on anything short of
+        // a source that keeps generating new content from inside every edit.
+        // Capped anyway: a livelock here would be a beachball.
+        var replays = 0
+        while deferredApplySource != nil || !deferredStorageMutations.isEmpty, replays < 4 {
+            replays += 1
+            if let pending = deferredApplySource {
+                deferredApplySource = nil
+                applyAttributedStringPreferringIncremental(pending)
+            }
+            let mutations = deferredStorageMutations
+            deferredStorageMutations = []
+            for mutation in mutations { performStorageMutation(mutation) }
+        }
+        if deferredApplySource != nil || !deferredStorageMutations.isEmpty {
+            // Hitting the cap must not silently strand the newest content: a
+            // dropped apply leaves the row showing text the model already
+            // replaced, and `AttributedTextBlock` has recorded the signature
+            // so nothing would ask again. Land it on the next turn of the run
+            // loop instead, where no edit can be in flight.
+            NSObject.cancelPreviousPerformRequests(
+                withTarget: self,
+                selector: #selector(drainDeferredWorkOnNextRunLoopTurn),
+                object: nil
+            )
+            perform(
+                #selector(drainDeferredWorkOnNextRunLoopTurn),
+                with: nil,
+                afterDelay: 0,
+                inModes: [.common]
+            )
+        }
+        invalidateIntrinsicContentSize()
+    }
+
+    @objc private func drainDeferredWorkOnNextRunLoopTurn() {
+        guard hasDeferredWork else { return }
+        drainDeferredWork()
+    }
+
+    /// Entry point for code outside this class that needs to edit this view's
+    /// text storage (the selection aggregator paints highlight attributes).
+    /// Routing through here puts those edits under the same reentrancy guard
+    /// the content applies use.
+    func performStorageMutation(_ body: @escaping (NSTextStorage) -> Void) {
+        guard let textStorage else { return }
+        guard !isMutatingTextStorage else {
+            deferredStorageMutations.append(body)
+            return
+        }
+        withStorageMutation { body(textStorage) }
+    }
+
     func setScrubbedAttributedString(_ attributed: NSAttributedString) {
         guard let textStorage else { return }
         let scrubbed = Self.scrubbingBareObjectReplacementCharacters(in: attributed)
-        textStorage.setAttributedString(scrubbed)
+        guard !isMutatingTextStorage else {
+            deferredApplySource = scrubbed
+            return
+        }
+        // Baseline and memo are updated BEFORE the write, not after: the write
+        // re-enters us (see `storageMutationDepth`), and a stale baseline there
+        // answers "not applied yet", which starts a second edit nested inside
+        // this one's notification fan-out.
         lastAppliedSource = scrubbed
         invalidateHeightCache()
+        withStorageMutation {
+            textStorage.setAttributedString(scrubbed)
+        }
     }
 
     /// Replace ONLY bare U+FFFC (the crash trigger). A U+FFFC that carries a
@@ -132,6 +244,10 @@ final class JinMessageTextView: NSTextView {
     enum ApplyMode: Equatable {
         case incremental
         case full
+        /// The apply arrived while a storage edit was already in flight and
+        /// was queued for replay when that edit unwinds — see
+        /// `storageMutationDepth`. Nothing was written yet.
+        case deferred
     }
 
     /// Streaming-optimized text apply. When `attributed` is a pure extension
@@ -146,6 +262,10 @@ final class JinMessageTextView: NSTextView {
     @discardableResult
     func applyAttributedStringPreferringIncremental(_ attributed: NSAttributedString) -> ApplyMode {
         guard let textStorage else { return .full }
+        guard !isMutatingTextStorage else {
+            deferredApplySource = attributed
+            return .deferred
+        }
         guard let baseline = lastAppliedSource,
               baseline.length > 0,
               textStorage.length == baseline.length,
@@ -184,16 +304,20 @@ final class JinMessageTextView: NSTextView {
             from: NSRange(location: oldLength, length: attributed.length - oldLength)
         )
         let scrubbedTail = Self.scrubbingBareObjectReplacementCharacters(in: tail)
-        textStorage.beginEditing()
-        textStorage.replaceCharacters(
-            in: NSRange(location: oldLength, length: 0),
-            with: scrubbedTail
-        )
-        textStorage.endEditing()
+        // Baseline and memo before the write, same as the full apply and for
+        // the same reason: `endEditing` below re-enters us.
         lastAppliedSource = Self.scrubbingBareObjectReplacementCharacters(in: attributed)
         // The version key doesn't observe storage edits — every mutation
         // path invalidates explicitly, including this one.
         invalidateHeightCache()
+        withStorageMutation {
+            textStorage.beginEditing()
+            textStorage.replaceCharacters(
+                in: NSRange(location: oldLength, length: 0),
+                with: scrubbedTail
+            )
+            textStorage.endEditing()
+        }
         return .incremental
     }
 
@@ -459,15 +583,18 @@ final class JinMessageTextView: NSTextView {
     /// The measurement must be SIDE-EFFECT-FREE. SwiftUI probes
     /// `sizeThatFits` at min/ideal/max widths, and those probes run INSIDE
     /// AppKit's layout/constraint cycle, so any width other than the live one
-    /// is measured on `JinTextMeasurementStack` — a TextKit stack nobody
-    /// renders from. Two earlier designs both shipped crashes/corruption:
-    /// driving the view's own frame re-wrapped the on-screen text at whichever
-    /// probe width came last (text painted past its card, mid-line clips), and
-    /// resizing the live `textContainer` invalidated the live layout manager
-    /// mid-cycle — the later `ensureLayout` in the same cycle then walked a
-    /// layout hole past the storage end and threw
-    /// `-[NSRLEArray objectAtRunIndex:length:]` out of bounds (production
-    /// crash, 2026-08-09).
+    /// is measured on a SHADOW layout manager. Three designs shipped
+    /// crashes/corruption before this one: driving the view's own frame
+    /// re-wrapped the on-screen text at whichever probe width came last (text
+    /// painted past its card, mid-line clips); resizing the live
+    /// `textContainer` invalidated the live layout manager mid-cycle — the
+    /// later `ensureLayout` in the same cycle then walked a layout hole past
+    /// the storage end and threw `-[NSRLEArray objectAtRunIndex:length:]` out
+    /// of bounds; and measuring on ANY manager of this storage while an edit
+    /// was still fanning out threw from
+    /// `-[NSLayoutManager _fillGlyphHoleForCharacterRange:…]`. Hence
+    /// `canDriveLayoutManagers`, which routes those moments to the isolated
+    /// `JinTextMeasurementStack` instead.
     func computeHeight(forWidth width: CGFloat) -> CGFloat {
         guard let textContainer, let layoutManager else { return 0 }
         let inset = textContainerInset
@@ -476,6 +603,9 @@ final class JinMessageTextView: NSTextView {
             return cached.height
         }
         let containerWidth = max(1, safeWidth - inset.width * 2)
+        guard canDriveLayoutManagers else {
+            return midEditHeight(containerWidth: containerWidth, inset: inset)
+        }
         let height: CGFloat
         if abs(textContainer.size.width - containerWidth) <= 0.5 {
             // Live width — measure in place (steady-state path, and the only
@@ -486,7 +616,7 @@ final class JinMessageTextView: NSTextView {
         } else if let shadow = shadowContainer(for: containerWidth) {
             height = ceil(shadow.manager.usedRect(for: shadow.container).height + inset.height * 2)
         } else {
-            height = 0
+            return midEditHeight(containerWidth: containerWidth, inset: inset)
         }
         cachedHeight = (contentVersion, safeWidth, height)
         return height
@@ -512,6 +642,9 @@ final class JinMessageTextView: NSTextView {
             return cached.width
         }
         let containerWidth = max(1, safeMaxWidth - inset.width * 2)
+        guard canDriveLayoutManagers else {
+            return midEditNaturalWidth(containerWidth: containerWidth, inset: inset)
+        }
         let width: CGFloat
         if abs(textContainer.size.width - containerWidth) <= 0.5 {
             layoutManager.ensureLayout(for: textContainer)
@@ -519,10 +652,117 @@ final class JinMessageTextView: NSTextView {
         } else if let shadow = shadowContainer(for: containerWidth) {
             width = ceil(shadow.manager.jinWidestLineFragmentRight(in: shadow.container) + inset.width * 2)
         } else {
-            width = 0
+            return midEditNaturalWidth(containerWidth: containerWidth, inset: inset)
         }
         cachedNaturalWidth = (contentVersion, safeMaxWidth, width)
         return width
+    }
+
+    // MARK: Mid-edit measuring
+
+    /// Whether ANY layout manager attached to this view's text storage may be
+    /// driven right now — `ensureLayout`, `usedRect`, or even
+    /// `addLayoutManager`.
+    ///
+    /// Answering yes at the wrong moment is the build-658 production crash.
+    /// TextKit states the rule itself, in the exception it raises:
+    ///
+    ///     -[NSLayoutManager _fillGlyphHoleForCharacterRange:startGlyphIndex:
+    ///     desiredNumberOfCharacters:] *** attempted glyph generation while
+    ///     textStorage is editing. It is not valid to cause the layoutManager
+    ///     to do glyph generation while the textStorage is editing
+    ///
+    /// It is uncatchable inside AppKit's constraint pass, so it kills the app.
+    /// Three independent nets, because the app is re-entered here from AppKit
+    /// (an accessibility notification posted by the layout manager's post-edit
+    /// `setSelectedRange:`) and none of the three sees every case:
+    ///
+    ///  - `editedMask` — AppKit's own "there are pending changes" flag, and
+    ///    the closest thing to the condition named in the exception. Set for
+    ///    the whole of `processEditing`, i.e. the entire fan-out to the layout
+    ///    managers, and set for edits nobody in this file made — including
+    ///    attribute-only ones, which the length check below cannot see.
+    ///  - `storageMutationDepth` — our own edits, including the window between
+    ///    `beginEditing()` and the first change, where `editedMask` is still
+    ///    empty but the storage is already refusing glyph generation.
+    ///  - `jinIsStaleRelativeToStorage` — a manager that has not been notified
+    ///    yet. The storage notifies its managers one at a time in the order
+    ///    they were added, so on re-entry from inside the LIVE manager's
+    ///    callback the shadow one is still describing the previous text.
+    private var canDriveLayoutManagers: Bool {
+        if isMutatingTextStorage { return false }
+        if let textStorage, !textStorage.editedMask.isEmpty { return false }
+        if let live = layoutManager as? JinMarkdownLayoutManager, live.jinIsStaleRelativeToStorage {
+            return false
+        }
+        if let shadow = shadowLayoutManager, shadow.jinIsStaleRelativeToStorage { return false }
+        return true
+    }
+
+    /// Stable identity for this view's slot in the isolated measuring stack.
+    private lazy var measurementStackKey = "view:\(UInt(bitPattern: ObjectIdentifier(self).hashValue))"
+
+    /// Height for a width that cannot be measured on this storage's managers.
+    ///
+    /// `JinTextMeasurementStack` owns a text storage nobody else touches, so
+    /// it is unaffected by whatever edit is in flight here. It measures
+    /// `lastAppliedSource` — the string we most recently decided to show,
+    /// which the apply paths record BEFORE writing it — so the answer is the
+    /// height of the content that is landing, not of the content it replaced.
+    /// Costs one string copy, and only in this window; the steady-state paths
+    /// above are untouched.
+    private func midEditHeight(containerWidth: CGFloat, inset: NSSize) -> CGFloat {
+        noteMidEditMeasurement()
+        guard let source = lastAppliedSource else {
+            return cachedHeight?.height ?? max(0, frame.height)
+        }
+        return ceil(
+            JinTextMeasurementStack.height(
+                of: source,
+                token: JinTextMeasurementStack.Token(key: measurementStackKey, version: contentVersion),
+                containerWidth: containerWidth
+            ) + inset.height * 2
+        )
+    }
+
+    private func midEditNaturalWidth(containerWidth: CGFloat, inset: NSSize) -> CGFloat {
+        noteMidEditMeasurement()
+        guard let source = lastAppliedSource else {
+            return cachedNaturalWidth?.width ?? 0
+        }
+        return ceil(
+            JinTextMeasurementStack.maxLineRight(
+                of: source,
+                token: JinTextMeasurementStack.Token(key: measurementStackKey, version: contentVersion),
+                containerWidth: containerWidth
+            ) + inset.width * 2
+        )
+    }
+
+    /// Mid-edit answers are deliberately NOT memoized (the version key still
+    /// belongs to the edit in flight). Remember that one was served so the
+    /// unwinding edit re-invalidates the intrinsic size and the owner asks
+    /// again from the normal path.
+    ///
+    /// Also logged, throttled: this path firing in a shipped build means
+    /// something is re-entering layout from inside a text-storage edit, which
+    /// is the shape of the crash. It is now survivable, but the next
+    /// investigation should not have to guess whether it happened.
+    private func noteMidEditMeasurement() {
+        JinLayoutCostCounters.midEditMeasurements += 1
+        if isMutatingTextStorage { servedMeasurementDuringMutation = true }
+        let count = JinLayoutCostCounters.midEditMeasurements
+        guard count <= 5 || count % 500 == 0 else { return }
+        ChatDiagnosticLogger.log(
+            runId: "textkit-reentrancy",
+            hypothesisId: "midEditMeasurement",
+            message: "sizing_probe_inside_storage_edit",
+            data: [
+                "count": String(count),
+                "ownEdit": String(isMutatingTextStorage),
+                "storageEditing": String(textStorage.map { !$0.editedMask.isEmpty } ?? false),
+            ]
+        )
     }
 
     // MARK: Shadow measuring stack
@@ -551,6 +791,12 @@ final class JinMessageTextView: NSTextView {
         for containerWidth: CGFloat
     ) -> (manager: NSLayoutManager, container: NSTextContainer)? {
         guard let textStorage else { return nil }
+        // Both callers check this already; repeated here because the cost of
+        // getting it wrong is not a wrong number but a crash — `ensureLayout`
+        // below is the frame that threw in production, and on the first probe
+        // this function also calls `addLayoutManager`, which mutates the very
+        // array `NSTextStorage` is iterating during an edit fan-out.
+        guard canDriveLayoutManagers else { return nil }
         let manager: JinMarkdownLayoutManager
         let container: NSTextContainer
         if let existingManager = shadowLayoutManager, let existingContainer = shadowTextContainer {

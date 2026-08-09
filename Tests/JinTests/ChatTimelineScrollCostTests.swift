@@ -74,6 +74,7 @@ final class ChatTimelineScrollCostTests: XCTestCase {
           copies by call site     = \(JinTextMeasurementStack.copiesByKind)
           shadow layouts          = \(JinLayoutCostCounters.shadowLayouts)
           live measure layouts    = \(JinLayoutCostCounters.liveMeasureLayouts)
+          mid-edit fallbacks      = \(JinLayoutCostCounters.midEditMeasurements)
           cell frame syncs        = \(JinLayoutCostCounters.cellFrameSyncs)
           cell configures         = \(JinLayoutCostCounters.cellConfigures)
           height audits           = \(JinLayoutCostCounters.heightAudits)         (rows sampled \(JinLayoutCostCounters.auditRowsSampled))
@@ -102,6 +103,17 @@ final class ChatTimelineScrollCostTests: XCTestCase {
             40,
             "\(String(format: "%.1f", shadowPerStep)) shadow layouts per scroll step — the off-width "
                 + "probe path is re-laying-out far more than the rows a step realizes"
+        )
+        // The mid-edit safety valve (a probe that arrived while a storage edit
+        // was still fanning out, answered on the isolated stack for a full
+        // string copy) must never be on the scroll path. Anything above zero
+        // here means measurement and mutation have started interleaving again.
+        XCTAssertEqual(
+            JinLayoutCostCounters.midEditMeasurements,
+            0,
+            "\(JinLayoutCostCounters.midEditMeasurements) sizing probes were answered from inside a "
+                + "storage edit — each one is a full-text copy, and each one would have been the "
+                + "build-658 crash before the guard existed"
         )
         // Wall time here is dominated by cell realization plus this harness's
         // own 20ms-per-step run-loop settle, and it is noisy run to run —
@@ -152,6 +164,7 @@ final class ChatTimelineScrollCostTests: XCTestCase {
           measuring-stack layouts = \(JinTextMeasurementStack.layoutCount)
           shadow layouts          = \(JinLayoutCostCounters.shadowLayouts)
           live measure layouts    = \(JinLayoutCostCounters.liveMeasureLayouts)
+          mid-edit fallbacks      = \(JinLayoutCostCounters.midEditMeasurements)
           wall time               = \(String(format: "%.0f", elapsed * 1000))ms total, \
         \(String(format: "%.1f", elapsed / Double(deltas) * 1000))ms/delta
         """)
@@ -168,6 +181,15 @@ final class ChatTimelineScrollCostTests: XCTestCase {
             1,
             "\(String(format: "%.1f", shadowPerDelta)) shadow layouts per streaming delta — the "
                 + "off-width probe path is being driven by the edit stream"
+        )
+        // Streaming is where the crash reproduced. Zero here says the applies
+        // and the sizing probes are not interleaving: no probe landed inside
+        // an edit, so none had to be answered off the isolated stack.
+        XCTAssertEqual(
+            JinLayoutCostCounters.midEditMeasurements,
+            0,
+            "\(JinLayoutCostCounters.midEditMeasurements) sizing probes arrived from inside a "
+                + "storage edit while streaming"
         )
         XCTAssertLessThan(
             elapsed / Double(deltas) * 1000,
