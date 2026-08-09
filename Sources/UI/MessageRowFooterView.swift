@@ -104,6 +104,13 @@ struct MessageRowFooterView: View {
         // (bubble has .padding(JinSpacing.medium); footer lives outside, so
         // we mirror that padding here for a single-rail layout).
         .padding(.horizontal, JinSpacing.medium)
+        // Reserve a stable strip like the user footer: the borderless Menu's
+        // control height varies by OS (macOS 27 exceeds 20pt) — letting the
+        // strip GROW keeps the taller control fully painted, and the in-tree
+        // height channel reports the growth so the row follows. (A hard
+        // `.frame(height: 20)` pin centered the taller control and painted
+        // its excess below the strip — the same clipped-bottom family.)
+        .frame(minHeight: 20, alignment: .center)
     }
 
     private var userFooter: some View {

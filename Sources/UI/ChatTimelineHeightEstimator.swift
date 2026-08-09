@@ -32,19 +32,42 @@ enum ChatTimelineHeightEstimator {
     // measure landed (the "buttons overlap on send" glitch).
     private static let rowChrome = 96.0
 
+    // The chrome strips that `copyText` is structurally blind to
+    // (`copyableText` keeps only .text/.quote parts). A search+thinking
+    // reply used to open ~480pt short of its real height — the card clipped
+    // partway through — purely because the estimate never counted these.
+    private static let searchStripHeight = 44.0
+    private static let thinkingHeaderHeight = 40.0
+    private static let activityRowHeight = 36.0
+
     /// - Parameter columnWidth: the timeline column width (full message rail).
     /// - Parameter isUser: user bubbles wrap at ~70% of the column; estimating
     ///   against the full width under-counts wraps for long pastes, while a
     ///   stale too-tall cache leaves a clear band under a short bubble. Pass
     ///   the role so the wrap width matches the real bubble.
-    static func estimate(text: String, columnWidth: CGFloat, isUser: Bool = false) -> CGFloat {
+    /// - Parameters hasSearchActivities/hasThinking/toolChromeRowCount:
+    ///   collapsed-chrome strips rendered ABOVE/BELOW the prose that the text
+    ///   heuristic cannot see (search summary row, thinking disclosure
+    ///   header, MCP tool + code-exec timeline rows).
+    static func estimate(
+        text: String,
+        columnWidth: CGFloat,
+        isUser: Bool = false,
+        hasSearchActivities: Bool = false,
+        hasThinking: Bool = false,
+        toolChromeRowCount: Int = 0
+    ) -> CGFloat {
         let wrapWidth: CGFloat
         if isUser {
             wrapWidth = ChatConversationLayoutMetrics.userBubbleMaxWidth(for: columnWidth)
         } else {
             wrapWidth = max(1, columnWidth)
         }
-        return estimateWrapped(text: text, wrapWidth: wrapWidth)
+        var height = estimateWrapped(text: text, wrapWidth: wrapWidth)
+        if hasSearchActivities { height += searchStripHeight }
+        if hasThinking { height += thinkingHeaderHeight }
+        height += Double(min(toolChromeRowCount, 20)) * activityRowHeight
+        return height
     }
 
     /// Core wrap-aware estimate against an explicit content width.

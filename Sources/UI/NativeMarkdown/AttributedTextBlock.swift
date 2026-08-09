@@ -56,11 +56,19 @@ struct AttributedTextBlock: NSViewRepresentable {
         nsView: JinMessageTextView,
         context: Context
     ) -> CGSize? {
-        if needsAttributedStringApply(nsView, coordinator: context.coordinator) {
-            applyAttributedString(to: nsView, coordinator: context.coordinator)
-            registerWithAggregator(view: nsView)
-        }
-
+        // NOTHING here may mutate the live view. `sizeThatFits` is a
+        // layout-time callback: SwiftUI runs it from inside AppKit's
+        // layout/constraint cycle, where this view's own layout manager can
+        // already be mid-typesetting. Writing into `textStorage` there is the
+        // documented way to corrupt TextKit's bookkeeping — reproduced
+        // standalone: a storage edit during `ensureLayout` raises
+        // "Range or index out of bounds" from the typesetter, which in the app
+        // escaped as the uncaught `-[NSRLEArray objectAtRunIndex:length:]`
+        // crash (2026-08-09, twice, both during streaming — the case where an
+        // apply is pending on nearly every layout pass). The apply belongs to
+        // `updateNSView`; a pending string is MEASURED instead, on a TextKit
+        // stack nobody renders from.
+        //
         // Two layout phases:
         //
         //  1. SwiftUI ideal-size pass with `proposal.width == nil` — return
@@ -79,8 +87,32 @@ struct AttributedTextBlock: NSViewRepresentable {
             return nil
         }
 
-        let height = nsView.computeHeight(forWidth: proposedWidth)
+        let height: CGFloat
+        if needsAttributedStringApply(nsView, coordinator: context.coordinator) {
+            // The view still holds the previous content; measuring it would
+            // report the wrong height for one pass (a clipped or gapped row
+            // until the next update). Measure what is ABOUT to be applied.
+            let inset = nsView.textContainerInset
+            height = JinTextMeasurementStack.height(
+                of: JinMessageTextView.scrubbingBareObjectReplacementCharacters(in: attributedString),
+                token: JinTextMeasurementStack.Token(
+                    key: measurementKey,
+                    version: UInt64(attributedString.length)
+                ),
+                containerWidth: max(1, proposedWidth - inset.width * 2)
+            ) + inset.height * 2
+        } else {
+            height = nsView.computeHeight(forWidth: proposedWidth)
+        }
         return CGSize(width: max(1, proposedWidth), height: max(1, height))
+    }
+
+    /// Identity of `attributedString` for the shared measuring stack. The
+    /// render pipeline's own content signature when there is one; otherwise a
+    /// string hash, which only ever costs an extra copy on a collision.
+    private var measurementKey: String {
+        if let contentSignature { return "sig:\(contentSignature)" }
+        return "hash:\(attributedString.string.hashValue)"
     }
 
     @MainActor
@@ -93,7 +125,7 @@ struct AttributedTextBlock: NSViewRepresentable {
         if let contentSignature {
             return coordinator.lastAppliedContentSignature != contentSignature
         }
-        return !view.attributedString().isEqual(to: attributedString)
+        return !view.hasAppliedSource(attributedString)
     }
 
     private func applyAttributedString(to view: JinMessageTextView, coordinator: Coordinator) {
