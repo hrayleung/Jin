@@ -275,14 +275,22 @@ final class SelectionAggregator: ObservableObject {
 
             for highlight in persistedHighlights {
                 guard self.intersects(highlight: highlight, with: block) else { continue }
-                let blockLocalRange = self.blockLocalRange(for: highlight, in: block)
-                guard blockLocalRange.length > 0 else { continue }
+                // Clamped against the LIVE length, not `block.length`. The two
+                // are aligned when this runs synchronously, but a turned-away
+                // mutation is replayed AFTER the pending content apply — so by
+                // then `block` can describe longer text than the storage holds,
+                // and `addAttributes` past the end raises an out-of-range ObjC
+                // exception. Same clamp `latexExpandedSelectedText` applies.
+                let desired = self.blockLocalRange(for: highlight, in: block)
+                let location = min(desired.location, storage.length)
+                let length = min(desired.length, storage.length - location)
+                guard length > 0 else { continue }
                 storage.addAttributes(
                     [
                         .backgroundColor: highlight.colorStyle.color,
                         .jinHighlightID: highlight.id,
                     ],
-                    range: blockLocalRange
+                    range: NSRange(location: location, length: length)
                 )
             }
         }

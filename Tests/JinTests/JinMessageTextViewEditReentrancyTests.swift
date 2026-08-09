@@ -306,6 +306,85 @@ final class JinMessageTextViewEditReentrancyTests: XCTestCase {
         )
     }
 
+    /// The ordering contract every deferred mutation has to be written
+    /// against: the drain replays the pending content apply FIRST, so a
+    /// mutation queued before it observes a storage that may have changed
+    /// length underneath it. Anything computing ranges outside the closure
+    /// must clamp inside it.
+    func testDeferredMutationSeesTheReplayedContentNotTheOneItWasQueuedAgainst() {
+        let (view, probe) = makeView(attributed("一段很长很长的原始文本内容"), liveWidth: 420, probeWidth: 300)
+        let lengthWhenQueued = view.textStorage?.length ?? 0
+        XCTAssertGreaterThan(lengthWhenQueued, 6)
+
+        let short = attributed("短文本")
+        var lengthWhenReplayed: Int?
+        var queued = false
+        probe.onEdited = { [weak view] in
+            guard let view, !queued else { return }
+            queued = true
+            view.performStorageMutation { storage in
+                lengthWhenReplayed = storage.length
+            }
+            _ = view.applyAttributedStringPreferringIncremental(short)
+        }
+
+        view.setScrubbedAttributedString(attributed("中间版本的文本"))
+
+        XCTAssertEqual(view.attributedString().string, short.string)
+        XCTAssertEqual(
+            lengthWhenReplayed,
+            short.length,
+            "the deferred mutation ran against a different storage than the drain finished with"
+        )
+        XCTAssertLessThan(
+            lengthWhenReplayed ?? .max,
+            lengthWhenQueued,
+            "this test is only meaningful if the replayed content is shorter"
+        )
+    }
+
+    /// `SelectionAggregator` derives highlight ranges from the block model,
+    /// which the deferral above can leave describing longer text than the
+    /// storage holds. Painting past the end raises an out-of-range ObjC
+    /// exception — the same crash class, one frame over.
+    func testHighlightPaintingClampsToTheLiveStorageLength() {
+        let messageID = UUID()
+        let anchorID = "anchor"
+        let blockID = UUID()
+        let blockText = "一段完整的原始文本内容"
+
+        let aggregator = SelectionAggregator(
+            messageID: messageID,
+            anchorID: anchorID,
+            actions: .none,
+            blocks: [
+                SelectionAggregator.BlockOffsetInfo(id: blockID, offsetInAnchor: 0, plainText: blockText)
+            ],
+            persistedHighlights: [
+                MessageHighlightSnapshot(
+                    messageID: messageID,
+                    anchorID: anchorID,
+                    selectedText: blockText,
+                    startOffset: 0,
+                    endOffset: blockText.utf16.count,
+                    colorStyle: .readerYellow
+                )
+            ]
+        )
+
+        // The view already holds a SHORTER string than the block model — what
+        // a replayed apply leaves behind.
+        let view = JinMessageTextView()
+        view.setScrubbedAttributedString(attributed("短"))
+        aggregator.register(blockID: blockID, textView: view)
+
+        XCTAssertEqual(view.textStorage?.length, 1)
+        XCTAssertNotNil(
+            view.textStorage?.attribute(.backgroundColor, at: 0, effectiveRange: nil),
+            "the highlight was skipped entirely instead of being clamped"
+        )
+    }
+
     // MARK: - No cost in the steady state
 
     /// The guards must not put the ordinary paths on the isolated stack — that
