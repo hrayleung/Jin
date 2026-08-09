@@ -7,26 +7,6 @@ import os
 /// (~viewport worth) while scrolling a long conversation; if recycling is
 /// broken it grows with conversation length. Thread-safe (deinit may run
 /// off-main) and dependency-free.
-/// Counters for the scroll-cost benchmark (see ChatTimelineScrollCostTests).
-@MainActor
-enum JinLayoutCostCounters {
-    static var shadowLayouts = 0
-    static var liveMeasureLayouts = 0
-    static var cellFrameSyncs = 0
-    static var cellConfigures = 0
-    static var heightAudits = 0
-    static var auditRowsSampled = 0
-
-    static func reset() {
-        shadowLayouts = 0
-        liveMeasureLayouts = 0
-        cellFrameSyncs = 0
-        cellConfigures = 0
-        heightAudits = 0
-        auditRowsSampled = 0
-    }
-}
-
 enum JinTextViewCensus {
     private static let lock = OSAllocatedUnfairLock(initialState: 0)
     static func increment() { lock.withLock { $0 += 1 } }
@@ -65,10 +45,6 @@ final class JinMessageTextView: NSTextView {
         contentVersion &+= 1
         cachedHeight = nil
         cachedNaturalWidth = nil
-        // The shared measuring stack keys on (view, version); bumping the
-        // version is enough to miss, but drop its copy too so a stale one
-        // cannot be revived by a version wrap-around.
-        JinTextMeasurementStack.invalidate(owner: ObjectIdentifier(self))
     }
 
     /// The memoized height must include the inset; a late inset change (the
@@ -82,16 +58,6 @@ final class JinMessageTextView: NSTextView {
         }
     }
 
-    /// Replace U+FFFC (OBJECT REPLACEMENT CHARACTER, the `NSAttachmentCharacter`)
-    /// before it reaches the text storage. LLM output occasionally contains a
-    /// bare U+FFFC; TextKit 1 classifies it as an attachment control glyph, so
-    /// `drawRect:` routes it to `-[NSLayoutManager showAttachment:…]` →
-    /// `-[NSView addSubview:]` — adding a subview *during* the layer display
-    /// cycle, which mutates the constraint hierarchy and throws
-    /// `_postWindowNeedsUpdateConstraints`, crashing the app (and leaving a
-    /// mis-laid 1-glyph-wide "ghost" subview / re-throwing every draw pass =
-    /// the unusable lag). U+FFFD is a normal printable glyph, so swapping it is
-    /// length-preserving (selection/highlight offsets stay aligned) and safe.
     /// The exact (scrubbed) string most recently applied by us. The live
     /// `textStorage` cannot serve as the comparison baseline for the
     /// incremental apply: `processEditing`'s attribute fixing rewrites font
@@ -111,10 +77,18 @@ final class JinMessageTextView: NSTextView {
     /// apply. Comparing against storage answered "not applied yet" forever,
     /// which made every single `sizeThatFits` treat the content as pending —
     /// measured at 491 full-text copies + re-layouts across 40 scroll steps.
+    ///
+    /// `lastAppliedSource` is the SCRUBBED string, so content carrying a bare
+    /// U+FFFC has to be scrubbed before the comparison or it too would read as
+    /// pending forever — the same never-matching trap, just narrower. The
+    /// scrub is identity-returning when there is nothing to replace, so the
+    /// common case stays a pointer compare.
     func hasAppliedSource(_ attributed: NSAttributedString) -> Bool {
         guard let lastAppliedSource else { return false }
         if lastAppliedSource === attributed { return true }
-        return lastAppliedSource.isEqual(to: attributed)
+        return lastAppliedSource.isEqual(
+            to: Self.scrubbingBareObjectReplacementCharacters(in: attributed)
+        )
     }
 
     func setScrubbedAttributedString(_ attributed: NSAttributedString) {
@@ -541,9 +515,9 @@ final class JinMessageTextView: NSTextView {
         let width: CGFloat
         if abs(textContainer.size.width - containerWidth) <= 0.5 {
             layoutManager.ensureLayout(for: textContainer)
-            width = ceil(maxLineFragmentUsedRight(layoutManager, textContainer) + inset.width * 2)
+            width = ceil(layoutManager.jinWidestLineFragmentRight(in: textContainer) + inset.width * 2)
         } else if let shadow = shadowContainer(for: containerWidth) {
-            width = ceil(maxLineFragmentUsedRight(shadow.manager, shadow.container) + inset.width * 2)
+            width = ceil(shadow.manager.jinWidestLineFragmentRight(in: shadow.container) + inset.width * 2)
         } else {
             width = 0
         }
@@ -602,23 +576,6 @@ final class JinMessageTextView: NSTextView {
         manager.ensureLayout(for: container)
         JinLayoutCostCounters.shadowLayouts += 1
         return (manager, container)
-    }
-
-    private func maxLineFragmentUsedRight(
-        _ layoutManager: NSLayoutManager,
-        _ textContainer: NSTextContainer
-    ) -> CGFloat {
-        let glyphs = layoutManager.glyphRange(for: textContainer)
-        var maxRight: CGFloat = 0
-        var index = glyphs.location
-        while index < NSMaxRange(glyphs) {
-            var effective = NSRange(location: index, length: 0)
-            let used = layoutManager.lineFragmentUsedRect(forGlyphAt: index, effectiveRange: &effective)
-            maxRight = max(maxRight, used.maxX)
-            guard NSMaxRange(effective) > index else { break }
-            index = NSMaxRange(effective)
-        }
-        return maxRight
     }
 
     // MARK: - Wheel forwarding (code-block horizontal-scroll trap escape)

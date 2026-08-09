@@ -12,11 +12,12 @@ import XCTest
 ///
 /// That shape means the layout manager walked a character index the text
 /// storage no longer has — i.e. measurement ran against a storage/container
-/// pair that changed underneath it. The measurement path mutates the LIVE
-/// container for off-width probes, so this hammers exactly that combination:
-/// storage edits, width changes, off-width probes and real constraint passes
-/// interleaved. An ObjC exception here aborts the test process, which is the
-/// signal.
+/// pair that changed underneath it. Off-width probes now go to a per-view
+/// SHADOW layout manager rather than the live container, so what this hammers
+/// is that separation holding up under load: storage edits, width changes,
+/// off-width probes and real constraint passes interleaved, with the shadow
+/// sharing the same storage the live manager is typesetting from. An ObjC
+/// exception here aborts the test process, which is the signal.
 @MainActor
 final class JinMessageTextViewLayoutStressTests: XCTestCase {
 

@@ -191,7 +191,18 @@ final class ChatTimelineControllerRowGeometryTests: XCTestCase {
             """)
         }
 
-        for sample in samples where sample.cellHeight > 2 {
+        // Count what the filter keeps: a run where every cell measured ~0
+        // (nothing realized) would otherwise skip every assertion and report
+        // green — the same vacuous-pass trap the row-rect test guards against.
+        let checked = samples.filter { $0.cellHeight > 2 }
+        XCTAssertGreaterThan(
+            checked.count,
+            0,
+            "\(phase): no resident row had a realized cell, so this invariant checked nothing",
+            file: file,
+            line: line
+        )
+        for sample in checked {
             XCTAssertLessThanOrEqual(
                 sample.measuredHeight,
                 sample.cellHeight + 1,

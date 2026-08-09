@@ -181,7 +181,10 @@ final class JinTextMeasurementParityTests: XCTestCase {
 
             let live = CodeLineNumberTextView()
             live.textContainerInset = inset
-            live.textStorage?.setAttributedString(numbers)
+            guard let storage = live.textStorage else {
+                return XCTFail("gutter text view has no storage — the comparison would be empty")
+            }
+            storage.setAttributedString(numbers)
             let liveSize = live.naturalSize()
 
             let measured = JinTextMeasurementStack.size(
@@ -218,5 +221,59 @@ final class JinTextMeasurementParityTests: XCTestCase {
         XCTAssertEqual(view.computeHeight(forWidth: 640), heightAt640, accuracy: 0.5)
         XCTAssertTrue(view.textContainer?.widthTracksTextView ?? false)
         XCTAssertTrue(view.isVerticallyResizable)
+    }
+
+    /// A stack token is a cheap SUMMARY of the content (signature or character
+    /// hash + length) and is blind to ATTRIBUTES. Same characters in a bigger
+    /// font — an app font-size change, a theme swap, a highlight upgrade —
+    /// mint the identical token, so a token-only hit test would answer the new
+    /// content with the old content's layout and size every affected row
+    /// wrong.
+    func testAttributeOnlyChangeUnderTheSameTokenIsNotServedFromTheOldLayout() {
+        let text = String(repeating: "同じ文字列 with identical characters throughout. ", count: 12)
+        let small = NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 12)])
+        let large = NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: 28)])
+
+        // Deliberately the SAME token for both: this is exactly what
+        // `AttributedTextBlock` mints when only attributes changed.
+        let token = JinTextMeasurementStack.Token(key: "attr-collision", version: UInt64(small.length))
+
+        let smallHeight = JinTextMeasurementStack.height(of: small, token: token, containerWidth: 400)
+        let largeHeight = JinTextMeasurementStack.height(of: large, token: token, containerWidth: 400)
+
+        XCTAssertGreaterThan(
+            largeHeight,
+            smallHeight * 1.5,
+            "28pt text measured \(largeHeight)pt, barely more than the 12pt measurement "
+                + "(\(smallHeight)pt) — the stack answered from the previous content's layout"
+        )
+        // And back again, so the check is not one-directional.
+        XCTAssertEqual(
+            JinTextMeasurementStack.height(of: small, token: token, containerWidth: 400),
+            smallHeight,
+            accuracy: 0.5
+        )
+    }
+
+    /// The flip side: repeated probes of the SAME content must still hit, or
+    /// the fix above would reintroduce the per-probe full-text copy that made
+    /// scrolling lag.
+    func testRepeatedProbesOfTheSameContentDoNotRecopy() {
+        let attributed = NSAttributedString(
+            string: String(repeating: "steady content. ", count: 40),
+            attributes: [.font: NSFont.systemFont(ofSize: 14)]
+        )
+        let token = JinTextMeasurementStack.Token(key: "steady", version: UInt64(attributed.length))
+        _ = JinTextMeasurementStack.height(of: attributed, token: token, containerWidth: 500)
+
+        let copiesBefore = JinTextMeasurementStack.copyCount
+        for width in [500.0, 320.0, 800.0, 500.0] as [CGFloat] {
+            _ = JinTextMeasurementStack.height(of: attributed, token: token, containerWidth: width)
+        }
+        XCTAssertEqual(
+            JinTextMeasurementStack.copyCount,
+            copiesBefore,
+            "re-probing identical content copied the string again"
+        )
     }
 }

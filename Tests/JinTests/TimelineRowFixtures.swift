@@ -89,9 +89,10 @@ enum TimelineRowFixtures {
         )
     }
 
-    /// Same shape as the reported conversation (7 turns): long user paste,
-    /// long reasoning reply, short user follow-up, reply, two long CJK user
-    /// turns, final reply.
+    /// Same shape as the reported conversation, plus the block kinds that
+    /// measure late: long user paste, long reasoning reply, short user
+    /// follow-up, reply, two long CJK user turns, reply, a code+table reply, a
+    /// short CJK turn, a search/thinking-only row, and a wide-code reply.
     static func reportedConversation() -> [MessageRenderItem] {
         [
             item(role: "user", text: reportedUserMessage),

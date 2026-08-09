@@ -37,6 +37,27 @@ final class CodeBlockWheelTargetTests: XCTestCase {
 
     private static let shortSource = "let x = 1\nlet y = 2\n"
 
+    /// `realize` drives the gutter through the real preference, which lives in
+    /// the standard suite — i.e. the developer's own app defaults. Snapshot and
+    /// restore it, or running the suite silently rewrites their setting and
+    /// leaves every later test reading whatever the last case set.
+    private var savedShowLineNumbers: Any?
+
+    override func setUp() {
+        super.setUp()
+        savedShowLineNumbers = UserDefaults.standard.object(forKey: AppPreferenceKeys.codeBlockShowLineNumbers)
+    }
+
+    override func tearDown() {
+        if let savedShowLineNumbers {
+            UserDefaults.standard.set(savedShowLineNumbers, forKey: AppPreferenceKeys.codeBlockShowLineNumbers)
+        } else {
+            UserDefaults.standard.removeObject(forKey: AppPreferenceKeys.codeBlockShowLineNumbers)
+        }
+        savedShowLineNumbers = nil
+        super.tearDown()
+    }
+
     private func realize(source: String, showLineNumbers: Bool) -> (ChatTimelineScrollView, NSView) {
         UserDefaults.standard.set(showLineNumbers, forKey: AppPreferenceKeys.codeBlockShowLineNumbers)
         let timeline = ChatTimelineScrollView(
@@ -91,39 +112,6 @@ final class CodeBlockWheelTargetTests: XCTestCase {
             current = candidate.superview
         }
         return "reachesTimeline"
-    }
-
-    private func sampleGrid(source: String, showLineNumbers: Bool, label: String) -> [String: Int] {
-        let (timeline, host) = realize(source: source, showLineNumbers: showLineNumbers)
-        var tally: [String: Int] = [:]
-        let bounds = host.bounds
-        var samples: [(NSPoint, String)] = []
-        let columns = 14
-        let rows = 10
-        for column in 0..<columns {
-            for row in 0..<rows {
-                let point = NSPoint(
-                    x: bounds.minX + bounds.width * (CGFloat(column) + 0.5) / CGFloat(columns),
-                    y: bounds.minY + bounds.height * (CGFloat(row) + 0.5) / CGFloat(rows)
-                )
-                // `hitTest` takes a point in the RECEIVER'S SUPERVIEW space;
-                // go through window coordinates so no flipped/scrolled
-                // ancestor can skew the sample.
-                let inWindow = host.convert(point, to: nil)
-                guard let hit = timeline.hitTest(inWindow) else {
-                    tally["noHit", default: 0] += 1
-                    continue
-                }
-                let verdict = routing(from: hit, timeline: timeline)
-                tally[verdict, default: 0] += 1
-                samples.append((point, "\(verdict) <- \(type(of: hit))"))
-            }
-        }
-        print("[wheel-target:\(label)] \(tally)")
-        for (point, description) in samples where description.hasPrefix("TRAPPED") {
-            print("  dead zone at \(Int(point.x)),\(Int(point.y)): \(description)")
-        }
-        return tally
     }
 
     /// Hit-testing to a forwarder is necessary but not sufficient: the

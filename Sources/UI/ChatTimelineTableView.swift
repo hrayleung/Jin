@@ -504,9 +504,15 @@ final class ChatTimelineHostingCell: NSTableCellView {
     /// never publishes, and its row falls back to the estimator forever.
     /// Clearing `pendingMeasuredHeight` also stops a pre-clear measurement
     /// from flushing under the new cache key.
+    /// Clearing `lastSwiftUIReportedHeight` matters just as much: the caller
+    /// resets because the WIDTH changed, and that number was measured at the
+    /// old wrap width. A resident cell that survives the apply without a
+    /// `configure()` would otherwise republish the previous width's height
+    /// straight into `heightCache` and the warm store under the new key.
     func resetHeightReportingBaseline() {
         lastReportedHeight = -1
         pendingMeasuredHeight = nil
+        lastSwiftUIReportedHeight = 0
         // Match configure(): the first post-reset measurement may publish
         // synchronously, so a width change doesn't leave the row on its
         // estimate for an extra runloop turn.

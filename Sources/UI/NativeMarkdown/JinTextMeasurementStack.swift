@@ -43,6 +43,14 @@ enum JinTextMeasurementStack {
     /// same content at different widths skip the copy.
     private static var loadedToken: Token?
 
+    /// The exact string behind `loadedToken`. A token is a cheap SUMMARY
+    /// (signature or character hash + length) and is deliberately blind to
+    /// attributes: two strings with the same characters but different fonts —
+    /// an app font-size change, a theme swap — mint the same token. Verifying
+    /// the real string before claiming a hit is what stops the stack from
+    /// answering with the previous attributes' height.
+    private static var loadedSource: NSAttributedString?
+
     /// Instrumentation for the scroll-cost benchmark: how many full string
     /// copies (token misses) and how many `ensureLayout` passes this stack has
     /// performed. Copies are the expensive half.
@@ -57,15 +65,6 @@ enum JinTextMeasurementStack {
     struct Token: Equatable {
         let key: String
         let version: UInt64
-
-        init(key: String, version: UInt64) {
-            self.key = key
-            self.version = version
-        }
-
-        init(owner: ObjectIdentifier, version: UInt64) {
-            self.init(key: "view:\(owner.hashValue)", version: version)
-        }
     }
 
     /// Lays `attributed` out at `containerWidth` and returns the used height.
@@ -78,32 +77,14 @@ enum JinTextMeasurementStack {
         return ceil(layoutManager.usedRect(for: container).height)
     }
 
-    /// Widest line-fragment right edge at `containerWidth`. Per-fragment, not
-    /// the aggregate `usedRect`: after an explicit container resize TextKit 1
-    /// reports the aggregate WIDTH as the full container width (a 152pt single
-    /// line measured 9972), while per-fragment used rects stay truthful.
+    /// Widest line-fragment right edge at `containerWidth`.
     static func maxLineRight(
         of attributed: @autoclosure () -> NSAttributedString,
         token: Token,
         containerWidth: CGFloat
     ) -> CGFloat {
         prepare(attributed, token: token, containerWidth: containerWidth)
-        return ceil(widestLineRight())
-    }
-
-    /// Widest line-fragment right edge of the currently laid-out content.
-    private static func widestLineRight() -> CGFloat {
-        let glyphs = layoutManager.glyphRange(for: container)
-        var maxRight: CGFloat = 0
-        var index = glyphs.location
-        while index < NSMaxRange(glyphs) {
-            var effective = NSRange(location: index, length: 0)
-            let used = layoutManager.lineFragmentUsedRect(forGlyphAt: index, effectiveRange: &effective)
-            maxRight = max(maxRight, used.maxX)
-            guard NSMaxRange(effective) > index else { break }
-            index = NSMaxRange(effective)
-        }
-        return maxRight
+        return ceil(layoutManager.jinWidestLineFragmentRight(in: container))
     }
 
     /// Unwrapped size (widest line × total height) plus `inset` on both axes —
@@ -114,12 +95,12 @@ enum JinTextMeasurementStack {
         inset: NSSize
     ) -> NSSize {
         prepare(attributed, token: token, containerWidth: 100_000)
-        // HEIGHT from the aggregate rect, WIDTH from the per-fragment scan:
-        // after an explicit container resize TextKit 1 reports the aggregate's
-        // width as the whole container (100_000 here), while the per-fragment
-        // used rects stay truthful.
+        // HEIGHT from the aggregate rect, WIDTH from the per-fragment scan
+        // (see `jinWidestLineFragmentRight`): after an explicit container
+        // resize TextKit 1 reports the aggregate's width as the whole
+        // container (100_000 here).
         return NSSize(
-            width: ceil(widestLineRight()) + inset.width * 2,
+            width: ceil(layoutManager.jinWidestLineFragmentRight(in: container)) + inset.width * 2,
             height: ceil(layoutManager.usedRect(for: container).height) + inset.height * 2
         )
     }
@@ -129,14 +110,20 @@ enum JinTextMeasurementStack {
         token: Token,
         containerWidth: CGFloat
     ) {
+        // A token mismatch is a decided miss and skips the string entirely.
+        // A token MATCH still has to be verified against the real string: the
+        // token is attribute-blind, so a font/theme change collides with the
+        // content it replaced and would otherwise be answered from the old
+        // layout. The verification is O(1) whenever the caller hands back the
+        // same instance (the render pipeline's cached strings do), and never
+        // costs a copy or a re-layout on a hit.
         if loadedToken != token {
-            // A plain copy: attachments (inline math) are shared by reference
-            // and never mutated here.
-            storage.setAttributedString(attributed())
-            loadedToken = token
-            copyCount += 1
-            let kind = String(token.key.prefix(while: { $0 != ":" }))
-            copiesByKind[kind, default: 0] += 1
+            load(attributed(), token: token)
+        } else {
+            let source = attributed()
+            if !(loadedSource === source || loadedSource?.isEqual(to: source) == true) {
+                load(source, token: token)
+            }
         }
         let width = max(1, containerWidth)
         if abs(container.size.width - width) > 0.5 {
@@ -146,10 +133,14 @@ enum JinTextMeasurementStack {
         layoutCount += 1
     }
 
-    /// Drops the loaded content so a later probe re-copies. Called when a view
-    /// whose content is currently loaded mutates its storage — the token would
-    /// otherwise still match while the bytes differ.
-    static func invalidate(owner: ObjectIdentifier) {
-        if loadedToken?.key == "view:\(owner.hashValue)" { loadedToken = nil }
+    private static func load(_ source: NSAttributedString, token: Token) {
+        // A plain copy: attachments (inline math) are shared by reference and
+        // never mutated here.
+        storage.setAttributedString(source)
+        loadedToken = token
+        loadedSource = source
+        copyCount += 1
+        let kind = String(token.key.prefix(while: { $0 != ":" }))
+        copiesByKind[kind, default: 0] += 1
     }
 }

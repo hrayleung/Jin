@@ -91,14 +91,28 @@ final class ChatTimelineScrollCostTests: XCTestCase {
                 + "scroll steps — every copy discards its glyphs and re-runs ensureLayout, which is "
                 + "exactly the per-frame cost the recycling rewrite exists to avoid"
         )
+        // The per-view shadow layout managers share the live storage, so each
+        // off-width probe is an `ensureLayout` on a second manager. Cheap
+        // individually, but they must stay proportional to the rows the scroll
+        // realizes rather than growing per frame. Measured on this fixture:
+        // 635 across the 40 steps (15.9/step) against 187 cell configures.
+        let shadowPerStep = Double(JinLayoutCostCounters.shadowLayouts) / Double(offsets.count)
+        XCTAssertLessThan(
+            shadowPerStep,
+            40,
+            "\(String(format: "%.1f", shadowPerStep)) shadow layouts per scroll step — the off-width "
+                + "probe path is re-laying-out far more than the rows a step realizes"
+        )
         // Wall time here is dominated by cell realization plus this harness's
-        // own 20ms-per-step run-loop settle, and it is noisy run to run, so
-        // the guard is a catastrophe detector, not a target. Reference points
-        // measured on this fixture: 88.3ms/step on b3d048d (before the
-        // timeline fixes), ~70-78ms/step now.
+        // own 20ms-per-step run-loop settle, and it is noisy run to run —
+        // especially on a loaded or slower machine — so this is a catastrophe
+        // detector, deliberately several multiples above the measurements, not
+        // a target. The deterministic guard is the copy count above. Reference
+        // points on this fixture: 88.3ms/step on b3d048d (before the timeline
+        // fixes), ~70-78ms/step now.
         XCTAssertLessThan(
             perStep * 1000,
-            130,
+            400,
             "a scroll step costs \(String(format: "%.1f", perStep * 1000))ms (pre-fix baseline was 88ms)"
         )
     }
@@ -119,6 +133,7 @@ final class ChatTimelineScrollCostTests: XCTestCase {
 
         JinTextMeasurementStack.copyCount = 0
         JinTextMeasurementStack.layoutCount = 0
+        JinLayoutCostCounters.reset()
 
         let started = ProcessInfo.processInfo.systemUptime
         var deltas = 0
@@ -135,13 +150,28 @@ final class ChatTimelineScrollCostTests: XCTestCase {
         [stream-cost] deltas=\(deltas)
           measuring-stack copies  = \(JinTextMeasurementStack.copyCount)
           measuring-stack layouts = \(JinTextMeasurementStack.layoutCount)
+          shadow layouts          = \(JinLayoutCostCounters.shadowLayouts)
+          live measure layouts    = \(JinLayoutCostCounters.liveMeasureLayouts)
           wall time               = \(String(format: "%.0f", elapsed * 1000))ms total, \
         \(String(format: "%.1f", elapsed / Double(deltas) * 1000))ms/delta
         """)
 
+        // Streaming is where the shadow stack could quietly become expensive:
+        // it shares the live `NSTextStorage`, so every delta invalidates it,
+        // and the tail block is re-sized on every one of them. Measured: 2
+        // shadow layouts across these 40 deltas (0.05/delta) against 41 live
+        // ones — the edit stream drives the LIVE path, not this one. The bound
+        // is what "one shadow layout per delta" would break.
+        let shadowPerDelta = Double(JinLayoutCostCounters.shadowLayouts) / Double(deltas)
+        XCTAssertLessThan(
+            shadowPerDelta,
+            1,
+            "\(String(format: "%.1f", shadowPerDelta)) shadow layouts per streaming delta — the "
+                + "off-width probe path is being driven by the edit stream"
+        )
         XCTAssertLessThan(
             elapsed / Double(deltas) * 1000,
-            60,
+            120,
             "a streaming delta costs \(String(format: "%.1f", elapsed / Double(deltas) * 1000))ms"
         )
     }

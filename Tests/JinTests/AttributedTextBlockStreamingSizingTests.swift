@@ -77,9 +77,16 @@ final class AttributedTextBlockStreamingSizingTests: XCTestCase {
         XCTAssertGreaterThan(previousHeight, 100)
     }
 
-    /// Measuring a not-yet-applied string must leave the live view untouched:
-    /// same storage, same container width, same wrap.
-    func testMeasuringPendingContentLeavesTheLiveViewUntouched() {
+    /// Sizing a not-yet-applied string must not drive the LIVE view's text
+    /// container — that is the edit that corrupted TextKit mid-layout.
+    ///
+    /// The probe has to run against the view that is already on screen: a
+    /// second `NSHostingView` builds its own text view, so nothing it does
+    /// could reach this one and the assertions would hold no matter what
+    /// `sizeThatFits` did. Swapping `rootView` on the SAME host keeps the same
+    /// `JinMessageTextView` (asserted below) and puts the pending string
+    /// through the real path.
+    func testSizingPendingContentDoesNotDriveTheLiveContainer() {
         let host = NSHostingView(
             rootView: AnyView(
                 AttributedTextBlock(attributedString: attributed("original content here"), contentSignature: 1)
@@ -92,24 +99,40 @@ final class AttributedTextBlockStreamingSizingTests: XCTestCase {
         guard let textView = firstTextView(in: host) else {
             return XCTFail("no JinMessageTextView hosted")
         }
-        let storageBefore = textView.attributedString().string
         let containerBefore = textView.textContainer?.size.width ?? 0
+        XCTAssertGreaterThan(containerBefore, 0)
 
-        // Ask SwiftUI to size a DIFFERENT string without letting it commit an
-        // update: `sizeThatFits` runs during this layout query.
-        let probe = NSHostingView(
-            rootView: AnyView(
-                AttributedTextBlock(
-                    attributedString: attributed(String(repeating: "pending replacement text ", count: 50)),
-                    contentSignature: 2
-                )
+        let pending = attributed(String(repeating: "pending replacement text ", count: 50))
+        host.rootView = AnyView(
+            AttributedTextBlock(attributedString: pending, contentSignature: 2)
                 .frame(width: width)
-            )
         )
-        _ = probe.fittingSize
+        // A pure SIZE query: SwiftUI evaluates `sizeThatFits` for the pending
+        // string here, with the live view still holding the old content.
+        let sized = host.fittingSize.height
 
-        XCTAssertEqual(textView.attributedString().string, storageBefore)
-        XCTAssertEqual(textView.textContainer?.size.width ?? 0, containerBefore, accuracy: 0.5)
+        XCTAssertTrue(
+            firstTextView(in: host) === textView,
+            "SwiftUI rebuilt the text view, so this no longer probes the live one"
+        )
+        XCTAssertEqual(
+            textView.textContainer?.size.width ?? 0,
+            containerBefore,
+            accuracy: 0.5,
+            "the pending-content measurement resized the LIVE text container — the exact "
+                + "mid-layout mutation that crashed the app"
+        )
         XCTAssertTrue(textView.textContainer?.widthTracksTextView ?? false)
+
+        // And the height it reported has to be the one the applied string
+        // needs, or the row it sizes clips or gaps for a frame.
+        host.needsLayout = true
+        host.layoutSubtreeIfNeeded()
+        XCTAssertEqual(
+            sized,
+            textView.computeHeight(forWidth: width),
+            accuracy: 1,
+            "the pending measurement did not predict the applied content's height"
+        )
     }
 }

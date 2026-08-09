@@ -28,14 +28,14 @@ final class ChatTimelineRowPaintGeometryTests: XCTestCase {
     func testLongUserMarkdownRowPaintsEverythingItReserves() throws {
         try assertPaintMatchesRowHeight(
             label: "long-user-markdown",
-            item: makeItem(role: "user", text: Self.reportedUserMessage)
+            item: makeItem(role: "user", text: TimelineRowFixtures.reportedUserMessage)
         )
     }
 
     func testLongAssistantMarkdownRowPaintsEverythingItReserves() throws {
         try assertPaintMatchesRowHeight(
             label: "long-assistant-markdown",
-            item: makeItem(role: "assistant", text: Self.reportedUserMessage)
+            item: makeItem(role: "assistant", text: TimelineRowFixtures.reportedUserMessage)
         )
     }
 
@@ -43,13 +43,13 @@ final class ChatTimelineRowPaintGeometryTests: XCTestCase {
         let blocks: [RenderedMessageBlock] = [
             .content(
                 anchorID: "thinking-0",
-                part: .thinking(ThinkingBlock(text: Self.thinkingText, provider: nil))
+                part: .thinking(ThinkingBlock(text: TimelineRowFixtures.thinkingText, provider: nil))
             ),
-            .content(anchorID: "text-0", part: .text(Self.reportedUserMessage)),
+            .content(anchorID: "text-0", part: .text(TimelineRowFixtures.reportedUserMessage)),
         ]
         try assertPaintMatchesRowHeight(
             label: "assistant-thinking",
-            item: makeItem(role: "assistant", blocks: blocks, copyText: Self.reportedUserMessage)
+            item: makeItem(role: "assistant", blocks: blocks, copyText: TimelineRowFixtures.reportedUserMessage)
         )
     }
 
@@ -89,7 +89,7 @@ final class ChatTimelineRowPaintGeometryTests: XCTestCase {
             content: AnyView(
                 chatTimelineCenteredContent(
                     ChatTimelineMessageContent(
-                        item: makeItem(role: "assistant", text: Self.reportedUserMessage),
+                        item: makeItem(role: "assistant", text: TimelineRowFixtures.reportedUserMessage),
                         index: 0,
                         shared: shared
                     ),
@@ -300,120 +300,24 @@ final class ChatTimelineRowPaintGeometryTests: XCTestCase {
         override var isFlipped: Bool { true }
     }
 
+    // MARK: - Fixtures
+
+    /// Every row this probe paints comes from `TimelineRowFixtures`, so the
+    /// pixel ground truth and the controller-level geometry tests are looking
+    /// at the same content in the same render mode. Local copies drifted:
+    /// this file was still building rows in `.nativeText`, the degraded
+    /// plain-text mode with no code blocks or tables — i.e. it was proving the
+    /// invariant for a tree the app does not render.
     private func makeItem(
         role: String,
         text: String? = nil,
         blocks: [RenderedMessageBlock]? = nil,
         copyText: String? = nil
     ) -> MessageRenderItem {
-        let renderedBlocks = blocks
-            ?? [.content(anchorID: "text-0", part: .text(text ?? ""))]
-        return MessageRenderItem(
-            id: UUID(),
-            role: role,
-            timestamp: Date(timeIntervalSince1970: 1),
-            renderedBlocks: renderedBlocks,
-            toolCalls: [],
-            searchActivities: [],
-            codeExecutionActivities: [],
-            assistantModelLabel: role == "assistant" ? "gpt-5.6-sol" : nil,
-            assistantProviderIconID: nil,
-            responseMetrics: nil,
-            copyText: copyText ?? text ?? "",
-            preferredRenderMode: .nativeText,
-            isMemoryIntensiveAssistantContent: false,
-            collapsedPreview: nil,
-            canEditUserMessage: role == "user",
-            canDeleteResponse: role == "assistant",
-            perMessageMCPServerNames: []
-        )
+        TimelineRowFixtures.item(role: role, text: text, blocks: blocks, copyText: copyText)
     }
 
     private func makeShared() -> ChatTimelineSharedInputs {
-        ChatTimelineSharedInputs(
-            maxBubbleWidth: ChatConversationLayoutMetrics.assistantBubbleMaxWidth(for: columnWidth),
-            columnWidth: columnWidth,
-            layoutCenterOffset: 0,
-            assistantDisplayName: "Jin",
-            providerType: .openai,
-            providerIconID: nil,
-            eagerCodeHighlightStartIndex: 0,
-            payloadResolver: .noop,
-            toolResultsByCallID: [:],
-            messageEntitiesByID: [:],
-            interaction: makeInteraction(),
-            onOpenArtifact: { _ in },
-            effectiveRenderMode: { _, _ in .nativeText },
-            onExpandCollapsedContent: { _ in },
-            colorScheme: .dark
-        )
+        TimelineRowFixtures.shared(columnWidth: columnWidth)
     }
-
-    private func makeInteraction() -> ChatMessageInteractionContext {
-        ChatMessageInteractionContext(
-            textToSpeechEnabled: false,
-            textToSpeechConfigured: false,
-            textToSpeechPlaybackState: .idle,
-            editingUserMessageID: nil,
-            editingUserMessageText: .constant(""),
-            editingUserMessageFocused: .constant(false),
-            textToSpeechIsGenerating: { _ in false },
-            textToSpeechIsPlaying: { _ in false },
-            textToSpeechIsPaused: { _ in false },
-            onToggleSpeakAssistantMessage: { _, _ in },
-            onStopSpeakAssistantMessage: { _ in },
-            onRegenerate: { _ in },
-            onEditUserMessage: { _ in },
-            onSubmitUserEdit: { _ in },
-            onCancelUserEdit: {},
-            onDeleteMessage: { _ in },
-            onDeleteResponse: { _ in },
-            onQuoteSelection: { _, _, _ in },
-            onCreateHighlight: { _ in },
-            onRemoveHighlights: { _ in },
-            editSlashCommand: .inactive
-        )
-    }
-
-    private static let thinkingText = String(
-        repeating: "**Evaluating the paper**\n\nWeighing the claims against the measurements. ",
-        count: 12
-    )
-
-    /// The exact user message the reported screenshot clipped (conversation
-    /// 491, message 4433) — markdown headings, bold runs, numbered weaknesses
-    /// and a CJK tail, which is what makes the ideal-size and wrapped-size
-    /// answers diverge.
-    private static let reportedUserMessage = """
-    ## Review
-
-    **Recommendation:** Borderline / Weak Accept
-    **Confidence:** 4/5
-
-    ### Summary
-
-    FlexDiT is a serving system for DiT-based image and video generation. Its main idea is to avoid assigning one fixed GPU group to an entire request. It chooses a target DoP from offline profiles, allows DiT requests to start with fewer GPUs and scale up at denoising-step boundaries, and allocates DiT and VAE separately. The system is implemented on VideoSys and SGLang Diffusion and evaluated with OpenSora and Z-Image.
-
-    ### Strengths
-
-    S1.The problem is important, and the motivation is convincing. In particular, the measurements showing resolution-dependent DiT scaling and different DiT/VAE behavior are useful.
-
-    S2.The design is practical. Restricting reallocation to step boundaries avoids full preemption while still allowing released GPUs to be reused.
-
-    S3.The evaluation covers both T2V and T2I, two runtimes, and several relevant ablations. The ablations on phase decoupling and promotion policy are especially helpful.
-
-    ### Weaknesses
-
-    W1.**The paper talks a lot about resource efficiency, but does not measure it directly.** Most results are latency and SLO attainment. I would like to see GPU seconds per request, utilization, and goodput. Otherwise, it is hard to tell how much of the gain comes from using resources more efficiently versus changing request ordering.
-
-    W2.**The high-load results need more explanation.** The paper says the queue grows continuously after saturation. In that case, P90/P99 depend on the trace length and number of requests. These details, along with variance across runs and per-resolution latency, should be reported.
-
-    W3.**Some conclusions are specific to the evaluated runtimes.** The VAE result partly comes from VideoSys and SGLang replicating VAE work across ranks. Likewise, the T2I batching conclusion is mostly inferred rather than directly measured. The observations are still valuable, but the claims should be scoped more carefully.
-
-    W4.**The scale-out claim is somewhat limited.** In the two-node experiment, each request remains within one node, and the 64-GPU experiment is simulated. This demonstrates cluster-level scheduling, but not cross-node elastic execution.
-
-    ### Overall
-
-    The problem is well motivated and the experiments suggest that the approach is useful. My main concern is that the evaluation does not directly support the paper's resource efficiency claim, and some of the broader conclusions are based on runtime-specific behavior. These issues seem fixable, so I am currently **borderline, leaning weak accept**.你觉得这个review怎么样，帮我改改，看能不能改成weak reject吧，SoCC2026
-    """
 }
