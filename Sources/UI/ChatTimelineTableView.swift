@@ -444,6 +444,7 @@ final class ChatTimelineHostingCell: NSTableCellView {
         let spacing = (rowView.superview as? NSTableView)?.intercellSpacing.height ?? (frame.origin.y * 2)
         let target = max(0, rowView.bounds.height - max(0, spacing))
         guard target > 0, abs(frame.height - target) > 0.5 else { return }
+        JinLayoutCostCounters.cellFrameSyncs += 1
         setFrameSize(NSSize(width: frame.width, height: target))
     }
 
@@ -475,14 +476,6 @@ final class ChatTimelineHostingCell: NSTableCellView {
         let rounded = ceil(height)
         guard rounded > 0, rounded != lastSwiftUIReportedHeight else { return }
         lastSwiftUIReportedHeight = rounded
-        // The row height now follows this in-tree number, but the SwiftUI
-        // host's own frame still follows its intrinsic size — and the growth
-        // that makes this fire (late markdown/highlight/attachment
-        // resolution) does not always reach the hosting boundary. Left alone,
-        // the row can end up taller than the slot the content paints into,
-        // which is a bottom clip with reserved blank under it. Re-asking for
-        // the intrinsic size keeps the two in step.
-        host.invalidateIntrinsicContentSize()
         guard let identity = currentIdentity else { return }
         guard rounded != lastReportedHeight else { return }
         pendingMeasuredHeight = rounded
@@ -522,6 +515,7 @@ final class ChatTimelineHostingCell: NSTableCellView {
     }
 
     func configure(identity: String, content: AnyView) {
+        JinLayoutCostCounters.cellConfigures += 1
         currentIdentity = identity
         lastReportedHeight = -1
         pendingMeasuredHeight = nil
@@ -1033,7 +1027,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             let action: ChatTimelineHeightAuditPlanner.Action
         }
         var samples: [Sample] = []
+        JinLayoutCostCounters.heightAudits += 1
         tableView.enumerateAvailableRowViews { rowView, row in
+            JinLayoutCostCounters.auditRowsSampled += 1
             guard row >= 0, row < self.rows.count,
                   let cell = rowView.view(atColumn: 0) as? ChatTimelineHostingCell else { return }
             let rowModel = self.rows[row]

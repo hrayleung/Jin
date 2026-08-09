@@ -7,6 +7,26 @@ import os
 /// (~viewport worth) while scrolling a long conversation; if recycling is
 /// broken it grows with conversation length. Thread-safe (deinit may run
 /// off-main) and dependency-free.
+/// Counters for the scroll-cost benchmark (see ChatTimelineScrollCostTests).
+@MainActor
+enum JinLayoutCostCounters {
+    static var shadowLayouts = 0
+    static var liveMeasureLayouts = 0
+    static var cellFrameSyncs = 0
+    static var cellConfigures = 0
+    static var heightAudits = 0
+    static var auditRowsSampled = 0
+
+    static func reset() {
+        shadowLayouts = 0
+        liveMeasureLayouts = 0
+        cellFrameSyncs = 0
+        cellConfigures = 0
+        heightAudits = 0
+        auditRowsSampled = 0
+    }
+}
+
 enum JinTextViewCensus {
     private static let lock = OSAllocatedUnfairLock(initialState: 0)
     static func increment() { lock.withLock { $0 += 1 } }
@@ -79,6 +99,23 @@ final class JinMessageTextView: NSTextView {
     /// attributes into storage. This is a retain of the (usually
     /// cache-shared) applied instance, not a copy.
     private var lastAppliedSource: NSAttributedString?
+
+    /// Whether `attributed` is already what we applied. Identity first: the
+    /// render pipeline hands back cache-shared instances, so the common case
+    /// is a pointer compare.
+    ///
+    /// The comparison MUST be against `lastAppliedSource`, never against the
+    /// live `textStorage`: `processEditing` rewrites font runs (CJK
+    /// substitution) and the aggregator paints highlight attributes into
+    /// storage, so storage never equals the source again after the first
+    /// apply. Comparing against storage answered "not applied yet" forever,
+    /// which made every single `sizeThatFits` treat the content as pending —
+    /// measured at 491 full-text copies + re-layouts across 40 scroll steps.
+    func hasAppliedSource(_ attributed: NSAttributedString) -> Bool {
+        guard let lastAppliedSource else { return false }
+        if lastAppliedSource === attributed { return true }
+        return lastAppliedSource.isEqual(to: attributed)
+    }
 
     func setScrubbedAttributedString(_ attributed: NSAttributedString) {
         guard let textStorage else { return }
@@ -470,13 +507,12 @@ final class JinMessageTextView: NSTextView {
             // Live width — measure in place (steady-state path, and the only
             // one `intrinsicContentSize` ever takes).
             layoutManager.ensureLayout(for: textContainer)
+            JinLayoutCostCounters.liveMeasureLayouts += 1
             height = ceil(layoutManager.usedRect(for: textContainer).height + inset.height * 2)
+        } else if let shadow = shadowContainer(for: containerWidth) {
+            height = ceil(shadow.manager.usedRect(for: shadow.container).height + inset.height * 2)
         } else {
-            height = JinTextMeasurementStack.height(
-                of: measurementSnapshot(),
-                token: measurementToken,
-                containerWidth: containerWidth
-            ) + inset.height * 2
+            height = 0
         }
         cachedHeight = (contentVersion, safeWidth, height)
         return height
@@ -506,29 +542,66 @@ final class JinMessageTextView: NSTextView {
         if abs(textContainer.size.width - containerWidth) <= 0.5 {
             layoutManager.ensureLayout(for: textContainer)
             width = ceil(maxLineFragmentUsedRight(layoutManager, textContainer) + inset.width * 2)
+        } else if let shadow = shadowContainer(for: containerWidth) {
+            width = ceil(maxLineFragmentUsedRight(shadow.manager, shadow.container) + inset.width * 2)
         } else {
-            width = JinTextMeasurementStack.maxLineRight(
-                of: measurementSnapshot(),
-                token: measurementToken,
-                containerWidth: containerWidth
-            ) + inset.width * 2
+            width = 0
         }
         cachedNaturalWidth = (contentVersion, safeMaxWidth, width)
         return width
     }
 
-    /// Identity of this view's current content for the shared measuring stack.
-    private var measurementToken: JinTextMeasurementStack.Token {
-        JinTextMeasurementStack.Token(owner: ObjectIdentifier(self), version: contentVersion)
-    }
+    // MARK: Shadow measuring stack
 
-    /// The exact bytes the live view would lay out — storage, not
-    /// `lastAppliedSource`: `processEditing` fixes fonts (CJK substitution)
-    /// and the selection aggregator paints highlight attributes straight into
-    /// storage, and both can change wrapping.
-    private func measurementSnapshot() -> NSAttributedString {
-        guard let textStorage else { return NSAttributedString() }
-        return NSAttributedString(attributedString: textStorage)
+    /// A SECOND `NSLayoutManager` over this view's OWN text storage, used for
+    /// every width other than the one the view is currently rendering at.
+    ///
+    /// TextKit 1 supports several layout managers per storage, each with its
+    /// own containers, so resizing THIS container cannot disturb the live one
+    /// — which is the whole requirement: `sizeThatFits` runs inside AppKit's
+    /// layout cycle, where touching the live layout manager's inputs corrupts
+    /// it (see `computeHeight(forWidth:)`).
+    ///
+    /// Sharing the storage is what makes it cheap. A process-wide measuring
+    /// stack had to `setAttributedString` a full COPY of the text whenever the
+    /// probe moved to a different block, which during a scroll means copying
+    /// and re-laying-out the visible conversation over and over: measured at
+    /// 809 copies / 936 layouts across 40 scroll steps (~68ms per step). Here
+    /// there is no copy at all, and the shadow keeps its glyphs between
+    /// probes. Created lazily — a view that is only ever measured at its
+    /// render width never pays for one.
+    private var shadowLayoutManager: JinMarkdownLayoutManager?
+    private var shadowTextContainer: NSTextContainer?
+
+    private func shadowContainer(
+        for containerWidth: CGFloat
+    ) -> (manager: NSLayoutManager, container: NSTextContainer)? {
+        guard let textStorage else { return nil }
+        let manager: JinMarkdownLayoutManager
+        let container: NSTextContainer
+        if let existingManager = shadowLayoutManager, let existingContainer = shadowTextContainer {
+            manager = existingManager
+            container = existingContainer
+        } else {
+            manager = JinMarkdownLayoutManager()
+            container = NSTextContainer(
+                size: NSSize(width: max(1, containerWidth), height: CGFloat.greatestFiniteMagnitude)
+            )
+            container.lineFragmentPadding = 0
+            // Never attached to a view: only we drive this width.
+            container.widthTracksTextView = false
+            container.heightTracksTextView = false
+            manager.addTextContainer(container)
+            textStorage.addLayoutManager(manager)
+            shadowLayoutManager = manager
+            shadowTextContainer = container
+        }
+        if abs(container.size.width - containerWidth) > 0.5 {
+            container.size = NSSize(width: containerWidth, height: CGFloat.greatestFiniteMagnitude)
+        }
+        manager.ensureLayout(for: container)
+        JinLayoutCostCounters.shadowLayouts += 1
+        return (manager, container)
     }
 
     private func maxLineFragmentUsedRight(

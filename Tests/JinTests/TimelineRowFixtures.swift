@@ -30,7 +30,7 @@ enum TimelineRowFixtures {
             assistantProviderIconID: nil,
             responseMetrics: nil,
             copyText: copyText ?? text ?? "",
-            preferredRenderMode: .nativeText,
+            preferredRenderMode: .fullWeb,
             isMemoryIntensiveAssistantContent: false,
             collapsedPreview: nil,
             canEditUserMessage: role == "user",
@@ -80,7 +80,7 @@ enum TimelineRowFixtures {
             assistantProviderIconID: nil,
             responseMetrics: nil,
             copyText: "",
-            preferredRenderMode: .nativeText,
+            preferredRenderMode: .fullWeb,
             isMemoryIntensiveAssistantContent: false,
             collapsedPreview: nil,
             canEditUserMessage: false,
@@ -107,6 +107,7 @@ enum TimelineRowFixtures {
             item(role: "assistant", text: codeAndTableReply),
             item(role: "user", text: "the weepies是不活跃了吗"),
             searchAndThinkingOnlyItem(),
+            item(role: "assistant", text: wideCodeReply),
         ]
     }
 
@@ -126,7 +127,11 @@ enum TimelineRowFixtures {
             messageEntitiesByID: [:],
             interaction: interaction(),
             onOpenArtifact: { _ in },
-            effectiveRenderMode: { _, _ in .nativeText },
+            // `.fullWeb` is the normal rich path: markdown blocks, tables and
+            // code blocks. `.nativeText` is the degraded plain-text mode for
+            // huge messages and renders NO code blocks at all — fixtures on it
+            // silently skip most of the view tree these probes exist to cover.
+            effectiveRenderMode: { _, _ in .fullWeb },
             onExpandCollapsedContent: { _ in },
             colorScheme: .dark
         )
@@ -244,6 +249,15 @@ enum TimelineRowFixtures {
     1. 论文形式化目标包含 GPU-time，但实验没有测量它，属于**核心 claim–evidence mismatch**。
     2. 饱和后的 tail latency 实验缺少必要方法细节，headline 结果可能不可复现、不可稳定解释。
     3. 这些问题需要补做实验，不太可能只靠 rebuttal 澄清。
+    """
+
+    /// A code block with a line far wider than the column, so its horizontal
+    /// scroll view actually claims the wheel gesture (the only case that traps
+    /// vertical scrolling).
+    static let wideCodeReply = """
+    ```swift
+    let result = controller.performHeightAudit(reason: "apply-settle", tableView: tableView, rows: rows, spacing: tableView.intercellSpacing.height, visibleTop: scrollView.documentVisibleRect.minY, now: ProcessInfo.processInfo.systemUptime)
+    ```
     """
 
     static let codeAndTableReply = """

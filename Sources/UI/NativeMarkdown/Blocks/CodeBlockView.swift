@@ -171,6 +171,28 @@ private struct CodeBlockBody: View {
         source.components(separatedBy: "\n")
     }
 
+    /// Width of the block as laid out on screen, read from the scroll view's
+    /// own frame. The code text view is stretched to fill whatever is left of
+    /// it (see `HighlightedCodeView.minimumWidth`) so that the ENTIRE card is
+    /// a view we own.
+    ///
+    /// Why that matters: short code (`git show abc1234`) leaves most of a
+    /// full-width card empty, and that empty area belongs to the SwiftUI
+    /// horizontal scroll view — which eats vertical wheel deltas. Only the
+    /// code text view and the gutter forward them to the timeline, so hovering
+    /// the empty part froze the page. Long code always filled the card, which
+    /// is why this only ever reproduced "sometimes".
+    @State private var viewportWidth: CGFloat = 0
+
+    private var gutterWidth: CGFloat {
+        guard showLineNumbers else { return 0 }
+        return CodeLineNumberGutter.size(
+            count: lines.count,
+            font: theme.codeFont,
+            inset: NSSize(width: CodeLineNumberGutter.horizontalInset, height: Self.codeVerticalInset)
+        ).width + 1 // + the divider
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 0) {
@@ -197,10 +219,20 @@ private struct CodeBlockBody: View {
                     isStreamingTail: isStreamingTail,
                     theme: theme,
                     isDarkMode: isDarkMode,
-                    deferHighlightUpgrade: deferHighlightUpgrade
+                    deferHighlightUpgrade: deferHighlightUpgrade,
+                    minimumWidth: max(0, viewportWidth - gutterWidth)
                 )
             }
         }
+        // Measurement only — a background GeometryReader does not affect the
+        // scroll view's own layout.
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { viewportWidth = proxy.size.width }
+                    .onChange(of: proxy.size.width) { _, newWidth in viewportWidth = newWidth }
+            }
+        )
     }
 }
 
@@ -211,6 +243,10 @@ private struct HighlightedCodeView: NSViewRepresentable {
     let theme: MarkdownTheme
     let isDarkMode: Bool
     let deferHighlightUpgrade: Bool
+    /// Stretch to at least this wide so the whole code card is this view (and
+    /// therefore forwards vertical wheels). Never causes wrapping: the width
+    /// used is always >= the text's natural width.
+    var minimumWidth: CGFloat = 0
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -228,23 +264,17 @@ private struct HighlightedCodeView: NSViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: JinMessageTextView, context: Context) -> CGSize? {
-        let proposedWidth = proposal.width
-        let layoutWidth: CGFloat
-        let isConstrained: Bool
-        if let w = proposedWidth, w.isFinite, w > 0 {
-            isConstrained = true
-            layoutWidth = w
-        } else {
-            isConstrained = false
-            layoutWidth = 10_000
-        }
-        let height = nsView.computeHeight(forWidth: layoutWidth)
-        let width: CGFloat
-        if isConstrained {
-            width = layoutWidth
-        } else {
-            width = nsView.naturalWidth(maxWidth: layoutWidth)
-        }
+        // Code NEVER wraps — it scrolls sideways — so the width used is always
+        // at least the text's natural width, and the height that follows is
+        // the unwrapped height the recycling table's row heights depend on
+        // (see ChatTimelineHeightEstimatorTests.testCodeFenceContentNotPricedAsWrappedProse).
+        // Above that floor we take the widest of the proposal and
+        // `minimumWidth`, which fills the card so no part of it belongs to the
+        // wheel-eating scroll view.
+        let natural = nsView.naturalWidth(maxWidth: 10_000)
+        let proposed = (proposal.width?.isFinite == true) ? (proposal.width ?? 0) : 0
+        let width = max(natural, max(minimumWidth, proposed))
+        let height = nsView.computeHeight(forWidth: width)
         return CGSize(width: max(1, width), height: max(1, height))
     }
 
@@ -399,14 +429,7 @@ private struct CodeLineNumberGutterView: NSViewRepresentable {
         // The gutter's size is a pure function of the number of lines and the
         // font, so it needs no live view at all.
         let inset = NSSize(width: CodeLineNumberGutter.horizontalInset, height: verticalInset)
-        return JinTextMeasurementStack.size(
-            of: CodeLineNumberGutter.attributedNumbers(count: count, font: font),
-            token: JinTextMeasurementStack.Token(
-                key: "gutter:\(count):\(font.fontName):\(font.pointSize)",
-                version: 0
-            ),
-            inset: inset
-        )
+        return CodeLineNumberGutter.size(count: count, font: font, inset: inset)
     }
 
     private func apply(to view: CodeLineNumberTextView) {
@@ -420,6 +443,24 @@ private struct CodeLineNumberGutterView: NSViewRepresentable {
 /// measurement parity test so the two can never drift.
 enum CodeLineNumberGutter {
     static let horizontalInset: CGFloat = 8
+
+    /// Memoized: the gutter's size depends only on the line count, the font
+    /// and the inset, and every code block on screen asks for it on every
+    /// layout pass.
+    private static var sizeCache: [String: NSSize] = [:]
+
+    @MainActor
+    static func size(count: Int, font: NSFont, inset: NSSize) -> NSSize {
+        let key = "\(count):\(font.fontName):\(font.pointSize):\(inset.width)x\(inset.height)"
+        if let cached = sizeCache[key] { return cached }
+        let measured = JinTextMeasurementStack.size(
+            of: attributedNumbers(count: count, font: font),
+            token: JinTextMeasurementStack.Token(key: "gutter:" + key, version: 0),
+            inset: inset
+        )
+        sizeCache[key] = measured
+        return measured
+    }
 
     static func attributedNumbers(count: Int, font: NSFont) -> NSAttributedString {
         let total = max(1, count)

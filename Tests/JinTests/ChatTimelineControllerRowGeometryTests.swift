@@ -341,6 +341,53 @@ final class ChatTimelineControllerRowGeometryTests: XCTestCase {
             apply()
         }
 
+        func scrollToBottomOfDocument() {
+            scroll(to: max(0, tableView.frame.height - scrollView.contentView.bounds.height))
+        }
+
+        /// The code text view inside a horizontally-scrollable code block —
+        /// i.e. one with a non-timeline `NSScrollView` between it and the
+        /// timeline. Plain prose text views don't sit in one.
+        func firstCodeBlockTextView() -> JinMessageTextView? {
+            var found: JinMessageTextView?
+            func walk(_ view: NSView) {
+                if found != nil { return }
+                if let candidate = view as? JinMessageTextView {
+                    var node: NSView? = candidate.superview
+                    while let current = node, current !== scrollView {
+                        if let inner = current as? NSScrollView, inner !== scrollView,
+                           (inner.documentView?.frame.width ?? 0) > inner.contentView.bounds.width + 1 {
+                            found = candidate
+                            return
+                        }
+                        node = current.superview
+                    }
+                }
+                for sub in view.subviews { walk(sub) }
+            }
+            walk(tableView)
+            if found == nil {
+                var report: [String] = []
+                func survey(_ view: NSView) {
+                    if let candidate = view as? JinMessageTextView {
+                        var chain: [String] = []
+                        var node: NSView? = candidate.superview
+                        while let current = node, current !== scrollView {
+                            if let inner = current as? NSScrollView {
+                                chain.append("\(type(of: inner)) doc=\(inner.documentView?.frame.width ?? -1) vis=\(inner.contentView.bounds.width)")
+                            }
+                            node = current.superview
+                        }
+                        report.append("textView w=\(candidate.frame.width) scrollAncestors=\(chain)")
+                    }
+                    for sub in view.subviews { survey(sub) }
+                }
+                survey(tableView)
+                print("[wheel-probe] no overflowing code block; candidates:\n  " + report.joined(separator: "\n  "))
+            }
+            return found
+        }
+
         func scroll(to y: CGFloat) {
             let clip = scrollView.contentView
             clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: y))
@@ -420,11 +467,139 @@ final class ChatTimelineControllerRowGeometryTests: XCTestCase {
         }
     }
 
-    private func makeHarness() throws -> Harness {
+    func makeHarness() throws -> Harness {
         Harness(
             items: TimelineRowFixtures.reportedConversation(),
             shared: TimelineRowFixtures.shared(columnWidth: columnWidth),
             size: NSSize(width: windowWidth, height: windowHeight)
         )
+    }
+}
+
+// MARK: - Wheel routing through the real cell hierarchy
+
+@MainActor
+extension ChatTimelineControllerRowGeometryTests {
+
+    /// The chat must keep scrolling while the pointer is over a code block.
+    /// The block's horizontal scroll view eats vertical wheels, so the code
+    /// text view forwards them to the timeline — through the recycling cell,
+    /// the row view and the table, which is the hierarchy the isolated code
+    /// block test does not exercise.
+    func testWheelOverACodeBlockScrollsTheTimeline() throws {
+        // A single wide-code turn plus filler, so the code block is certain to
+        // be realized and the document is certain to be scrollable.
+        var items = [TimelineRowFixtures.item(role: "assistant", text: TimelineRowFixtures.wideCodeReply)]
+        items.append(contentsOf: TimelineRowFixtures.reportedConversation())
+        let harness = Harness(
+            items: items,
+            shared: TimelineRowFixtures.shared(columnWidth: columnWidth),
+            size: NSSize(width: windowWidth, height: windowHeight)
+        )
+        harness.settle(seconds: 1.4)
+        harness.scroll(to: 0)
+        harness.settle(seconds: 0.6)
+
+        guard let codeView = harness.firstCodeBlockTextView() else {
+            throw XCTSkip("no code block realized in the viewport")
+        }
+
+        let before = harness.scrollView.contentView.bounds.origin.y
+        for _ in 0..<3 {
+            guard let event = Self.lineScrollEvent(deltaY: 3, window: harness.window) else {
+                throw XCTSkip("cannot synthesize scroll events here")
+            }
+            codeView.scrollWheel(with: event)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        let after = harness.scrollView.contentView.bounds.origin.y
+
+        XCTAssertNotEqual(
+            after,
+            before,
+            accuracy: 0.5,
+            "wheeling over a code block left the timeline at \(before) — the page is frozen "
+                + "while the pointer sits on code"
+        )
+    }
+
+    /// A trackpad-style gesture: continuous (precise) deltas carrying a scroll
+    /// phase. AppKit decides which scroll view OWNS a gesture at `.began` and
+    /// routes the rest of it there, so a forwarded `.changed` can be ignored by
+    /// a scroll view that never saw the start — which is exactly the difference
+    /// between "works with a mouse wheel" and "frozen on a trackpad".
+    func testTrackpadGestureOverACodeBlockScrollsTheTimeline() throws {
+        var items = [TimelineRowFixtures.item(role: "assistant", text: TimelineRowFixtures.wideCodeReply)]
+        items.append(contentsOf: TimelineRowFixtures.reportedConversation())
+        let harness = Harness(
+            items: items,
+            shared: TimelineRowFixtures.shared(columnWidth: columnWidth),
+            size: NSSize(width: windowWidth, height: windowHeight)
+        )
+        harness.settle(seconds: 1.4)
+        harness.scroll(to: 0)
+        harness.settle(seconds: 0.6)
+
+        guard let codeView = harness.firstCodeBlockTextView() else {
+            throw XCTSkip("no code block realized in the viewport")
+        }
+
+        let before = harness.scrollView.contentView.bounds.origin.y
+        let phases: [(Int64, Double)] = [(1, 8), (2, 24), (2, 24), (2, 24), (4, 0)]
+        for (phase, delta) in phases {
+            guard let event = Self.trackpadScrollEvent(
+                deltaY: delta,
+                phase: phase,
+                window: harness.window
+            ) else {
+                throw XCTSkip("cannot synthesize trackpad scroll events here")
+            }
+            codeView.scrollWheel(with: event)
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        let after = harness.scrollView.contentView.bounds.origin.y
+
+        XCTAssertNotEqual(
+            after,
+            before,
+            accuracy: 0.5,
+            "a trackpad gesture over a code block left the timeline at \(before) — the page is "
+                + "frozen while the pointer sits on code"
+        )
+    }
+
+    static func trackpadScrollEvent(deltaY: Double, phase: Int64, window: NSWindow?) -> NSEvent? {
+        guard let cgEvent = CGEvent(
+            scrollWheelEvent2Source: nil,
+            units: .pixel,
+            wheelCount: 1,
+            wheel1: Int32(deltaY),
+            wheel2: 0,
+            wheel3: 0
+        ) else { return nil }
+        cgEvent.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+        cgEvent.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
+        cgEvent.setDoubleValueField(.scrollWheelEventPointDeltaAxis1, value: deltaY)
+        if let window {
+            cgEvent.location = CGPoint(x: window.frame.midX, y: window.frame.midY)
+        }
+        return NSEvent(cgEvent: cgEvent)
+    }
+
+    static func lineScrollEvent(deltaY: Int32, window: NSWindow?) -> NSEvent? {
+        guard let cgEvent = CGEvent(
+            scrollWheelEvent2Source: nil,
+            units: .line,
+            wheelCount: 1,
+            wheel1: deltaY,
+            wheel2: 0,
+            wheel3: 0
+        ) else { return nil }
+        if let window {
+            cgEvent.location = CGPoint(x: window.frame.midX, y: window.frame.midY)
+        }
+        return NSEvent(cgEvent: cgEvent)
     }
 }

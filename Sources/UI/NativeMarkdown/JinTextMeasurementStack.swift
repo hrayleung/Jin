@@ -43,6 +43,14 @@ enum JinTextMeasurementStack {
     /// same content at different widths skip the copy.
     private static var loadedToken: Token?
 
+    /// Instrumentation for the scroll-cost benchmark: how many full string
+    /// copies (token misses) and how many `ensureLayout` passes this stack has
+    /// performed. Copies are the expensive half.
+    static var copyCount = 0
+    static var layoutCount = 0
+    /// Copies attributed to each call site, keyed by the token key's prefix.
+    static var copiesByKind: [String: Int] = [:]
+
     /// Identity of the content loaded into the stack. `key` distinguishes
     /// content sources (a live view, or a not-yet-applied string); `version`
     /// separates successive mutations of the same source.
@@ -126,12 +134,16 @@ enum JinTextMeasurementStack {
             // and never mutated here.
             storage.setAttributedString(attributed())
             loadedToken = token
+            copyCount += 1
+            let kind = String(token.key.prefix(while: { $0 != ":" }))
+            copiesByKind[kind, default: 0] += 1
         }
         let width = max(1, containerWidth)
         if abs(container.size.width - width) > 0.5 {
             container.size = NSSize(width: width, height: CGFloat.greatestFiniteMagnitude)
         }
         layoutManager.ensureLayout(for: container)
+        layoutCount += 1
     }
 
     /// Drops the loaded content so a later probe re-copies. Called when a view

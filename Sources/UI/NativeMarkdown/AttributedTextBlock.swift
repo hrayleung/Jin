@@ -125,7 +125,7 @@ struct AttributedTextBlock: NSViewRepresentable {
         if let contentSignature {
             return coordinator.lastAppliedContentSignature != contentSignature
         }
-        return !view.attributedString().isEqual(to: attributedString)
+        return !view.hasAppliedSource(attributedString)
     }
 
     private func applyAttributedString(to view: JinMessageTextView, coordinator: Coordinator) {
