@@ -136,8 +136,7 @@ struct AssistantConversationLimitsSection: View {
             JinSettingsControlRow("Truncate History") {
                 JinSettingsSegmentedPicker(
                     "Truncate History",
-                    selection: $truncateMessagesSetting,
-                    maxWidth: 260
+                    selection: $truncateMessagesSetting
                 ) {
                     ForEach(AssistantTruncateHistorySetting.allCases) { item in
                         Text(item.label).tag(item)
