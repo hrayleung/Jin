@@ -11,8 +11,15 @@ import Sparkle
 @MainActor
 final class SparkleUpdateManager: NSObject, ObservableObject {
     fileprivate static let preReleaseChannel = "beta"
+    /// Sparkle's own user-defaults key for silent download-and-install. Jin has
+    /// no UI for that mode, but Sparkle's stock update alert used to offer it,
+    /// so installs can carry a stale `true` here. `SUAllowsAutomaticUpdates` in
+    /// Info.plist already neutralises it; this key is cleared so the stored
+    /// state matches what the app actually supports.
+    fileprivate static let silentAutoInstallDefaultsKey = "SUAutomaticallyUpdate"
 
     private let updaterDelegate: SparkleUpdaterDelegate
+    private let userDriverDelegate: SparkleUserDriverDelegate
     private let userDefaults: UserDefaults
     let controller: SPUStandardUpdaterController
     let updater: SPUUpdater
@@ -34,21 +41,23 @@ final class SparkleUpdateManager: NSObject, ObservableObject {
     init(
         userDefaults: UserDefaults = .standard,
         startingUpdater: Bool = true,
-        launchCheckRetryCount: Int = 20,
+        launchCheckRetryCount: Int = 120,
         launchCheckRetryDelayNanoseconds: UInt64 = 250_000_000,
         launchCheckReadyEvaluator: (() -> Bool)? = nil,
         launchCheckExecutor: (() -> Void)? = nil,
         launchCheckSleep: (@Sendable (UInt64) async -> Void)? = nil
     ) {
         let placeholderDelegate = SparkleUpdaterDelegate()
+        let placeholderUserDriverDelegate = SparkleUserDriverDelegate()
         let standardController = SPUStandardUpdaterController(
             startingUpdater: startingUpdater,
             updaterDelegate: placeholderDelegate,
-            userDriverDelegate: nil
+            userDriverDelegate: placeholderUserDriverDelegate
         )
         let sparkleUpdater = standardController.updater
 
         self.updaterDelegate = placeholderDelegate
+        self.userDriverDelegate = placeholderUserDriverDelegate
         self.userDefaults = userDefaults
         self.controller = standardController
         self.updater = sparkleUpdater
@@ -67,11 +76,14 @@ final class SparkleUpdateManager: NSObject, ObservableObject {
         super.init()
 
         placeholderDelegate.owner = self
+        placeholderUserDriverDelegate.owner = self
         setInitialStateFromStoredPreferences()
         refreshPublishedProperties()
     }
 
     private func setInitialStateFromStoredPreferences() {
+        clearStoredSilentAutoInstallPreference()
+
         let autoCheck = objectBooleanValue(
             AppPreferenceKeys.updateAutoCheckOnLaunch,
             defaultValue: true
@@ -83,6 +95,11 @@ final class SparkleUpdateManager: NSObject, ObservableObject {
 
         setAutomaticallyChecksForUpdates(autoCheck)
         setAllowsPreReleaseUpdates(allowPreRelease)
+    }
+
+    private func clearStoredSilentAutoInstallPreference() {
+        guard userDefaults.object(forKey: Self.silentAutoInstallDefaultsKey) != nil else { return }
+        userDefaults.removeObject(forKey: Self.silentAutoInstallDefaultsKey)
     }
 
     func refreshPublishedProperties() {
@@ -117,8 +134,28 @@ final class SparkleUpdateManager: NSObject, ObservableObject {
             await launchCheckSleep(launchCheckRetryDelayNanoseconds)
         }
 
-        // Sparkle may still be finishing its own cycle; avoid retrying this launch forever.
-        hasCheckedOnLaunch = true
+        // Budget exhausted while Sparkle stayed busy. Deliberately leave
+        // `hasCheckedOnLaunch` unset: marking it here used to burn the launch
+        // check outright, so a slow-to-settle updater meant no check at all
+        // until the user opened Settings and asked for one by hand.
+        refreshPublishedProperties()
+    }
+
+    /// Brings an already-found scheduled update alert to the front.
+    ///
+    /// Sparkle only shows a scheduled update immediately when the alert is ready
+    /// within three seconds of `startUpdater` (`appNearUpdaterInitialization` in
+    /// `SPUStandardUserDriver`). Jin's launch check never lands inside that
+    /// window — the model container loads first, then the readiness poll, then
+    /// the feed fetch — so Sparkle parks the alert on the next
+    /// `NSApplicationDidBecomeActive` and the user only sees it after leaving
+    /// the app and coming back.
+    ///
+    /// `checkForUpdates()` short-circuits to `showUpdateInFocus` while a driver
+    /// is already showing an update, so this refetches nothing and can never
+    /// surface the "You're up to date" dialog.
+    fileprivate func presentPendingUpdateInFocus() {
+        updater.checkForUpdates()
         refreshPublishedProperties()
     }
 
@@ -162,5 +199,31 @@ final class SparkleUpdaterDelegate: NSObject, SPUUpdaterDelegate {
             return []
         }
         return Set([SparkleUpdateManager.preReleaseChannel])
+    }
+}
+
+@MainActor
+final class SparkleUserDriverDelegate: NSObject, SPUStandardUserDriverDelegate {
+    weak var owner: SparkleUpdateManager?
+
+    var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    func standardUserDriverShouldHandleShowingScheduledUpdate(
+        _ update: SUAppcastItem,
+        andInImmediateFocus immediateFocus: Bool
+    ) -> Bool {
+        // Sparkle already does the right thing when it plans to show the alert
+        // in focus. Take over the other case, where it would instead wait for
+        // the app to be re-activated.
+        immediateFocus
+    }
+
+    func standardUserDriverWillHandleShowingUpdate(
+        _ handleShowingUpdate: Bool,
+        forUpdate update: SUAppcastItem,
+        state: SPUUserUpdateState
+    ) {
+        guard !handleShowingUpdate else { return }
+        owner?.presentPendingUpdateInFocus()
     }
 }
