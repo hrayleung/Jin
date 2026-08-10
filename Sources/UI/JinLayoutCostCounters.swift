@@ -10,10 +10,17 @@ import Foundation
 /// path). That manager shares the live `NSTextStorage`, so every storage edit
 /// invalidates it — if a routine edit stream (streaming deltas) ever started
 /// driving it, this counter is where it shows up first.
+/// `midEditMeasurements` counts the safety valve: sizing probes that arrived
+/// while a text storage's edit was still fanning out to its layout managers and
+/// had to be answered on the isolated `JinTextMeasurementStack` instead. Every
+/// one of those would have been the build-658 crash. It should be rare — a
+/// steady stream means something is measuring from inside an edit on a hot
+/// path, and each one costs a full string copy.
 @MainActor
 enum JinLayoutCostCounters {
     static var shadowLayouts = 0
     static var liveMeasureLayouts = 0
+    static var midEditMeasurements = 0
     static var cellFrameSyncs = 0
     static var cellConfigures = 0
     static var heightAudits = 0
@@ -22,6 +29,7 @@ enum JinLayoutCostCounters {
     static func reset() {
         shadowLayouts = 0
         liveMeasureLayouts = 0
+        midEditMeasurements = 0
         cellFrameSyncs = 0
         cellConfigures = 0
         heightAudits = 0

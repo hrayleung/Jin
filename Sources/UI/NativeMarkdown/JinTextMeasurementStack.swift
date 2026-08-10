@@ -1,9 +1,25 @@
 import AppKit
 
 /// An isolated TextKit 1 stack used to answer "how tall/wide would this text
-/// be at width W?" **without touching the live view's layout manager**.
+/// be at width W?" **without touching any layout manager attached to a live
+/// view's text storage**. It owns its own `NSTextStorage`, so nothing about
+/// another storage's state can reach it.
 ///
-/// Why this exists: SwiftUI probes `sizeThatFits` at several widths (min,
+/// Three callers, all of them cases where no live manager may be used:
+///
+///  - `AttributedTextBlock.sizeThatFits` measuring a string that has NOT been
+///    applied yet (the apply belongs to `updateNSView`; doing it from a layout
+///    callback corrupts TextKit);
+///  - `CodeLineNumberGutter.size`, whose content is a pure function of the
+///    line count and font and needs no live view at all;
+///  - `JinMessageTextView`'s mid-edit fallback, for probes that arrive while a
+///    storage edit is still fanning out to its managers.
+///
+/// Off-live-width probes in the steady state do NOT come here — they go to the
+/// per-view shadow layout manager, which shares the live storage and therefore
+/// costs no copy. This stack copies, so every call site above is a rare one.
+///
+/// Why it exists at all: SwiftUI probes `sizeThatFits` at several widths (min,
 /// ideal, max) per layout pass, and those probes run INSIDE AppKit's layout /
 /// constraint cycle. Answering them by resizing the live `NSTextContainer`
 /// invalidates the live layout manager mid-cycle; when AppKit then asks the

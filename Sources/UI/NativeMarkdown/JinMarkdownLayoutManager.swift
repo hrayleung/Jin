@@ -52,6 +52,55 @@ final class JinMarkdownLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         delegate = self
     }
 
+    // MARK: - Edit-notification bookkeeping
+
+    /// UTF-16 length of the text storage as of the last edit notification this
+    /// manager received; `-1` before the first one.
+    ///
+    /// `NSTextStorage` fans an edit out to its layout managers ONE AT A TIME,
+    /// and AppKit can re-enter the app from inside that fan-out: the live
+    /// manager's post-edit `setSelectedRange:` posts an accessibility
+    /// notification, and if anything is observing accessibility AppKit
+    /// services it synchronously — SwiftUI then re-runs its update and layout
+    /// callbacks, which land back in our sizing code. Any manager that has not
+    /// been notified yet is still describing the PREVIOUS text; asking it to
+    /// `ensureLayout` makes it fill a glyph hole past the end of the storage
+    /// and raise from `-[NSLayoutManager _fillGlyphHoleForCharacterRange:…]`.
+    /// That exception is uncatchable inside AppKit's constraint pass
+    /// (`+[NSApplication _crashOnException:]`), so it kills the app —
+    /// production crash, build 658.
+    private(set) var jinNotifiedStorageLength: Int = -1
+
+    /// True when this manager is known NOT to have seen the storage's current
+    /// text yet. Length is the signal that matters: the crash is a range
+    /// overrun, and an edit that preserves the length can at worst produce one
+    /// stale measurement.
+    var jinIsStaleRelativeToStorage: Bool {
+        guard let textStorage, jinNotifiedStorageLength >= 0 else { return false }
+        return jinNotifiedStorageLength != textStorage.length
+    }
+
+    override func processEditing(
+        for textStorage: NSTextStorage,
+        edited editMask: NSTextStorageEditActions,
+        range newCharRange: NSRange,
+        changeInLength delta: Int,
+        invalidatedRange invalidatedCharRange: NSRange
+    ) {
+        // The bookkeeping is updated AFTER `super`, deliberately: `super` is
+        // where the live manager tells its text view to fix up the selection,
+        // and that is the exact frame AppKit re-enters the app from. Until it
+        // returns we must keep reading as stale.
+        super.processEditing(
+            for: textStorage,
+            edited: editMask,
+            range: newCharRange,
+            changeInLength: delta,
+            invalidatedRange: invalidatedCharRange
+        )
+        jinNotifiedStorageLength = textStorage.length
+    }
+
     func layoutManager(
         _ layoutManager: NSLayoutManager,
         shouldBreakLineByWordBeforeCharacterAt charIndex: Int
