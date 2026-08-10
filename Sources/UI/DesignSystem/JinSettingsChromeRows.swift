@@ -107,17 +107,12 @@ struct JinSettingsTextFieldRow: View {
 
     var body: some View {
         JinSettingsControlRow(title, supportingText: supportingText) {
-            textField
+            JinSettingsTextField(
+                fieldTitle,
+                text: $text,
+                usesMonospacedFont: usesMonospacedFont
+            )
         }
-    }
-
-    @ViewBuilder
-    private var textField: some View {
-        JinSettingsTextField(
-            fieldTitle,
-            text: $text,
-            usesMonospacedFont: usesMonospacedFont
-        )
     }
 }
 
@@ -236,10 +231,15 @@ struct JinSettingsToggleRow: View {
     }
 
     var body: some View {
-        JinSettingsControlRow(title, supportingText: supportingText) {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
             Toggle(title, isOn: $isOn)
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let supportingText, !supportingText.isEmpty {
+                Text(supportingText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
@@ -247,8 +247,6 @@ struct JinSettingsToggleRow: View {
 struct JinSettingsMenuPicker<SelectionValue: Hashable, Content: View>: View {
     let title: String
     @Binding var selection: SelectionValue
-    let maxWidth: CGFloat
-    let alignment: Alignment
     private let content: () -> Content
 
     init(
@@ -260,8 +258,6 @@ struct JinSettingsMenuPicker<SelectionValue: Hashable, Content: View>: View {
     ) {
         self.title = title
         _selection = selection
-        self.maxWidth = maxWidth
-        self.alignment = alignment
         self.content = content
     }
 
@@ -269,9 +265,6 @@ struct JinSettingsMenuPicker<SelectionValue: Hashable, Content: View>: View {
         Picker(title, selection: $selection) {
             content()
         }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .frame(maxWidth: maxWidth, alignment: alignment)
     }
 }
 
@@ -322,9 +315,16 @@ struct JinSettingsPickerRow<SelectionValue: Hashable, Content: View>: View {
     }
 
     var body: some View {
-        JinSettingsControlRow(title, supportingText: supportingText) {
-            JinSettingsMenuPicker(title, selection: $selection, maxWidth: .infinity, alignment: .leading) {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            Picker(title, selection: $selection) {
                 content()
+            }
+
+            if let supportingText, !supportingText.isEmpty {
+                Text(supportingText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -342,7 +342,7 @@ struct JinSettingsSliderValueRow: View {
     var labelWidth: CGFloat = 156
 
     var body: some View {
-        JinSettingsControlRow(title, labelWidth: labelWidth) {
+        JinSettingsControlRow(title) {
             HStack {
                 slider
                 Text(value.formatted(.number.precision(.fractionLength(2))))
