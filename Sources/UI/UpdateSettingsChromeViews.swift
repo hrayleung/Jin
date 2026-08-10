@@ -14,7 +14,7 @@ struct UpdateSettingsVersionHero: View {
     let onCheckForUpdates: () -> Void
 
     var body: some View {
-        JinSettingsSection("Installed Version") {
+        JinSettingsSection("Installed Version", style: .plain) {
             VStack(alignment: .leading, spacing: JinSpacing.large) {
                 identityRow
                 metadataRow

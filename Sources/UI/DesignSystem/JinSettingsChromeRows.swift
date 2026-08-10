@@ -233,7 +233,6 @@ struct JinSettingsToggleRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
             Toggle(title, isOn: $isOn)
-
             if let supportingText, !supportingText.isEmpty {
                 Text(supportingText)
                     .font(.caption)
@@ -252,8 +251,6 @@ struct JinSettingsMenuPicker<SelectionValue: Hashable, Content: View>: View {
     init(
         _ title: String,
         selection: Binding<SelectionValue>,
-        maxWidth: CGFloat = .infinity,
-        alignment: Alignment = .leading,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
@@ -271,18 +268,15 @@ struct JinSettingsMenuPicker<SelectionValue: Hashable, Content: View>: View {
 struct JinSettingsSegmentedPicker<SelectionValue: Hashable, Content: View>: View {
     let title: String
     @Binding var selection: SelectionValue
-    let maxWidth: CGFloat
     private let content: () -> Content
 
     init(
         _ title: String,
         selection: Binding<SelectionValue>,
-        maxWidth: CGFloat = .infinity,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
         _selection = selection
-        self.maxWidth = maxWidth
         self.content = content
     }
 
@@ -290,9 +284,7 @@ struct JinSettingsSegmentedPicker<SelectionValue: Hashable, Content: View>: View
         Picker(title, selection: $selection) {
             content()
         }
-        .labelsHidden()
         .pickerStyle(.segmented)
-        .frame(maxWidth: maxWidth)
     }
 }
 
@@ -319,7 +311,6 @@ struct JinSettingsPickerRow<SelectionValue: Hashable, Content: View>: View {
             Picker(title, selection: $selection) {
                 content()
             }
-
             if let supportingText, !supportingText.isEmpty {
                 Text(supportingText)
                     .font(.caption)

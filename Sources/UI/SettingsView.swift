@@ -224,7 +224,7 @@ struct SettingsView: View {
                 .fill(JinSemanticColor.separator.opacity(0.45))
                 .frame(width: JinStrokeWidth.hairline)
         }
-        .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 220)
+        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
         .searchable(text: $searchText, placement: .sidebar, prompt: "Search settings")
     }
 
