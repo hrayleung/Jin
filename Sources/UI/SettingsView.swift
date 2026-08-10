@@ -148,7 +148,6 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .navigationTitle("")
-        .toolbar(removing: .sidebarToggle)
         // No `hideWindowToolbarCompat()` here. That modifier exists for the main
         // chat window, whose custom sidebar chrome has to sit flush at the top and
         // therefore reads `titlebarTopInset`/`leadingPadding` back to clear the
@@ -224,6 +223,12 @@ struct SettingsView: View {
         // material — never picked up the window's vibrancy. NavigationSplitView
         // draws its own column divider, so the hand-rolled hairline goes too.
         .listStyle(.sidebar)
+        // `toolbar(removing:)` only takes effect on the *column's* content, not
+        // on the NavigationSplitView itself — applied there it silently no-ops.
+        // Settings has a fixed three-column layout, so the toggle is dead weight;
+        // dropping it also empties the toolbar, collapsing the strip that was
+        // stranding the button on its own row under the window controls.
+        .toolbar(removing: .sidebarToggle)
         .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
         .searchable(text: $searchText, placement: .sidebar, prompt: "Search settings")
     }
