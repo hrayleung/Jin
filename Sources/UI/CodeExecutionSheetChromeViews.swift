@@ -36,7 +36,7 @@ struct CodeExecutionOpenAISettingsCard: View {
 
     private var modeRow: some View {
         JinFormFieldRow("Mode") {
-            JinSettingsSegmentedPicker("Mode", selection: $useExistingContainer, maxWidth: 280) {
+            JinSettingsSegmentedPicker("Mode", selection: $useExistingContainer) {
                 Text("Auto").tag(false)
                 Text("Existing").tag(true)
             }
@@ -57,7 +57,7 @@ struct CodeExecutionOpenAISettingsCard: View {
 
     private var memoryLimitRow: some View {
         JinFormFieldRow("Memory limit", supportingText: "Optional.") {
-            JinSettingsMenuPicker("Memory limit", selection: $memoryLimit, maxWidth: 220) {
+            JinSettingsMenuPicker("Memory limit", selection: $memoryLimit) {
                 Text("Provider default").tag("")
                 Text("1g").tag("1g")
                 Text("4g").tag("4g")

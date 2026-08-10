@@ -14,8 +14,7 @@ struct MCPServerToolsSection: View {
     var body: some View {
         JinSettingsSection(
             "Tools",
-            detail: "Verify the server to inspect and selectively disable tools.",
-            style: .plain
+            detail: "Verify the server to inspect and selectively disable tools."
         ) {
             VStack(alignment: .leading, spacing: 8) {
                 verificationActions

@@ -267,7 +267,7 @@ extension TextToSpeechPluginSettingsView {
     }
 
     var providerErrorSection: some View {
-        JinSettingsSection("Unknown Provider", style: .plain) {
+        JinSettingsSection("Unknown Provider") {
             JinSettingsErrorText(text: providerErrorMessage(for: providerRaw))
         }
     }

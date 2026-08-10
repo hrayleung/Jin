@@ -148,8 +148,12 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .navigationTitle("")
-        .toolbar(removing: .sidebarToggle)
-        .hideWindowToolbarCompat()
+        // No `hideWindowToolbarCompat()` here. That modifier exists for the main
+        // chat window, whose custom sidebar chrome has to sit flush at the top and
+        // therefore reads `titlebarTopInset`/`leadingPadding` back to clear the
+        // traffic lights. Settings is a stock macOS Settings window: it keeps its
+        // normal titlebar so the sidebar search field lands *below* the window
+        // controls instead of competing with them for the leading 78pt.
         .frame(minWidth: 1_060, idealWidth: 1_140, minHeight: 620, idealHeight: 700)
         .sheet(isPresented: $showingAddProvider) {
             AddProviderView()
@@ -213,18 +217,19 @@ struct SettingsView: View {
                 Label(section.rawValue, systemImage: section.systemImage)
             }
         }
+        // Keep the native sidebar material. Painting an opaque `sidebarSurface`
+        // (#ECECF0) over it read as a flat grey slab next to the near-white
+        // `surface` (#FBFBFC) content and detail columns, and — unlike the real
+        // material — never picked up the window's vibrancy. NavigationSplitView
+        // draws its own column divider, so the hand-rolled hairline goes too.
         .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        .background {
-            JinSemanticColor.sidebarSurface
-                .ignoresSafeArea()
-        }
-        .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(JinSemanticColor.separator.opacity(0.45))
-                .frame(width: JinStrokeWidth.hairline)
-        }
-        .navigationSplitViewColumnWidth(min: 190, ideal: 200, max: 220)
+        // `toolbar(removing:)` only takes effect on the *column's* content, not
+        // on the NavigationSplitView itself — applied there it silently no-ops.
+        // Settings has a fixed three-column layout, so the toggle is dead weight;
+        // dropping it also empties the toolbar, collapsing the strip that was
+        // stranding the button on its own row under the window controls.
+        .toolbar(removing: .sidebarToggle)
+        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
         .searchable(text: $searchText, placement: .sidebar, prompt: "Search settings")
     }
 
@@ -271,7 +276,9 @@ struct SettingsView: View {
         .background {
             JinSemanticColor.detailSurface.ignoresSafeArea()
         }
-        .toolbarBackground(JinSemanticColor.detailSurface, for: .windowToolbar)
+        // No `toolbarBackground` override: now that Settings keeps a real
+        // titlebar, tinting it would paint one opaque strip straight across the
+        // sidebar's material — the same mismatch this pass is removing.
         .navigationSplitViewColumnWidth(min: 500, ideal: 620, max: 820)
     }
 

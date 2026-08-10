@@ -29,7 +29,7 @@ struct ContextCacheBasicsCard: View {
 
     private var modeRow: some View {
         JinFormFieldRow("Mode") {
-            JinSettingsSegmentedPicker("Mode", selection: $draft.mode, maxWidth: 380) {
+            JinSettingsSegmentedPicker("Mode", selection: $draft.mode) {
                 Text("Off").tag(ContextCacheMode.off)
                 Text("Implicit").tag(ContextCacheMode.implicit)
                 if supportsExplicitMode {
@@ -43,7 +43,7 @@ struct ContextCacheBasicsCard: View {
     private var strategyRow: some View {
         if supportsStrategy, draft.mode != .off {
             JinFormFieldRow("Strategy", supportingText: "Anthropic only.") {
-                JinSettingsMenuPicker("Strategy", selection: strategyBinding, maxWidth: 260) {
+                JinSettingsMenuPicker("Strategy", selection: strategyBinding) {
                     Text("System only").tag(ContextCacheStrategy.systemOnly)
                     Text("System + tools").tag(ContextCacheStrategy.systemAndTools)
                     Text("Prefix window").tag(ContextCacheStrategy.prefixWindow)
@@ -133,7 +133,7 @@ struct ContextCacheAdvancedCard: View {
     private var ttlSection: some View {
         JinFormFieldRow("TTL") {
             VStack(alignment: .leading, spacing: JinSpacing.small) {
-                JinSettingsMenuPicker("TTL", selection: $ttlPreset, maxWidth: 260) {
+                JinSettingsMenuPicker("TTL", selection: $ttlPreset) {
                     Text("Provider default").tag(ContextCacheTTLPreset.providerDefault)
                     Text("5 minutes").tag(ContextCacheTTLPreset.minutes5)
                     Text("1 hour").tag(ContextCacheTTLPreset.hour1)

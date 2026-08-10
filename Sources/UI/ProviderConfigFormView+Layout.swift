@@ -130,7 +130,7 @@ extension ProviderConfigFormView {
                 claudeManagedDefaultsSection
             }
         } else {
-            JinSettingsSection("Models", style: .plain) {
+            JinSettingsSection("Models") {
                 modelsSection
             }
             .animation(.easeInOut(duration: 0.18), value: filteredModels.count)

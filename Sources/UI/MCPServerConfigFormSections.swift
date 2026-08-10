@@ -6,7 +6,7 @@ struct MCPServerConfigurationErrorSection: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        JinSettingsSection("Configuration Error", style: .plain) {
+        JinSettingsSection("Configuration Error") {
             HStack {
                 Text(message)
                     .font(.system(.caption, design: .monospaced))
