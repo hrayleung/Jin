@@ -40,6 +40,19 @@
 	<string>B9AL6+ZfmC9TnDdOLJa9rmQ3dezWN5CWehVOH996H/g=</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
+	<!-- Jin owns the "Check on launch" switch, so Sparkle must not fall back to
+	     its own permission prompt. The user default still wins over this key
+	     (SUHost reads defaults first), so the switch keeps working. -->
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<!-- Jin never offers Sparkle's silent download-and-install mode. Without
+	     this key Sparkle infers it from SUEnableAutomaticChecks, which puts an
+	     "Automatically download and install updates in the future" checkbox in
+	     the stock update alert. Ticking it once routes every background check
+	     through SPUAutomaticUpdateDriver, which never shows a "new version"
+	     alert - so launches go silent while manual checks still work. -->
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Jin uses the microphone for speech-to-text dictation.</string>
 	<key>NSLocationUsageDescription</key>

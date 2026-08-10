@@ -159,7 +159,7 @@ final class SparkleUpdateManagerTests: XCTestCase {
         XCTAssertEqual(backgroundCheckCount, 0)
     }
 
-    func testLaunchCheckStopsRetryingAfterTimeoutAndDoesNotRepeat() async {
+    func testLaunchCheckRetriesOnALaterCallAfterExhaustingItsBudget() async {
         var readinessEvaluationCount = 0
         var backgroundCheckCount = 0
 
@@ -170,7 +170,8 @@ final class SparkleUpdateManagerTests: XCTestCase {
             launchCheckRetryDelayNanoseconds: 0,
             launchCheckReadyEvaluator: {
                 readinessEvaluationCount += 1
-                return false
+                // Ready only once the second call site gets its turn.
+                return readinessEvaluationCount > 3
             },
             launchCheckExecutor: {
                 backgroundCheckCount += 1
@@ -179,9 +180,25 @@ final class SparkleUpdateManagerTests: XCTestCase {
         )
 
         await manager.checkForUpdatesOnLaunchIfNeeded()
+        XCTAssertEqual(backgroundCheckCount, 0)
+
         await manager.checkForUpdatesOnLaunchIfNeeded()
 
-        XCTAssertEqual(readinessEvaluationCount, 3)
-        XCTAssertEqual(backgroundCheckCount, 0)
+        XCTAssertEqual(readinessEvaluationCount, 4)
+        XCTAssertEqual(backgroundCheckCount, 1)
+    }
+
+    func testStoredSilentAutoInstallPreferenceIsCleared() {
+        defaults.set(true, forKey: "SUAutomaticallyUpdate")
+
+        _ = SparkleUpdateManager(userDefaults: defaults, startingUpdater: false)
+
+        XCTAssertNil(defaults.object(forKey: "SUAutomaticallyUpdate"))
+    }
+
+    func testUserDriverDelegateTakesOverDeferredScheduledUpdates() {
+        let delegate = SparkleUserDriverDelegate()
+
+        XCTAssertTrue(delegate.supportsGentleScheduledUpdateReminders)
     }
 }
