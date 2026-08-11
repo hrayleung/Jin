@@ -5,8 +5,9 @@ struct SpeechToTextPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.sttAddRecordingAsFile) var addRecordingAsFile = false
 
     @AppStorage(AppPreferenceKeys.sttOpenAIBaseURL) var openAIBaseURL = OpenAIAudioClient.Constants.defaultBaseURL.absoluteString
-    @AppStorage(AppPreferenceKeys.sttOpenAIModel) var openAIModel = "gpt-4o-mini-transcribe"
+    @AppStorage(AppPreferenceKeys.sttOpenAIModel) var openAIModel = SpeechProviderModelCatalog.defaultOpenAISpeechToTextModelID
     @AppStorage(AppPreferenceKeys.sttOpenAILanguage) var openAILanguage = ""
+    @AppStorage(AppPreferenceKeys.sttOpenAIKeywords) var openAIKeywords = ""
     @AppStorage(AppPreferenceKeys.sttOpenAIPrompt) var openAIPrompt = ""
     @AppStorage(AppPreferenceKeys.sttOpenAITranslateToEnglish) var openAITranslateToEnglish = false
     @AppStorage(AppPreferenceKeys.sttOpenAIResponseFormat) var openAIResponseFormat = "json"
@@ -14,7 +15,7 @@ struct SpeechToTextPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.sttOpenAITimestampGranularitiesJSON) var openAITimestampGranularitiesJSON = "[]"
 
     @AppStorage(AppPreferenceKeys.sttGroqBaseURL) var groqBaseURL = GroqAudioClient.Constants.defaultBaseURL.absoluteString
-    @AppStorage(AppPreferenceKeys.sttGroqModel) var groqModel = "whisper-large-v3-turbo"
+    @AppStorage(AppPreferenceKeys.sttGroqModel) var groqModel = SpeechProviderModelCatalog.defaultGroqSpeechToTextModelID
     @AppStorage(AppPreferenceKeys.sttGroqLanguage) var groqLanguage = ""
     @AppStorage(AppPreferenceKeys.sttGroqPrompt) var groqPrompt = ""
     @AppStorage(AppPreferenceKeys.sttGroqTranslateToEnglish) var groqTranslateToEnglish = false
@@ -23,20 +24,23 @@ struct SpeechToTextPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.sttGroqTimestampGranularitiesJSON) var groqTimestampGranularitiesJSON = "[]"
 
     @AppStorage(AppPreferenceKeys.sttMistralBaseURL) var mistralBaseURL = ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1"
-    @AppStorage(AppPreferenceKeys.sttMistralModel) var mistralModel = "voxtral-mini-latest"
+    @AppStorage(AppPreferenceKeys.sttMistralModel) var mistralModel = SpeechProviderModelCatalog.defaultMistralSpeechToTextModelID
     @AppStorage(AppPreferenceKeys.sttMistralLanguage) var mistralLanguage = ""
     @AppStorage(AppPreferenceKeys.sttMistralPrompt) var mistralPrompt = ""
     @AppStorage(AppPreferenceKeys.sttMistralResponseFormat) var mistralResponseFormat = "json"
     @AppStorage(AppPreferenceKeys.sttMistralTemperature) var mistralTemperature = 0.0
     @AppStorage(AppPreferenceKeys.sttMistralTimestampGranularitiesJSON) var mistralTimestampGranularitiesJSON = "[]"
+    @AppStorage(AppPreferenceKeys.sttMistralDiarize) var mistralDiarize = false
 
     @AppStorage(AppPreferenceKeys.sttOpenRouterBaseURL) var openRouterBaseURL = OpenRouterAudioClient.Constants.defaultBaseURL.absoluteString
-    @AppStorage(AppPreferenceKeys.sttOpenRouterModel) var openRouterModel = "openai/whisper-1"
+    @AppStorage(AppPreferenceKeys.sttOpenRouterModel) var openRouterModel = SpeechProviderModelCatalog.defaultOpenRouterSpeechToTextModelID
     @AppStorage(AppPreferenceKeys.sttOpenRouterLanguage) var openRouterLanguage = ""
     @AppStorage(AppPreferenceKeys.sttOpenRouterTemperature) var openRouterTemperature = 0.0
+    @AppStorage(AppPreferenceKeys.sttOpenRouterResponseFormat) var openRouterResponseFormat = "json"
+    @AppStorage(AppPreferenceKeys.sttOpenRouterTimestampGranularitiesJSON) var openRouterTimestampGranularitiesJSON = "[]"
 
     @AppStorage(AppPreferenceKeys.sttElevenLabsBaseURL) var elevenLabsBaseURL = ElevenLabsSTTClient.Constants.defaultBaseURL.absoluteString
-    @AppStorage(AppPreferenceKeys.sttElevenLabsModel) var elevenLabsModel = "scribe_v2"
+    @AppStorage(AppPreferenceKeys.sttElevenLabsModel) var elevenLabsModel = SpeechProviderModelCatalog.defaultElevenLabsSpeechToTextModelID
     @AppStorage(AppPreferenceKeys.sttElevenLabsLanguageCode) var elevenLabsLanguageCode = ""
     @AppStorage(AppPreferenceKeys.sttElevenLabsTagAudioEvents) var elevenLabsTagAudioEvents = true
     @AppStorage(AppPreferenceKeys.sttElevenLabsNoVerbatim) var elevenLabsNoVerbatim = false

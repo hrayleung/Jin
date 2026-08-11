@@ -11,11 +11,13 @@ extension SpeechToTextPluginSettingsView {
             case .openai:
                 standardTranscriptionSettingsSection(
                     title: "OpenAI",
+                    capabilities: capabilities(for: .openai, model: openAIModel),
                     baseURL: $openAIBaseURL,
                     model: $openAIModel,
                     displayedModels: displayedOpenAIModels,
                     translateToEnglish: $openAITranslateToEnglish,
                     language: $openAILanguage,
+                    keywords: $openAIKeywords,
                     prompt: $openAIPrompt,
                     responseFormat: $openAIResponseFormat,
                     temperature: $openAITemperature,
@@ -28,6 +30,7 @@ extension SpeechToTextPluginSettingsView {
             case .groq:
                 standardTranscriptionSettingsSection(
                     title: "Groq",
+                    capabilities: capabilities(for: .groq, model: groqModel),
                     baseURL: $groqBaseURL,
                     model: $groqModel,
                     displayedModels: displayedGroqModels,
@@ -42,6 +45,7 @@ extension SpeechToTextPluginSettingsView {
             case .mistral:
                 standardTranscriptionSettingsSection(
                     title: "Mistral",
+                    capabilities: capabilities(for: .mistral, model: mistralModel),
                     baseURL: $mistralBaseURL,
                     model: $mistralModel,
                     displayedModels: displayedMistralModels,
@@ -49,7 +53,8 @@ extension SpeechToTextPluginSettingsView {
                     prompt: $mistralPrompt,
                     responseFormat: $mistralResponseFormat,
                     temperature: $mistralTemperature,
-                    timestampProvider: .mistral
+                    timestampProvider: .mistral,
+                    diarize: $mistralDiarize
                 )
 
             case .elevenlabs:
@@ -77,12 +82,35 @@ extension SpeechToTextPluginSettingsView {
                 usesMonospacedFont: true
             )
 
+            // OpenRouter rejects text/srt/vtt on the transcription endpoint.
+            JinSettingsPickerRow("Response Format", selection: $openRouterResponseFormat) {
+                ForEach(capabilities(for: .openRouter, model: openRouterModel).responseFormats, id: \.self) { format in
+                    Text(format).tag(format)
+                }
+            }
+            .onAppear {
+                normalizeResponseFormat(
+                    $openRouterResponseFormat,
+                    provider: .openRouter,
+                    model: openRouterModel
+                )
+            }
+            .onChange(of: openRouterModel) { _, newModel in
+                normalizeResponseFormat(
+                    $openRouterResponseFormat,
+                    provider: .openRouter,
+                    model: newModel
+                )
+            }
+
             JinSettingsSliderValueRow(
                 title: "Temperature",
                 value: $openRouterTemperature,
                 range: 0.0...1.0,
                 step: 0.05
             )
+
+            timestampGranularityDisclosure(provider: .openRouter)
         }
     }
 
@@ -128,6 +156,7 @@ extension SpeechToTextPluginSettingsView {
                 Stepper("Max speakers: \(elevenLabsNumSpeakers)", value: $elevenLabsNumSpeakers, in: 1...32)
             }
 
+            // The API enum is word | character; "None" simply omits the parameter.
             JinSettingsPickerRow("Timestamps", selection: $elevenLabsTimestampsGranularity) {
                 Text("None").tag("none")
                 Text("Word").tag("word")
@@ -158,18 +187,31 @@ extension SpeechToTextPluginSettingsView {
         }
     }
 
+    func capabilities(
+        for provider: SpeechToTextProvider,
+        model: String
+    ) -> SpeechTranscriptionCapabilities {
+        SpeechModelCapabilityRegistry.transcriptionCapabilities(provider: provider, modelID: model)
+    }
+
+    /// Renders only the controls the selected model actually accepts. The generations diverge
+    /// enough that offering the union guarantees a 400 — `gpt-transcribe` takes `languages[]`
+    /// and rejects timestamps, `whisper-1` is the only model that still emits subtitles.
     @ViewBuilder
     func standardTranscriptionSettingsSection(
         title: String,
+        capabilities: SpeechTranscriptionCapabilities,
         baseURL: Binding<String>,
         model: Binding<String>,
         displayedModels: [SpeechProviderModelChoice],
         translateToEnglish: Binding<Bool>? = nil,
         language: Binding<String>,
+        keywords: Binding<String>? = nil,
         prompt: Binding<String>,
         responseFormat: Binding<String>,
         temperature: Binding<Double>,
-        timestampProvider: SpeechToTextProvider
+        timestampProvider: SpeechToTextProvider,
+        diarize: Binding<Bool>? = nil
     ) -> some View {
         JinSettingsSection(title) {
             JinSettingsTextFieldRow("API Base URL", text: baseURL, usesMonospacedFont: true)
@@ -179,38 +221,102 @@ extension SpeechToTextPluginSettingsView {
                     Text(model.name).tag(model.id)
                 }
             }
+            .onChange(of: model.wrappedValue) { _, newModel in
+                normalizeResponseFormat(
+                    responseFormat,
+                    provider: timestampProvider,
+                    model: newModel
+                )
+            }
+            .onAppear {
+                normalizeResponseFormat(
+                    responseFormat,
+                    provider: timestampProvider,
+                    model: model.wrappedValue
+                )
+            }
 
-            if let translateToEnglish {
+            if let translateToEnglish, capabilities.supportsTranslation {
                 JinSettingsToggleRow("Translate to English", isOn: translateToEnglish)
             }
 
-            JinSettingsTextFieldRow(
-                "Language",
-                fieldTitle: "auto-detect",
-                text: language,
-                usesMonospacedFont: true
-            )
+            switch capabilities.languageParameter {
+            case .none:
+                EmptyView()
+            case .single:
+                JinSettingsTextFieldRow(
+                    "Language",
+                    fieldTitle: "auto-detect",
+                    supportingText: capabilities.timestampsConflictWithLanguage
+                        ? "Not compatible with timestamps — set one or the other."
+                        : nil,
+                    text: language,
+                    usesMonospacedFont: true
+                )
+            case .multiple:
+                JinSettingsTextFieldRow(
+                    "Languages",
+                    fieldTitle: "auto-detect",
+                    supportingText: "Comma-separated ISO-639-1 codes, e.g. en, fr. This model accepts several at once.",
+                    text: language,
+                    usesMonospacedFont: true
+                )
+            }
 
-            JinSettingsTextFieldRow(
-                "Prompt",
-                text: prompt
-            )
+            if let keywords, capabilities.supportsKeywords {
+                JinSettingsTextFieldRow(
+                    "Keywords",
+                    fieldTitle: "product names, acronyms",
+                    supportingText: "Comma-separated terms to bias the transcript toward.",
+                    text: keywords
+                )
+            }
 
-            JinSettingsPickerRow("Response Format", selection: responseFormat) {
-                ForEach(Self.sttResponseFormats, id: \.self) { format in
-                    Text(format).tag(format)
+            if capabilities.supportsPrompt {
+                JinSettingsTextFieldRow(
+                    "Prompt",
+                    text: prompt
+                )
+            }
+
+            if capabilities.responseFormats.count > 1 {
+                JinSettingsPickerRow("Response Format", selection: responseFormat) {
+                    ForEach(capabilities.responseFormats, id: \.self) { format in
+                        Text(format).tag(format)
+                    }
                 }
             }
 
-            JinSettingsSliderValueRow(
-                title: "Temperature",
-                value: temperature,
-                range: 0.0...1.0,
-                step: 0.05
-            )
+            if let diarize, capabilities.supportsDiarization {
+                JinSettingsToggleRow("Diarize", isOn: diarize)
+                    .help("Annotate which speaker is talking.")
+            }
 
-            timestampGranularityDisclosure(provider: timestampProvider)
+            if capabilities.supportsTemperature {
+                JinSettingsSliderValueRow(
+                    title: "Temperature",
+                    value: temperature,
+                    range: 0.0...1.0,
+                    step: 0.05
+                )
+            }
+
+            if !capabilities.timestampGranularities.isEmpty {
+                timestampGranularityDisclosure(provider: timestampProvider)
+            }
         }
+    }
+
+    /// A stored format the newly selected model rejects would otherwise sit in the picker
+    /// until the next 400.
+    func normalizeResponseFormat(
+        _ responseFormat: Binding<String>,
+        provider: SpeechToTextProvider,
+        model: String
+    ) {
+        let supported = capabilities(for: provider, model: model).responseFormats
+        guard !supported.isEmpty, !supported.contains(responseFormat.wrappedValue) else { return }
+        responseFormat.wrappedValue = supported[0]
     }
 
     func timestampGranularityDisclosure(provider: SpeechToTextProvider) -> some View {
@@ -248,7 +354,9 @@ extension SpeechToTextPluginSettingsView {
             return groqTimestampGranularitiesJSON
         case .mistral:
             return mistralTimestampGranularitiesJSON
-        case .openRouter, .elevenlabs:
+        case .openRouter:
+            return openRouterTimestampGranularitiesJSON
+        case .elevenlabs:
             return "[]"
         }
     }
@@ -261,7 +369,9 @@ extension SpeechToTextPluginSettingsView {
             groqTimestampGranularitiesJSON = value
         case .mistral:
             mistralTimestampGranularitiesJSON = value
-        case .openRouter, .elevenlabs:
+        case .openRouter:
+            openRouterTimestampGranularitiesJSON = value
+        case .elevenlabs:
             break
         }
     }

@@ -19,7 +19,7 @@ extension TextToSpeechPluginSettingsView {
         Task {
             do {
                 switch provider {
-                case .openai, .openRouter, .groq, .xiaomiMiMo:
+                case .openai, .openRouter, .groq, .mistral, .xiaomiMiMo:
                     try await validateStandardTextToSpeechConnection(
                         for: provider,
                         apiKey: trimmedAPIKey
@@ -35,7 +35,7 @@ extension TextToSpeechPluginSettingsView {
                 }
 
                 switch provider {
-                case .openai, .openRouter, .groq, .xiaomiMiMo:
+                case .openai, .openRouter, .groq, .mistral, .xiaomiMiMo:
                     await loadRemoteTextToSpeechModels(updateStatus: false)
                 case .elevenlabs:
                     await loadElevenLabsVoicesAndModels(updateStatus: false)
@@ -43,7 +43,11 @@ extension TextToSpeechPluginSettingsView {
             } catch {
                 await MainActor.run {
                     isTesting = false
-                    if let llmError = error as? LLMError, case .authenticationFailed = llmError {
+                    // Endpoint scopes are an ElevenLabs concept; pointing other providers at
+                    // that remediation sends the user down the wrong path.
+                    if provider == .elevenlabs,
+                       let llmError = error as? LLMError,
+                       case .authenticationFailed = llmError {
                         statusMessage = "\(llmError.localizedDescription)\n\nIf your ElevenLabs key uses endpoint scopes, enable access to /v1/text-to-speech."
                     } else {
                         statusMessage = error.localizedDescription
@@ -72,14 +76,19 @@ extension TextToSpeechPluginSettingsView {
             throw SpeechExtensionError.missingElevenLabsVoice
         }
 
+        let selectedModel = elevenLabsModelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let capabilities = SpeechModelCapabilityRegistry.synthesisCapabilities(
+            provider: .elevenlabs,
+            modelID: selectedModel
+        )
+
         let voiceSettings = ElevenLabsTTSClient.VoiceSettings(
             stability: elevenLabsStability,
             similarityBoost: elevenLabsSimilarityBoost,
             style: elevenLabsStyle,
-            useSpeakerBoost: elevenLabsUseSpeakerBoost
+            useSpeakerBoost: elevenLabsUseSpeakerBoost,
+            speed: capabilities.supportsSpeed ? elevenLabsSpeed : nil
         )
-
-        let selectedModel = elevenLabsModelID.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Validate that this key can actually synthesize audio (keys may be scope-restricted per endpoint).
         _ = try await client.createSpeech(

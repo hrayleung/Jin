@@ -22,6 +22,8 @@ extension TextToSpeechPluginSettingsView {
             let base = URL(string: groqBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                 ?? GroqAudioClient.Constants.defaultBaseURL
             return .groq(GroqAudioClient(apiKey: apiKey, baseURL: base))
+        case .mistral:
+            return .mistral(mistralTextToSpeechRemoteClient(apiKey: apiKey))
         case .xiaomiMiMo:
             let base = URL(string: miMoBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                 ?? MiMoAudioClient.Constants.defaultBaseURL
@@ -29,6 +31,44 @@ extension TextToSpeechPluginSettingsView {
         case .elevenlabs:
             return nil
         }
+    }
+
+    func mistralTextToSpeechRemoteClient(apiKey: String) -> MistralTTSClient {
+        let base = URL(string: mistralBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
+            ?? MistralTTSClient.Constants.defaultBaseURL
+        return MistralTTSClient(apiKey: apiKey, baseURL: base)
+    }
+
+    /// The model ID currently selected for the active provider.
+    var selectedModelID: String {
+        switch provider {
+        case .openai: return openAIModel
+        case .openRouter: return openRouterModel
+        case .groq: return groqModel
+        case .mistral: return mistralModel
+        case .xiaomiMiMo: return miMoModel
+        case .elevenlabs: return elevenLabsModelID
+        case .none: return ""
+        }
+    }
+
+    var currentSynthesisCapabilities: SpeechSynthesisCapabilities? {
+        guard let provider else { return nil }
+        return SpeechModelCapabilityRegistry.synthesisCapabilities(
+            provider: provider,
+            modelID: selectedModelID
+        )
+    }
+
+    var supportsStreaming: Bool {
+        currentSynthesisCapabilities?.streaming != nil
+    }
+
+    var streamingSupportingText: String {
+        guard supportsStreaming else {
+            return "The selected provider or model does not stream audio; Jin waits for the full clip."
+        }
+        return "Plays audio as it is generated. Overrides the format below with PCM."
     }
 
     func elevenLabsTextToSpeechRemoteClient(apiKey: String) -> ElevenLabsTTSClient {
@@ -84,6 +124,16 @@ extension TextToSpeechPluginSettingsView {
         SpeechProviderModelCatalog.presentingChoices(availableMiMoModels, selectedModelID: miMoModel)
     }
 
+    var availableMistralModels: [SpeechProviderModelChoice] {
+        mistralModels.isEmpty
+            ? SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .mistral)
+            : mistralModels
+    }
+
+    var displayedMistralModels: [SpeechProviderModelChoice] {
+        SpeechProviderModelCatalog.presentingChoices(availableMistralModels, selectedModelID: mistralModel)
+    }
+
     var availableElevenLabsModels: [SpeechProviderModelChoice] {
         if !elevenLabsModels.isEmpty {
             return elevenLabsModels.map { model in
@@ -101,15 +151,10 @@ extension TextToSpeechPluginSettingsView {
     }
 
     var groqVoiceChoices: [String] {
-        let lower = groqModel.trimmedLowercased
-        if lower.contains("orpheus-arabic-saudi") {
-            return Self.groqOrpheusArabicVoices
-        }
-        if lower.contains("orpheus-v1-english") || lower.contains("orpheus") {
-            return Self.groqOrpheusEnglishVoices
-        }
-        return (Self.groqOrpheusEnglishVoices + Self.groqOrpheusArabicVoices)
-            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        SpeechModelCapabilityRegistry.synthesisCapabilities(
+            provider: .groq,
+            modelID: groqModel
+        ).voices ?? []
     }
 
     func normalizeGroqVoiceIfNeeded() {
@@ -120,12 +165,25 @@ extension TextToSpeechPluginSettingsView {
         }
     }
 
-    var miMoVoiceChoices: [String] {
-        let lower = miMoModel.trimmedLowercased
-        if lower == MiMoModelIDs.ttsV2 {
-            return Self.miMoV2Voices
+    /// OpenRouter reports each model's voices on `/models`; models with an open catalog
+    /// report none and fall back to a free-text field.
+    var openRouterVoiceChoices: [String] {
+        openRouterModelVoices[openRouterModel] ?? []
+    }
+
+    func normalizeOpenRouterVoiceIfNeeded() {
+        let choices = openRouterVoiceChoices
+        guard !choices.isEmpty else { return }
+        if !choices.contains(openRouterVoice) {
+            openRouterVoice = choices[0]
         }
-        return Self.miMoV25Voices
+    }
+
+    var miMoVoiceChoices: [String] {
+        SpeechModelCapabilityRegistry.synthesisCapabilities(
+            provider: .xiaomiMiMo,
+            modelID: miMoModel
+        ).voices ?? []
     }
 
     func normalizeMiMoVoiceIfNeeded() {
@@ -151,75 +209,29 @@ extension TextToSpeechPluginSettingsView {
         #endif
     }
 
-    static let openAIVoices: [String] = [
-        "alloy",
-        "ash",
-        "ballad",
-        "cedar",
-        "coral",
-        "echo",
-        "fable",
-        "marin",
-        "nova",
-        "onyx",
-        "sage",
-        "shimmer",
-        "verse"
-    ]
+    /// Voice and format catalogs live in `SpeechModelCapabilityRegistry` so the settings UI
+    /// and the request builders can never disagree about what a model accepts.
+    var openAIVoiceChoices: [String] {
+        SpeechModelCapabilityRegistry.synthesisCapabilities(
+            provider: .openai,
+            modelID: openAIModel
+        ).voices ?? SpeechModelCapabilityRegistry.openAIVoices
+    }
 
-    static let openAIResponseFormats: [String] = [
-        "mp3",
-        "wav",
-        "aac",
-        "flac",
-        "pcm"
-    ]
+    func normalizeOpenAIVoiceIfNeeded() {
+        let choices = openAIVoiceChoices
+        guard !choices.isEmpty, !choices.contains(openAIVoice) else { return }
+        openAIVoice = choices[0]
+    }
 
-    static let openRouterResponseFormats: [String] = [
-        "mp3",
-        "pcm"
-    ]
+    func normalizeMiMoResponseFormatIfNeeded() {
+        let formats = MiMoModelIDs.textToSpeechResponseFormats
+        guard !formats.contains(miMoResponseFormat) else { return }
+        miMoResponseFormat = MiMoAudioClient.Constants.defaultResponseFormat
+    }
 
-    static let groqOrpheusEnglishVoices: [String] = [
-        "autumn",
-        "diana",
-        "hannah",
-        "austin",
-        "daniel",
-        "troy"
-    ]
-
-    static let groqOrpheusArabicVoices: [String] = [
-        "fahad",
-        "sultan",
-        "lulwa",
-        "noura"
-    ]
-
-    static let miMoV25Voices: [String] = [
-        "mimo_default",
-        "冰糖",
-        "茉莉",
-        "苏打",
-        "白桦",
-        "Mia",
-        "Chloe",
-        "Milo",
-        "Dean"
-    ]
-
-    static let miMoV2Voices: [String] = [
-        "mimo_default",
-        "default_en",
-        "default_zh"
-    ]
-
-    static let elevenLabsOutputFormats: [String] = [
-        "mp3_44100_128",
-        "mp3_44100_192",
-        "pcm_16000",
-        "pcm_22050",
-        "pcm_24000",
-        "pcm_44100"
-    ]
+    static let openAIResponseFormats: [String] = SpeechModelCapabilityRegistry.openAIResponseFormats
+    static let openRouterResponseFormats: [String] = SpeechModelCapabilityRegistry.openRouterResponseFormats
+    static let mistralResponseFormats: [String] = SpeechModelCapabilityRegistry.mistralResponseFormats
+    static let elevenLabsOutputFormats: [String] = SpeechModelCapabilityRegistry.elevenLabsOutputFormats
 }

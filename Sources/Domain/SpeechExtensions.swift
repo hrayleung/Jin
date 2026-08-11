@@ -5,6 +5,7 @@ enum TextToSpeechProvider: String, CaseIterable, Identifiable {
     case openai
     case openRouter
     case groq
+    case mistral
     case xiaomiMiMo
 
     var id: String { rawValue }
@@ -15,6 +16,7 @@ enum TextToSpeechProvider: String, CaseIterable, Identifiable {
         case .openai: return "OpenAI"
         case .openRouter: return "OpenRouter"
         case .groq: return "Groq"
+        case .mistral: return "Mistral"
         case .xiaomiMiMo: return "Xiaomi MiMo"
         }
     }

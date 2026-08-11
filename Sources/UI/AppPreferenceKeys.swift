@@ -103,6 +103,9 @@ enum AppPreferenceKeys {
     // Text to Speech
     static let ttsMiniPlayerEnabled = "ttsMiniPlayerEnabled"
     static let ttsProvider = "ttsProvider"
+    static let ttsLowLatencyStreaming = "ttsLowLatencyStreaming"
+    /// Bumped when stale speech model preferences need a one-shot rewrite.
+    static let speechModelMigrationVersion = "speechModelMigrationVersion"
 
     static let ttsOpenAIAPIKey = "ttsOpenAIAPIKey"
     static let ttsOpenAIBaseURL = "ttsOpenAIBaseURL"
@@ -137,14 +140,22 @@ enum AppPreferenceKeys {
     static let ttsElevenLabsSimilarityBoost = "ttsElevenLabsSimilarityBoost"
     static let ttsElevenLabsStyle = "ttsElevenLabsStyle"
     static let ttsElevenLabsUseSpeakerBoost = "ttsElevenLabsUseSpeakerBoost"
+    static let ttsElevenLabsSpeed = "ttsElevenLabsSpeed"
+
+    static let ttsMistralAPIKey = "ttsMistralAPIKey"
+    static let ttsMistralBaseURL = "ttsMistralBaseURL"
+    static let ttsMistralModel = "ttsMistralModel"
+    static let ttsMistralVoiceID = "ttsMistralVoiceID"
+    static let ttsMistralResponseFormat = "ttsMistralResponseFormat"
 
     static let ttsOpenRouterAPIKey = "ttsOpenRouterAPIKey"
     static let ttsOpenRouterBaseURL = "ttsOpenRouterBaseURL"
     static let ttsOpenRouterModel = "ttsOpenRouterModel"
     static let ttsOpenRouterVoice = "ttsOpenRouterVoice"
     static let ttsOpenRouterResponseFormat = "ttsOpenRouterResponseFormat"
-    static let ttsOpenRouterSpeed = "ttsOpenRouterSpeed"
-    static let ttsOpenRouterInstructions = "ttsOpenRouterInstructions"
+    // `ttsOpenRouterSpeed` and `ttsOpenRouterInstructions` were dropped: OpenRouter's speech
+    // schema has no `instructions`, and documents `speed` as honoured only by OpenAI TTS
+    // models, which it no longer serves.
 
     // Networking / Debug
     static let networkDebugLoggingEnabled = "networkDebugLoggingEnabled"
@@ -163,6 +174,8 @@ enum AppPreferenceKeys {
     static let sttOpenAIResponseFormat = "sttOpenAIResponseFormat"
     static let sttOpenAITemperature = "sttOpenAITemperature"
     static let sttOpenAITimestampGranularitiesJSON = "sttOpenAITimestampGranularitiesJSON"
+    /// Comma-separated hints for `gpt-transcribe`'s `keywords[]`.
+    static let sttOpenAIKeywords = "sttOpenAIKeywords"
 
     static let sttGroqAPIKey = "sttGroqAPIKey"
     static let sttGroqBaseURL = "sttGroqBaseURL"
@@ -182,6 +195,7 @@ enum AppPreferenceKeys {
     static let sttMistralResponseFormat = "sttMistralResponseFormat"
     static let sttMistralTemperature = "sttMistralTemperature"
     static let sttMistralTimestampGranularitiesJSON = "sttMistralTimestampGranularitiesJSON"
+    static let sttMistralDiarize = "sttMistralDiarize"
 
     static let sttElevenLabsAPIKey = "sttElevenLabsAPIKey"
     static let sttElevenLabsBaseURL = "sttElevenLabsBaseURL"
@@ -200,4 +214,6 @@ enum AppPreferenceKeys {
     static let sttOpenRouterModel = "sttOpenRouterModel"
     static let sttOpenRouterLanguage = "sttOpenRouterLanguage"
     static let sttOpenRouterTemperature = "sttOpenRouterTemperature"
+    static let sttOpenRouterResponseFormat = "sttOpenRouterResponseFormat"
+    static let sttOpenRouterTimestampGranularitiesJSON = "sttOpenRouterTimestampGranularitiesJSON"
 }

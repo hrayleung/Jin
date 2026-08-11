@@ -40,12 +40,29 @@ actor ElevenLabsTTSClient {
         let similarityBoost: Double?
         let style: Double?
         let useSpeakerBoost: Bool?
+        /// Rejected by the v3 models — gate on `SpeechModelCapabilityRegistry` before sending.
+        let speed: Double?
+
+        init(
+            stability: Double? = nil,
+            similarityBoost: Double? = nil,
+            style: Double? = nil,
+            useSpeakerBoost: Bool? = nil,
+            speed: Double? = nil
+        ) {
+            self.stability = stability
+            self.similarityBoost = similarityBoost
+            self.style = style
+            self.useSpeakerBoost = useSpeakerBoost
+            self.speed = speed
+        }
 
         enum CodingKeys: String, CodingKey {
             case stability
             case similarityBoost = "similarity_boost"
             case style
             case useSpeakerBoost = "use_speaker_boost"
+            case speed
         }
     }
 
@@ -60,6 +77,7 @@ actor ElevenLabsTTSClient {
         let nextText: String?
         let previousRequestIds: [String]?
         let nextRequestIds: [String]?
+        let applyTextNormalization: String?
 
         enum CodingKeys: String, CodingKey {
             case text
@@ -72,6 +90,7 @@ actor ElevenLabsTTSClient {
             case nextText = "next_text"
             case previousRequestIds = "previous_request_ids"
             case nextRequestIds = "next_request_ids"
+            case applyTextNormalization = "apply_text_normalization"
         }
     }
 
@@ -148,9 +167,89 @@ actor ElevenLabsTTSClient {
         nextText: String? = nil,
         previousRequestIds: [String]? = nil,
         nextRequestIds: [String]? = nil,
+        applyTextNormalization: String? = nil,
         timeoutSeconds: TimeInterval = 120
     ) async throws -> Data {
-        var components = URLComponents(url: baseURL.appendingPathComponent("text-to-speech/\(voiceId)"), resolvingAgainstBaseURL: false)
+        let request = try makeSpeechRequest(
+            path: "text-to-speech/\(voiceId)",
+            text: text,
+            modelId: modelId,
+            outputFormat: outputFormat,
+            optimizeStreamingLatency: optimizeStreamingLatency,
+            enableLogging: enableLogging,
+            languageCode: languageCode,
+            voiceSettings: voiceSettings,
+            pronunciationDictionaryLocators: pronunciationDictionaryLocators,
+            seed: seed,
+            previousText: previousText,
+            nextText: nextText,
+            previousRequestIds: previousRequestIds,
+            nextRequestIds: nextRequestIds,
+            applyTextNormalization: applyTextNormalization,
+            timeoutSeconds: timeoutSeconds
+        )
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        return data
+    }
+
+    /// Streams the audio body as it is produced.
+    ///
+    /// Unlike the OpenAI and MiMo streaming paths this is not SSE — the endpoint returns the
+    /// raw encoded audio in chunked transfer encoding.
+    func createSpeechStream(
+        text: String,
+        voiceId: String,
+        modelId: String? = nil,
+        outputFormat: String? = nil,
+        optimizeStreamingLatency: Int? = nil,
+        enableLogging: Bool? = nil,
+        languageCode: String? = nil,
+        voiceSettings: VoiceSettings? = nil,
+        applyTextNormalization: String? = nil,
+        timeoutSeconds: TimeInterval = 300
+    ) async throws -> AsyncThrowingStream<Data, Error> {
+        let request = try makeSpeechRequest(
+            path: "text-to-speech/\(voiceId)/stream",
+            text: text,
+            modelId: modelId,
+            outputFormat: outputFormat,
+            optimizeStreamingLatency: optimizeStreamingLatency,
+            enableLogging: enableLogging,
+            languageCode: languageCode,
+            voiceSettings: voiceSettings,
+            pronunciationDictionaryLocators: nil,
+            seed: nil,
+            previousText: nil,
+            nextText: nil,
+            previousRequestIds: nil,
+            nextRequestIds: nil,
+            applyTextNormalization: applyTextNormalization,
+            timeoutSeconds: timeoutSeconds
+        )
+
+        return await networkManager.streamRequest(request, parser: RawByteChunkParser())
+    }
+
+    private func makeSpeechRequest(
+        path: String,
+        text: String,
+        modelId: String?,
+        outputFormat: String?,
+        optimizeStreamingLatency: Int?,
+        enableLogging: Bool?,
+        languageCode: String?,
+        voiceSettings: VoiceSettings?,
+        pronunciationDictionaryLocators: [PronunciationDictionaryLocator]?,
+        seed: Int?,
+        previousText: String?,
+        nextText: String?,
+        previousRequestIds: [String]?,
+        nextRequestIds: [String]?,
+        applyTextNormalization: String?,
+        timeoutSeconds: TimeInterval
+    ) throws -> URLRequest {
+        var components = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)
         var queryItems: [URLQueryItem] = []
 
         if outputFormat?.trimmedNonEmpty != nil {
@@ -181,17 +280,15 @@ actor ElevenLabsTTSClient {
             previousText: previousText,
             nextText: nextText,
             previousRequestIds: previousRequestIds,
-            nextRequestIds: nextRequestIds
+            nextRequestIds: nextRequestIds,
+            applyTextNormalization: applyTextNormalization
         )
 
-        let request = try NetworkRequestFactory.makeJSONRequest(
+        return try NetworkRequestFactory.makeJSONRequest(
             url: url,
             timeoutSeconds: timeoutSeconds,
             headers: [HTTPHeader(name: "xi-api-key", value: apiKey)],
             body: body
         )
-
-        let (data, _) = try await networkManager.sendRequest(request)
-        return data
     }
 }

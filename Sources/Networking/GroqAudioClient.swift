@@ -87,6 +87,7 @@ actor GroqAudioClient {
         filename: String,
         mimeType: String,
         model: String,
+        capabilities: SpeechTranscriptionCapabilities,
         language: String? = nil,
         prompt: String? = nil,
         responseFormat: String? = nil,
@@ -96,6 +97,7 @@ actor GroqAudioClient {
     ) async throws -> String {
         let fields = OpenAICompatibleAudioClientSupport.transcriptionFields(
             model: model,
+            capabilities: capabilities,
             language: language,
             prompt: prompt,
             responseFormat: responseFormat,
@@ -115,7 +117,10 @@ actor GroqAudioClient {
         let (data, _) = try await networkManager.sendRequest(request)
         return try OpenAICompatibleAudioClientSupport.decodeTranscriptionResponse(
             data,
-            responseFormat: responseFormat
+            responseFormat: OpenAICompatibleAudioClientSupport.resolvedResponseFormat(
+                responseFormat,
+                capabilities: capabilities
+            )
         )
     }
 

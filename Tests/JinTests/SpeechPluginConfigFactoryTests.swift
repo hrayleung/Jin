@@ -111,20 +111,24 @@ final class SpeechPluginConfigFactoryTests: XCTestCase {
         XCTAssertEqual(elevenLabs.voiceId, " voice-id ")
     }
 
-    func testTextToSpeechConfigNormalizesLegacyOpenRouterTTSModelAlias() throws {
+    /// OpenRouter dropped every OpenAI TTS model, so the retired slug has to route somewhere
+    /// that still exists.
+    func testTextToSpeechConfigNormalizesRetiredOpenRouterTTSModelAlias() throws {
         defaults.set(TextToSpeechProvider.openRouter.rawValue, forKey: AppPreferenceKeys.ttsProvider)
         defaults.set("test-key", forKey: AppPreferenceKeys.ttsOpenRouterAPIKey)
-        defaults.set("openai/gpt-4o-mini-tts", forKey: AppPreferenceKeys.ttsOpenRouterModel)
+        defaults.set("openai/gpt-4o-mini-tts-2025-12-15", forKey: AppPreferenceKeys.ttsOpenRouterModel)
 
         let config = try SpeechPluginConfigFactory.textToSpeechConfig(defaults: defaults)
         guard case .openRouter(let openRouter) = config else {
             return XCTFail("Expected OpenRouter config, got \(config)")
         }
 
-        XCTAssertEqual(openRouter.model, "openai/gpt-4o-mini-tts-2025-12-15")
+        XCTAssertEqual(openRouter.model, SpeechProviderModelCatalog.defaultOpenRouterTextToSpeechModelID)
     }
 
-    func testSpeechToTextConfigDisablesElevenLabsNoVerbatimForScribeV1() throws {
+    /// The convert endpoint's `model_id` enum is scribe_v2 only, so a stored v1 has to be
+    /// rewritten rather than sent.
+    func testSpeechToTextConfigRewritesRetiredScribeV1() throws {
         defaults.set(SpeechToTextProvider.elevenlabs.rawValue, forKey: AppPreferenceKeys.sttProvider)
         defaults.set("test-key", forKey: AppPreferenceKeys.sttElevenLabsAPIKey)
         defaults.set("scribe_v1", forKey: AppPreferenceKeys.sttElevenLabsModel)
@@ -135,8 +139,47 @@ final class SpeechPluginConfigFactoryTests: XCTestCase {
             return XCTFail("Expected ElevenLabs config, got \(config)")
         }
 
-        XCTAssertEqual(elevenLabs.modelId, "scribe_v1")
-        XCTAssertNil(elevenLabs.noVerbatim)
+        XCTAssertEqual(elevenLabs.modelId, "scribe_v2")
+        XCTAssertEqual(elevenLabs.noVerbatim, true)
+    }
+
+    /// The V2.5 series only accepts wav and pcm16.
+    func testTextToSpeechConfigClampsRetiredMiMoModelAndFormat() throws {
+        defaults.set(TextToSpeechProvider.xiaomiMiMo.rawValue, forKey: AppPreferenceKeys.ttsProvider)
+        defaults.set("test-key", forKey: AppPreferenceKeys.ttsMiMoAPIKey)
+        defaults.set("mimo-v2-tts", forKey: AppPreferenceKeys.ttsMiMoModel)
+        defaults.set("mp3", forKey: AppPreferenceKeys.ttsMiMoResponseFormat)
+        defaults.set("default_zh", forKey: AppPreferenceKeys.ttsMiMoVoice)
+
+        let config = try SpeechPluginConfigFactory.textToSpeechConfig(defaults: defaults)
+        guard case .mimo(let miMo) = config else {
+            return XCTFail("Expected MiMo config, got \(config)")
+        }
+
+        XCTAssertEqual(miMo.model, MiMoModelIDs.ttsV25)
+        XCTAssertEqual(miMo.responseFormat, "wav")
+        XCTAssertEqual(miMo.voice, "mimo_default")
+    }
+
+    /// `gpt-transcribe` takes `languages[]`, not the singular `language`.
+    func testSpeechToTextConfigCarriesGPTTranscribeCapabilities() throws {
+        defaults.set(SpeechToTextProvider.openai.rawValue, forKey: AppPreferenceKeys.sttProvider)
+        defaults.set("test-key", forKey: AppPreferenceKeys.sttOpenAIAPIKey)
+        defaults.set("gpt-transcribe", forKey: AppPreferenceKeys.sttOpenAIModel)
+        defaults.set(true, forKey: AppPreferenceKeys.sttOpenAITranslateToEnglish)
+        defaults.set("Jin, SwiftData", forKey: AppPreferenceKeys.sttOpenAIKeywords)
+
+        let config = try SpeechPluginConfigFactory.speechToTextConfig(defaults: defaults)
+        guard case .openai(let openAI) = config else {
+            return XCTFail("Expected OpenAI config, got \(config)")
+        }
+
+        XCTAssertEqual(openAI.capabilities.languageParameter, .multiple)
+        XCTAssertFalse(openAI.capabilities.supportsTemperature)
+        XCTAssertTrue(openAI.capabilities.timestampGranularities.isEmpty)
+        // Only whisper-1 still serves /audio/translations.
+        XCTAssertFalse(openAI.translateToEnglish)
+        XCTAssertEqual(openAI.keywords, ["Jin", "SwiftData"])
     }
 
     func testSpeechToTextConfigPreservesElevenLabsNoVerbatimForScribeV2() throws {

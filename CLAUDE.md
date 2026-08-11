@@ -220,10 +220,34 @@ Optional features configured via Settings, with dedicated app preference keys:
 | Web Search           | `BuiltinSearchToolHub` (Exa / Brave / Jina / Firecrawl)                                                                              | `pluginWebSearchExaAPIKey`, `pluginWebSearchBraveAPIKey`, `pluginWebSearchJinaAPIKey`, `pluginWebSearchFirecrawlAPIKey` |
 | Mistral OCR          | `MistralOCRClient`                                                                                                                   | `pluginMistralOCRAPIKey`                                                                                                |
 | DeepSeek OCR         | `DeepInfraDeepSeekOCRClient`                                                                                                         | `pluginDeepSeekOCRAPIKey`                                                                                               |
-| TTS                  | `ElevenLabsTTSClient`, `OpenAIAudioClient`, `OpenRouterAudioClient`, `GroqAudioClient`, `MiMoAudioClient`                            | `ttsElevenLabsAPIKey`, `ttsOpenAIAPIKey`, `ttsOpenRouterAPIKey`, `ttsGroqAPIKey`, `ttsMiMoAPIKey`                       |
+| TTS                  | `ElevenLabsTTSClient`, `OpenAIAudioClient`, `OpenRouterAudioClient`, `GroqAudioClient`, `MistralTTSClient`, `MiMoAudioClient`        | `ttsElevenLabsAPIKey`, `ttsOpenAIAPIKey`, `ttsOpenRouterAPIKey`, `ttsGroqAPIKey`, `ttsMistralAPIKey`, `ttsMiMoAPIKey`   |
 | STT                  | `OpenAIAudioClient`, `OpenRouterAudioClient`, `GroqAudioClient`, `ElevenLabsSTTClient` (Mistral STT reuses OpenAI-compatible client) | `sttOpenAIAPIKey`, `sttOpenRouterAPIKey`, `sttGroqAPIKey`, `sttMistralAPIKey`, `sttElevenLabsAPIKey`                    |
 | Chat Naming          | Model-based naming flow (no standalone API key)                                                                                      | `chatNamingProviderID`, `chatNamingModelID`                                                                             |
 | Cloudflare R2 Upload | R2 upload settings + signed request flow                                                                                             | `cloudflareR2AccessKeyID`, `cloudflareR2SecretAccessKey`, `cloudflareR2AccountID`, `cloudflareR2Bucket`                 |
+
+### Speech model capabilities
+
+`Sources/Domain/SpeechModelCapabilityRegistry.swift` is the single source of truth for every
+per-model wire constraint in the speech plugins — voices, playable formats, input length caps,
+which transcription parameters a model accepts, and whether it can stream. Both the settings UI
+and the request builders read from it, so a model can never be offered a parameter it rejects.
+The generations diverge enough that sending the union is a guaranteed 400:
+
+- `gpt-transcribe` takes `languages[]` and `keywords[]`, rejects the singular `language`,
+  `temperature`, timestamps and subtitle formats; `whisper-1` is the only OpenAI model that
+  still emits SRT/VTT, timestamps, or serves `/audio/translations`.
+- Eleven v3 rejects `speed` and accepts only stability `0.0 / 0.5 / 1.0`.
+- MiMo V2.5 accepts `wav` and `pcm16` only (the V2 series went offline 2026-06-30).
+- OpenRouter serves no OpenAI TTS model and has no `instructions` field; it reports each
+  speech model's voices as `supported_voices` on `/models`.
+
+**Streaming TTS**: OpenAI (`stream_format: "sse"`), MiMo V2.5 (`stream: true`) and ElevenLabs
+(`/stream`, raw chunked bytes) stream 16-bit mono PCM. `TextToSpeechStreamingAudioPlayer`
+(AVAudioEngine + AVAudioPlayerNode) plays it gaplessly — `AVAudioPlayer` cannot join sub-second
+clips without an audible seam. Non-streaming providers keep the existing clip queue.
+
+Stale stored selections are rewritten once by `SpeechModelPreferenceMigration`, version-gated so
+a deliberate post-upgrade choice is never overwritten again.
 
 ## Dependencies
 

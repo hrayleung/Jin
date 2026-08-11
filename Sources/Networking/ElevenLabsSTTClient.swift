@@ -106,12 +106,15 @@ actor ElevenLabsSTTClient {
             if let numSpeakers {
                 formData.append(Data(String(numSpeakers).utf8), withName: "num_speakers")
             }
-            if let timestampsGranularity, !timestampsGranularity.isEmpty {
+            // The enum only accepts `word` and `character`; "none" means omit the field.
+            if let timestampsGranularity, !timestampsGranularity.isEmpty, timestampsGranularity != "none" {
                 formData.append(Data(timestampsGranularity.utf8), withName: "timestamps_granularity")
             }
             if let diarize {
                 formData.append(Data(String(diarize).utf8), withName: "diarize")
             }
+            // `diarization_threshold` is deliberately absent: the API only accepts it when
+            // `num_speakers` is unset, and this pane always sends a speaker count.
             if let fileFormat, !fileFormat.isEmpty {
                 formData.append(Data(fileFormat.utf8), withName: "file_format")
             }

@@ -34,13 +34,33 @@ struct SpeechToTextConfigBuilder {
         return apiKey
     }
 
+    private func normalizedModel(for provider: SpeechToTextProvider, key: String) -> String {
+        SpeechProviderModelCatalog.normalizedSpeechToTextModelID(
+            for: provider,
+            defaults.string(forKey: key)
+        )
+    }
+
+    /// Splits a comma-separated preference into the repeated list forms the API expects.
+    private func commaSeparatedList(forKey key: String) -> [String]? {
+        guard let raw = Preferences.normalized(defaults.string(forKey: key)) else { return nil }
+        let values = raw.components(separatedBy: ",").compactMap { $0.trimmedNonEmpty }
+        return values.isEmpty ? nil : values
+    }
+
     private func openAIConfig(apiKey: String) throws -> SpeechToTextManager.TranscriptionConfig {
         let baseURL = try Preferences.resolvedBaseURL(
             defaults.string(forKey: AppPreferenceKeys.sttOpenAIBaseURL),
             fallback: OpenAIAudioClient.Constants.defaultBaseURL.absoluteString
         )
-        let model = defaults.string(forKey: AppPreferenceKeys.sttOpenAIModel) ?? "gpt-4o-mini-transcribe"
-        let translateToEnglish = defaults.bool(forKey: AppPreferenceKeys.sttOpenAITranslateToEnglish)
+        let model = normalizedModel(for: .openai, key: AppPreferenceKeys.sttOpenAIModel)
+        let capabilities = SpeechModelCapabilityRegistry.transcriptionCapabilities(
+            provider: .openai,
+            modelID: model
+        )
+        // Only whisper-1 still serves the translation endpoint.
+        let translateToEnglish = capabilities.supportsTranslation
+            && defaults.bool(forKey: AppPreferenceKeys.sttOpenAITranslateToEnglish)
         let language = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttOpenAILanguage))
         let prompt = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttOpenAIPrompt))
         let responseFormat = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttOpenAIResponseFormat))
@@ -54,8 +74,10 @@ struct SpeechToTextConfigBuilder {
                 apiKey: apiKey,
                 baseURL: baseURL,
                 model: model,
+                capabilities: capabilities,
                 translateToEnglish: translateToEnglish,
                 language: language,
+                keywords: commaSeparatedList(forKey: AppPreferenceKeys.sttOpenAIKeywords),
                 prompt: prompt,
                 responseFormat: responseFormat,
                 temperature: temperature,
@@ -69,7 +91,11 @@ struct SpeechToTextConfigBuilder {
             defaults.string(forKey: AppPreferenceKeys.sttOpenRouterBaseURL),
             fallback: OpenRouterAudioClient.Constants.defaultBaseURL.absoluteString
         )
-        let model = defaults.string(forKey: AppPreferenceKeys.sttOpenRouterModel) ?? "openai/whisper-1"
+        let model = normalizedModel(for: .openRouter, key: AppPreferenceKeys.sttOpenRouterModel)
+        let capabilities = SpeechModelCapabilityRegistry.transcriptionCapabilities(
+            provider: .openRouter,
+            modelID: model
+        )
         let language = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttOpenRouterLanguage))
         let temperature = defaults.object(forKey: AppPreferenceKeys.sttOpenRouterTemperature) as? Double
 
@@ -79,7 +105,16 @@ struct SpeechToTextConfigBuilder {
                 baseURL: baseURL,
                 model: model,
                 language: language,
-                temperature: temperature
+                temperature: temperature,
+                // OpenRouter rejects text/srt/vtt on this endpoint.
+                responseFormat: SpeechModelCapabilityRegistry.resolvedResponseFormat(
+                    Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttOpenRouterResponseFormat)),
+                    supported: capabilities.responseFormats,
+                    fallback: "json"
+                ),
+                timestampGranularities: Preferences.resolvedTimestampGranularities(
+                    defaults.string(forKey: AppPreferenceKeys.sttOpenRouterTimestampGranularitiesJSON)
+                )
             )
         )
     }
@@ -89,8 +124,13 @@ struct SpeechToTextConfigBuilder {
             defaults.string(forKey: AppPreferenceKeys.sttGroqBaseURL),
             fallback: GroqAudioClient.Constants.defaultBaseURL.absoluteString
         )
-        let model = defaults.string(forKey: AppPreferenceKeys.sttGroqModel) ?? "whisper-large-v3-turbo"
-        let translateToEnglish = defaults.bool(forKey: AppPreferenceKeys.sttGroqTranslateToEnglish)
+        let model = normalizedModel(for: .groq, key: AppPreferenceKeys.sttGroqModel)
+        let capabilities = SpeechModelCapabilityRegistry.transcriptionCapabilities(
+            provider: .groq,
+            modelID: model
+        )
+        let translateToEnglish = capabilities.supportsTranslation
+            && defaults.bool(forKey: AppPreferenceKeys.sttGroqTranslateToEnglish)
         let language = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttGroqLanguage))
         let prompt = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttGroqPrompt))
         let responseFormat = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttGroqResponseFormat))
@@ -104,6 +144,7 @@ struct SpeechToTextConfigBuilder {
                 apiKey: apiKey,
                 baseURL: baseURL,
                 model: model,
+                capabilities: capabilities,
                 translateToEnglish: translateToEnglish,
                 language: language,
                 prompt: prompt,
@@ -119,7 +160,11 @@ struct SpeechToTextConfigBuilder {
             defaults.string(forKey: AppPreferenceKeys.sttMistralBaseURL),
             fallback: ProviderType.mistral.defaultBaseURL ?? "https://api.mistral.ai/v1"
         )
-        let model = defaults.string(forKey: AppPreferenceKeys.sttMistralModel) ?? "voxtral-mini-latest"
+        let model = normalizedModel(for: .mistral, key: AppPreferenceKeys.sttMistralModel)
+        let capabilities = SpeechModelCapabilityRegistry.transcriptionCapabilities(
+            provider: .mistral,
+            modelID: model
+        )
         let language = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttMistralLanguage))
         let prompt = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttMistralPrompt))
         let responseFormat = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttMistralResponseFormat))
@@ -133,11 +178,13 @@ struct SpeechToTextConfigBuilder {
                 apiKey: apiKey,
                 baseURL: baseURL,
                 model: model,
+                capabilities: capabilities,
                 language: language,
                 prompt: prompt,
                 responseFormat: responseFormat,
                 temperature: temperature,
-                timestampGranularities: timestampGranularities
+                timestampGranularities: timestampGranularities,
+                diarize: defaults.object(forKey: AppPreferenceKeys.sttMistralDiarize) as? Bool
             )
         )
     }
@@ -147,7 +194,7 @@ struct SpeechToTextConfigBuilder {
             defaults.string(forKey: AppPreferenceKeys.sttElevenLabsBaseURL),
             fallback: ElevenLabsSTTClient.Constants.defaultBaseURL.absoluteString
         )
-        let modelId = defaults.string(forKey: AppPreferenceKeys.sttElevenLabsModel) ?? "scribe_v2"
+        let modelId = normalizedModel(for: .elevenlabs, key: AppPreferenceKeys.sttElevenLabsModel)
         let languageCode = Preferences.normalized(defaults.string(forKey: AppPreferenceKeys.sttElevenLabsLanguageCode))
         let tagAudioEvents = defaults.object(forKey: AppPreferenceKeys.sttElevenLabsTagAudioEvents) as? Bool
         let numSpeakers = defaults.object(forKey: AppPreferenceKeys.sttElevenLabsNumSpeakers) as? Int

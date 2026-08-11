@@ -80,7 +80,7 @@ enum OpenAICompatibleModelMappingSupport {
     }
 
     static func isMiMoTTSModelID(_ modelID: String) -> Bool {
-        MiMoModelIDs.isTextToSpeechModelID(modelID)
+        MiMoModelIDs.isAnyTextToSpeechModelID(modelID)
     }
 
     private static func gitHubCatalogMetadata(from model: GitHubModelsCatalogModel) -> ModelCatalogMetadata? {

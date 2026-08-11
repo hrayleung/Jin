@@ -24,6 +24,7 @@ actor MiMoAudioClient {
         let model: String
         let messages: [ChatMessage]
         let audio: AudioOptions
+        let stream: Bool?
     }
 
     private struct SpeechResponse: Decodable {
@@ -92,12 +93,70 @@ actor MiMoAudioClient {
         voiceCloneSampleURL: URL? = nil,
         timeoutSeconds: TimeInterval = 120
     ) async throws -> Data {
+        let request = try makeSpeechRequest(
+            input: input,
+            model: model,
+            voice: voice,
+            responseFormat: responseFormat,
+            styleInstruction: styleInstruction,
+            voiceCloneSampleURL: voiceCloneSampleURL,
+            stream: false,
+            timeoutSeconds: timeoutSeconds
+        )
+
+        let (data, _) = try await networkManager.sendRequest(request)
+        return try decodeAudioData(from: data)
+    }
+
+    /// Streams base64 PCM chunks over SSE.
+    ///
+    /// Only `mimo-v2.5-tts` streams incrementally; the VoiceDesign and VoiceClone models
+    /// deliver a single frame after inference, so callers should gate on
+    /// `SpeechModelCapabilityRegistry`.
+    func createSpeechStream(
+        input: String,
+        model: String,
+        voice: String? = nil,
+        responseFormat: String? = nil,
+        styleInstruction: String? = nil,
+        voiceCloneSampleURL: URL? = nil,
+        timeoutSeconds: TimeInterval = 300
+    ) async throws -> AsyncThrowingStream<Data, Error> {
+        let request = try makeSpeechRequest(
+            input: input,
+            model: model,
+            voice: voice,
+            responseFormat: responseFormat,
+            styleInstruction: styleInstruction,
+            voiceCloneSampleURL: voiceCloneSampleURL,
+            stream: true,
+            timeoutSeconds: timeoutSeconds
+        )
+
+        let events = await networkManager.streamRequest(request, parser: SSEParser())
+        return SpeechAudioStreamSupport.miMoAudioChunks(from: events)
+    }
+
+    private func makeSpeechRequest(
+        input: String,
+        model: String,
+        voice: String?,
+        responseFormat: String?,
+        styleInstruction: String?,
+        voiceCloneSampleURL: URL?,
+        stream: Bool,
+        timeoutSeconds: TimeInterval
+    ) throws -> URLRequest {
         let requestedModel = normalizedTrimmedString(model) ?? Constants.defaultModel
         let normalizedModel = requestedModel.lowercased()
         guard MiMoModelIDs.isTextToSpeechModelID(normalizedModel) else {
             throw LLMError.invalidRequest(message: "MiMo TTS does not support model “\(requestedModel)”.")
         }
-        let format = normalizedTrimmedString(responseFormat) ?? Constants.defaultResponseFormat
+        // Validate and encode the same normalized value, so a stored "WAV" is not sent verbatim.
+        let format = (normalizedTrimmedString(responseFormat) ?? Constants.defaultResponseFormat).lowercased()
+        guard MiMoModelIDs.textToSpeechResponseFormatSet.contains(format) else {
+            throw LLMError.invalidRequest(message: "MiMo TTS does not support format “\(format)”.")
+        }
         let style = normalizedTrimmedString(styleInstruction)
 
         var messages: [ChatMessage] = []
@@ -116,18 +175,16 @@ actor MiMoAudioClient {
         let body = SpeechRequest(
             model: normalizedModel,
             messages: messages,
-            audio: AudioOptions(format: format, voice: resolvedVoice)
+            audio: AudioOptions(format: format, voice: resolvedVoice),
+            stream: stream ? true : nil
         )
 
-        let request = try NetworkRequestFactory.makeJSONRequest(
+        return try NetworkRequestFactory.makeJSONRequest(
             url: baseURL.appendingPathComponent("chat/completions"),
             timeoutSeconds: timeoutSeconds,
             headers: miMoHeaders(),
             body: body
         )
-
-        let (data, _) = try await networkManager.sendRequest(request)
-        return try decodeAudioData(from: data)
     }
 
     private func miMoHeaders() -> HTTPHeaders {

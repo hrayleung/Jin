@@ -17,6 +17,9 @@ extension TextToSpeechPluginSettingsView {
             case .groq:
                 groqSettingsSection
 
+            case .mistral:
+                mistralSettingsSection
+
             case .xiaomiMiMo:
                 miMoSettingsSection
 
@@ -38,33 +41,63 @@ extension TextToSpeechPluginSettingsView {
                 }
             }
 
-            JinSettingsTextFieldRow(
-                "Voice",
-                fieldTitle: "Voice ID",
-                supportingText: "Voices vary by model. Common OpenAI voices: alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer.",
-                text: $openRouterVoice,
-                usesMonospacedFont: true
-            )
+            if openRouterVoiceChoices.isEmpty {
+                JinSettingsTextFieldRow(
+                    "Voice",
+                    fieldTitle: "Voice ID",
+                    supportingText: "This model accepts arbitrary provider voice IDs. Tap Test Connection to load the catalogs for models that publish one.",
+                    text: $openRouterVoice,
+                    usesMonospacedFont: true
+                )
+            } else {
+                JinSettingsPickerRow("Voice", selection: $openRouterVoice) {
+                    ForEach(openRouterVoiceChoices, id: \.self) { voice in
+                        Text(voice).tag(voice)
+                    }
+                }
+                .onAppear {
+                    normalizeOpenRouterVoiceIfNeeded()
+                }
+            }
 
             JinSettingsPickerRow("Format", selection: $openRouterResponseFormat) {
                 ForEach(Self.openRouterResponseFormats, id: \.self) { format in
                     Text(format).tag(format)
                 }
             }
+            .disabled(lowLatencyStreaming && supportsStreaming)
+        }
+    }
 
-            JinSettingsSliderValueRow(
-                title: "Speed",
-                value: $openRouterSpeed,
-                range: 0.25...4.0,
-                step: 0.05,
-                valueWidth: 64
-            )
+    var mistralSettingsSection: some View {
+        JinSettingsSection("Mistral") {
+            JinSettingsTextFieldRow("API Base URL", text: $mistralBaseURL, usesMonospacedFont: true)
 
-            JinSettingsTextFieldRow(
-                "Instructions",
-                supportingText: "OpenAI TTS family only — silently ignored by other providers.",
-                text: $openRouterInstructions
-            )
+            JinSettingsPickerRow("Model", selection: $mistralModel) {
+                ForEach(displayedMistralModels) { model in
+                    Text(model.name).tag(model.id)
+                }
+            }
+
+            if mistralVoices.isEmpty {
+                Text("Enter your API key and tap Test Connection to load voices.")
+                    .jinInfoCallout()
+            } else {
+                JinSettingsPickerRow("Voice", selection: $mistralVoiceID) {
+                    ForEach(mistralVoices) { voice in
+                        Text(voice.name ?? voice.id).tag(voice.id)
+                    }
+                }
+                .onChange(of: mistralVoiceID) { _, _ in
+                    NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
+                }
+            }
+
+            JinSettingsPickerRow("Format", selection: $mistralResponseFormat) {
+                ForEach(Self.mistralResponseFormats, id: \.self) { format in
+                    Text(format).tag(format)
+                }
+            }
         }
     }
 
@@ -77,18 +110,32 @@ extension TextToSpeechPluginSettingsView {
                     Text(model.name).tag(model.id)
                 }
             }
+            .onChange(of: openAIModel) { _, _ in
+                normalizeOpenAIVoiceIfNeeded()
+            }
 
+            // tts-1 / tts-1-hd predate the expressive voices.
             JinSettingsPickerRow("Voice", selection: $openAIVoice) {
-                ForEach(Self.openAIVoices, id: \.self) { voice in
+                ForEach(openAIVoiceChoices, id: \.self) { voice in
                     Text(voice).tag(voice)
                 }
             }
+            .onAppear {
+                normalizeOpenAIVoiceIfNeeded()
+            }
 
-            JinSettingsPickerRow("Format", selection: $openAIResponseFormat) {
+            JinSettingsPickerRow(
+                "Format",
+                supportingText: lowLatencyStreaming && supportsStreaming
+                    ? "Low-latency streaming requests PCM instead."
+                    : nil,
+                selection: $openAIResponseFormat
+            ) {
                 ForEach(Self.openAIResponseFormats, id: \.self) { format in
                     Text(format).tag(format)
                 }
             }
+            .disabled(lowLatencyStreaming && supportsStreaming)
 
             JinSettingsSliderValueRow(
                 title: "Speed",
@@ -98,10 +145,13 @@ extension TextToSpeechPluginSettingsView {
                 valueWidth: 64
             )
 
-            JinSettingsTextFieldRow(
-                "Instructions",
-                text: $openAIInstructions
-            )
+            // `instructions` is rejected by the tts-1 generation.
+            if currentSynthesisCapabilities?.supportsInstructions == true {
+                JinSettingsTextFieldRow(
+                    "Instructions",
+                    text: $openAIInstructions
+                )
+            }
         }
     }
 
@@ -144,6 +194,7 @@ extension TextToSpeechPluginSettingsView {
             }
             .onChange(of: miMoModel) { _, _ in
                 normalizeMiMoVoiceIfNeeded()
+                normalizeMiMoResponseFormatIfNeeded()
             }
 
             if miMoModel != MiMoModelIDs.ttsV25VoiceDesign && miMoModel != MiMoModelIDs.ttsV25VoiceClone {
@@ -177,6 +228,10 @@ extension TextToSpeechPluginSettingsView {
                 ForEach(MiMoModelIDs.textToSpeechResponseFormats, id: \.self) { format in
                     Text(format).tag(format)
                 }
+            }
+            .disabled(lowLatencyStreaming && supportsStreaming)
+            .onAppear {
+                normalizeMiMoResponseFormatIfNeeded()
             }
 
             JinSettingsTextFieldRow(
@@ -226,11 +281,18 @@ extension TextToSpeechPluginSettingsView {
                     .jinInfoCallout()
             }
 
-            JinSettingsPickerRow("Output Format", selection: $elevenLabsOutputFormat) {
+            JinSettingsPickerRow(
+                "Output Format",
+                supportingText: lowLatencyStreaming && supportsStreaming
+                    ? "Low-latency streaming requests pcm_24000 instead."
+                    : nil,
+                selection: $elevenLabsOutputFormat
+            ) {
                 ForEach(Self.elevenLabsOutputFormats, id: \.self) { format in
                     Text(format).tag(format)
                 }
             }
+            .disabled(lowLatencyStreaming && supportsStreaming)
 
             Stepper("Optimize latency: \(elevenLabsOptimizeStreamingLatency)", value: $elevenLabsOptimizeStreamingLatency, in: 0...4)
 
@@ -238,13 +300,26 @@ extension TextToSpeechPluginSettingsView {
 
             DisclosureGroup("Voice Settings") {
                 VStack(alignment: .leading, spacing: 12) {
-                    JinSettingsSliderValueRow(
-                        title: "Stability",
-                        value: $elevenLabsStability,
-                        range: 0.0...1.0,
-                        step: 0.01,
-                        labelWidth: 88
-                    )
+                    // v3 accepts only the three named stability modes.
+                    if let stabilityValues = currentSynthesisCapabilities?.stabilityValues {
+                        JinSettingsPickerRow(
+                            "Stability",
+                            supportingText: "Eleven v3 supports these three modes only.",
+                            selection: $elevenLabsStability
+                        ) {
+                            ForEach(stabilityValues, id: \.self) { value in
+                                Text(Self.elevenLabsStabilityLabel(value)).tag(value)
+                            }
+                        }
+                    } else {
+                        JinSettingsSliderValueRow(
+                            title: "Stability",
+                            value: $elevenLabsStability,
+                            range: 0.0...1.0,
+                            step: 0.01,
+                            labelWidth: 88
+                        )
+                    }
                     JinSettingsSliderValueRow(
                         title: "Similarity",
                         value: $elevenLabsSimilarityBoost,
@@ -259,10 +334,28 @@ extension TextToSpeechPluginSettingsView {
                         step: 0.01,
                         labelWidth: 88
                     )
+                    // `speed` is rejected by the v3 models.
+                    if currentSynthesisCapabilities?.supportsSpeed == true {
+                        JinSettingsSliderValueRow(
+                            title: "Speed",
+                            value: $elevenLabsSpeed,
+                            range: 0.7...1.2,
+                            step: 0.01,
+                            labelWidth: 88
+                        )
+                    }
                     Toggle("Use speaker boost", isOn: $elevenLabsUseSpeakerBoost)
                 }
                 .padding(.top, 6)
             }
+        }
+    }
+
+    static func elevenLabsStabilityLabel(_ value: Double) -> String {
+        switch value {
+        case 0.0: return "Creative (0.0)"
+        case 1.0: return "Robust (1.0)"
+        default: return "Natural (0.5)"
         }
     }
 
