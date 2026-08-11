@@ -77,6 +77,40 @@ enum SSEEvent: Sendable {
     case done
 }
 
+/// Passes the response body through verbatim in fixed-size chunks.
+///
+/// Providers that stream raw audio bytes (ElevenLabs `/stream`) have no frame structure to
+/// parse, but yielding one event per byte would be pathological — buffer instead.
+struct RawByteChunkParser: StreamParser {
+    private let chunkSize: Int
+    private var buffer = Data()
+    private var events: Deque<Data> = []
+
+    init(chunkSize: Int = 16 * 1024) {
+        self.chunkSize = max(1, chunkSize)
+    }
+
+    mutating func append(_ byte: UInt8) {
+        buffer.append(byte)
+        guard buffer.count >= chunkSize else { return }
+        flush()
+    }
+
+    mutating func nextEvent() -> Data? {
+        events.popFirst()
+    }
+
+    mutating func finish() {
+        flush()
+    }
+
+    private mutating func flush() {
+        guard !buffer.isEmpty else { return }
+        events.append(buffer)
+        buffer.removeAll(keepingCapacity: true)
+    }
+}
+
 /// JSON Lines parser for Anthropic and Vertex AI
 struct JSONLineParser: StreamParser {
     private var buffer = Data()

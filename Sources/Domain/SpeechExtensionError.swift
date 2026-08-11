@@ -8,6 +8,7 @@ enum SpeechExtensionError: Error, LocalizedError {
     case invalidTextToSpeechProvider(String)
     case invalidSpeechToTextProvider(String)
     case missingElevenLabsVoice
+    case missingMistralVoice
     case missingMiMoVoiceDesignPrompt
     case missingMiMoVoiceCloneSample
     case invalidMiMoVoiceCloneSample(String)
@@ -31,6 +32,8 @@ enum SpeechExtensionError: Error, LocalizedError {
             return "Invalid Speech to Text provider value: “\(raw)”. Re-select a provider in Settings → Plugins → Speech to Text."
         case .missingElevenLabsVoice:
             return "ElevenLabs voice is not selected. Choose a voice in Settings → Plugins → Text to Speech."
+        case .missingMistralVoice:
+            return "Mistral voice is not selected. Tap Test Connection to load voices in Settings → Plugins → Text to Speech."
         case .missingMiMoVoiceDesignPrompt:
             return "MiMo VoiceDesign requires a voice/style description in Settings → Plugins → Text to Speech."
         case .missingMiMoVoiceCloneSample:

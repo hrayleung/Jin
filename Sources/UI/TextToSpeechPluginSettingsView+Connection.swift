@@ -19,7 +19,7 @@ extension TextToSpeechPluginSettingsView {
         Task {
             do {
                 switch provider {
-                case .openai, .openRouter, .groq, .xiaomiMiMo:
+                case .openai, .openRouter, .groq, .mistral, .xiaomiMiMo:
                     try await validateStandardTextToSpeechConnection(
                         for: provider,
                         apiKey: trimmedAPIKey
@@ -35,7 +35,7 @@ extension TextToSpeechPluginSettingsView {
                 }
 
                 switch provider {
-                case .openai, .openRouter, .groq, .xiaomiMiMo:
+                case .openai, .openRouter, .groq, .mistral, .xiaomiMiMo:
                     await loadRemoteTextToSpeechModels(updateStatus: false)
                 case .elevenlabs:
                     await loadElevenLabsVoicesAndModels(updateStatus: false)
@@ -72,14 +72,19 @@ extension TextToSpeechPluginSettingsView {
             throw SpeechExtensionError.missingElevenLabsVoice
         }
 
+        let selectedModel = elevenLabsModelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let capabilities = SpeechModelCapabilityRegistry.synthesisCapabilities(
+            provider: .elevenlabs,
+            modelID: selectedModel
+        )
+
         let voiceSettings = ElevenLabsTTSClient.VoiceSettings(
             stability: elevenLabsStability,
             similarityBoost: elevenLabsSimilarityBoost,
             style: elevenLabsStyle,
-            useSpeakerBoost: elevenLabsUseSpeakerBoost
+            useSpeakerBoost: elevenLabsUseSpeakerBoost,
+            speed: capabilities.supportsSpeed ? elevenLabsSpeed : nil
         )
-
-        let selectedModel = elevenLabsModelID.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Validate that this key can actually synthesize audio (keys may be scope-restricted per endpoint).
         _ = try await client.createSpeech(

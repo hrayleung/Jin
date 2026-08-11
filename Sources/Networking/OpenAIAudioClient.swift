@@ -94,25 +94,67 @@ actor OpenAIAudioClient {
         return data
     }
 
+    /// Streams PCM audio as it is synthesised.
+    ///
+    /// Requires `stream_format: "sse"`, which the tts-1 generation rejects — callers must
+    /// consult `SpeechModelCapabilityRegistry` before choosing this path.
+    func createSpeechStream(
+        input: String,
+        model: String,
+        voice: String,
+        responseFormat: String,
+        speed: Double? = nil,
+        instructions: String? = nil,
+        timeoutSeconds: TimeInterval = 300
+    ) async throws -> AsyncThrowingStream<Data, Error> {
+        let body = SpeechRequest(
+            model: model,
+            input: input,
+            voice: voice,
+            responseFormat: responseFormat,
+            speed: speed,
+            instructions: instructions,
+            streamFormat: "sse"
+        )
+
+        let request = try NetworkRequestFactory.makeJSONRequest(
+            url: baseURL.appendingPathComponent("audio/speech"),
+            timeoutSeconds: timeoutSeconds,
+            headers: NetworkRequestFactory.bearerHeaders(apiKey: apiKey),
+            body: body
+        )
+
+        let events = await networkManager.streamRequest(request, parser: SSEParser())
+        return SpeechAudioStreamSupport.openAIAudioChunks(from: events)
+    }
+
     func createTranscription(
         fileData: Data,
         filename: String,
         mimeType: String,
         model: String,
+        capabilities: SpeechTranscriptionCapabilities,
         language: String? = nil,
+        languages: [String]? = nil,
+        keywords: [String]? = nil,
         prompt: String? = nil,
         responseFormat: String? = nil,
         temperature: Double? = nil,
         timestampGranularities: [String]? = nil,
+        diarize: Bool? = nil,
         timeoutSeconds: TimeInterval = 120
     ) async throws -> String {
         let fields = OpenAICompatibleAudioClientSupport.transcriptionFields(
             model: model,
+            capabilities: capabilities,
             language: language,
+            languages: languages,
+            keywords: keywords,
             prompt: prompt,
             responseFormat: responseFormat,
             temperature: temperature,
-            timestampGranularities: timestampGranularities
+            timestampGranularities: timestampGranularities,
+            diarize: diarize
         )
 
         let request = try NetworkRequestFactory.makeMultipartRequest(
@@ -127,7 +169,10 @@ actor OpenAIAudioClient {
         let (data, _) = try await networkManager.sendRequest(request)
         return try OpenAICompatibleAudioClientSupport.decodeTranscriptionResponse(
             data,
-            responseFormat: responseFormat
+            responseFormat: OpenAICompatibleAudioClientSupport.resolvedResponseFormat(
+                responseFormat,
+                capabilities: capabilities
+            )
         )
     }
 

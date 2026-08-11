@@ -13,8 +13,11 @@ final class SpeechToTextManager: NSObject, ObservableObject {
         let apiKey: String
         let baseURL: URL
         let model: String
+        let capabilities: SpeechTranscriptionCapabilities
         let translateToEnglish: Bool
         let language: String?
+        /// Only sent by models that take `keywords[]` (the `gpt-transcribe` generation).
+        let keywords: [String]?
         let prompt: String?
         let responseFormat: String?
         let temperature: Double?
@@ -27,12 +30,15 @@ final class SpeechToTextManager: NSObject, ObservableObject {
         let model: String
         let language: String?
         let temperature: Double?
+        let responseFormat: String?
+        let timestampGranularities: [String]?
     }
 
     struct GroqConfig: Sendable {
         let apiKey: String
         let baseURL: URL
         let model: String
+        let capabilities: SpeechTranscriptionCapabilities
         let translateToEnglish: Bool
         let language: String?
         let prompt: String?
@@ -45,11 +51,13 @@ final class SpeechToTextManager: NSObject, ObservableObject {
         let apiKey: String
         let baseURL: URL
         let model: String
+        let capabilities: SpeechTranscriptionCapabilities
         let language: String?
         let prompt: String?
         let responseFormat: String?
         let temperature: Double?
         let timestampGranularities: [String]?
+        let diarize: Bool?
     }
 
     struct ElevenLabsConfig: Sendable {
@@ -61,6 +69,7 @@ final class SpeechToTextManager: NSObject, ObservableObject {
         let numSpeakers: Int?
         let timestampsGranularity: String?
         let diarize: Bool?
+        let diarizationThreshold: Double?
         let fileFormat: String?
         let temperature: Double?
         let noVerbatim: Bool?
@@ -225,7 +234,9 @@ final class SpeechToTextManager: NSObject, ObservableObject {
                 filename: "recording.wav",
                 mimeType: "audio/wav",
                 model: openAI.model,
+                capabilities: openAI.capabilities,
                 language: openAI.language,
+                keywords: openAI.keywords,
                 prompt: openAI.prompt,
                 responseFormat: openAI.responseFormat,
                 temperature: openAI.temperature,
@@ -239,7 +250,9 @@ final class SpeechToTextManager: NSObject, ObservableObject {
                 audioFormat: "wav",
                 model: openRouter.model,
                 language: openRouter.language,
-                temperature: openRouter.temperature
+                temperature: openRouter.temperature,
+                responseFormat: openRouter.responseFormat,
+                timestampGranularities: openRouter.timestampGranularities
             )
 
         case .groq(let groq):
@@ -261,6 +274,7 @@ final class SpeechToTextManager: NSObject, ObservableObject {
                 filename: "recording.wav",
                 mimeType: "audio/wav",
                 model: groq.model,
+                capabilities: groq.capabilities,
                 language: groq.language,
                 prompt: groq.prompt,
                 responseFormat: groq.responseFormat,
@@ -275,11 +289,13 @@ final class SpeechToTextManager: NSObject, ObservableObject {
                 filename: "recording.wav",
                 mimeType: "audio/wav",
                 model: mistral.model,
+                capabilities: mistral.capabilities,
                 language: mistral.language,
                 prompt: mistral.prompt,
                 responseFormat: mistral.responseFormat,
                 temperature: mistral.temperature,
-                timestampGranularities: mistral.timestampGranularities
+                timestampGranularities: mistral.timestampGranularities,
+                diarize: mistral.diarize
             )
 
         case .elevenlabs(let config):
@@ -294,6 +310,7 @@ final class SpeechToTextManager: NSObject, ObservableObject {
                 numSpeakers: config.numSpeakers,
                 timestampsGranularity: config.timestampsGranularity,
                 diarize: config.diarize,
+                diarizationThreshold: config.diarizationThreshold,
                 fileFormat: config.fileFormat,
                 temperature: config.temperature,
                 noVerbatim: config.noVerbatim

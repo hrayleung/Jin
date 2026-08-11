@@ -90,10 +90,10 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
             ]
         )
 
+        // The V2 series went offline on 2026-06-30.
         XCTAssertEqual(
             models.map(\.id),
             [
-                "mimo-v2-tts",
                 "mimo-v2.5-tts",
                 "mimo-v2.5-tts-voiceclone",
                 "mimo-v2.5-tts-voicedesign"
@@ -138,9 +138,15 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
     }
 
     func testOpenRouterTextToSpeechModelNormalizationMapsLegacyAliasesToExactIDs() {
+        // OpenRouter no longer serves any OpenAI TTS model — both the bare slug and the
+        // dated snapshot 404.
         XCTAssertEqual(
             SpeechProviderModelCatalog.normalizedOpenRouterTextToSpeechModelID(" openai/gpt-4o-mini-tts\n"),
-            "openai/gpt-4o-mini-tts-2025-12-15"
+            SpeechProviderModelCatalog.defaultOpenRouterTextToSpeechModelID
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.normalizedOpenRouterTextToSpeechModelID("openai/gpt-4o-mini-tts-2025-12-15"),
+            SpeechProviderModelCatalog.defaultOpenRouterTextToSpeechModelID
         )
         XCTAssertEqual(
             SpeechProviderModelCatalog.normalizedOpenRouterTextToSpeechModelID("GOOGLE/GEMINI-FLASH-TTS"),
@@ -163,7 +169,28 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
     func testDefaultSpeechChoicesProvidePickerFallbacks() {
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .openai).map(\.id),
-            ["gpt-4o-mini-transcribe", "gpt-4o-transcribe", "gpt-4o-transcribe-diarize", "whisper-1"]
+            [
+                "gpt-transcribe",
+                "gpt-4o-transcribe-diarize",
+                "whisper-1",
+                "gpt-4o-transcribe",
+                "gpt-4o-mini-transcribe"
+            ]
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .openRouter).map(\.id),
+            [
+                "openai/gpt-transcribe",
+                "openai/whisper-large-v3-turbo",
+                "openai/whisper-large-v3",
+                "x-ai/grok-stt-1.0",
+                "deepgram/nova-3",
+                "microsoft/mai-transcribe-1.5",
+                "mistralai/voxtral-mini-transcribe",
+                "qwen/qwen3-asr-flash-2026-02-10",
+                "nvidia/parakeet-tdt-0.6b-v3",
+                "google/chirp-3"
+            ]
         )
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .groq).map(\.id),
@@ -171,25 +198,34 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
         )
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .mistral).map(\.id),
-            ["voxtral-mini-latest"]
+            ["voxtral-mini-transcribe-2602", "voxtral-mini-latest"]
         )
+        // The convert endpoint's `model_id` enum is scribe_v2 only.
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .elevenlabs).map(\.id),
-            ["scribe_v2", "scribe_v1"]
+            ["scribe_v2"]
         )
     }
 
     func testDefaultTextToSpeechChoicesProvidePickerFallbacks() {
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .openai).map(\.id),
-            ["gpt-4o-mini-tts", "tts-1", "tts-1-hd"]
+            ["gpt-4o-mini-tts", "gpt-4o-mini-tts-2025-12-15", "tts-1", "tts-1-hd"]
         )
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .openRouter).map(\.id),
             [
-                "openai/gpt-4o-mini-tts-2025-12-15",
                 "google/gemini-3.1-flash-tts-preview",
-                "mistralai/voxtral-mini-tts-2603"
+                "microsoft/mai-voice-2",
+                "microsoft/mai-voice-2-flash",
+                "mistralai/voxtral-mini-tts-2603",
+                "deepgram/aura-2",
+                "minimax/speech-2.8-hd",
+                "minimax/speech-2.8-turbo",
+                "x-ai/grok-voice-tts-1.0",
+                "fish-audio/s2.1-pro",
+                "qwen/qwen-audio-3.0-tts-flash",
+                "hexgrad/kokoro-82m"
             ]
         )
         XCTAssertEqual(
@@ -197,19 +233,38 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
             ["canopylabs/orpheus-v1-english", "canopylabs/orpheus-arabic-saudi"]
         )
         XCTAssertEqual(
-            SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .xiaomiMiMo).map(\.id),
-            ["mimo-v2.5-tts", "mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone", "mimo-v2-tts"]
+            SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .mistral).map(\.id),
+            ["voxtral-mini-tts-2603"]
         )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .xiaomiMiMo).map(\.id),
+            ["mimo-v2.5-tts", "mimo-v2.5-tts-voicedesign", "mimo-v2.5-tts-voiceclone"]
+        )
+        // The turbo models are deprecated in favour of the flash pair.
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .elevenlabs).map(\.id),
             [
+                "eleven_v3",
                 "eleven_multilingual_v2",
                 "eleven_flash_v2_5",
                 "eleven_flash_v2",
-                "eleven_turbo_v2_5",
-                "eleven_turbo_v2",
-                "eleven_v3"
+                "eleven_ttv_v3"
             ]
         )
+    }
+
+    func testOpenAISpeechToTextChoicesIncludeGPTTranscribeAndExcludeRealtimeOnlyModels() {
+        let models = SpeechProviderModelCatalog.speechToTextChoices(
+            for: .openai,
+            availableModels: [
+                SpeechProviderModelChoice(id: "gpt-transcribe"),
+                SpeechProviderModelChoice(id: "gpt-live-transcribe"),
+                SpeechProviderModelChoice(id: "gpt-realtime-whisper"),
+                SpeechProviderModelChoice(id: "whisper-1"),
+                SpeechProviderModelChoice(id: "gpt-4o")
+            ]
+        )
+
+        XCTAssertEqual(models.map(\.id), ["gpt-transcribe", "whisper-1"])
     }
 }

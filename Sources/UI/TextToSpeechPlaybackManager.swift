@@ -14,6 +14,8 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
 
     private var synthesisTask: Task<Void, Never>?
     private var player: AVAudioPlayer?
+    /// Set only for the streaming providers; the clip queue below stays empty in that mode.
+    private var streamingPlayer: TextToSpeechStreamingAudioPlayer?
     private var queue: Deque<TextToSpeechQueuedClip> = []
     private var activeClip: TextToSpeechQueuedClip?
     private var currentMessageID: UUID?
@@ -104,7 +106,10 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
     func pause(messageID: UUID) {
         guard case .playing(let id) = state, id == messageID else { return }
 
-        if let player, player.isPlaying {
+        if let streamingPlayer {
+            streamingPlayer.pause()
+            updateQueuedPlaybackMetrics()
+        } else if let player, player.isPlaying {
             player.pause()
             updateQueuedPlaybackMetrics()
         }
@@ -117,6 +122,12 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         guard case .paused(let id) = state, id == messageID else { return }
 
         state = .playing(messageID: messageID)
+
+        if let streamingPlayer {
+            streamingPlayer.resume()
+            startMeteringTimer()
+            return
+        }
 
         if let player, !player.isPlaying {
             player.play()
@@ -138,6 +149,8 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         stopMeteringTimer()
         player?.stop()
         player = nil
+        streamingPlayer?.stop()
+        streamingPlayer = nil
         queue = []
         activeClip = nil
         currentMessageID = nil
@@ -157,10 +170,58 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         try await TextToSpeechSynthesisExecutor.synthesize(
             text: text,
             config: config,
-            onQueuedClip: { [weak self] clip in
-                self?.enqueueClipIfCurrent(clip, messageID: messageID)
+            onEvent: { [weak self] event in
+                try self?.handleSynthesisEvent(event, messageID: messageID)
             }
         )
+    }
+
+    private func handleSynthesisEvent(
+        _ event: TextToSpeechSynthesisEvent,
+        messageID: UUID
+    ) throws {
+        guard currentMessageID == messageID else { return }
+
+        switch event {
+        case .clip(let clip):
+            enqueueClipIfCurrent(clip, messageID: messageID)
+        case .streamStarted(let sampleRate):
+            try startStreamingPlayback(sampleRate: sampleRate, messageID: messageID)
+        case .streamedPCM(let audio):
+            appendStreamedAudio(audio, messageID: messageID)
+        }
+    }
+
+    private func startStreamingPlayback(sampleRate: Double, messageID: UUID) throws {
+        guard streamingPlayer == nil else { return }
+
+        let player = TextToSpeechStreamingAudioPlayer()
+        try player.start(sampleRate: sampleRate) { [weak self] in
+            guard let self, self.currentMessageID == messageID else { return }
+            self.finishPlaybackSession()
+        }
+        streamingPlayer = player
+    }
+
+    private func appendStreamedAudio(_ audio: Data, messageID: UUID) {
+        guard let streamingPlayer,
+              let appended = streamingPlayer.append(pcm16: audio) else {
+            return
+        }
+
+        if progressTracker.recordGeneratedAudio(
+            duration: appended.duration,
+            waveformPeaks: appended.waveformPeaks
+        ) {
+            refreshDisplayedWaveform()
+        }
+
+        if case .generating(let id) = state, id == messageID {
+            state = .playing(messageID: messageID)
+            startMeteringTimer()
+        }
+
+        updateQueuedPlaybackMetrics()
     }
 
     private func enqueueClipIfCurrent(_ clip: TextToSpeechQueuedClip, messageID: UUID, updateMetrics: Bool = true) {
@@ -189,6 +250,12 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
         synthesisTask = nil
         didFinishSynthesis = true
 
+        if let streamingPlayer {
+            // The session ends when the already-scheduled buffers drain, not now.
+            streamingPlayer.finishProducing()
+            return
+        }
+
         if case .generating(let id) = state, id == messageID {
             state = .playing(messageID: messageID)
         }
@@ -210,6 +277,8 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
     }
 
     private func playNextClipIfNeeded() {
+        // Streaming sessions never populate the clip queue; draining it would end them early.
+        guard streamingPlayer == nil else { return }
         guard case .playing = state else { return }
         guard let messageID = currentMessageID else {
             stop()
@@ -259,6 +328,15 @@ final class TextToSpeechPlaybackManager: NSObject, ObservableObject {
     }
 
     private func updateQueuedPlaybackMetrics() {
+        if let streamingPlayer {
+            updatePublishedPlaybackMetrics(
+                currentTime: progressTracker.queuedPlaybackTime(
+                    activeClipCurrentTime: streamingPlayer.currentTime
+                )
+            )
+            return
+        }
+
         guard let player else {
             updatePublishedPlaybackMetrics(currentTime: progressTracker.queuedPlaybackTime(activeClipCurrentTime: nil))
             return

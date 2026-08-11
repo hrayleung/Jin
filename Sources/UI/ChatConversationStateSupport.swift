@@ -52,6 +52,8 @@ enum ChatConversationStateSupport {
                 key = AppPreferenceKeys.ttsOpenRouterAPIKey
             case .groq:
                 key = AppPreferenceKeys.ttsGroqAPIKey
+            case .mistral:
+                key = AppPreferenceKeys.ttsMistralAPIKey
             case .xiaomiMiMo:
                 key = AppPreferenceKeys.ttsMiMoAPIKey
             }
@@ -76,11 +78,17 @@ enum ChatConversationStateSupport {
             return hasStoredKey(key)
         }()
 
+        // ElevenLabs and Mistral both address the voice in the request itself, so a key alone
+        // is not enough to synthesize.
         let ttsConfigured: Bool
-        if ttsProvider == .elevenlabs {
+        switch ttsProvider {
+        case .elevenlabs:
             let hasVoiceID = defaults.string(forKey: AppPreferenceKeys.ttsElevenLabsVoiceID)?.trimmedNonEmpty != nil
             ttsConfigured = ttsKeyConfigured && hasVoiceID
-        } else {
+        case .mistral:
+            let hasVoiceID = defaults.string(forKey: AppPreferenceKeys.ttsMistralVoiceID)?.trimmedNonEmpty != nil
+            ttsConfigured = ttsKeyConfigured && hasVoiceID
+        default:
             ttsConfigured = ttsKeyConfigured
         }
 

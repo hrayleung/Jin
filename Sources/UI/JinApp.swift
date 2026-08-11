@@ -68,6 +68,7 @@ struct JinApp: App {
 
         preferencesSyncController = AppPreferencesSyncController()
         SpeechPluginPreferenceSupport.migrateLegacyOnDeviceProviderSelections()
+        SpeechModelPreferenceMigration.run()
         _updateManager = StateObject(wrappedValue: SparkleUpdateManager())
         _launchCoordinator = StateObject(wrappedValue: AppLaunchCoordinator())
     }

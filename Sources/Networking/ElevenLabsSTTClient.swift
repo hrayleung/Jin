@@ -84,6 +84,9 @@ actor ElevenLabsSTTClient {
         numSpeakers: Int? = nil,
         timestampsGranularity: String? = nil,
         diarize: Bool? = nil,
+        diarizationThreshold: Double? = nil,
+        useMultiChannel: Bool? = nil,
+        seed: Int? = nil,
         fileFormat: String? = nil,
         temperature: Double? = nil,
         noVerbatim: Bool? = nil,
@@ -106,11 +109,21 @@ actor ElevenLabsSTTClient {
             if let numSpeakers {
                 formData.append(Data(String(numSpeakers).utf8), withName: "num_speakers")
             }
-            if let timestampsGranularity, !timestampsGranularity.isEmpty {
+            // The enum only accepts `word` and `character`; "none" means omit the field.
+            if let timestampsGranularity, !timestampsGranularity.isEmpty, timestampsGranularity != "none" {
                 formData.append(Data(timestampsGranularity.utf8), withName: "timestamps_granularity")
             }
             if let diarize {
                 formData.append(Data(String(diarize).utf8), withName: "diarize")
+            }
+            if let diarizationThreshold {
+                formData.append(Data(String(diarizationThreshold).utf8), withName: "diarization_threshold")
+            }
+            if let useMultiChannel {
+                formData.append(Data(String(useMultiChannel).utf8), withName: "use_multi_channel")
+            }
+            if let seed {
+                formData.append(Data(String(seed).utf8), withName: "seed")
             }
             if let fileFormat, !fileFormat.isEmpty {
                 formData.append(Data(fileFormat.utf8), withName: "file_format")

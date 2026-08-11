@@ -25,16 +25,17 @@ extension TextToSpeechPlaybackManager {
         let responseFormat: String
         let speed: Double?
         let instructions: String?
+        let streamingEnabled: Bool
     }
 
+    /// OpenRouter's speech schema has no `instructions`, and documents `speed` as honoured
+    /// only by OpenAI TTS models — which it no longer serves.
     struct OpenRouterConfig: Sendable {
         let apiKey: String
         let baseURL: URL
         let model: String
         let voice: String
         let responseFormat: String
-        let speed: Double?
-        let instructions: String?
     }
 
     struct GroqConfig: Sendable {
@@ -42,6 +43,14 @@ extension TextToSpeechPlaybackManager {
         let baseURL: URL
         let model: String
         let voice: String
+        let responseFormat: String
+    }
+
+    struct MistralConfig: Sendable {
+        let apiKey: String
+        let baseURL: URL
+        let model: String
+        let voiceId: String
         let responseFormat: String
     }
 
@@ -54,6 +63,7 @@ extension TextToSpeechPlaybackManager {
         let optimizeStreamingLatency: Int?
         let enableLogging: Bool?
         let voiceSettings: ElevenLabsTTSClient.VoiceSettings?
+        let streamingEnabled: Bool
     }
 
     struct MiMoConfig: Sendable {
@@ -64,12 +74,14 @@ extension TextToSpeechPlaybackManager {
         let responseFormat: String
         let styleInstruction: String?
         let voiceCloneSampleURL: URL?
+        let streamingEnabled: Bool
     }
 
     enum SynthesisConfig: Sendable {
         case openai(OpenAIConfig)
         case openRouter(OpenRouterConfig)
         case groq(GroqConfig)
+        case mistral(MistralConfig)
         case elevenlabs(ElevenLabsConfig)
         case mimo(MiMoConfig)
     }
