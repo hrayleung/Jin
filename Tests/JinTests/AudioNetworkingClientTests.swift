@@ -75,15 +75,41 @@ final class AudioNetworkingClientTests: XCTestCase {
         XCTAssertEqual(fields.first { $0.name == "response_format" }?.value, "srt")
     }
 
+    /// A stored preference can hold a comma-separated list from a multi-language model; a
+    /// single-language model needs one ISO code, not the whole list.
+    func testSingleLanguageModelReceivesOnlyTheFirstStoredLanguage() {
+        let fields = OpenAICompatibleAudioClientSupport.transcriptionFields(
+            model: "whisper-1",
+            capabilities: whisperCapabilities(),
+            language: " en , fr ",
+            prompt: nil,
+            responseFormat: "json",
+            temperature: nil,
+            timestampGranularities: nil
+        )
+
+        XCTAssertEqual(fields.first { $0.name == "language" }?.value, "en")
+    }
+
+    /// `diarized_json` can carry an empty root `text` alongside populated segments.
+    func testEmptyRootTextFallsBackToSegments() throws {
+        let text = try OpenAICompatibleAudioClientSupport.decodeTranscriptionResponse(
+            Data(#"{"text":"","segments":[{"text":"Hello"},{"text":"world"}]}"#.utf8),
+            responseFormat: "diarized_json"
+        )
+
+        XCTAssertEqual(text, "Hello world")
+    }
+
     /// Mistral rejects a language hint and timestamps in the same request.
     func testMistralFieldsDropLanguageWhenTimestampsRequested() {
         let capabilities = SpeechModelCapabilityRegistry.transcriptionCapabilities(
             provider: .mistral,
-            modelID: "voxtral-mini-transcribe-2602"
+            modelID: "voxtral-mini-2602"
         )
 
         let fields = OpenAICompatibleAudioClientSupport.transcriptionFields(
-            model: "voxtral-mini-transcribe-2602",
+            model: "voxtral-mini-2602",
             capabilities: capabilities,
             language: "en",
             prompt: nil,
@@ -828,6 +854,31 @@ final class AudioNetworkingClientTests: XCTestCase {
         )
 
         XCTAssertEqual(data, Data("AUDIO".utf8))
+    }
+
+    func testMistralTTSClientDefaultsBlankResponseFormat() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(json["response_format"] as? String, MistralTTSClient.Constants.defaultResponseFormat)
+
+            let payload = ["audio_data": Data("AUDIO".utf8).base64EncodedString()]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: payload)
+            )
+        }
+
+        let client = MistralTTSClient(
+            apiKey: "test-key",
+            baseURL: URL(string: "https://mistral.example/v1")!,
+            networkManager: networkManager
+        )
+
+        _ = try await client.createSpeech(input: "Hello", model: "voxtral-mini-tts-2603", responseFormat: "  ")
     }
 
     func testMistralTTSClientSurfacesMissingAudioData() async {

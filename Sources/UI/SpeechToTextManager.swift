@@ -69,7 +69,6 @@ final class SpeechToTextManager: NSObject, ObservableObject {
         let numSpeakers: Int?
         let timestampsGranularity: String?
         let diarize: Bool?
-        let diarizationThreshold: Double?
         let fileFormat: String?
         let temperature: Double?
         let noVerbatim: Bool?
@@ -310,7 +309,6 @@ final class SpeechToTextManager: NSObject, ObservableObject {
                 numSpeakers: config.numSpeakers,
                 timestampsGranularity: config.timestampsGranularity,
                 diarize: config.diarize,
-                diarizationThreshold: config.diarizationThreshold,
                 fileFormat: config.fileFormat,
                 temperature: config.temperature,
                 noVerbatim: config.noVerbatim

@@ -19,14 +19,14 @@ extension TextToSpeechPluginSettingsView {
         }
 
         do {
-            let availableModels = try await fetchRemoteTextToSpeechModels(
+            let resources = try await fetchRemoteTextToSpeechResources(
                 for: load.provider,
                 apiKey: load.apiKey
             )
 
             let filteredModels = SpeechProviderModelCatalog.textToSpeechChoices(
                 for: load.provider,
-                availableModels: availableModels
+                availableModels: resources.models
             )
 
             await MainActor.run {
@@ -35,6 +35,9 @@ extension TextToSpeechPluginSettingsView {
                     providerRaw: load.providerRaw,
                     apiKey: load.apiKey
                 ) else { return }
+                // Voice catalogs are written here rather than at fetch time so a response
+                // that lands after the user switched provider or key cannot overwrite them.
+                applyFetchedVoiceCatalogs(resources)
                 setFetchedTextToSpeechModels(filteredModels, for: load.provider)
                 normalizeTextToSpeechModelSelectionIfNeeded(for: load.provider, using: filteredModels)
                 isLoadingModels = false
@@ -55,44 +58,63 @@ extension TextToSpeechPluginSettingsView {
         }
     }
 
-    private func fetchRemoteTextToSpeechModels(
+    /// Models plus whatever voice catalog came back in the same round trip. Both are applied
+    /// together under the caller's load-snapshot guard.
+    private struct FetchedTextToSpeechResources: Sendable {
+        var models: [SpeechProviderModelChoice] = []
+        var openRouterVoices: [String: [String]]?
+        var mistralVoices: [MistralTTSClient.Voice]?
+    }
+
+    private func fetchRemoteTextToSpeechResources(
         for provider: TextToSpeechProvider,
         apiKey: String
-    ) async throws -> [SpeechProviderModelChoice] {
+    ) async throws -> FetchedTextToSpeechResources {
         // OpenRouter reports each model's voice catalog inline, so take the richer shape and
-        // bank the voices while we already have the response.
+        // carry the voices back with the models.
         if provider == .openRouter {
             let base = URL(string: openRouterBaseURL.trimmingCharacters(in: .whitespacesAndNewlines))
                 ?? OpenRouterAudioClient.Constants.defaultBaseURL
             let client = OpenRouterAudioClient(apiKey: apiKey, baseURL: base)
             let models = try await client.listSpeechModelsWithVoices()
-            let voices = Dictionary(
-                models.map { ($0.id, $0.supportedVoices) },
-                uniquingKeysWith: { first, _ in first }
+            return FetchedTextToSpeechResources(
+                models: models.map(\.choice),
+                openRouterVoices: Dictionary(
+                    models.map { ($0.id, $0.supportedVoices) },
+                    uniquingKeysWith: { first, _ in first }
+                )
             )
-            await MainActor.run { openRouterModelVoices = voices }
-            return models.map(\.choice)
         }
 
         if provider == .mistral {
             let client = mistralTextToSpeechRemoteClient(apiKey: apiKey)
             async let models = client.listModels()
             async let voices = client.listVoices()
-            let loadedVoices = try await voices
-                .sorted { ($0.name ?? $0.id).localizedStandardCompare($1.name ?? $1.id) == .orderedAscending }
-            await MainActor.run { applyMistralVoices(loadedVoices) }
-            return try await models
+            return FetchedTextToSpeechResources(
+                models: try await models,
+                mistralVoices: try await voices
+                    .sorted { ($0.name ?? $0.id).localizedStandardCompare($1.name ?? $1.id) == .orderedAscending }
+            )
         }
 
-        guard let client = standardTextToSpeechRemoteClient(for: provider, apiKey: apiKey) else { return [] }
-        return try await client.listModels()
+        guard let client = standardTextToSpeechRemoteClient(for: provider, apiKey: apiKey) else {
+            return FetchedTextToSpeechResources()
+        }
+        return FetchedTextToSpeechResources(models: try await client.listModels())
     }
 
     @MainActor
-    private func applyMistralVoices(_ voices: [MistralTTSClient.Voice]) {
-        mistralVoices = voices
-        if mistralVoiceID.trimmedNonEmpty == nil || !voices.contains(where: { $0.id == mistralVoiceID }) {
-            mistralVoiceID = voices.first?.id ?? ""
+    private func applyFetchedVoiceCatalogs(_ resources: FetchedTextToSpeechResources) {
+        if let openRouterVoices = resources.openRouterVoices {
+            openRouterModelVoices = openRouterVoices
+            normalizeOpenRouterVoiceIfNeeded()
+        }
+
+        if let voices = resources.mistralVoices {
+            mistralVoices = voices
+            if mistralVoiceID.trimmedNonEmpty == nil || !voices.contains(where: { $0.id == mistralVoiceID }) {
+                mistralVoiceID = voices.first?.id ?? ""
+            }
         }
     }
 

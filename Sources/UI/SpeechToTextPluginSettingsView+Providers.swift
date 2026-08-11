@@ -88,6 +88,20 @@ extension SpeechToTextPluginSettingsView {
                     Text(format).tag(format)
                 }
             }
+            .onAppear {
+                normalizeResponseFormat(
+                    $openRouterResponseFormat,
+                    provider: .openRouter,
+                    model: openRouterModel
+                )
+            }
+            .onChange(of: openRouterModel) { _, newModel in
+                normalizeResponseFormat(
+                    $openRouterResponseFormat,
+                    provider: .openRouter,
+                    model: newModel
+                )
+            }
 
             JinSettingsSliderValueRow(
                 title: "Temperature",
@@ -140,13 +154,6 @@ extension SpeechToTextPluginSettingsView {
 
             if elevenLabsDiarize {
                 Stepper("Max speakers: \(elevenLabsNumSpeakers)", value: $elevenLabsNumSpeakers, in: 1...32)
-
-                JinSettingsSliderValueRow(
-                    title: "Speaker threshold",
-                    value: $elevenLabsDiarizationThreshold,
-                    range: 0.0...1.0,
-                    step: 0.05
-                )
             }
 
             // The API enum is word | character; "None" simply omits the parameter.

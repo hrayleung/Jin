@@ -49,7 +49,6 @@ struct SpeechToTextPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.sttElevenLabsTimestampsGranularity) var elevenLabsTimestampsGranularity = "word"
     @AppStorage(AppPreferenceKeys.sttElevenLabsFileFormat) var elevenLabsFileFormat = "other"
     @AppStorage(AppPreferenceKeys.sttElevenLabsTemperature) var elevenLabsTemperature = 0.0
-    @AppStorage(AppPreferenceKeys.sttElevenLabsDiarizationThreshold) var elevenLabsDiarizationThreshold = 0.5
 
     @State var apiKey = ""
     @State var isKeyVisible = false

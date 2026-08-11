@@ -82,7 +82,7 @@ final class SpeechModelCapabilityRegistryTests: XCTestCase {
     func testMistralFlagsTimestampLanguageConflict() {
         let capabilities = SpeechModelCapabilityRegistry.transcriptionCapabilities(
             provider: .mistral,
-            modelID: "voxtral-mini-transcribe-2602"
+            modelID: "voxtral-mini-2602"
         )
 
         XCTAssertTrue(capabilities.timestampsConflictWithLanguage)
@@ -180,6 +180,42 @@ final class SpeechModelCapabilityRegistryTests: XCTestCase {
 
         XCTAssertEqual(SpeechModelCapabilityRegistry.resolvedVoice("troy", capabilities: arabic), "abdullah")
         XCTAssertEqual(SpeechModelCapabilityRegistry.resolvedVoice("noura", capabilities: arabic), "noura")
+    }
+
+    /// Several catalogs are mixed case (`Mia`, `Zephyr`), and the wire value has to match the
+    /// catalog spelling exactly — so match loosely but return the canonical entry.
+    func testResolvedVoiceMatchesCaseInsensitivelyAndReturnsCanonicalSpelling() {
+        let openAI = SpeechModelCapabilityRegistry.synthesisCapabilities(
+            provider: .openai,
+            modelID: "gpt-4o-mini-tts"
+        )
+        XCTAssertEqual(SpeechModelCapabilityRegistry.resolvedVoice("Alloy", capabilities: openAI), "alloy")
+
+        let miMo = SpeechModelCapabilityRegistry.synthesisCapabilities(
+            provider: .xiaomiMiMo,
+            modelID: MiMoModelIDs.ttsV25
+        )
+        XCTAssertEqual(SpeechModelCapabilityRegistry.resolvedVoice("mia", capabilities: miMo), "Mia")
+    }
+
+    /// The dated snapshots reject `instructions` and `stream_format: "sse"` just like the
+    /// bare `tts-1` IDs.
+    func testVersionedLegacyOpenAITTSSnapshotsAreTreatedAsLegacy() {
+        for model in ["tts-1-1106", "tts-1-hd-1106"] {
+            let capabilities = SpeechModelCapabilityRegistry.synthesisCapabilities(
+                provider: .openai,
+                modelID: model
+            )
+            XCTAssertFalse(capabilities.supportsInstructions, model)
+            XCTAssertNil(capabilities.streaming, model)
+        }
+    }
+
+    /// Mistral's `pcm` is float32 LE at an undocumented rate, which the shared 16-bit
+    /// normalizer would mis-frame.
+    func testMistralFormatsExcludeRawPCM() {
+        XCTAssertFalse(SpeechModelCapabilityRegistry.mistralResponseFormats.contains("pcm"))
+        XCTAssertEqual(SpeechModelCapabilityRegistry.mistralResponseFormats, ["mp3", "wav", "flac"])
     }
 
     func testResolvedResponseFormatClampsToSupportedValues() {

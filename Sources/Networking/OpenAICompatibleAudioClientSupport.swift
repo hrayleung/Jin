@@ -139,7 +139,9 @@ enum OpenAICompatibleAudioClientSupport {
 
         do {
             let decoded = try JSONDecoder().decode(TranscriptionJSONResponse.self, from: data)
-            if let text = decoded.text {
+            // A `diarized_json` payload can carry an empty root `text` alongside populated
+            // segments, so an empty root must not shadow the fallback.
+            if let text = decoded.text?.trimmedNonEmpty {
                 return text
             }
             // `diarized_json` carries the transcript on the segments rather than the root.
@@ -168,8 +170,12 @@ enum OpenAICompatibleAudioClientSupport {
 
     private static let jsonResponseFormats: Set<String> = ["json", "verbose_json", "diarized_json"]
 
+    /// A stored preference may hold a comma-separated list from a multi-language model; a
+    /// single-language model needs one ISO code, not the whole list.
     private static func singleLanguage(language: String?, languages: [String]?) -> String? {
-        if let value = language?.trimmedNonEmpty { return value }
+        if let value = language?.trimmedNonEmpty {
+            return normalizedList(value.components(separatedBy: ",")).first
+        }
         return normalizedList(languages).first
     }
 

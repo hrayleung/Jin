@@ -133,7 +133,7 @@ actor MistralTTSClient {
             model: normalizedTrimmedString(model) ?? Constants.defaultModel,
             input: input,
             voiceId: normalizedTrimmedString(voiceId),
-            responseFormat: normalizedTrimmedString(responseFormat)
+            responseFormat: normalizedTrimmedString(responseFormat) ?? Constants.defaultResponseFormat
         )
 
         let request = try NetworkRequestFactory.makeJSONRequest(

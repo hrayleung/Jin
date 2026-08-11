@@ -245,8 +245,16 @@ enum SpeechModelPreferenceMigration {
         )
         guard let voices = capabilities.voices, !voices.isEmpty else { return }
         guard let stored = defaults.string(forKey: key)?.trimmedNonEmpty else { return }
-        guard !voices.contains(stored) else { return }
-        defaults.set(voices[0], forKey: key)
+
+        // Match case-insensitively so a valid selection is never discarded over spelling,
+        // but write back the catalog's own casing — the wire value has to be exact.
+        guard let canonical = SpeechModelCapabilityRegistry.canonicalVoice(stored, in: voices) else {
+            defaults.set(voices[0], forKey: key)
+            return
+        }
+        if canonical != stored {
+            defaults.set(canonical, forKey: key)
+        }
     }
 
     private static func clampFormat(

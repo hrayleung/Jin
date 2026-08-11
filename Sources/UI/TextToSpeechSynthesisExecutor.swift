@@ -151,15 +151,12 @@ enum TextToSpeechSynthesisExecutor {
         let client = MistralTTSClient(apiKey: config.apiKey, baseURL: config.baseURL)
 
         try await queueChunks(plan: plan, onEvent: onEvent) { chunk in
-            let clipData = try await client.createSpeech(
+            // Every format Mistral offers here is self-describing (mp3/wav/flac), so unlike
+            // the OpenAI path there is no headerless PCM to wrap.
+            try await client.createSpeech(
                 input: chunk,
                 model: config.model,
                 voiceId: config.voiceId,
-                responseFormat: plan.responseFormat
-            )
-            // Mistral raw `pcm` is the same 24 kHz 16-bit mono shape as OpenAI's.
-            return TextToSpeechAudioDataNormalizer.openAIData(
-                clipData,
                 responseFormat: plan.responseFormat
             )
         }
@@ -186,7 +183,9 @@ enum TextToSpeechSynthesisExecutor {
                 try await client.createSpeechStream(
                     text: chunk,
                     voiceId: config.voiceId,
-                    modelId: config.modelId,
+                    // The plan's chunk limit was resolved from `modelID`, so the request has
+                    // to name the same model or the server would fall back to another one.
+                    modelId: modelID,
                     outputFormat: streaming.responseFormat,
                     optimizeStreamingLatency: config.optimizeStreamingLatency,
                     enableLogging: config.enableLogging,
@@ -200,7 +199,7 @@ enum TextToSpeechSynthesisExecutor {
             let clipData = try await client.createSpeech(
                 text: chunk,
                 voiceId: config.voiceId,
-                modelId: config.modelId,
+                modelId: modelID,
                 outputFormat: plan.responseFormat,
                 optimizeStreamingLatency: config.optimizeStreamingLatency,
                 enableLogging: config.enableLogging,

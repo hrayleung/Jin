@@ -152,8 +152,9 @@ actor MiMoAudioClient {
         guard MiMoModelIDs.isTextToSpeechModelID(normalizedModel) else {
             throw LLMError.invalidRequest(message: "MiMo TTS does not support model “\(requestedModel)”.")
         }
-        let format = normalizedTrimmedString(responseFormat) ?? Constants.defaultResponseFormat
-        guard MiMoModelIDs.textToSpeechResponseFormatSet.contains(format.lowercased()) else {
+        // Validate and encode the same normalized value, so a stored "WAV" is not sent verbatim.
+        let format = (normalizedTrimmedString(responseFormat) ?? Constants.defaultResponseFormat).lowercased()
+        guard MiMoModelIDs.textToSpeechResponseFormatSet.contains(format) else {
             throw LLMError.invalidRequest(message: "MiMo TTS does not support format “\(format)”.")
         }
         let style = normalizedTrimmedString(styleInstruction)

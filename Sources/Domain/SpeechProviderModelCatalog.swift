@@ -25,7 +25,9 @@ enum SpeechProviderModelCatalog {
     static let defaultOpenAISpeechToTextModelID = "gpt-transcribe"
     static let defaultOpenRouterSpeechToTextModelID = "openai/gpt-transcribe"
     static let defaultGroqSpeechToTextModelID = "whisper-large-v3-turbo"
-    static let defaultMistralSpeechToTextModelID = "voxtral-mini-transcribe-2602"
+    /// Mistral's batch transcription model. `voxtral-mini-transcribe-2602` is OpenRouter's
+    /// canonical slug for the same model and is not a valid ID on api.mistral.ai.
+    static let defaultMistralSpeechToTextModelID = "voxtral-mini-2602"
     static let defaultElevenLabsSpeechToTextModelID = "scribe_v2"
 
     static func defaultTextToSpeechModelID(for provider: TextToSpeechProvider) -> String {
@@ -80,6 +82,10 @@ enum SpeechProviderModelCatalog {
         ],
         .groq: [
             "distil-whisper-large-v3-en": defaultGroqSpeechToTextModelID
+        ],
+        .mistral: [
+            // OpenRouter's slug for the same model; api.mistral.ai rejects it.
+            "voxtral-mini-transcribe-2602": defaultMistralSpeechToTextModelID
         ]
     ]
 
@@ -252,6 +258,7 @@ enum SpeechProviderModelCatalog {
         case .mistral:
             return [
                 SpeechProviderModelChoice(id: defaultMistralSpeechToTextModelID, name: "Voxtral Mini Transcribe 2"),
+                // On the transcription endpoint this alias resolves to voxtral-mini-2602.
                 SpeechProviderModelChoice(id: "voxtral-mini-latest", name: "Voxtral Mini Latest")
             ]
         case .elevenlabs:
@@ -314,10 +321,13 @@ enum SpeechProviderModelCatalog {
         groqSpeechToTextModelIDs.contains(modelID)
     }
 
+    /// Deliberately conservative: `/models` also lists the Voxtral *chat* models
+    /// (`voxtral-mini-2507`, `voxtral-small-*`), which cannot transcribe.
     private static func matchesMistralSpeechToTextModelID(_ modelID: String) -> Bool {
         guard !modelID.contains("realtime") else { return false }
 
         return modelID == "voxtral-mini-latest"
+            || modelID == defaultMistralSpeechToTextModelID
             || (modelID.contains("voxtral") && modelID.contains("transcribe"))
     }
 

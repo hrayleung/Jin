@@ -78,7 +78,7 @@ final class SpeechModelPreferenceMigrationTests: XCTestCase {
         XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.sttOpenAITimestampGranularitiesJSON), "[]")
         XCTAssertFalse(defaults.bool(forKey: AppPreferenceKeys.sttOpenAITranslateToEnglish))
         XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.sttOpenRouterModel), "openai/gpt-transcribe")
-        XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.sttMistralModel), "voxtral-mini-transcribe-2602")
+        XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.sttMistralModel), "voxtral-mini-2602")
         XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.sttElevenLabsModel), "scribe_v2")
         // Groq never accepted srt on the transcription endpoint.
         XCTAssertEqual(defaults.string(forKey: AppPreferenceKeys.sttGroqResponseFormat), "json")

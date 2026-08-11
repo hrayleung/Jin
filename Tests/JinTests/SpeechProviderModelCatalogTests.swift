@@ -101,18 +101,40 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
         )
     }
 
+    /// `/models` also lists the Voxtral *chat* models, which cannot transcribe.
     func testMistralSpeechToTextChoicesStayConservative() {
         let models = SpeechProviderModelCatalog.speechToTextChoices(
             for: .mistral,
             availableModels: [
                 SpeechProviderModelChoice(id: "voxtral-mini-latest"),
+                SpeechProviderModelChoice(id: "voxtral-mini-2602"),
+                SpeechProviderModelChoice(id: "voxtral-mini-2507"),
                 SpeechProviderModelChoice(id: "voxtral-mini-transcribe-2509"),
                 SpeechProviderModelChoice(id: "voxtral-mini-transcribe-realtime-2509"),
                 SpeechProviderModelChoice(id: "mistral-medium-latest")
             ]
         )
 
-        XCTAssertEqual(models.map(\.id), ["voxtral-mini-latest", "voxtral-mini-transcribe-2509"])
+        XCTAssertEqual(
+            models.map(\.id),
+            ["voxtral-mini-2602", "voxtral-mini-latest", "voxtral-mini-transcribe-2509"]
+        )
+    }
+
+    /// `voxtral-mini-transcribe-2602` is OpenRouter's canonical slug; api.mistral.ai names the
+    /// same model `voxtral-mini-2602` and rejects the other spelling.
+    func testMistralSpeechToTextNormalizationRewritesTheOpenRouterSlug() {
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.normalizedSpeechToTextModelID(
+                for: .mistral,
+                "voxtral-mini-transcribe-2602"
+            ),
+            "voxtral-mini-2602"
+        )
+        XCTAssertEqual(
+            SpeechProviderModelCatalog.normalizedSpeechToTextModelID(for: .mistral, "voxtral-mini-latest"),
+            "voxtral-mini-latest"
+        )
     }
 
     func testPresentingChoicesPrependsCurrentSelectionWhenMissing() {
@@ -198,7 +220,7 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
         )
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .mistral).map(\.id),
-            ["voxtral-mini-transcribe-2602", "voxtral-mini-latest"]
+            ["voxtral-mini-2602", "voxtral-mini-latest"]
         )
         // The convert endpoint's `model_id` enum is scribe_v2 only.
         XCTAssertEqual(

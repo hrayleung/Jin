@@ -43,7 +43,11 @@ extension TextToSpeechPluginSettingsView {
             } catch {
                 await MainActor.run {
                     isTesting = false
-                    if let llmError = error as? LLMError, case .authenticationFailed = llmError {
+                    // Endpoint scopes are an ElevenLabs concept; pointing other providers at
+                    // that remediation sends the user down the wrong path.
+                    if provider == .elevenlabs,
+                       let llmError = error as? LLMError,
+                       case .authenticationFailed = llmError {
                         statusMessage = "\(llmError.localizedDescription)\n\nIf your ElevenLabs key uses endpoint scopes, enable access to /v1/text-to-speech."
                     } else {
                         statusMessage = error.localizedDescription

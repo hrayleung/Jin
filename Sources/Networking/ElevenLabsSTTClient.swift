@@ -84,9 +84,6 @@ actor ElevenLabsSTTClient {
         numSpeakers: Int? = nil,
         timestampsGranularity: String? = nil,
         diarize: Bool? = nil,
-        diarizationThreshold: Double? = nil,
-        useMultiChannel: Bool? = nil,
-        seed: Int? = nil,
         fileFormat: String? = nil,
         temperature: Double? = nil,
         noVerbatim: Bool? = nil,
@@ -116,15 +113,8 @@ actor ElevenLabsSTTClient {
             if let diarize {
                 formData.append(Data(String(diarize).utf8), withName: "diarize")
             }
-            if let diarizationThreshold {
-                formData.append(Data(String(diarizationThreshold).utf8), withName: "diarization_threshold")
-            }
-            if let useMultiChannel {
-                formData.append(Data(String(useMultiChannel).utf8), withName: "use_multi_channel")
-            }
-            if let seed {
-                formData.append(Data(String(seed).utf8), withName: "seed")
-            }
+            // `diarization_threshold` is deliberately absent: the API only accepts it when
+            // `num_speakers` is unset, and this pane always sends a speaker count.
             if let fileFormat, !fileFormat.isEmpty {
                 formData.append(Data(fileFormat.utf8), withName: "file_format")
             }

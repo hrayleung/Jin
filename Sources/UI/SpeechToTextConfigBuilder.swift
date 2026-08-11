@@ -215,9 +215,6 @@ struct SpeechToTextConfigBuilder {
                 numSpeakers: numSpeakers,
                 timestampsGranularity: timestampsGranularity,
                 diarize: diarize,
-                diarizationThreshold: (diarize ?? false)
-                    ? defaults.object(forKey: AppPreferenceKeys.sttElevenLabsDiarizationThreshold) as? Double
-                    : nil,
                 fileFormat: fileFormat,
                 temperature: temperature,
                 noVerbatim: supportedNoVerbatim

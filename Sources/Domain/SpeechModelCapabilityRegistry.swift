@@ -123,7 +123,10 @@ enum SpeechModelCapabilityRegistry {
 
     static let openRouterResponseFormats: [String] = ["mp3", "pcm"]
 
-    static let mistralResponseFormats: [String] = ["mp3", "wav", "flac", "pcm"]
+    /// Mistral's `pcm` is raw float32 LE at an undocumented rate, not the 16-bit shape every
+    /// other provider returns, so the shared normalizer would mis-frame it. Excluded until
+    /// there is a documented sample rate to build a float32 container from.
+    static let mistralResponseFormats: [String] = ["mp3", "wav", "flac"]
 
     static let elevenLabsOutputFormats: [String] = [
         "mp3_22050_32",
@@ -198,8 +201,9 @@ enum SpeechModelCapabilityRegistry {
     }
 
     private static func openAISynthesisCapabilities(model: String) -> SpeechSynthesisCapabilities {
-        // `instructions` and `stream_format` are both rejected by the tts-1 generation.
-        let isLegacy = model == "tts-1" || model == "tts-1-hd"
+        // `instructions` and `stream_format` are both rejected by the tts-1 generation,
+        // including its dated snapshots (`tts-1-1106`, `tts-1-hd-1106`).
+        let isLegacy = model == "tts-1" || model == "tts-1-hd" || model.hasPrefix("tts-1-")
 
         return SpeechSynthesisCapabilities(
             voices: isLegacy ? openAILegacyVoices : openAIVoices,
@@ -418,11 +422,18 @@ enum SpeechModelCapabilityRegistry {
         return supported.contains(value) ? value : fallback
     }
 
+    /// Matches case-insensitively but returns the catalog's own spelling — several catalogs
+    /// are mixed case (`Mia`, `Zephyr`) and the wire value has to be exact.
     static func resolvedVoice(_ voice: String?, capabilities: SpeechSynthesisCapabilities) -> String? {
         guard let voices = capabilities.voices, !voices.isEmpty else {
             return voice?.trimmedNonEmpty
         }
         guard let value = voice?.trimmedNonEmpty else { return voices.first }
-        return voices.contains(value) ? value : voices.first
+        return canonicalVoice(value, in: voices) ?? voices.first
+    }
+
+    /// The catalog entry matching `voice` case-insensitively, or `nil` when it is unsupported.
+    static func canonicalVoice(_ voice: String, in voices: [String]) -> String? {
+        voices.first { $0.caseInsensitiveCompare(voice) == .orderedSame }
     }
 }

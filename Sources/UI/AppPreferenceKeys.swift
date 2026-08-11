@@ -208,7 +208,6 @@ enum AppPreferenceKeys {
     static let sttElevenLabsTimestampsGranularity = "sttElevenLabsTimestampsGranularity"
     static let sttElevenLabsFileFormat = "sttElevenLabsFileFormat"
     static let sttElevenLabsTemperature = "sttElevenLabsTemperature"
-    static let sttElevenLabsDiarizationThreshold = "sttElevenLabsDiarizationThreshold"
 
     static let sttOpenRouterAPIKey = "sttOpenRouterAPIKey"
     static let sttOpenRouterBaseURL = "sttOpenRouterBaseURL"
