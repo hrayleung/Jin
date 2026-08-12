@@ -5757,6 +5757,191 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(id, "vid_seed_sanitized_1")
     }
 
+    func testOpenRouterVideoGenerationBuildsSeedance25RequestWith30sAndPassthrough() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1",
+            models: [
+                ModelCatalog.modelInfo(for: "bytedance/seedance-2.5", provider: .openrouter)
+            ]
+        )
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/videos")
+
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
+
+                XCTAssertEqual(root["model"] as? String, "bytedance/seedance-2.5")
+                XCTAssertEqual(root["prompt"] as? String, "A 30-second coastal storytelling shot")
+                // Seedance 2.5 allows 4...30s (OpenRouter /videos/models).
+                XCTAssertEqual(root["duration"] as? Int, 30)
+                XCTAssertEqual(root["aspect_ratio"] as? String, "16:9")
+                // 1080p is not in Seedance 2.5 supported_resolutions → dropped.
+                XCTAssertNil(root["resolution"])
+                XCTAssertEqual(root["generate_audio"] as? Bool, true)
+                XCTAssertEqual(root["seed"] as? Int, 7)
+
+                let provider = try XCTUnwrap(root["provider"] as? [String: Any])
+                let options = try XCTUnwrap(provider["options"] as? [String: Any])
+                let seedOptions = try XCTUnwrap(options["seed"] as? [String: Any])
+                let parameters = try XCTUnwrap(seedOptions["parameters"] as? [String: Any])
+                XCTAssertEqual(parameters["watermark"] as? Bool, true)
+                XCTAssertEqual(parameters["output_format"] as? String, "mp4")
+                XCTAssertEqual(parameters["req_key"] as? String, "seedance-25-job")
+
+                let response: [String: Any] = [
+                    "id": "vid_seed_25_1",
+                    "status": "pending",
+                    "polling_url": "https://openrouter.ai/api/v1/videos/vid_seed_25_1"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 202, httpVersion: nil, headerFields: nil)!, data)
+            }
+
+            let response: [String: Any] = [
+                "status": "failed",
+                "error": ["message": "stop after seedance 2.5 request inspection"]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("A 30-second coastal storytelling shot")])],
+            modelID: "bytedance/seedance-2.5",
+            controls: GenerationControls(
+                openRouterVideoGeneration: OpenRouterVideoGenerationControls(
+                    durationSeconds: 30,
+                    // 9:21 is unsupported on 2.5 and must be sanitized away if selected;
+                    // use a supported ratio for the happy-path request body.
+                    aspectRatio: .ratio16x9,
+                    resolution: .res1080p,
+                    generateAudio: true,
+                    watermark: true,
+                    seed: 7
+                ),
+                providerSpecific: [
+                    "req_key": AnyCodable("seedance-25-job"),
+                    "output_format": AnyCodable("mp4"),
+                ]
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        do {
+            for try await event in stream {
+                events.append(event)
+            }
+        } catch let error as LLMError {
+            guard case .providerError(let code, let message) = error else {
+                return XCTFail("Expected provider error, got \(error)")
+            }
+            XCTAssertEqual(code, "video_generation_failed")
+            XCTAssertEqual(message, "stop after seedance 2.5 request inspection")
+        }
+
+        guard case .messageStart(let id)? = events.first else {
+            return XCTFail("Expected messageStart")
+        }
+        XCTAssertEqual(id, "vid_seed_25_1")
+    }
+
+    func testOpenRouterVideoGenerationDropsUnsupportedSeedance25AspectRatio() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1",
+            models: [
+                ModelCatalog.modelInfo(for: "bytedance/seedance-2.5", provider: .openrouter)
+            ]
+        )
+
+        var requestCount = 0
+        protocolType.requestHandler = { request in
+            requestCount += 1
+
+            if requestCount == 1 {
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
+
+                XCTAssertEqual(root["model"] as? String, "bytedance/seedance-2.5")
+                // 9:21 is not in Seedance 2.5 supported_aspect_ratios.
+                XCTAssertNil(root["aspect_ratio"])
+                XCTAssertEqual(root["duration"] as? Int, 24)
+
+                let response: [String: Any] = [
+                    "id": "vid_seed_25_ratio",
+                    "status": "pending",
+                    "polling_url": "https://openrouter.ai/api/v1/videos/vid_seed_25_ratio"
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 202, httpVersion: nil, headerFields: nil)!, data)
+            }
+
+            let response: [String: Any] = [
+                "status": "failed",
+                "error": ["message": "stop after ratio sanitization"]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("Tall portrait shot")])],
+            modelID: "bytedance/seedance-2.5",
+            controls: GenerationControls(
+                openRouterVideoGeneration: OpenRouterVideoGenerationControls(
+                    durationSeconds: 24,
+                    aspectRatio: .ratio9x21,
+                    resolution: .res720p
+                )
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        do {
+            for try await event in stream {
+                events.append(event)
+            }
+        } catch let error as LLMError {
+            guard case .providerError(let code, _) = error else {
+                return XCTFail("Expected provider error, got \(error)")
+            }
+            XCTAssertEqual(code, "video_generation_failed")
+        }
+
+        guard case .messageStart(let id)? = events.first else {
+            return XCTFail("Expected messageStart")
+        }
+        XCTAssertEqual(id, "vid_seed_25_ratio")
+    }
+
     func testOpenRouterVideoGenerationIgnoresUntrustedPollingURL() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

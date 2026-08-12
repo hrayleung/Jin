@@ -223,6 +223,17 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(seedance20.maxOutputTokens)
         XCTAssertNil(seedance20.reasoningConfig)
 
+        let seedance25 = ModelCatalog.modelInfo(
+            for: "bytedance/seedance-2.5",
+            provider: .openrouter
+        )
+        XCTAssertEqual(seedance25.name, "Seedance 2.5")
+        XCTAssertTrue(seedance25.capabilities.contains(.videoGeneration))
+        XCTAssertFalse(seedance25.capabilities.contains(.streaming))
+        XCTAssertEqual(seedance25.contextWindow, 32_768)
+        XCTAssertNil(seedance25.maxOutputTokens)
+        XCTAssertNil(seedance25.reasoningConfig)
+
         let unknown = ModelCatalog.modelInfo(
             for: "bytedance/seedance-2.0-custom",
             provider: .openrouter
@@ -230,6 +241,28 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
         XCTAssertEqual(unknown.contextWindow, 128_000)
         XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testOpenRouterSeedance25ModelSupportMatchesVideosModelsAPI() {
+        let modelID = "bytedance/seedance-2.5"
+
+        XCTAssertEqual(OpenRouterVideoModelSupport.supportedDurations(for: modelID), Array(4...30))
+        XCTAssertEqual(
+            OpenRouterVideoModelSupport.supportedResolutions(for: modelID),
+            [.res480p, .res720p]
+        )
+        XCTAssertEqual(
+            OpenRouterVideoModelSupport.supportedAspectRatios(for: modelID),
+            [
+                .ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio21x9,
+            ]
+        )
+        XCTAssertFalse(
+            OpenRouterVideoModelSupport.supportedAspectRatios(for: modelID).contains(.ratio9x21)
+        )
+        XCTAssertTrue(OpenRouterVideoModelSupport.supportsAudio(for: modelID))
+        XCTAssertTrue(OpenRouterVideoModelSupport.supportsWatermark(for: modelID))
+        XCTAssertEqual(OpenRouterVideoModelSupport.providerPassthroughSlug(for: modelID), "seed")
     }
 
     func testVerifiedKimiK26CatalogMetadataUsesExactProviderIDs() {

@@ -1992,7 +1992,8 @@ final class ModelSettingsResolverTests: XCTestCase {
         for modelID in [
             "bytedance/seedance-1-5-pro",
             "bytedance/seedance-2.0",
-            "bytedance/seedance-2.0-fast"
+            "bytedance/seedance-2.0-fast",
+            "bytedance/seedance-2.5",
         ] {
             let model = ModelCatalog.modelInfo(for: modelID, provider: .openrouter)
             let resolved = ModelSettingsResolver.resolve(model: model, providerType: .openrouter)

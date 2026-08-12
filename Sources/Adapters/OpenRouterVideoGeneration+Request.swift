@@ -180,8 +180,11 @@ extension OpenRouterAdapter {
         ]
     }
 
+    /// Keys forwarded under `provider.options.seed.parameters`.
+    /// Seedance 2.5 also allows `output_format` per OpenRouter `/videos/models`.
     static let videoProviderPassthroughKeys: Set<String> = [
         "req_key",
         "watermark",
+        "output_format",
     ]
 }

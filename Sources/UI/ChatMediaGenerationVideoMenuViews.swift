@@ -385,3 +385,131 @@ struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
         )
     }
 }
+
+struct TogetherVideoGenerationMenuView<MenuItemLabel: View>: View {
+    let isConfigured: Bool
+    let supportedDurations: [Int]
+    let supportedAspectRatios: [TogetherVideoAspectRatio]
+    let supportedResolutions: [TogetherVideoResolution]
+    let currentDurationSeconds: Int?
+    let currentAspectRatio: TogetherVideoAspectRatio?
+    let currentResolution: TogetherVideoResolution?
+    let currentImageInputMode: TogetherVideoImageInputMode?
+    let showsAudioToggle: Bool
+    let generateAudioBinding: Binding<Bool>
+    let menuItemLabel: (String, Bool) -> MenuItemLabel
+    let onSetDurationSeconds: (Int?) -> Void
+    let onSetAspectRatio: (TogetherVideoAspectRatio?) -> Void
+    let onSetResolution: (TogetherVideoResolution?) -> Void
+    let onSetImageInputMode: (TogetherVideoImageInputMode?) -> Void
+    let onReset: () -> Void
+
+    var body: some View {
+        Text("Together Video")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+        Divider()
+
+        Menu(durationMenuTitle) {
+            Button {
+                onSetDurationSeconds(nil)
+            } label: {
+                menuItemLabel("Default", currentDurationSeconds == nil)
+            }
+            ForEach(supportedDurations, id: \.self) { seconds in
+                Button {
+                    onSetDurationSeconds(seconds)
+                } label: {
+                    menuItemLabel("\(seconds)s", currentDurationSeconds == seconds)
+                }
+            }
+        }
+        .id("together-video-duration-\(currentDurationSeconds.map(String.init) ?? "default")")
+
+        Menu(aspectMenuTitle) {
+            Button {
+                onSetAspectRatio(nil)
+            } label: {
+                menuItemLabel("Default", currentAspectRatio == nil)
+            }
+            ForEach(supportedAspectRatios, id: \.self) { ratio in
+                Button {
+                    onSetAspectRatio(ratio)
+                } label: {
+                    menuItemLabel(ratio.displayName, currentAspectRatio == ratio)
+                }
+            }
+        }
+        .id("together-video-aspect-\(currentAspectRatio?.rawValue ?? "default")")
+
+        Menu(resolutionMenuTitle) {
+            Button {
+                onSetResolution(nil)
+            } label: {
+                menuItemLabel("Default", currentResolution == nil)
+            }
+            ForEach(supportedResolutions, id: \.self) { resolution in
+                Button {
+                    onSetResolution(resolution)
+                } label: {
+                    menuItemLabel(resolution.displayName, currentResolution == resolution)
+                }
+            }
+        }
+        .id("together-video-resolution-\(currentResolution?.rawValue ?? "default")")
+
+        Menu(imageModeMenuTitle) {
+            Button {
+                onSetImageInputMode(nil)
+            } label: {
+                menuItemLabel("Default (Smart)", currentImageInputMode == nil)
+            }
+            ForEach(TogetherVideoImageInputMode.allCases, id: \.self) { mode in
+                Button {
+                    onSetImageInputMode(mode)
+                } label: {
+                    menuItemLabel(mode.displayName, currentImageInputMode == mode)
+                }
+            }
+        }
+        .id("together-video-image-mode-\(currentImageInputMode?.rawValue ?? "default")")
+
+        if showsAudioToggle {
+            Toggle("Generate audio", isOn: generateAudioBinding)
+        }
+
+        if isConfigured {
+            Divider()
+            Button("Reset", role: .destructive, action: onReset)
+        }
+    }
+
+    private var durationMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Duration",
+            current: currentDurationSeconds.map { "\($0)s" }
+        )
+    }
+
+    private var aspectMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Aspect ratio",
+            current: currentAspectRatio?.displayName
+        )
+    }
+
+    private var resolutionMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Resolution",
+            current: currentResolution?.displayName
+        )
+    }
+
+    private var imageModeMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Image mode",
+            current: currentImageInputMode?.displayName
+        )
+    }
+}

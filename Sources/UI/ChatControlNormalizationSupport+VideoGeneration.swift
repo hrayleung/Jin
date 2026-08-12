@@ -47,6 +47,7 @@ extension ChatControlNormalizationSupport {
                 }
                 controls.googleVideoGeneration = nil
                 controls.openRouterVideoGeneration = nil
+                controls.togetherVideoGeneration = nil
             case .gemini, .vertexai:
                 if let resolution = controls.googleVideoGeneration?.resolution,
                    !GoogleVideoGenerationCore.supportedResolutions(for: lowerModelID).contains(resolution) {
@@ -57,6 +58,7 @@ extension ChatControlNormalizationSupport {
                 }
                 controls.xaiVideoGeneration = nil
                 controls.openRouterVideoGeneration = nil
+                controls.togetherVideoGeneration = nil
             case .openrouter:
                 if let duration = controls.openRouterVideoGeneration?.durationSeconds,
                    !OpenRouterVideoModelSupport.supportedDurations(for: lowerModelID).contains(duration) {
@@ -81,15 +83,40 @@ extension ChatControlNormalizationSupport {
                 }
                 controls.xaiVideoGeneration = nil
                 controls.googleVideoGeneration = nil
+                controls.togetherVideoGeneration = nil
+            case .together:
+                if let duration = controls.togetherVideoGeneration?.durationSeconds,
+                   !TogetherVideoModelSupport.supportedDurations(for: lowerModelID).contains(duration) {
+                    controls.togetherVideoGeneration?.durationSeconds = nil
+                }
+                if let aspectRatio = controls.togetherVideoGeneration?.aspectRatio,
+                   !TogetherVideoModelSupport.supportedAspectRatios(for: lowerModelID).contains(aspectRatio) {
+                    controls.togetherVideoGeneration?.aspectRatio = nil
+                }
+                if let resolution = controls.togetherVideoGeneration?.resolution,
+                   !TogetherVideoModelSupport.supportedResolutions(for: lowerModelID).contains(resolution) {
+                    controls.togetherVideoGeneration?.resolution = nil
+                }
+                if TogetherVideoModelSupport.supportsAudio(for: lowerModelID) == false {
+                    controls.togetherVideoGeneration?.generateAudio = nil
+                }
+                if controls.togetherVideoGeneration?.isEmpty == true {
+                    controls.togetherVideoGeneration = nil
+                }
+                controls.xaiVideoGeneration = nil
+                controls.googleVideoGeneration = nil
+                controls.openRouterVideoGeneration = nil
             default:
                 controls.xaiVideoGeneration = nil
                 controls.googleVideoGeneration = nil
                 controls.openRouterVideoGeneration = nil
+                controls.togetherVideoGeneration = nil
             }
         } else {
             controls.xaiVideoGeneration = nil
             controls.googleVideoGeneration = nil
             controls.openRouterVideoGeneration = nil
+            controls.togetherVideoGeneration = nil
         }
     }
 }

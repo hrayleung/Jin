@@ -233,7 +233,9 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-1-5-pro"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-2.0"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-2.0-fast"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-2.5"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-2.0-fast-preview"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-2.5-preview"))
     }
 
     func testVerifiedKimiK26ProvidersUseExactFullySupportedIDs() {

@@ -1,13 +1,15 @@
 import Foundation
 
-/// Together AI provider adapter (OpenAI-compatible Chat Completions API).
+/// Together AI provider adapter (OpenAI-compatible Chat Completions + async Videos API).
 ///
 /// Endpoints:
-/// - GET  /models
-/// - POST /chat/completions
+/// - GET  /v1/models
+/// - POST /v1/chat/completions
+/// - POST /v2/videos  (Seedance and other video models)
+/// - GET  /v2/videos/{id}
 actor TogetherAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
-    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning]
+    let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .reasoning, .videoGeneration]
 
     let networkManager: NetworkManager
     let apiKey: String
@@ -25,6 +27,14 @@ actor TogetherAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        if isVideoGenerationModel(modelID) {
+            return try makeVideoGenerationStream(
+                messages: messages,
+                modelID: modelID,
+                controls: controls
+            )
+        }
+
         let request = try buildRequest(
             messages: messages,
             modelID: modelID,

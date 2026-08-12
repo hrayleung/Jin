@@ -241,6 +241,10 @@ final class AdapterRequestConstructionTests: XCTestCase {
                             "id": "bytedance/seedance-1-5-pro",
                             "name": "ByteDance: Seedance 1.5 Pro"
                         ],
+                        [
+                            "id": "bytedance/seedance-2.5",
+                            "name": "ByteDance: Seedance 2.5"
+                        ],
                     ]
                 ]
             default:
@@ -263,7 +267,8 @@ final class AdapterRequestConstructionTests: XCTestCase {
             "openai/gpt-4o",
             "bytedance/seedance-2.0",
             "bytedance/seedance-2.0-fast",
-            "bytedance/seedance-1-5-pro"
+            "bytedance/seedance-1-5-pro",
+            "bytedance/seedance-2.5",
         ])
 
         let seedance = try XCTUnwrap(byID["bytedance/seedance-2.0"])
@@ -281,6 +286,12 @@ final class AdapterRequestConstructionTests: XCTestCase {
         XCTAssertEqual(seedancePro.name, "Seedance 1.5 Pro")
         XCTAssertEqual(seedancePro.contextWindow, 32_768)
         XCTAssertEqual(seedancePro.capabilities, [.videoGeneration])
+
+        let seedance25 = try XCTUnwrap(byID["bytedance/seedance-2.5"])
+        XCTAssertEqual(seedance25.name, "Seedance 2.5")
+        XCTAssertEqual(seedance25.contextWindow, 32_768)
+        XCTAssertEqual(seedance25.capabilities, [.videoGeneration])
+        XCTAssertNil(seedance25.reasoningConfig)
     }
 
     func testOpenAICompatibleGitHubCatalogFetchIncludesGitHubHeaders() async throws {

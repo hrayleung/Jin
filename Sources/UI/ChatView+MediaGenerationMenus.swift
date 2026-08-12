@@ -298,6 +298,43 @@ extension ChatView {
                     persistControlsToConversation()
                 }
             )
+        case .together:
+            TogetherVideoGenerationMenuView(
+                isConfigured: isVideoGenerationConfigured,
+                supportedDurations: TogetherVideoModelSupport.supportedDurations(for: lowerModelID),
+                supportedAspectRatios: TogetherVideoModelSupport.supportedAspectRatios(for: lowerModelID),
+                supportedResolutions: TogetherVideoModelSupport.supportedResolutions(for: lowerModelID),
+                currentDurationSeconds: controls.togetherVideoGeneration?.durationSeconds,
+                currentAspectRatio: controls.togetherVideoGeneration?.aspectRatio,
+                currentResolution: controls.togetherVideoGeneration?.resolution,
+                currentImageInputMode: controls.togetherVideoGeneration?.imageInputMode,
+                showsAudioToggle: TogetherVideoModelSupport.supportsAudio(for: lowerModelID),
+                generateAudioBinding: Binding(
+                    get: { controls.togetherVideoGeneration?.generateAudio ?? false },
+                    set: { newValue in
+                        updateTogetherVideoGeneration { $0.generateAudio = newValue ? true : nil }
+                    }
+                ),
+                menuItemLabel: { title, isSelected in
+                    menuItemLabel(title, isSelected: isSelected)
+                },
+                onSetDurationSeconds: { value in
+                    updateTogetherVideoGeneration { $0.durationSeconds = value }
+                },
+                onSetAspectRatio: { value in
+                    updateTogetherVideoGeneration { $0.aspectRatio = value }
+                },
+                onSetResolution: { value in
+                    updateTogetherVideoGeneration { $0.resolution = value }
+                },
+                onSetImageInputMode: { value in
+                    updateTogetherVideoGeneration { $0.imageInputMode = value }
+                },
+                onReset: {
+                    controls.togetherVideoGeneration = nil
+                    persistControlsToConversation()
+                }
+            )
         default:
             EmptyView()
         }
@@ -322,6 +359,13 @@ extension ChatView {
         var draft = controls.openRouterVideoGeneration ?? OpenRouterVideoGenerationControls()
         mutate(&draft)
         controls.openRouterVideoGeneration = draft.isEmpty ? nil : draft
+        persistControlsToConversation()
+    }
+
+    func updateTogetherVideoGeneration(_ mutate: (inout TogetherVideoGenerationControls) -> Void) {
+        var draft = controls.togetherVideoGeneration ?? TogetherVideoGenerationControls()
+        mutate(&draft)
+        controls.togetherVideoGeneration = draft.isEmpty ? nil : draft
         persistControlsToConversation()
     }
 }

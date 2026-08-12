@@ -95,7 +95,7 @@ extension ChatModelCapabilitySupport {
                 return mode.shortBadge
             }
             return isVideoGenerationConfigured ? "On" : nil
-        case .gemini, .vertexai, .openrouter:
+        case .gemini, .vertexai, .openrouter, .together:
             return isVideoGenerationConfigured ? "On" : nil
         default:
             return nil
@@ -142,6 +142,17 @@ extension ChatModelCapabilitySupport {
             if let mode = controls.openRouterVideoGeneration?.imageInputMode { parts.append(mode.displayName) }
             if controls.openRouterVideoGeneration?.generateAudio == true { parts.append("Audio") }
             if controls.openRouterVideoGeneration?.watermark == true { parts.append("Watermark") }
+            if parts.isEmpty {
+                return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
+            }
+            return "Video Generation: \(parts.joined(separator: ", "))"
+        case .together:
+            var parts: [String] = []
+            if let duration = controls.togetherVideoGeneration?.durationSeconds { parts.append("\(duration)s") }
+            if let ratio = controls.togetherVideoGeneration?.aspectRatio { parts.append(ratio.displayName) }
+            if let resolution = controls.togetherVideoGeneration?.resolution { parts.append(resolution.displayName) }
+            if let mode = controls.togetherVideoGeneration?.imageInputMode { parts.append(mode.displayName) }
+            if controls.togetherVideoGeneration?.generateAudio == true { parts.append("Audio") }
             if parts.isEmpty {
                 return isVideoGenerationConfigured ? "Video Generation: Customized" : "Video Generation: Default"
             }

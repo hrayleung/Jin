@@ -411,6 +411,18 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // Together Videos API (POST /v2/videos). Exact IDs from serverless catalog
+        // + docs.together.ai Seedance quickstarts / model pages.
+        Record(id: "ByteDance/Seedance-2.0", displayName: "Seedance 2.0",
+               capabilities: [.videoGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "ByteDance/Seedance-2.5", displayName: "Seedance 2.5",
+               capabilities: [.videoGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: xAI

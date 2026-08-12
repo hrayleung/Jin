@@ -405,6 +405,12 @@ extension ModelCatalog {
                contextWindow: 32_768,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // OpenRouter video model: durations 4–30s, 480p/720p, first/last frame + references.
+        Record(id: "bytedance/seedance-2.5", displayName: "Seedance 2.5",
+               capabilities: [.videoGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
         Record(id: "openai/gpt-5.4-image-2", displayName: "GPT-5.4 Image 2",
                capabilities: [.streaming, .vision, .reasoning, .promptCaching, .imageGeneration],
                contextWindow: 272_000,
