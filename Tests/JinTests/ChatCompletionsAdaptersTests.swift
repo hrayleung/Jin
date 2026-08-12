@@ -5889,7 +5889,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 XCTAssertEqual(root["model"] as? String, "bytedance/seedance-2.5")
                 // 9:21 is not in Seedance 2.5 supported_aspect_ratios.
                 XCTAssertNil(root["aspect_ratio"])
-                XCTAssertEqual(root["duration"] as? Int, 24)
+                // Duration stays when it is on the curated menu list.
+                XCTAssertEqual(root["duration"] as? Int, 20)
 
                 let response: [String: Any] = [
                     "id": "vid_seed_25_ratio",
@@ -5915,7 +5916,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             modelID: "bytedance/seedance-2.5",
             controls: GenerationControls(
                 openRouterVideoGeneration: OpenRouterVideoGenerationControls(
-                    durationSeconds: 24,
+                    durationSeconds: 20,
                     aspectRatio: .ratio9x21,
                     resolution: .res720p
                 )
