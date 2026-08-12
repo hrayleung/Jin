@@ -102,8 +102,8 @@ enum OpenRouterVideoModelSupport {
         case "bytedance/seedance-2.0", "bytedance/seedance-2.0-fast":
             return Array(4...15)
         case "bytedance/seedance-2.5":
-            // OpenRouter: supported_durations 4...30 (native 30s storytelling).
-            return Array(4...30)
+            // API accepts every integer 4...30; curate the menu for scanability.
+            return [4, 6, 8, 10, 12, 15, 20, 25, 30]
         default:
             return [4, 6, 8, 10, 12]
         }

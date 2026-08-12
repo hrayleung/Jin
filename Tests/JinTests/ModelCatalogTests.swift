@@ -246,7 +246,10 @@ final class ModelCatalogTests: XCTestCase {
     func testOpenRouterSeedance25ModelSupportMatchesVideosModelsAPI() {
         let modelID = "bytedance/seedance-2.5"
 
-        XCTAssertEqual(OpenRouterVideoModelSupport.supportedDurations(for: modelID), Array(4...30))
+        XCTAssertEqual(
+            OpenRouterVideoModelSupport.supportedDurations(for: modelID),
+            [4, 6, 8, 10, 12, 15, 20, 25, 30]
+        )
         XCTAssertEqual(
             OpenRouterVideoModelSupport.supportedResolutions(for: modelID),
             [.res480p, .res720p]

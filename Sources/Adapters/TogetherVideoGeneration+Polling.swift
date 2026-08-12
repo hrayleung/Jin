@@ -24,7 +24,17 @@ extension TogetherAdapter {
             )
 
             let (pollData, pollResponse) = try await networkManager.sendRawRequest(request)
-            let pollJSON = try decodeVideoJSONObject(pollData)
+
+            // Edge/rate-limit HTML or empty bodies must not kill a multi-minute billed job.
+            let pollJSON: [String: Any]
+            do {
+                pollJSON = try decodeVideoJSONObject(pollData)
+            } catch {
+                if isRetryableHTTPStatus(pollResponse.statusCode) || pollResponse.statusCode < 400 {
+                    continue
+                }
+                throw error
+            }
 
             if let failure = videoFailureMessage(from: pollJSON) {
                 // Only treat as terminal failure when status says so (or non-2xx).
@@ -137,11 +147,21 @@ extension TogetherAdapter {
             return .completed
         }
 
+        // Transient edge/rate-limit responses must not discard an in-flight job.
+        if isRetryableHTTPStatus(httpStatus) {
+            return .pending
+        }
+
         if httpStatus >= 400 {
             return .failed(videoFailureMessage(from: json) ?? "HTTP \(httpStatus)")
         }
 
         return .pending
+    }
+
+    /// HTTP statuses that should keep an existing Together video job polling.
+    func isRetryableHTTPStatus(_ httpStatus: Int) -> Bool {
+        httpStatus == 408 || httpStatus == 425 || httpStatus == 429 || httpStatus >= 500
     }
 
     func videoFailureMessage(from json: [String: Any]) -> String? {

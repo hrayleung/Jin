@@ -2,6 +2,7 @@ import Foundation
 
 extension TogetherAdapter {
     /// Together video jobs live under `/v2/videos`, while chat uses `/v1`.
+    /// Preserve custom hosts/proxies instead of hardcoding Together's default origin.
     var videoBaseURL: String {
         let chat = baseURL
         if let range = chat.range(of: "/v1", options: [.backwards, .caseInsensitive]),
@@ -11,7 +12,7 @@ extension TogetherAdapter {
         if chat.lowercased().hasSuffix("/v2") {
             return chat
         }
-        return "https://api.together.xyz/v2"
+        return "\(chat)/v2"
     }
 
     func buildVideoGenerationRequest(

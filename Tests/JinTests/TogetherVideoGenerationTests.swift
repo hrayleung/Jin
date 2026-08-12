@@ -87,7 +87,10 @@ final class TogetherVideoGenerationTests: XCTestCase {
 
     func testSeedance25ModelSupportMatchesTogetherDocs() {
         let modelID = "ByteDance/Seedance-2.5"
-        XCTAssertEqual(TogetherVideoModelSupport.supportedDurations(for: modelID), Array(4...30))
+        XCTAssertEqual(
+            TogetherVideoModelSupport.supportedDurations(for: modelID),
+            [4, 6, 8, 10, 12, 15, 20, 25, 30]
+        )
         XCTAssertEqual(
             TogetherVideoModelSupport.supportedResolutions(for: modelID),
             [.res480p, .res720p]
@@ -145,6 +148,41 @@ final class TogetherVideoGenerationTests: XCTestCase {
         )
         let url = await adapter.videoBaseURL
         XCTAssertEqual(url, "https://api.together.xyz/v2")
+    }
+
+    func testTogetherVideoBaseURLPreservesCustomHostFallback() async {
+        let adapter = TogetherAdapter(
+            providerConfig: ProviderConfig(
+                id: "tg",
+                name: "Together",
+                type: .together,
+                baseURL: "https://proxy.example.com/together"
+            ),
+            apiKey: "test-key",
+            networkManager: NetworkManager(configuration: .ephemeral)
+        )
+        let url = await adapter.videoBaseURL
+        XCTAssertEqual(url, "https://proxy.example.com/together/v2")
+    }
+
+    func testTogetherVideoClassifyTreatsTransientHTTPAsPending() async {
+        let adapter = TogetherAdapter(
+            providerConfig: ProviderConfig(id: "tg", name: "Together", type: .together),
+            apiKey: "test-key",
+            networkManager: NetworkManager(configuration: .ephemeral)
+        )
+
+        for status in [408, 425, 429, 500, 502, 503] {
+            let classified = await adapter.classifyVideoStatus(json: [:], httpStatus: status)
+            guard case .pending = classified else {
+                return XCTFail("Expected pending for HTTP \(status), got \(classified)")
+            }
+        }
+
+        let clientError = await adapter.classifyVideoStatus(json: [:], httpStatus: 400)
+        guard case .failed = clientError else {
+            return XCTFail("Expected failed for HTTP 400, got \(clientError)")
+        }
     }
 
     func testTogetherVideoGenerationBuildsSeedance25RequestBody() async throws {
