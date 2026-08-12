@@ -497,6 +497,13 @@ enum ModelCapabilityRegistry {
         "x-ai/grok-4.20-multi-agent",
         "xai/grok-4.20-multi-agent",
     ]
+    /// grok-4.6 reasoning is always-on with low/medium/high/xhigh (docs.x.ai
+    /// 2026-08-12). Distinct from grok-4.5, which rejects xhigh (treated as high).
+    private static let xAIAlwaysOnStandardEffortWithXHighModelIDs: Set<String> = [
+        "grok-4.6",
+        "x-ai/grok-4.6",
+        "xai/grok-4.6",
+    ]
     private static let xAIAlwaysOnStandardEffortModelIDs: Set<String> = [
         "grok-4.5",
         "x-ai/grok-4.5",
@@ -696,6 +703,8 @@ enum ModelCapabilityRegistry {
             return [.high, .xhigh]
         case .openrouter where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .medium, .high, .xhigh]
+        case .openrouter where xAIAlwaysOnStandardEffortWithXHighModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high, .xhigh]
         case .openrouter where xAIAlwaysOnStandardEffortModelIDs.contains(lowerModelID):
             return [.low, .medium, .high]
         case .openrouter where xAIStandardEffortWithNoneModelIDs.contains(lowerModelID):
@@ -740,11 +749,15 @@ enum ModelCapabilityRegistry {
         case .xai where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
             // Multi-agent: low/medium → 4 agents, high/xhigh → 16 agents.
             return [.low, .medium, .high, .xhigh]
+        case .xai where xAIAlwaysOnStandardEffortWithXHighModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high, .xhigh]
         case .xai where xAIAlwaysOnStandardEffortModelIDs.contains(lowerModelID):
             return [.low, .medium, .high]
         case .xai where xAIStandardEffortWithNoneModelIDs.contains(lowerModelID):
             return [.none, .low, .medium, .high]
         case .vercelAIGateway where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high, .xhigh]
+        case .vercelAIGateway where xAIAlwaysOnStandardEffortWithXHighModelIDs.contains(lowerModelID):
             return [.low, .medium, .high, .xhigh]
         case .vercelAIGateway where xAIAlwaysOnStandardEffortModelIDs.contains(lowerModelID):
             return [.low, .medium, .high]

@@ -148,6 +148,11 @@ extension OpenCodeGoAdapter {
             // and never emit the invalid `low`/`medium` strings for it. The model's selectable
             // efforts are already restricted to [.high, .max] in ModelCapabilityRegistry.
             return (effort == .max || effort == .xhigh) ? "max" : "high"
+        case "deepseek-v4-pro", "deepseek-v4-flash":
+            // Official DeepSeek V4 OpenAI format is low/high/max. On V4 Pro, xhigh/max
+            // map to max and everything else maps to high (api-docs.deepseek.com
+            // thinking_mode, 2026-08). The Go UI band is already [.high, .max].
+            return (effort == .max || effort == .xhigh) ? "max" : "high"
         case "hy3", "hy3-preview":
             // Hy3 accepts only `low`/`high`; the shared mapper would emit an invalid "medium"
             // for an effort inherited from another model that bypassed the registry's clamp.

@@ -1732,6 +1732,40 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "gpt-5.6", provider: .openai))
     }
 
+    func testXAIGrok46CatalogUsesDocsVerifiedExactMetadata() {
+        let grok46 = ModelCatalog.modelInfo(for: "grok-4.6", provider: .xai)
+
+        XCTAssertEqual(grok46.name, "Grok 4.6")
+        // 500K matches grok-4.5; official release notes publish no text output limit.
+        XCTAssertEqual(grok46.contextWindow, 500_000)
+        XCTAssertNil(grok46.maxOutputTokens)
+        XCTAssertTrue(grok46.capabilities.contains(.streaming))
+        XCTAssertTrue(grok46.capabilities.contains(.toolCalling))
+        XCTAssertTrue(grok46.capabilities.contains(.vision))
+        XCTAssertTrue(grok46.capabilities.contains(.reasoning))
+        XCTAssertTrue(grok46.capabilities.contains(.promptCaching))
+        XCTAssertTrue(grok46.capabilities.contains(.nativePDF))
+        XCTAssertTrue(grok46.capabilities.contains(.codeExecution))
+        XCTAssertEqual(grok46.reasoningConfig?.type, .effort)
+        XCTAssertEqual(grok46.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "grok-4.6", provider: .xai))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.6-custom", provider: .xai))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.6", provider: .opencodeGo))
+
+        let vercelGrok46 = ModelCatalog.modelInfo(for: "xai/grok-4.6", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelGrok46.contextWindow, 500_000)
+        XCTAssertNil(vercelGrok46.maxOutputTokens)
+        XCTAssertEqual(vercelGrok46.reasoningConfig?.defaultEffort, .high)
+
+        let openRouterGrok46 = ModelCatalog.modelInfo(for: "x-ai/grok-4.6", provider: .openrouter)
+        XCTAssertEqual(openRouterGrok46.contextWindow, 500_000)
+        XCTAssertNil(openRouterGrok46.maxOutputTokens)
+        XCTAssertEqual(openRouterGrok46.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(openRouterGrok46.capabilities.contains(.nativePDF))
+
+        XCTAssertEqual(ModelCatalog.seededModels(for: .xai).first?.id, "grok-4.6")
+    }
+
     func testXAIGrok45CatalogUsesDocsVerifiedExactMetadata() {
         let grok45 = ModelCatalog.modelInfo(for: "grok-4.5", provider: .xai)
 
@@ -1882,6 +1916,7 @@ final class ModelCatalogTests: XCTestCase {
             Expected(id: "openai/gpt-5.6-terra-pro", contextWindow: 1_050_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
             Expected(id: "openai/gpt-5.6-luna", contextWindow: 1_050_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
             Expected(id: "openai/gpt-5.6-luna-pro", contextWindow: 1_050_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
+            Expected(id: "x-ai/grok-4.6", contextWindow: 500_000, maxOutputTokens: nil, reasoningType: .effort, effort: .high),
             Expected(id: "x-ai/grok-4.5", contextWindow: 500_000, maxOutputTokens: nil, reasoningType: .effort, effort: .high),
             Expected(id: "anthropic/claude-sonnet-5", contextWindow: 1_000_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
             Expected(id: "anthropic/claude-fable-5", contextWindow: 1_000_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),

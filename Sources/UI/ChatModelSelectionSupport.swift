@@ -129,7 +129,9 @@ enum ChatModelSelectionSupport {
             return models.first(where: { $0.id == "sonar-pro" })?.id
                 ?? models.first(where: { $0.id == "sonar" })?.id
         case .deepseek:
-            return models.first(where: { $0.id == "deepseek-chat" })?.id
+            return models.first(where: { $0.id == "deepseek-v4-pro" })?.id
+                ?? models.first(where: { $0.id == "deepseek-v4-flash" })?.id
+                ?? models.first(where: { $0.id == "deepseek-chat" })?.id
                 ?? models.first(where: { $0.id == "deepseek-reasoner" })?.id
         case .zhipuCodingPlan:
             return models.first(where: { $0.id.lowercased() == "glm-5.2[1m]" })?.id

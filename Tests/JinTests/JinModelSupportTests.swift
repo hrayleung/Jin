@@ -334,6 +334,7 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testXAIGrok41FastVariantsUseExactMatch() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.6"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.3"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20-multi-agent"))
@@ -343,15 +344,18 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4-1-fast-non-reasoning"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4-1-fast-reasoning"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-imagine-image-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.6-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.3-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.2"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20-multi-agent-0310"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-5"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-imagine-image-pro-v2"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.6"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.3"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.20"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.20-multi-agent"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.6-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.20-multi-agent-0309"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "x-ai/grok-4.20-multi-agent-custom"))
     }
@@ -377,14 +381,17 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testXAINativePDFSupportUsesExactMatch() {
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.6"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.3"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.20"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.20-multi-agent"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.20-multi-agent-0309"))
         XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4-1-fast-reasoning"))
         // OpenRouter Grok twins do not claim native PDF (adapter text-fallbacks files).
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "x-ai/grok-4.6"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "x-ai/grok-4.20"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: "x-ai/grok-4.20-multi-agent"))
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.6-custom"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.3-custom"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.2"))
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-5"))

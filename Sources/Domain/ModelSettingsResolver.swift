@@ -198,8 +198,9 @@ enum ModelSettingsResolver {
     ]
 
     /// xAI models where reasoning is always-on ("Reasoning cannot be disabled" per
-    /// docs.x.ai for grok-4.5); only the effort is adjustable.
+    /// docs.x.ai for grok-4.6 / grok-4.5); only the effort is adjustable.
     private static let xaiAlwaysOnReasoningModelIDs: Set<String> = [
+        "grok-4.6",
         "grok-4.5",
     ]
 
@@ -219,6 +220,7 @@ enum ModelSettingsResolver {
     /// but its catalog record keeps reasoningConfig nil (no reasoning UI, no reasoning
     /// shape sent), making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
+        "x-ai/grok-4.6",
         "x-ai/grok-4.5",
         "anthropic/claude-fable-5",
         "sakana/fugu-ultra",
@@ -226,12 +228,13 @@ enum ModelSettingsResolver {
         "meta/muse-spark-1.2",
     ]
 
-    /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.5 and
-    /// Muse Spark both reject disabled reasoning upstream). Kimi K3 is deliberately
-    /// NOT listed: thinking is always-on upstream too, but its catalog record keeps
-    /// reasoningConfig nil (no reasoning UI, no reasoning shape sent), making this
-    /// default moot — same precedent as `k3` on Kimi for Coding.
+    /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /
+    /// grok-4.5 and Muse Spark both reject disabled reasoning upstream). Kimi K3 is
+    /// deliberately NOT listed: thinking is always-on upstream too, but its catalog
+    /// record keeps reasoningConfig nil (no reasoning UI, no reasoning shape sent),
+    /// making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let vercelAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
+        "xai/grok-4.6",
         "xai/grok-4.5",
         "meta/muse-spark-1.1",
         "meta/muse-spark-1.2",

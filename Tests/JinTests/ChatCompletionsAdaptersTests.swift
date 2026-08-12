@@ -2109,7 +2109,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertEqual(root["stream"] as? Bool, false)
             XCTAssertEqual(root["max_tokens"] as? Int, 2048)
 
-            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "max")
             XCTAssertNil(root["reasoning"])
 
             let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])

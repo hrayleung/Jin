@@ -670,6 +670,15 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
 
+        // xAI — grok-4.6 confirmed live on vercel.com/ai-gateway/models/grok-4.6
+        // (2026-08-12). 500K context; official xAI publishes no text output limit,
+        // so none is recorded (Vercel's 500K "max output" column echoes context).
+        // Reasoning is always-on upstream (low/medium/high/xhigh, default high).
+        Record(id: "xai/grok-4.6", displayName: "Grok 4.6",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 500_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         // xAI — grok-4.5 confirmed live on ai-gateway.vercel.sh/v1/models (2026-07-11).
         // 500K context (a regression vs grok-4.3's 1M — verified, not mirrored); xAI
         // publishes no max output for it, so none is recorded. Reasoning is always-on

@@ -909,6 +909,15 @@ extension ModelCatalog {
                maxOutputTokens: 128000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Grok 4.6 (created 2026-08-12): 500K ctx, max output unpublished
+        // (max_completion_tokens null), reasoning mandatory low/medium/high/xhigh
+        // default high (docs.x.ai + OpenRouter /models). nativePDF kept off on
+        // OpenRouter (gateway PDF modality is not guaranteed).
+        Record(id: "x-ai/grok-4.6", displayName: "xAI: Grok 4.6",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 500000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         // Grok 4.5 (created 2026-07-08): 500K ctx, max output unpublished
         // (max_completion_tokens null), reasoning mandatory low/medium/high default high.
         // nativePDF kept off on OpenRouter (gateway PDF modality is not guaranteed).
