@@ -190,11 +190,8 @@ final class JinTextMeasurementParityTests: XCTestCase {
             storage.setAttributedString(numbers)
             let liveSize = live.naturalSize()
 
-            let measured = JinTextMeasurementStack.size(
-                of: numbers,
-                token: JinTextMeasurementStack.Token(key: "gutter-test:\(count)", version: 0),
-                inset: inset
-            )
+            // Production sizes the column via CodeLineNumberGutter.size (text + trailing divider).
+            let measured = CodeLineNumberGutter.size(count: count, font: font, inset: inset)
 
             XCTAssertEqual(measured.width, liveSize.width, accuracy: 0.5, "gutter width @\(count) lines")
             XCTAssertEqual(measured.height, liveSize.height, accuracy: 0.5, "gutter height @\(count) lines")

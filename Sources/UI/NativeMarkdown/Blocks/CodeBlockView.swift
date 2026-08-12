@@ -186,11 +186,14 @@ private struct CodeBlockBody: View {
 
     private var gutterWidth: CGFloat {
         guard showLineNumbers else { return 0 }
+        // Includes the trailing 1pt divider drawn by CodeLineNumberTextView so
+        // there is no SwiftUI-only strip between gutter and code (that strip
+        // hit-tested as DocumentView and became a wheel dead-zone on CI).
         return CodeLineNumberGutter.size(
             count: lines.count,
             font: theme.codeFont,
             inset: NSSize(width: CodeLineNumberGutter.horizontalInset, height: Self.codeVerticalInset)
-        ).width + 1 // + the divider
+        ).width
     }
 
     var body: some View {
@@ -202,16 +205,15 @@ private struct CodeBlockBody: View {
                     // code lines (a plain SwiftUI Text ignored the code's 1.3×
                     // lineHeightMultiple, so numbers crept upward). It's also a
                     // real NSView that forwards vertical wheels to the timeline,
-                    // so the gutter strip isn't a scroll dead-zone.
+                    // so the gutter strip isn't a scroll dead-zone. The trailing
+                    // divider is drawn inside this view (not a separate
+                    // Rectangle) so every hover pixel over the gutter column
+                    // lands on a wheel-forwarding NSView.
                     CodeLineNumberGutterView(
                         count: lines.count,
                         font: theme.codeFont,
                         verticalInset: Self.codeVerticalInset
                     )
-                    Rectangle()
-                        .fill(JinSemanticColor.borderSubtle)
-                        .frame(width: 1)
-                        .padding(.vertical, 6)
                 }
                 HighlightedCodeView(
                     source: source,
@@ -443,6 +445,10 @@ private struct CodeLineNumberGutterView: NSViewRepresentable {
 /// measurement parity test so the two can never drift.
 enum CodeLineNumberGutter {
     static let horizontalInset: CGFloat = 8
+    /// Trailing 1pt rule between gutter and code, drawn by `CodeLineNumberTextView`.
+    static let trailingDividerWidth: CGFloat = 1
+    /// Vertical inset of the trailing divider (matches the previous SwiftUI Rectangle padding).
+    static let trailingDividerVerticalInset: CGFloat = 6
 
     /// Memoized: the gutter's size depends only on the line count, the font
     /// and the inset, and every code block on screen asks for it on every
@@ -451,13 +457,14 @@ enum CodeLineNumberGutter {
 
     @MainActor
     static func size(count: Int, font: NSFont, inset: NSSize) -> NSSize {
-        let key = "\(count):\(font.fontName):\(font.pointSize):\(inset.width)x\(inset.height)"
+        let key = "\(count):\(font.fontName):\(font.pointSize):\(inset.width)x\(inset.height):div\(trailingDividerWidth)"
         if let cached = sizeCache[key] { return cached }
-        let measured = JinTextMeasurementStack.size(
+        var measured = JinTextMeasurementStack.size(
             of: attributedNumbers(count: count, font: font),
             token: JinTextMeasurementStack.Token(key: "gutter:" + key, version: 0),
             inset: inset
         )
+        measured.width += trailingDividerWidth
         sizeCache[key] = measured
         return measured
     }
@@ -533,14 +540,31 @@ final class CodeLineNumberTextView: NSTextView {
         }
     }
 
-    /// Glyph extent plus the symmetric text-container inset — the gutter's
-    /// natural (non-wrapping) size.
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        // Trailing divider lives on this wheel-forwarding view so the gutter /
+        // code seam is never a SwiftUI-only DocumentView dead-zone.
+        let dividerWidth = CodeLineNumberGutter.trailingDividerWidth
+        let verticalInset = CodeLineNumberGutter.trailingDividerVerticalInset
+        let divider = NSRect(
+            x: bounds.maxX - dividerWidth,
+            y: verticalInset,
+            width: dividerWidth,
+            height: max(0, bounds.height - verticalInset * 2)
+        )
+        guard divider.intersects(dirtyRect) else { return }
+        NSColor.separatorColor.setFill()
+        divider.fill()
+    }
+
+    /// Glyph extent plus the symmetric text-container inset and trailing
+    /// divider — the gutter's natural (non-wrapping) size.
     func naturalSize() -> NSSize {
         guard let textContainer, let layoutManager else { return .zero }
         layoutManager.ensureLayout(for: textContainer)
         let used = layoutManager.usedRect(for: textContainer)
         return NSSize(
-            width: ceil(used.width) + textContainerInset.width * 2,
+            width: ceil(used.width) + textContainerInset.width * 2 + CodeLineNumberGutter.trailingDividerWidth,
             height: ceil(used.height) + textContainerInset.height * 2
         )
     }
