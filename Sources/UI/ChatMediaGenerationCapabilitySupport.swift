@@ -41,6 +41,8 @@ extension ChatModelCapabilitySupport {
             return !(controls.xaiVideoGeneration?.isEmpty ?? true)
         case .openrouter:
             return !(controls.openRouterVideoGeneration?.isEmpty ?? true)
+        case .together:
+            return !(controls.togetherVideoGeneration?.isEmpty ?? true)
         default:
             return false
         }

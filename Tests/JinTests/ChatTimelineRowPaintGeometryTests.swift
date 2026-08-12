@@ -222,10 +222,18 @@ final class ChatTimelineRowPaintGeometryTests: XCTestCase {
         )
         settle(window)
 
-        // Apply the row height the controller would apply, then let layout land.
-        let measured = cell.measuredContentHeight()
-        cell.frame = NSRect(x: 0, y: 0, width: cellWidth, height: measured)
-        settle(window)
+        // Apply the row height the controller would apply. Thinking + markdown
+        // can grow after the first layout pass (async parse / font metrics), so
+        // re-apply until the measurement stabilizes — same correction loop the
+        // table runs when a cell re-reports height after settle.
+        var measured = cell.measuredContentHeight()
+        for _ in 0..<6 {
+            cell.frame = NSRect(x: 0, y: 0, width: cellWidth, height: max(measured, 1))
+            settle(window)
+            let again = cell.measuredContentHeight()
+            if abs(again - measured) < 0.5 { break }
+            measured = again
+        }
 
         let painted = paintedRowRange(of: cell)
         return Probe(

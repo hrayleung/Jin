@@ -77,14 +77,22 @@ enum OpenRouterVideoImageInputMode: String, Codable, CaseIterable {
 }
 
 enum OpenRouterVideoModelSupport {
+    /// Exact OpenRouter video model IDs fully wired for Seedance controls.
+    /// Source of truth: GET https://openrouter.ai/api/v1/videos/models
     private static let seedanceModelIDs: Set<String> = [
         "bytedance/seedance-1-5-pro",
         "bytedance/seedance-2.0",
         "bytedance/seedance-2.0-fast",
+        "bytedance/seedance-2.5",
     ]
 
     static let genericAspectRatios: [OpenRouterVideoAspectRatio] = [
         .ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio21x9, .ratio9x21,
+    ]
+
+    /// Seedance 2.5 omits 9:21 (OpenRouter `/videos/models` supported_aspect_ratios).
+    private static let seedance25AspectRatios: [OpenRouterVideoAspectRatio] = [
+        .ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio21x9,
     ]
 
     static func supportedDurations(for modelID: String) -> [Int] {
@@ -93,22 +101,35 @@ enum OpenRouterVideoModelSupport {
             return Array(4...12)
         case "bytedance/seedance-2.0", "bytedance/seedance-2.0-fast":
             return Array(4...15)
+        case "bytedance/seedance-2.5":
+            // API accepts every integer 4...30; curate the menu for scanability.
+            return [4, 6, 8, 10, 12, 15, 20, 25, 30]
         default:
             return [4, 6, 8, 10, 12]
         }
     }
 
     static func supportedAspectRatios(for modelID: String) -> [OpenRouterVideoAspectRatio] {
-        // Currently uniform across models; the parameter is kept for symmetry
-        // with the per-model duration/resolution accessors.
-        genericAspectRatios
+        switch modelID.lowercased() {
+        case "bytedance/seedance-2.5":
+            return seedance25AspectRatios
+        case "bytedance/seedance-1-5-pro",
+             "bytedance/seedance-2.0",
+             "bytedance/seedance-2.0-fast":
+            return genericAspectRatios
+        default:
+            return genericAspectRatios
+        }
     }
 
     static func supportedResolutions(for modelID: String) -> [OpenRouterVideoResolution] {
         switch modelID.lowercased() {
         case "bytedance/seedance-1-5-pro":
             return [.res480p, .res720p, .res1080p]
-        case "bytedance/seedance-2.0", "bytedance/seedance-2.0-fast":
+        case "bytedance/seedance-2.0":
+            // OpenRouter also lists 4K; keep the enum-backed subset until 4K is added.
+            return [.res480p, .res720p, .res1080p]
+        case "bytedance/seedance-2.0-fast", "bytedance/seedance-2.5":
             return [.res480p, .res720p]
         default:
             return [.res480p, .res720p, .res1080p]
