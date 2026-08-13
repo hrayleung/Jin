@@ -76,6 +76,14 @@ final class OpenRouterProviderSupportTests: XCTestCase {
             OpenRouterOCRModelCatalog.normalizedModelID(" missing "),
             OpenRouterOCRModelCatalog.defaultModelID
         )
+        XCTAssertEqual(
+            OpenRouterOCRModelCatalog.resolvedEntry(for: nil).composerBadge,
+            "Qian"
+        )
+        XCTAssertEqual(
+            OpenRouterOCRModelCatalog.resolvedEntry(for: "z-ai/glm-4.6v").composerBadge,
+            "GLM"
+        )
     }
 
     func testTrustedURLAcceptsSameOriginAndDefaultHTTPSPort() throws {

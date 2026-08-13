@@ -195,6 +195,10 @@ extension ChatView {
             }
         }
         .padding(.bottom, 1)
+        .transaction { transaction in
+            transaction.disablesAnimations = true
+            transaction.animation = nil
+        }
     }
 
     func composerButtonControl(
@@ -210,13 +214,24 @@ extension ChatView {
             ComposerControlIconLabel(
                 systemName: systemName,
                 isActive: isActive,
-                badgeText: badgeText,
                 activeColor: activeColor
             )
         }
         .buttonStyle(.plain)
-        .help(help)
         .disabled(disabled)
+        .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
+        .overlay(alignment: .topTrailing) {
+            if let badgeText, !badgeText.isEmpty {
+                ComposerControlBadge(
+                    text: badgeText,
+                    isActive: isActive,
+                    activeColor: activeColor
+                )
+                .offset(x: 3, y: -2)
+            }
+        }
+        .help(help)
+        .accessibilityValue(badgeText ?? "")
     }
 
     func composerMenuControl<MenuContent: View>(
@@ -227,15 +242,29 @@ extension ChatView {
         activeColor: Color = .accentColor,
         @ViewBuilder content: @escaping () -> MenuContent
     ) -> some View {
+        // Overlay is on the Menu *view*, not inside the label, so MCP counts
+        // update while the menu stays open. The 28pt frame keeps one row.
         Menu(content: content) {
             ComposerControlIconLabel(
                 systemName: systemName,
                 isActive: isActive,
-                badgeText: badgeText,
                 activeColor: activeColor
             )
         }
         .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
+        .overlay(alignment: .topTrailing) {
+            if let badgeText, !badgeText.isEmpty {
+                ComposerControlBadge(
+                    text: badgeText,
+                    isActive: isActive,
+                    activeColor: activeColor
+                )
+                .offset(x: 3, y: -2)
+            }
+        }
         .help(help)
+        .accessibilityValue(badgeText ?? "")
     }
 }

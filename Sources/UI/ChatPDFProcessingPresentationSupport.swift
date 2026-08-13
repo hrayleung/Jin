@@ -1,18 +1,44 @@
 import Foundation
 
 extension ChatModelCapabilitySupport {
-    static func pdfProcessingBadgeText(mode: PDFProcessingMode) -> String? {
+    static let mistralOCRModelDisplayName = "mistral-ocr-latest"
+    static let deepSeekOCRModelDisplayName = "DeepSeek-OCR"
+
+    /// Composer picker row. Provider name only — the control already means PDF/OCR.
+    static func pdfProcessingMenuTitle(mode: PDFProcessingMode) -> String {
+        switch mode {
+        case .native:
+            return "Native"
+        case .mistralOCR:
+            return "Mistral"
+        case .mineruOCR:
+            return "MinerU"
+        case .deepSeekOCR:
+            return "DeepSeek"
+        case .openRouterOCR:
+            return "OpenRouter"
+        case .firecrawlOCR:
+            return "Firecrawl"
+        case .macOSExtract:
+            return "macOS Extract"
+        }
+    }
+
+    static func pdfProcessingBadgeText(
+        mode: PDFProcessingMode,
+        openRouterModelID: String? = nil
+    ) -> String? {
         switch mode {
         case .native:
             return nil
         case .mistralOCR:
-            return "OCR"
+            return "Mist"
         case .mineruOCR:
-            return "MU"
+            return "MinU"
         case .deepSeekOCR:
             return "DS"
         case .openRouterOCR:
-            return "OR"
+            return OpenRouterOCRModelCatalog.resolvedEntry(for: openRouterModelID).composerBadge
         case .firecrawlOCR:
             return "FC"
         case .macOSExtract:
@@ -27,25 +53,39 @@ extension ChatModelCapabilitySupport {
         mineruOCRConfigured: Bool,
         deepSeekOCRConfigured: Bool,
         openRouterOCRConfigured: Bool,
-        firecrawlOCRConfigured: Bool
+        firecrawlOCRConfigured: Bool,
+        openRouterModelName: String? = nil
     ) -> String {
         switch mode {
         case .native:
             return "PDF handling: Native"
         case .mistralOCR:
-            return mistralOCRConfigured ? "PDF handling: Mistral OCR" : "PDF handling: Mistral OCR (API key required)"
+            let detail = "Mistral \u{00B7} \(mistralOCRModelDisplayName)"
+            return mistralOCRConfigured
+                ? "PDF handling: \(detail)"
+                : "PDF handling: \(detail) (API key required)"
         case .mineruOCR:
-            return mineruOCRConfigured ? "PDF handling: MinerU OCR" : "PDF handling: MinerU OCR (API token required)"
+            return mineruOCRConfigured
+                ? "PDF handling: MinerU"
+                : "PDF handling: MinerU (API token required)"
         case .deepSeekOCR:
-            return deepSeekOCRConfigured ? "PDF handling: DeepSeek OCR (DeepInfra)" : "PDF handling: DeepSeek OCR (API key required)"
+            let detail = "DeepSeek \u{00B7} \(deepSeekOCRModelDisplayName)"
+            return deepSeekOCRConfigured
+                ? "PDF handling: \(detail)"
+                : "PDF handling: \(detail) (API key required)"
         case .openRouterOCR:
-            return openRouterOCRConfigured ? "PDF handling: OpenRouter OCR" : "PDF handling: OpenRouter OCR (API key required)"
+            let model = openRouterModelName
+                ?? OpenRouterOCRModelCatalog.defaultEntry.name
+            let detail = "OpenRouter \u{00B7} \(model)"
+            return openRouterOCRConfigured
+                ? "PDF handling: \(detail)"
+                : "PDF handling: \(detail) (API key required)"
         case .firecrawlOCR:
             let parserMode = firecrawlParserMode.displayName
             if firecrawlOCRConfigured {
-                return "PDF handling: Firecrawl OCR (\(parserMode))"
+                return "PDF handling: Firecrawl \u{00B7} \(parserMode)"
             }
-            return "PDF handling: Firecrawl OCR (\(parserMode), Firecrawl API key + Cloudflare R2 required)"
+            return "PDF handling: Firecrawl \u{00B7} \(parserMode) (Firecrawl API key + Cloudflare R2 required)"
         case .macOSExtract:
             return "PDF handling: macOS Extract"
         }

@@ -24,8 +24,12 @@ extension ChatView {
                     onUpdatedAtChanged: handleObservedConversationUpdate
                 )
             }
-            .onChange(of: contextUsageRefreshToken) { _, _ in
-                refreshContextUsageEstimate()
+            .background {
+                ChatContextUsageChangeObserverView(
+                    store: composerControlsStore,
+                    token: { _ in contextUsageRefreshToken },
+                    onTokenChange: { refreshContextUsageEstimate() }
+                )
             }
             .onChange(of: extensionCredentialStore.status) { previous, current in
                 handleExtensionCredentialStatusSideEffects(previous: previous, current: current)

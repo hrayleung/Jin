@@ -20,4 +20,9 @@ extension ChatAuxiliaryControlSupport {
         guard supportsMCPToolsControl, isMCPToolsEnabled, selectedServerCount > 0 else { return nil }
         return selectedServerCount > 99 ? "99+" : "\(selectedServerCount)"
     }
+
+    static func mcpToolsServersSectionTitle(selectedServerCount: Int) -> String {
+        guard selectedServerCount > 0 else { return "Servers" }
+        return "Servers \u{00B7} \(selectedServerCount)"
+    }
 }

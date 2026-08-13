@@ -37,51 +37,68 @@ struct PerMessageMCPChip: View {
     }
 }
 
+/// Corner mark that does not change the 28pt icon layout. Counts and
+/// 1–3 character tokens only — never a second row, never a long word.
+struct ComposerControlBadge: View {
+    let text: String
+    let isActive: Bool
+    let activeColor: Color
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 7, weight: .bold, design: .rounded))
+            .foregroundStyle(isActive ? activeColor : .secondary)
+            .padding(.horizontal, 3)
+            .padding(.vertical, 1)
+            .background(
+                Capsule()
+                    .fill(JinSemanticColor.raisedSurface)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(isActive ? activeColor.opacity(0.35) : JinSemanticColor.separator.opacity(0.5), lineWidth: 0.5)
+            )
+            .lineLimit(1)
+            .fixedSize()
+            .id(text)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .transaction { transaction in
+                transaction.disablesAnimations = true
+                transaction.animation = nil
+            }
+    }
+}
+
 struct ComposerControlIconLabel: View {
     let systemName: String
     let isActive: Bool
-    let badgeText: String?
     let activeColor: Color
 
-    init(systemName: String, isActive: Bool, badgeText: String?, activeColor: Color = .accentColor) {
+    init(
+        systemName: String,
+        isActive: Bool,
+        activeColor: Color = .accentColor
+    ) {
         self.systemName = systemName
         self.isActive = isActive
-        self.badgeText = badgeText
         self.activeColor = activeColor
     }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Image(systemName: systemName)
-                .font(.system(size: 14, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(isActive ? activeColor : Color.secondary)
-                .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
-                .background(
-                    Circle()
-                        .fill(isActive ? activeColor.opacity(0.18) : Color.clear)
-                )
-                .overlay(
-                    Circle()
-                        .stroke(Color.clear, lineWidth: JinStrokeWidth.hairline)
-                )
-                .shadow(color: isActive ? activeColor.opacity(0.35) : Color.clear, radius: 6, x: 0, y: 0)
-
-            if let badgeText, !badgeText.isEmpty {
-                Text(badgeText)
-                    .font(.system(size: 8, weight: .bold, design: .rounded))
-                    .padding(.horizontal, 3)
-                    .padding(.vertical, 1)
-                    .foregroundStyle(isActive ? activeColor : .secondary)
-                    .background(
-                        Capsule()
-                            .fill(isActive ? activeColor.opacity(0.15) : JinSemanticColor.subtleSurface)
-                    )
-                    .offset(x: JinSpacing.xSmall, y: JinSpacing.xSmall)
-                    .lineLimit(1)
-                    .fixedSize()
+        Image(systemName: systemName)
+            .font(.system(size: 14, weight: .semibold))
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(isActive ? activeColor : Color.secondary)
+            .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
+            .background(
+                Circle()
+                    .fill(isActive ? activeColor.opacity(0.14) : Color.clear)
+            )
+            .transaction { transaction in
+                transaction.disablesAnimations = true
+                transaction.animation = nil
             }
-        }
     }
 }
 

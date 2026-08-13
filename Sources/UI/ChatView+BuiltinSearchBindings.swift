@@ -10,11 +10,12 @@ extension ChatView {
                 ChatAuxiliaryControlSupport.builtinSearchIncludeRawValue(controls: controls)
             },
             set: { newValue in
-                controls = ChatAuxiliaryControlSupport.setBuiltinSearchIncludeRaw(
-                    newValue,
-                    controls: controls
-                )
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setBuiltinSearchIncludeRaw(
+                        newValue,
+                        controls: controls
+                    )
+                }
             }
         )
     }
@@ -28,11 +29,12 @@ extension ChatView {
                 )
             },
             set: { newValue in
-                controls = ChatAuxiliaryControlSupport.setBuiltinSearchFetchPage(
-                    newValue,
-                    controls: controls
-                )
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setBuiltinSearchFetchPage(
+                        newValue,
+                        controls: controls
+                    )
+                }
             }
         )
     }
@@ -46,11 +48,12 @@ extension ChatView {
                 )
             },
             set: { newValue in
-                controls = ChatAuxiliaryControlSupport.setBuiltinSearchFirecrawlExtract(
-                    newValue,
-                    controls: controls
-                )
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setBuiltinSearchFirecrawlExtract(
+                        newValue,
+                        controls: controls
+                    )
+                }
             }
         )
     }
@@ -64,12 +67,13 @@ extension ChatView {
                 )
             },
             set: { isOn in
-                controls = ChatAuxiliaryControlSupport.setWebSearchSource(
-                    source,
-                    isOn: isOn,
-                    controls: controls
-                )
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setWebSearchSource(
+                        source,
+                        isOn: isOn,
+                        controls: controls
+                    )
+                }
             }
         )
     }
@@ -105,15 +109,16 @@ extension ChatView {
                 return get(webSearch)
             },
             set: { isOn in
-                var webSearch = controls.webSearch
-                    ?? ChatControlNormalizationSupport.defaultWebSearchControls(
-                        enabled: true,
-                        providerType: .xai
-                    )
-                webSearch.enabled = true
-                set(&webSearch, isOn)
-                controls.webSearch = webSearch
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    var webSearch = controls.webSearch
+                        ?? ChatControlNormalizationSupport.defaultWebSearchControls(
+                            enabled: true,
+                            providerType: .xai
+                        )
+                    webSearch.enabled = true
+                    set(&webSearch, isOn)
+                    controls.webSearch = webSearch
+                }
             }
         )
     }

@@ -92,20 +92,22 @@ extension ChatView {
                 selectedMCPServerIDs.contains(serverID)
             },
             set: { isOn in
-                controls = ChatAuxiliaryControlSupport.toggleMCPServerSelection(
-                    controls: controls,
-                    eligibleServers: eligibleMCPServers,
-                    serverID: serverID,
-                    isOn: isOn
-                )
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.toggleMCPServerSelection(
+                        controls: controls,
+                        eligibleServers: eligibleMCPServers,
+                        serverID: serverID,
+                        isOn: isOn
+                    )
+                }
             }
         )
     }
 
     func resetMCPServerSelection() {
-        controls = ChatAuxiliaryControlSupport.resetMCPServerSelection(controls: controls)
-        persistControlsToConversation()
+        applyComposerControlMutation {
+            controls = ChatAuxiliaryControlSupport.resetMCPServerSelection(controls: controls)
+        }
     }
 
     func resolvedMCPServerConfigs(for controlsToUse: GenerationControls) throws -> [MCPServerConfig] {

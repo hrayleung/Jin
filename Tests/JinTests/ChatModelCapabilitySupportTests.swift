@@ -149,12 +149,32 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
 
     func testPDFProcessingBadgeTextMatchesComposerBadges() {
         XCTAssertNil(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .native))
-        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .mistralOCR), "OCR")
-        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .mineruOCR), "MU")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .mistralOCR), "Mist")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .mineruOCR), "MinU")
         XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .deepSeekOCR), "DS")
-        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .openRouterOCR), "OR")
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .openRouterOCR),
+            "Qian"
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.pdfProcessingBadgeText(
+                mode: .openRouterOCR,
+                openRouterModelID: "mistralai/pixtral-large-2411"
+            ),
+            "Pix"
+        )
         XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .firecrawlOCR), "FC")
         XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: .macOSExtract), "mac")
+    }
+
+    func testPDFProcessingMenuTitleUsesProviderNames() {
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .native), "Native")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .mistralOCR), "Mistral")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .mineruOCR), "MinerU")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .deepSeekOCR), "DeepSeek")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .openRouterOCR), "OpenRouter")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .firecrawlOCR), "Firecrawl")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .macOSExtract), "macOS Extract")
     }
 
     func testPDFProcessingHelpTextIncludesCredentialRequirements() {
@@ -180,7 +200,7 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
                 openRouterOCRConfigured: false,
                 firecrawlOCRConfigured: false
             ),
-            "PDF handling: Mistral OCR (API key required)"
+            "PDF handling: Mistral · mistral-ocr-latest (API key required)"
         )
         XCTAssertEqual(
             ChatModelCapabilitySupport.pdfProcessingHelpText(
@@ -192,7 +212,7 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
                 openRouterOCRConfigured: false,
                 firecrawlOCRConfigured: false
             ),
-            "PDF handling: MinerU OCR"
+            "PDF handling: MinerU"
         )
         XCTAssertEqual(
             ChatModelCapabilitySupport.pdfProcessingHelpText(
@@ -204,7 +224,7 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
                 openRouterOCRConfigured: false,
                 firecrawlOCRConfigured: false
             ),
-            "PDF handling: DeepSeek OCR (API key required)"
+            "PDF handling: DeepSeek · DeepSeek-OCR (API key required)"
         )
         XCTAssertEqual(
             ChatModelCapabilitySupport.pdfProcessingHelpText(
@@ -214,9 +234,10 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
                 mineruOCRConfigured: false,
                 deepSeekOCRConfigured: false,
                 openRouterOCRConfigured: true,
-                firecrawlOCRConfigured: false
+                firecrawlOCRConfigured: false,
+                openRouterModelName: "Pixtral Large 2411"
             ),
-            "PDF handling: OpenRouter OCR"
+            "PDF handling: OpenRouter · Pixtral Large 2411"
         )
         XCTAssertEqual(
             ChatModelCapabilitySupport.pdfProcessingHelpText(
@@ -228,7 +249,7 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
                 openRouterOCRConfigured: false,
                 firecrawlOCRConfigured: false
             ),
-            "PDF handling: Firecrawl OCR (Fast, Firecrawl API key + Cloudflare R2 required)"
+            "PDF handling: Firecrawl · Fast (Firecrawl API key + Cloudflare R2 required)"
         )
         XCTAssertEqual(
             ChatModelCapabilitySupport.pdfProcessingHelpText(
@@ -240,7 +261,7 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
                 openRouterOCRConfigured: false,
                 firecrawlOCRConfigured: true
             ),
-            "PDF handling: Firecrawl OCR (Auto)"
+            "PDF handling: Firecrawl · Auto"
         )
         XCTAssertEqual(
             ChatModelCapabilitySupport.pdfProcessingHelpText(
