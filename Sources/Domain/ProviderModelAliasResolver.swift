@@ -6,16 +6,16 @@ enum ProviderModelAliasResolver {
         providerType: ProviderType?,
         availableModels: [ModelInfo]
     ) -> ModelInfo? {
-        if let exact = availableModels.first(where: { $0.id == requestedModelID }) {
-            return exact
-        }
-
-        let normalizedRequested = normalizedLookupKey(requestedModelID)
-        if let exactCaseInsensitive = availableModels.first(where: { normalizedLookupKey($0.id) == normalizedRequested }) {
-            return exactCaseInsensitive
+        if let matched = ModalEndpointSupport.configuredModel(
+            in: availableModels,
+            matching: requestedModelID
+        ) {
+            return matched
         }
 
         guard providerType == .githubCopilot else { return nil }
+
+        let normalizedRequested = normalizedLookupKey(requestedModelID)
 
         let matches = availableModels.filter {
             normalizedGitHubSuffix($0.id) == normalizedRequested

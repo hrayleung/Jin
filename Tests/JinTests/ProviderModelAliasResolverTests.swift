@@ -38,4 +38,29 @@ final class ProviderModelAliasResolverTests: XCTestCase {
 
         XCTAssertNil(resolved)
     }
+
+    func testModalLegacyHostnameResolvesToPromotedRepoID() {
+        let models = [
+            ModelInfo(
+                id: "Qwen/Qwen3.8-2.4T-A95B",
+                name: "Qwen3.8 Max",
+                capabilities: [.streaming, .toolCalling, .reasoning],
+                contextWindow: 1_000_000,
+                catalogMetadata: ModelCatalogMetadata(
+                    requestBaseURL: "https://workspace--qwen-server.us-west.modal.direct/v1",
+                    upstreamModelID: "Qwen/Qwen3.8-2.4T-A95B"
+                ),
+                isEnabled: true
+            )
+        ]
+
+        let resolved = ProviderModelAliasResolver.resolvedModel(
+            for: "workspace--qwen-server.us-west.modal.direct",
+            providerType: .modal,
+            availableModels: models
+        )
+
+        XCTAssertEqual(resolved?.id, "Qwen/Qwen3.8-2.4T-A95B")
+        XCTAssertEqual(resolved?.name, "Qwen3.8 Max")
+    }
 }

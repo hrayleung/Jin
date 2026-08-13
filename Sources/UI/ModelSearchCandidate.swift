@@ -44,10 +44,14 @@ enum ModelSearchCandidate {
             cache.field(model.name, prominence: .primary),
             cache.field(model.id, prominence: .secondary)
         ]
+        if let visibleID = ModalEndpointSupport.userFacingModelID(for: model), visibleID != model.id {
+            fields.append(cache.field(visibleID, prominence: .primary))
+        }
         // Aggregator IDs bury the real name behind routing segments
         // ("accounts/fireworks/models/kimi-k3"). Indexing the tail separately lets
         // "kimi-k3" land an exact match instead of a mid-string substring.
-        if let tail = identifierTail(of: model.id) {
+        let searchableID = ModalEndpointSupport.catalogModelID(for: model)
+        if let tail = identifierTail(of: searchableID) {
             fields.append(cache.field(tail, prominence: .secondary))
         }
         fields.append(contentsOf: provider.fields)

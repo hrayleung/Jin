@@ -26,6 +26,14 @@ extension ProviderConfigFormView {
                     }
                 )
             }
+            .sheet(isPresented: $showingAddEndpoint) {
+                AddModalEndpointSheet(
+                    apiKey: apiKey,
+                    onAdd: { model in
+                        setModels(ProviderFormSupport.modelsUpsertingAndSorting(decodedModels, model: model))
+                    }
+                )
+            }
             .sheet(item: $editingModel) { model in
                 ModelSettingsSheet(
                     model: model,
@@ -84,10 +92,17 @@ extension ProviderConfigFormView {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 if let modelPendingDeletion {
-                    Text("This will delete the model \u{201C}\(modelPendingDeletion.name)\u{201D} (\(modelPendingDeletion.id)).")
+                    Text(deleteConfirmationMessage(for: modelPendingDeletion))
                 } else {
                     Text("This will remove this model from the local model list.")
                 }
             }
+    }
+
+    private func deleteConfirmationMessage(for model: ModelInfo) -> String {
+        if let visibleID = ModalEndpointSupport.userFacingModelID(for: model), visibleID != model.name {
+            return "This will delete the model \u{201C}\(model.name)\u{201D} (\(visibleID))."
+        }
+        return "This will delete the model \u{201C}\(model.name)\u{201D}."
     }
 }

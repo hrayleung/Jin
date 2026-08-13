@@ -8,8 +8,13 @@ extension ModalAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
+        let route = ModalEndpointSupport.requestRoute(
+            modelID: modelID,
+            configured: findConfiguredModel(in: providerConfig, for: modelID),
+            providerBaseURL: baseURL
+        )
         var body: [String: Any] = [
-            "model": modelID,
+            "model": route.wireModelID,
             "messages": try translateMessages(messages),
             "stream": streaming
         ]
@@ -40,7 +45,7 @@ extension ModalAdapter {
 
         let headers = ModalAdapter.authHeaders(for: apiKey)
         return try makeAuthorizedJSONRequest(
-            url: validatedURL("\(baseURL)/chat/completions"),
+            url: validatedURL("\(route.baseURL)/chat/completions"),
             apiKey: apiKey,
             authHeader: headers.auth,
             body: body,
@@ -60,11 +65,22 @@ extension ModalAdapter {
     /// Engine-specific switches such as `chat_template_kwargs` remain reachable
     /// through `controls.providerSpecific`.
     private func applyReasoning(to body: inout [String: Any], controls: GenerationControls, modelID: String) {
+        let configured = findConfiguredModel(in: providerConfig, for: modelID)
+        let capabilityID = configured.map { ModalEndpointSupport.catalogModelID(for: $0) } ?? modelID
         guard modelSupportsReasoning(providerConfig: providerConfig, modelID: modelID) else { return }
         guard let reasoning = controls.reasoning else { return }
 
         if reasoning.enabled == false || reasoning.effort == .some(.none) {
-            body["reasoning_effort"] = ReasoningEffort.none.rawValue
+            // Only send `none` when the model actually accepts it. Qwen3.8-2.4T-A95B
+            // requires thinking on every turn (HF: "thinking cannot be disabled");
+            // omitting the key leaves the engine default (`xhigh`).
+            let supported = ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .modal,
+                modelID: capabilityID
+            )
+            if supported.contains(.none) {
+                body["reasoning_effort"] = ReasoningEffort.none.rawValue
+            }
             return
         }
 
@@ -73,7 +89,7 @@ extension ModalAdapter {
         let effort = ModelCapabilityRegistry.normalizedReasoningEffort(
             requestedEffort,
             for: .modal,
-            modelID: modelID
+            modelID: capabilityID
         )
         // ReasoningEffort raw values are the lowercase API labels (none…max).
         body["reasoning_effort"] = effort.rawValue

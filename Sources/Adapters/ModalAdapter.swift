@@ -2,22 +2,14 @@ import Foundation
 
 /// Modal adapter (OpenAI-compatible Chat Completions).
 ///
-/// Docs (modal.com/docs/guide/endpoints, .../endpoint-integrations, verified 2026-08-01):
-/// - Shared API base URL: https://inference.<region>.modal.direct/v1
-///   Regions: us-west (default), us-east, ca-central, eu-west, ap-south.
-/// - Chat: POST /v1/chat/completions
-/// - Models: GET /v1/models — scoped to the proxy token's workspace, so it is the
-///   only way to learn which models a given token can reach.
-/// - Auth: a proxy token pair, sent as `Modal-Key` / `Modal-Secret` headers. The
-///   same pair joined with a `.` also works as `Authorization: Bearer`, which is
-///   what Jin falls back to for a credential that isn't a recognizable pair
-///   (an `--unauthenticated` endpoint, or a plain key on a custom server).
-/// - Model IDs are Hugging Face repo IDs for Shared API models
-///   (`moonshotai/Kimi-K3`), or the endpoint hostname for your own Auto Endpoints
-///   reached through the shared gateway (`my-endpoint.us-west.modal.direct`).
-///
-/// The same adapter also serves an Auto Endpoint directly: paste that endpoint's
-/// URL as the base URL and the model ID becomes the base model repo ID.
+/// Docs (modal.com/docs/guide/endpoints, verified 2026-08-13):
+/// - Each `modal endpoint create --model …` deployment has its own URL.
+///   Chat is `POST <endpoint-url>/v1/chat/completions` with `model` set to the
+///   Hugging Face repo ID.
+/// - Shared catalog models (Kimi / Qwen / Inkling) use the default Shared API
+///   host `https://inference.us-west.modal.direct/v1`. Region is a deploy-time
+///   choice on the endpoint, not a client setting.
+/// - Auth: proxy token pair as `Modal-Key` / `Modal-Secret` (or Bearer `wk-….ws-…`).
 actor ModalAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]

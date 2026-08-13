@@ -39,11 +39,12 @@ extension ModalAdapter {
 
         if let openAIModels = try? decoder.decode(OpenAIModelsResponse.self, from: data) {
             return openAIModels.data.map { remote in
-                ModelCatalog.modelInfo(
+                let info = ModelCatalog.modelInfo(
                     for: remote.id,
                     provider: .modal,
-                    name: ModalAdapter.endpointDisplayName(forModelID: remote.id)
+                    name: ModalEndpointSupport.displayName(forModelID: remote.id)
                 )
+                return ModalEndpointSupport.applyEndpointMetadataIfNeeded(to: info)
             }
         }
 
@@ -58,12 +59,6 @@ extension ModalAdapter {
     /// passing a name here overrides it, which would render a Shared API model as
     /// its raw repo ID instead of "Kimi K3".
     static func endpointDisplayName(forModelID modelID: String) -> String? {
-        let trimmed = modelID.trimmed
-        guard trimmed.lowercased().hasSuffix(".modal.direct") else { return nil }
-
-        // `prefix(while:)` rather than `split`, which drops a leading empty label
-        // and would turn `.us-west.modal.direct` into "us-west".
-        let label = String(trimmed.prefix(while: { $0 != "." }))
-        return label.isEmpty ? nil : label
+        ModalEndpointSupport.displayName(forModelID: modelID)
     }
 }

@@ -4,11 +4,11 @@ import Foundation
 
 /// Finds a model in the provider config by exact ID, with case-insensitive fallback.
 func findConfiguredModel(in providerConfig: ProviderConfig, for modelID: String) -> ModelInfo? {
-    if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
-        return exact
-    }
-    let target = modelID.lowercased()
-    return providerConfig.models.first(where: { $0.id.lowercased() == target })
+    ProviderModelAliasResolver.resolvedModel(
+        for: modelID,
+        providerType: providerConfig.type,
+        availableModels: providerConfig.models
+    )
 }
 
 // MARK: - Web Search Support Detection

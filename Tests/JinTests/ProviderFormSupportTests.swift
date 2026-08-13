@@ -22,8 +22,9 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertEqual(ProviderFormSupport.apiKeyConcealHelp(for: nil), "Hide API key")
     }
 
-    func testProviderSetupCalloutIsNilForAllProviders() {
+    func testProviderSetupCalloutIsNilForGenericProviders() {
         XCTAssertNil(ProviderFormSupport.providerSetupCallout(for: .openai))
+        XCTAssertNil(ProviderFormSupport.providerSetupCallout(for: .modal))
     }
 
     func testProviderDetailsTextUsesProviderSpecificCopy() {
@@ -606,6 +607,33 @@ final class ProviderFormSupportTests: XCTestCase {
         )
 
         XCTAssertEqual(merged.map(\.id), ["alpha", "zeta"])
+    }
+
+    func testModelsUpsertingAndSortingPromotesModalHostnameToRepoID() throws {
+        let existing = model(
+            id: "acme--qwen-server.us-west.modal.direct",
+            name: "Qwen3.8 Max",
+            catalogMetadata: ModelCatalogMetadata(
+                requestBaseURL: "https://acme--qwen-server.us-west.modal.direct/v1",
+                upstreamModelID: "Qwen/Qwen3.8-2.4T-A95B"
+            ),
+            isEnabled: false
+        )
+        let incoming = try XCTUnwrap(
+            ModalEndpointSupport.modelInfo(
+                fromPasted: "https://acme--qwen-server.us-west.modal.direct",
+                nickname: nil,
+                upstreamModelID: "Qwen/Qwen3.8-2.4T-A95B"
+            )
+        )
+
+        let merged = ProviderFormSupport.modelsUpsertingAndSorting([existing], model: incoming)
+        XCTAssertEqual(merged.map(\.id), ["Qwen/Qwen3.8-2.4T-A95B"])
+        XCTAssertFalse(merged[0].isEnabled)
+        XCTAssertEqual(
+            ModalEndpointSupport.userFacingModelID(for: merged[0]),
+            "Qwen/Qwen3.8-2.4T-A95B"
+        )
     }
 
     func testUpdatedDraftValuesPreservesCustomFieldsAndReplacesDefaults() {

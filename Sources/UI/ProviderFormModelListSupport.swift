@@ -66,10 +66,18 @@ extension ProviderFormSupport {
 
     static func modelsUpsertingAndSorting(_ models: [ModelInfo], model: ModelInfo) -> [ModelInfo] {
         var models = models
-        if let existingIndex = models.firstIndex(where: { $0.id == model.id }) {
-            models[existingIndex] = model
+        let incoming = ModalEndpointSupport.promotedIdentity(for: model)
+        if let existingIndex = models.firstIndex(where: {
+            $0.id == incoming.id || ModalEndpointSupport.isSameDeployment($0, incoming)
+        }) {
+            let existing = models[existingIndex]
+            models[existingIndex] = modelCopy(
+                from: incoming,
+                overrides: existing.overrides,
+                isEnabled: existing.isEnabled
+            )
         } else {
-            models.append(model)
+            models.append(incoming)
         }
         return sortedModelsByName(models)
     }
@@ -152,14 +160,31 @@ extension ProviderFormSupport {
         existingByID: [String: ModelInfo],
         resultByID: inout [String: ModelInfo]
     ) {
-        for model in selectedModels where existingByID[model.id] == nil {
-            resultByID[model.id] = modelForNewSelection(model)
+        for model in selectedModels {
+            let incoming = ModalEndpointSupport.promotedIdentity(for: model)
+            if existingByID[incoming.id] != nil { continue }
+            if resultByID.values.contains(where: { ModalEndpointSupport.isSameDeployment($0, incoming) }) {
+                continue
+            }
+            resultByID[incoming.id] = modelForNewSelection(incoming)
         }
     }
 
     private static func mergedFetchedModel(_ fetched: ModelInfo, preserving existing: ModelInfo) -> ModelInfo {
-        modelCopy(
-            from: fetched,
+        var metadata = fetched.catalogMetadata ?? ModelCatalogMetadata()
+        if metadata.requestBaseURL?.trimmedNonEmpty == nil {
+            metadata.requestBaseURL = existing.catalogMetadata?.requestBaseURL
+        }
+        if metadata.upstreamModelID?.trimmedNonEmpty == nil {
+            metadata.upstreamModelID = existing.catalogMetadata?.upstreamModelID
+        }
+        if metadata.availabilityMessage?.trimmedNonEmpty == nil {
+            metadata.availabilityMessage = existing.catalogMetadata?.availabilityMessage
+        }
+        var merged = fetched
+        merged.catalogMetadata = metadata.isEmpty ? nil : metadata
+        return modelCopy(
+            from: merged,
             overrides: existing.overrides,
             isEnabled: existing.isEnabled
         )

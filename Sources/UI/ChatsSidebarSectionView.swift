@@ -143,7 +143,11 @@ struct ChatsSidebarSectionView: View {
             )
         }
 
-        return provider.allModels.first(where: { $0.id == modelID })?.name ?? modelID
+        return ProviderModelAliasResolver.resolvedModel(
+            for: modelID,
+            providerType: ProviderType(rawValue: provider.typeRaw),
+            availableModels: provider.allModels
+        )?.name ?? modelID
     }
 
     // MARK: - Selection bridge

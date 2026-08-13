@@ -34,7 +34,7 @@ struct ModelSettingsSheet: View {
         let normalizedInitialEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
             initialEffort,
             for: providerType,
-            modelID: model.id
+            modelID: ModalEndpointSupport.catalogModelID(for: model)
         )
 
         _modelType = State(initialValue: resolved.modelType)
@@ -121,16 +121,21 @@ struct ModelSettingsSheet: View {
                     .truncationMode(.middle)
 
                 HStack(spacing: JinSpacing.xSmall) {
-                    Text(model.id)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    if let visibleID = ModalEndpointSupport.userFacingModelID(for: model) {
+                        Text(visibleID)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+
+                        if providerType != nil {
+                            Text("·")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
 
                     if let providerName = providerType?.displayName {
-                        Text("·")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
                         Text(providerName)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -533,10 +538,14 @@ struct ModelSettingsSheet: View {
 
     // MARK: - Helpers
 
+    private var catalogModelID: String {
+        ModalEndpointSupport.catalogModelID(for: model)
+    }
+
     private var availableReasoningEffortLevels: [ReasoningEffort] {
         ModelCapabilityRegistry.supportedReasoningEfforts(
             for: providerType,
-            modelID: model.id
+            modelID: catalogModelID
         )
     }
 
@@ -599,7 +608,7 @@ struct ModelSettingsSheet: View {
                 let normalizedEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
                     reasoningEffort,
                     for: providerType,
-                    modelID: model.id
+                    modelID: catalogModelID
                 )
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: normalizedEffort)
             case .budget:
@@ -625,18 +634,18 @@ struct ModelSettingsSheet: View {
 
         let baseModelType = ModelSettingsResolver.inferModelType(
             capabilities: model.capabilities,
-            modelID: model.id
+            modelID: catalogModelID
         )
         let baseReasoningCanDisable = ModelSettingsResolver.defaultReasoningCanDisable(
             for: providerType,
-            modelID: model.id
+            modelID: catalogModelID
         )
         let baseWebSearchSupported = ModelCapabilityRegistry.supportsWebSearch(
             for: providerType,
-            modelID: model.id
+            modelID: catalogModelID
         )
         let baseMaxOutputTokens = providerType.flatMap {
-            ModelCatalog.entry(for: model.id, provider: $0)?.maxOutputTokens
+            ModelCatalog.entry(for: catalogModelID, provider: $0)?.maxOutputTokens
         }
 
         var overrides = ModelOverrides()

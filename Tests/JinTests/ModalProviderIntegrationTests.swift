@@ -12,15 +12,17 @@ final class ModalProviderIntegrationTests: XCTestCase {
         XCTAssertFalse(ProviderType.modal.supportsNativePDFUpload)
     }
 
-    func testSeededModelsMatchSharedAPICatalog() {
-        let seeded = ModelCatalog.seededModels(for: .modal)
-        let expectedIDs = [
+    func testCatalogModelsAreRecognizedButNotSeeded() {
+        // A token only reaches endpoints that workspace actually has. Do not
+        // plant Shared catalog IDs on a new Modal provider.
+        XCTAssertTrue(ModelCatalog.seededModels(for: .modal).isEmpty)
+
+        let knownIDs = [
             "moonshotai/Kimi-K3",
+            "Qwen/Qwen3.8-2.4T-A95B",
             "thinkingmachines/Inkling-NVFP4",
         ]
-        XCTAssertEqual(seeded.map(\.id), expectedIDs)
-
-        for id in expectedIDs {
+        for id in knownIDs {
             XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .modal), id)
         }
     }
@@ -68,8 +70,77 @@ final class ModalProviderIntegrationTests: XCTestCase {
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "thinkingmachines/inkling", provider: .modal))
     }
 
+    func testQwen38TextCatalogMetadataIsExactIDAndAlwaysOn() {
+        let info = ModelCatalog.modelInfo(for: "Qwen/Qwen3.8-2.4T-A95B", provider: .modal)
+        XCTAssertEqual(info.name, "Qwen3.8 Max")
+        XCTAssertEqual(info.contextWindow, 1_000_000)
+        XCTAssertEqual(info.maxOutputTokens, 262_144)
+        XCTAssertEqual(
+            info.capabilities,
+            [.streaming, .toolCalling, .reasoning, .promptCaching]
+        )
+        XCTAssertFalse(info.capabilities.contains(.vision))
+        XCTAssertFalse(info.capabilities.contains(.audio))
+        XCTAssertFalse(info.capabilities.contains(.nativePDF))
+        XCTAssertFalse(info.capabilities.contains(.videoInput))
+        XCTAssertEqual(info.reasoningConfig?.type, .effort)
+        XCTAssertEqual(info.reasoningConfig?.defaultEffort, .xhigh)
+
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .modal,
+                modelID: "Qwen/Qwen3.8-2.4T-A95B"
+            ),
+            [.low, .medium, .xhigh]
+        )
+        XCTAssertFalse(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .modal,
+                modelID: "Qwen/Qwen3.8-2.4T-A95B"
+            )
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(
+                .high,
+                for: .modal,
+                modelID: "Qwen/Qwen3.8-2.4T-A95B"
+            ),
+            .xhigh
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(
+                .max,
+                for: .modal,
+                modelID: "Qwen/Qwen3.8-2.4T-A95B"
+            ),
+            .xhigh
+        )
+
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(
+                for: .modal,
+                modelID: "Qwen/Qwen3.8-2.4T-A95B"
+            )
+        )
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(
+                for: .modal,
+                modelID: "moonshotai/Kimi-K3"
+            )
+        )
+
+        // Cloud Max / bare family slugs must not inherit this open-weight row.
+        for id in ["qwen3.8-max", "Qwen/Qwen3.8-Max", "Qwen/Qwen3.8-2.4T-A95B-custom"] {
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .modal), id)
+            XCTAssertTrue(
+                ModelSettingsResolver.defaultReasoningCanDisable(for: .modal, modelID: id),
+                id
+            )
+        }
+    }
+
     func testModalHasNoServerSideToolSurfaces() {
-        for id in ["moonshotai/Kimi-K3", "thinkingmachines/Inkling-NVFP4"] {
+        for id in ["moonshotai/Kimi-K3", "Qwen/Qwen3.8-2.4T-A95B", "thinkingmachines/Inkling-NVFP4"] {
             XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .modal, modelID: id), id)
             XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .modal, modelID: id), id)
             XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .modal, modelID: id), id)
@@ -85,7 +156,7 @@ final class ModalProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(config.id, "modal")
         XCTAssertEqual(config.type, .modal)
         XCTAssertEqual(config.baseURL, "https://inference.us-west.modal.direct/v1")
-        XCTAssertEqual(config.models.map(\.id), ["moonshotai/Kimi-K3", "thinkingmachines/Inkling-NVFP4"])
+        XCTAssertTrue(config.models.isEmpty)
         XCTAssertTrue(DefaultProviderSeeds.allProviders().contains(where: { $0.id == "modal" }))
 
         let adapter = ModalAdapter(providerConfig: config, apiKey: "wk-a.ws-b")
@@ -235,17 +306,14 @@ final class ModalProviderIntegrationTests: XCTestCase {
         // "Kimi K3" rather than its repo ID.
         XCTAssertNil(ModalAdapter.endpointDisplayName(forModelID: "moonshotai/Kimi-K3"))
         XCTAssertNil(ModalAdapter.endpointDisplayName(forModelID: ".us-west.modal.direct"))
+        XCTAssertNil(ModalAdapter.endpointDisplayName(forModelID: "inference.us-west.modal.direct"))
     }
 
-    func testPreferredModelIsKimiK3() {
-        let models = ModelCatalog.seededModels(for: .modal)
-        for preferredID in ChatModelSelectionSupport.preferredModalModelOrder {
-            if models.contains(where: { $0.id == preferredID }) {
-                XCTAssertEqual(preferredID, "moonshotai/Kimi-K3")
-                return
-            }
-        }
-        XCTFail("Expected Kimi K3 in preferred Modal order")
+    func testPreferredModelOrderStartsWithKimiWhenPresent() {
+        XCTAssertEqual(
+            ChatModelSelectionSupport.preferredModalModelOrder.first,
+            "moonshotai/Kimi-K3"
+        )
     }
 
     func testCreateAdapterReturnsModalAdapter() async throws {
