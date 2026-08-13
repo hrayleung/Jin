@@ -431,12 +431,19 @@ private struct CodeLineNumberGutterView: NSViewRepresentable {
         // The gutter's size is a pure function of the number of lines and the
         // font, so it needs no live view at all.
         let inset = NSSize(width: CodeLineNumberGutter.horizontalInset, height: verticalInset)
-        return CodeLineNumberGutter.size(count: count, font: font, inset: inset)
+        var size = CodeLineNumberGutter.size(count: count, font: font, inset: inset)
+        // If SwiftUI offers extra width (rounding / HStack slack), claim it so
+        // the gutter/code seam cannot become a DocumentView wheel dead-zone.
+        if let proposedWidth = proposal.width, proposedWidth.isFinite {
+            size.width = max(size.width, proposedWidth)
+        }
+        return size
     }
 
     private func apply(to view: CodeLineNumberTextView) {
         view.textContainerInset = NSSize(width: CodeLineNumberGutter.horizontalInset, height: verticalInset)
         view.textStorage?.setAttributedString(CodeLineNumberGutter.attributedNumbers(count: count, font: font))
+        view.invalidateIntrinsicContentSize()
     }
 
 }
@@ -529,6 +536,15 @@ final class CodeLineNumberTextView: NSTextView {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    /// SwiftUI on some CI/AppKit paths sizes the representable from
+    /// `intrinsicContentSize` instead of `sizeThatFits`. That path used to
+    /// omit the trailing divider, leaving a 1pt DocumentView strip at the
+    /// gutter/code seam (`testShortCodeFillsTheCardWithForwardingViews` on
+    /// GitHub-hosted runners).
+    override var intrinsicContentSize: NSSize {
+        naturalSize()
     }
 
     override func scrollWheel(with event: NSEvent) {

@@ -195,6 +195,12 @@ final class JinTextMeasurementParityTests: XCTestCase {
 
             XCTAssertEqual(measured.width, liveSize.width, accuracy: 0.5, "gutter width @\(count) lines")
             XCTAssertEqual(measured.height, liveSize.height, accuracy: 0.5, "gutter height @\(count) lines")
+            XCTAssertEqual(
+                live.intrinsicContentSize.width,
+                measured.width,
+                accuracy: 0.5,
+                "gutter intrinsic width must include the trailing divider @\(count) lines"
+            )
         }
     }
 
