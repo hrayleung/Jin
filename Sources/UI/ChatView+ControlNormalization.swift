@@ -53,16 +53,20 @@ extension ChatView {
                 live: controls,
                 stored: storedGenerationControls()
             )
-            guard let encoded = ChatGenerationControlsPersistenceSupport.encodedPayloadIfChanged(
+            if let encoded = ChatGenerationControlsPersistenceSupport.encodedPayloadIfChanged(
                 merged: merged,
                 currentData: conversationEntity.modelConfigData
-            ) else {
+            ) {
+                // Do not bump `updatedAt`. That watermark means message activity
+                // (sidebar sort + timeline cache rebuild), not a settings tweak.
+                conversationEntity.modelConfigData = encoded
+            } else if !save {
                 return
             }
 
-            // Do not bump `updatedAt`. That watermark means message activity
-            // (sidebar sort + timeline cache rebuild), not a settings tweak.
-            conversationEntity.modelConfigData = encoded
+            // Always save when asked. Callers such as `setProviderAndModel`
+            // may have already mutated provider/model fields and rely on this
+            // helper as their only `modelContext.save()`.
             if save {
                 try modelContext.save()
             }
