@@ -8,6 +8,8 @@ struct JinRevealableSecureField: View {
     var revealHelp: String = "Show value"
     var concealHelp: String = "Hide value"
 
+    @Environment(\.jinSettingsFieldChrome) private var fieldChrome
+
     init(
         prompt: String = "",
         text: Binding<String>,
@@ -38,7 +40,7 @@ struct JinRevealableSecureField: View {
             .labelsHidden()
             .multilineTextAlignment(.leading)
             .font(usesMonospacedFont ? .system(.body, design: .monospaced) : .body)
-            .textFieldStyle(.roundedBorder)
+            .jinSettingsTextFieldStyle(fieldChrome)
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Button {

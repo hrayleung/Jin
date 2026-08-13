@@ -87,8 +87,7 @@ extension ProviderConfigFormView {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            TextField("agent_...", text: $claudeManagedAgentIDDraft)
-                .textFieldStyle(.roundedBorder)
+            JinSettingsTextField("agent_...", text: $claudeManagedAgentIDDraft, usesMonospacedFont: true)
 
             HStack(spacing: JinSpacing.small) {
                 Button("Use ID") {
@@ -146,8 +145,7 @@ extension ProviderConfigFormView {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            TextField("env_...", text: $claudeManagedEnvironmentIDDraft)
-                .textFieldStyle(.roundedBorder)
+            JinSettingsTextField("env_...", text: $claudeManagedEnvironmentIDDraft, usesMonospacedFont: true)
 
             HStack(spacing: JinSpacing.small) {
                 Button("Use ID") {

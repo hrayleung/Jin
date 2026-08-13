@@ -9,46 +9,54 @@ extension ProviderConfigFormView {
         }
 
         if !decodedModels.isEmpty {
-            modelsSearchAndActionsHeader
+            modelSearchRow
+            modelActionsRow
         }
 
         modelsListContent
         modelsFooterActions
     }
 
-    private var modelsSearchAndActionsHeader: some View {
-        VStack(spacing: JinSpacing.small) {
-            TextField(text: $modelSearchText, prompt: Text("Search models")) {
-                EmptyView()
+    private var modelSearchRow: some View {
+        HStack(spacing: JinSpacing.small) {
+            Image(systemName: "magnifyingglass")
+                .font(.body)
+                .foregroundStyle(JinSemanticColor.textSecondary)
+                .accessibilityHidden(true)
+
+            TextField("Search models", text: $modelSearchText)
+                .textFieldStyle(.plain)
+                .labelsHidden()
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Search models")
+    }
+
+    private var modelActionsRow: some View {
+        HStack(spacing: JinSpacing.small) {
+            Text("Enabled \(enabledModelCount) / \(decodedModels.count)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Button("Enable All") {
+                setAllModelsEnabled(true)
             }
-            .labelsHidden()
-            .textFieldStyle(.roundedBorder)
+            .buttonStyle(.borderless)
+            .controlSize(.small)
 
-            HStack(spacing: JinSpacing.small) {
-                Text("Enabled \(enabledModelCount) / \(decodedModels.count)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Divider().frame(height: 12)
 
-                Spacer()
-
-                Button("Enable All") {
-                    setAllModelsEnabled(true)
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-
-                Divider().frame(height: 12)
-
-                Button("Disable All") {
-                    setAllModelsEnabled(false)
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-
-                Divider().frame(height: 12)
-
-                modelFilterActionsMenu
+            Button("Disable All") {
+                setAllModelsEnabled(false)
             }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+
+            Divider().frame(height: 12)
+
+            modelFilterActionsMenu
         }
     }
 
@@ -99,11 +107,16 @@ extension ProviderConfigFormView {
                     onEdit: { editingModel = model },
                     onDelete: { requestDeleteModel(model) }
                 )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.visible)
             }
+            .listStyle(.plain)
             .frame(height: ProviderFormSupport.modelListHeight)
             .scrollContentBackground(.hidden)
-            .background(JinSemanticColor.detailSurface)
-            .jinSurface(.outlined, cornerRadius: JinRadius.medium)
+            // The grouped Section card is the only surface. A second fill/outline
+            // punches a darker well through the card in dark mode.
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 

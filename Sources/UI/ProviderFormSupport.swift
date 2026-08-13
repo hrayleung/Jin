@@ -3,7 +3,8 @@ import Foundation
 enum ProviderFormSupport {
     /// Nested `List` inside a grouped `Form` must have a bounded height so
     /// AppKit virtualizes rows. A minHeight-only list expands to every model
-    /// and hitches the first paint of the Providers pane.
+    /// and hitches the first paint of the Providers pane. Keep the list a
+    /// transparent viewport onto the section card — do not paint a second well.
     static let modelListHeight: CGFloat = 300
 
     struct DraftValues: Equatable {
