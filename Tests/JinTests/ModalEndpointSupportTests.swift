@@ -285,7 +285,6 @@ final class ModalEndpointSupportTests: XCTestCase {
     }
 
     func testModalProviderHelpCopyStaysQuiet() {
-        XCTAssertNil(ProviderFormSupport.providerSetupCallout(for: .modal))
         XCTAssertNil(ProviderFormSupport.providerDetailsText(for: .modal))
     }
 }

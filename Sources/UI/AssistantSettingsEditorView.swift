@@ -11,12 +11,14 @@ struct AssistantSettingsEditorView: View {
 
     var body: some View {
         JinSettingsPage {
-            AssistantSettingsIdentityHeader(
-                name: nameBinding,
-                assistantDescription: descriptionBinding,
-                icon: iconBinding,
-                isIconPickerPresented: $isIconPickerPresented
-            )
+            JinSettingsSection("Assistant") {
+                AssistantSettingsIdentityHeader(
+                    name: nameBinding,
+                    assistantDescription: descriptionBinding,
+                    icon: iconBinding,
+                    isIconPickerPresented: $isIconPickerPresented
+                )
+            }
 
             AssistantSystemPromptSection(systemInstruction: systemInstructionBinding)
 

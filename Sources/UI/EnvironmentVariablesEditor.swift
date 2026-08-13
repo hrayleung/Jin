@@ -23,16 +23,31 @@ struct EnvironmentVariablesEditor: View {
                 Text("No environment variables")
                     .foregroundStyle(.secondary)
             } else {
+                HStack(spacing: 8) {
+                    Text("Key")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("Value")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Color.clear
+                        .frame(width: 16)
+                }
+
                 ForEach($pairs) { $pair in
                     HStack(spacing: 8) {
-                        JinSettingsTextField("Key", text: $pair.key, usesMonospacedFont: true)
+                        JinSettingsTextField(text: $pair.key, usesMonospacedFont: true)
 
                         if showValues {
-                            JinSettingsTextField("Value", text: $pair.value, usesMonospacedFont: true)
+                            JinSettingsTextField(text: $pair.value, usesMonospacedFont: true)
                         } else {
-                            SecureField("Value", text: $pair.value)
+                            SecureField("", text: $pair.value)
+                                .labelsHidden()
                                 .font(.system(.body, design: .monospaced))
                                 .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: .infinity)
                         }
 
                         Button(role: .destructive) {

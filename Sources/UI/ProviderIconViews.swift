@@ -71,7 +71,6 @@ struct ProviderIconPickerField: View {
             .jinSurface(.neutral, cornerRadius: JinRadius.small)
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Provider icon"))
         .accessibilityValue(Text(iconLabel))

@@ -33,7 +33,7 @@ extension TextToSpeechPluginSettingsView {
 
     var openRouterSettingsSection: some View {
         JinSettingsSection("OpenRouter") {
-            JinSettingsTextFieldRow("API Base URL", text: $openRouterBaseURL, usesMonospacedFont: true)
+            JinSettingsTextFieldRow("Base URL", text: $openRouterBaseURL, usesMonospacedFont: true)
 
             JinSettingsPickerRow("Model", selection: $openRouterModel) {
                 ForEach(displayedOpenRouterModels) { model in
@@ -44,7 +44,7 @@ extension TextToSpeechPluginSettingsView {
             if openRouterVoiceChoices.isEmpty {
                 JinSettingsTextFieldRow(
                     "Voice",
-                    fieldTitle: "Voice ID",
+                    prompt: "Voice ID",
                     supportingText: "This model accepts arbitrary provider voice IDs. Tap Test Connection to load the catalogs for models that publish one.",
                     text: $openRouterVoice,
                     usesMonospacedFont: true
@@ -71,7 +71,7 @@ extension TextToSpeechPluginSettingsView {
 
     var mistralSettingsSection: some View {
         JinSettingsSection("Mistral") {
-            JinSettingsTextFieldRow("API Base URL", text: $mistralBaseURL, usesMonospacedFont: true)
+            JinSettingsTextFieldRow("Base URL", text: $mistralBaseURL, usesMonospacedFont: true)
 
             JinSettingsPickerRow("Model", selection: $mistralModel) {
                 ForEach(displayedMistralModels) { model in
@@ -103,7 +103,7 @@ extension TextToSpeechPluginSettingsView {
 
     var openAISettingsSection: some View {
         JinSettingsSection("OpenAI") {
-            JinSettingsTextFieldRow("API Base URL", text: $openAIBaseURL, usesMonospacedFont: true)
+            JinSettingsTextFieldRow("Base URL", text: $openAIBaseURL, usesMonospacedFont: true)
 
             JinSettingsPickerRow("Model", selection: $openAIModel) {
                 ForEach(displayedOpenAIModels) { model in
@@ -157,7 +157,7 @@ extension TextToSpeechPluginSettingsView {
 
     var groqSettingsSection: some View {
         JinSettingsSection("Groq") {
-            JinSettingsTextFieldRow("API Base URL", text: $groqBaseURL, usesMonospacedFont: true)
+            JinSettingsTextFieldRow("Base URL", text: $groqBaseURL, usesMonospacedFont: true)
 
             JinSettingsPickerRow("Model", selection: $groqModel) {
                 ForEach(displayedGroqModels) { model in
@@ -185,7 +185,7 @@ extension TextToSpeechPluginSettingsView {
 
     var miMoSettingsSection: some View {
         JinSettingsSection("Xiaomi MiMo") {
-            JinSettingsTextFieldRow("API Base URL", text: $miMoBaseURL, usesMonospacedFont: true)
+            JinSettingsTextFieldRow("Base URL", text: $miMoBaseURL, usesMonospacedFont: true)
 
             JinSettingsPickerRow("Model", selection: $miMoModel) {
                 ForEach(displayedMiMoModels) { model in
@@ -236,7 +236,7 @@ extension TextToSpeechPluginSettingsView {
 
             JinSettingsTextFieldRow(
                 miMoModel == MiMoModelIDs.ttsV25VoiceDesign ? "Voice Design" : "Style",
-                fieldTitle: "Describe voice or speaking style",
+                prompt: "Describe voice or speaking style",
                 supportingText: miMoModel == MiMoModelIDs.ttsV25VoiceDesign ? "Required." : "Optional.",
                 text: $miMoStyleInstruction
             )
@@ -245,7 +245,7 @@ extension TextToSpeechPluginSettingsView {
 
     var elevenLabsSettingsSection: some View {
         JinSettingsSection("ElevenLabs") {
-            JinSettingsTextFieldRow("API Base URL", text: $elevenLabsBaseURL, usesMonospacedFont: true)
+            JinSettingsTextFieldRow("Base URL", text: $elevenLabsBaseURL, usesMonospacedFont: true)
 
             JinSettingsPickerRow("Model", selection: $elevenLabsModelID) {
                 ForEach(displayedElevenLabsModels) { model in
@@ -255,12 +255,13 @@ extension TextToSpeechPluginSettingsView {
 
             if !elevenLabsVoices.isEmpty {
                 JinSettingsControlRow("Voice") {
-                    HStack {
-                        JinSettingsMenuPicker("Voice", selection: $elevenLabsVoiceID) {
+                    HStack(spacing: JinSpacing.small) {
+                        Picker("Voice", selection: $elevenLabsVoiceID) {
                             ForEach(elevenLabsVoices) { voice in
                                 Text(voice.name).tag(voice.voiceId)
                             }
                         }
+                        .labelsHidden()
                         .onChange(of: elevenLabsVoiceID) { _, _ in
                             NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                         }
@@ -316,23 +317,20 @@ extension TextToSpeechPluginSettingsView {
                             title: "Stability",
                             value: $elevenLabsStability,
                             range: 0.0...1.0,
-                            step: 0.01,
-                            labelWidth: 88
+                            step: 0.01
                         )
                     }
                     JinSettingsSliderValueRow(
                         title: "Similarity",
                         value: $elevenLabsSimilarityBoost,
                         range: 0.0...1.0,
-                        step: 0.01,
-                        labelWidth: 88
+                        step: 0.01
                     )
                     JinSettingsSliderValueRow(
                         title: "Style",
                         value: $elevenLabsStyle,
                         range: 0.0...1.0,
-                        step: 0.01,
-                        labelWidth: 88
+                        step: 0.01
                     )
                     // `speed` is rejected by the v3 models.
                     if currentSynthesisCapabilities?.supportsSpeed == true {
@@ -340,8 +338,7 @@ extension TextToSpeechPluginSettingsView {
                             title: "Speed",
                             value: $elevenLabsSpeed,
                             range: 0.7...1.2,
-                            step: 0.01,
-                            labelWidth: 88
+                            step: 0.01
                         )
                     }
                     Toggle("Use speaker boost", isOn: $elevenLabsUseSpeakerBoost)

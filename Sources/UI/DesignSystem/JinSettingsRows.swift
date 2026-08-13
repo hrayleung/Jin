@@ -34,35 +34,36 @@ struct JinFormFieldRow<Control: View>: View {
 struct JinSettingsControlRow<Control: View>: View {
     let title: String
     let supportingText: String?
+    let controlAlignment: Alignment
     private let control: () -> Control
 
     init(
         _ title: String,
         supportingText: String? = nil,
+        controlAlignment: Alignment = .trailing,
         @ViewBuilder control: @escaping () -> Control
     ) {
         self.title = title
         self.supportingText = supportingText
+        self.controlAlignment = controlAlignment
         self.control = control
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            HStack(alignment: .center, spacing: JinSpacing.medium) {
-                Text(title)
-
-                Spacer()
-
-
+        LabeledContent {
+            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
                 control()
-                }
+                    .frame(maxWidth: .infinity, alignment: controlAlignment)
 
-            if let supportingText, !supportingText.isEmpty {
-                Text(supportingText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let supportingText, !supportingText.isEmpty {
+                    Text(supportingText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+        } label: {
+            Text(title)
         }
     }
 }

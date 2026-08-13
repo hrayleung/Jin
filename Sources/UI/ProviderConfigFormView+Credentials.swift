@@ -49,29 +49,29 @@ extension ProviderConfigFormView {
     // MARK: - Test Connection Button
 
     var testConnectionButton: some View {
-        HStack {
-            Button("Test Connection") {
-                testConnection()
-            }
-            .disabled(isTestDisabled)
+        VStack(alignment: .leading, spacing: JinSpacing.small) {
+            HStack(spacing: JinSpacing.small) {
+                Button("Test Connection") {
+                    testConnection()
+                }
+                .disabled(isTestDisabled)
 
-            if testStatus == .testing {
-                ProgressView().scaleEffect(0.5)
+                if testStatus == .testing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
             }
-
-            Spacer()
 
             switch testStatus {
             case .idle, .testing:
                 EmptyView()
             case .success:
-                Label("Connected", systemImage: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                    .font(.caption)
+                JinSettingsStatusText(
+                    text: JinSettingsStatusText.connectionVerifiedMessage,
+                    isSuccess: true
+                )
             case .failure(let message):
-                Label(message, systemImage: "xmark.circle.fill")
-                    .foregroundColor(.red)
-                    .font(.caption)
+                JinSettingsStatusText(text: message, isError: true)
             }
         }
     }

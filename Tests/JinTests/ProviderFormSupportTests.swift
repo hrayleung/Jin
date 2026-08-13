@@ -54,11 +54,6 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertEqual(ProviderFormSupport.apiKeyConcealHelp(for: nil), "Hide API key")
     }
 
-    func testProviderSetupCalloutIsNilForGenericProviders() {
-        XCTAssertNil(ProviderFormSupport.providerSetupCallout(for: .openai))
-        XCTAssertNil(ProviderFormSupport.providerSetupCallout(for: .modal))
-    }
-
     func testProviderDetailsTextUsesProviderSpecificCopy() {
         XCTAssertEqual(
             ProviderFormSupport.providerDetailsText(for: .openaiWebSocket),

@@ -18,8 +18,11 @@ extension ProviderConfigFormView {
 
     private var modelsSearchAndActionsHeader: some View {
         VStack(spacing: JinSpacing.small) {
-            TextField("Search models", text: $modelSearchText)
-                .textFieldStyle(.roundedBorder)
+            TextField(text: $modelSearchText, prompt: Text("Search models")) {
+                EmptyView()
+            }
+            .labelsHidden()
+            .textFieldStyle(.roundedBorder)
 
             HStack(spacing: JinSpacing.small) {
                 Text("Enabled \(enabledModelCount) / \(decodedModels.count)")

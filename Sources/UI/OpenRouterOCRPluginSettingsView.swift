@@ -18,7 +18,7 @@ struct OpenRouterOCRPluginSettingsView: View {
 
     var body: some View {
         JinSettingsPage(maxWidth: 620) {
-            JinSettingsSection("API Key") {
+            JinSettingsSection("Connection") {
                 JinSettingsSecureFieldRow(
                     "API Key",
                     text: $apiKey,

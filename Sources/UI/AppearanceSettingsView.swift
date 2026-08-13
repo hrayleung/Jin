@@ -46,17 +46,15 @@ struct AppearanceSettingsView: View {
 
             JinSettingsSection("Fonts") {
                 JinSettingsControlRow("App Font") {
-                    Button(appFontDisplayName) {
+                    fontPickerButton(title: appFontDisplayName) {
                         showingAppFontPicker = true
                     }
-                    .buttonStyle(.borderless)
                 }
 
                 JinSettingsControlRow("Code Font") {
-                    Button(codeFontDisplayName) {
+                    fontPickerButton(title: codeFontDisplayName) {
                         showingCodeFontPicker = true
                     }
-                    .buttonStyle(.borderless)
                 }
             }
 
@@ -72,24 +70,22 @@ struct AppearanceSettingsView: View {
                 JinSettingsToggleRow("Show Line Numbers", isOn: $codeBlockShowLineNumbers)
             }
 
-            JinSettingsSection("Thinking Blocks") {
-                JinSettingsPickerRow(
-                    "Display Mode",
-                    supportingText: thinkingDisplayMode.wrappedValue.description,
-                    selection: thinkingDisplayMode
-                ) {
+            JinSettingsSection(
+                "Thinking Blocks",
+                detail: "Controls whether thinking stays open while a reply streams."
+            ) {
+                JinSettingsPickerRow("Display Mode", selection: thinkingDisplayMode) {
                     ForEach(ThinkingBlockDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
             }
 
-            JinSettingsSection("Code Execution") {
-                JinSettingsPickerRow(
-                    "Display Mode",
-                    supportingText: codeExecutionDisplayMode.wrappedValue.description,
-                    selection: codeExecutionDisplayMode
-                ) {
+            JinSettingsSection(
+                "Code Execution",
+                detail: "Controls whether code-execution activities stay open while a reply streams."
+            ) {
+                JinSettingsPickerRow("Display Mode", selection: codeExecutionDisplayMode) {
                     ForEach(CodeExecutionDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
@@ -114,6 +110,18 @@ struct AppearanceSettingsView: View {
         .onAppear {
             normalizeTypographyPreferences()
         }
+    }
+
+    private func fontPickerButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: JinSpacing.small) {
+                Text(title)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .buttonStyle(.borderless)
     }
 
     private var appFontDisplayName: String {

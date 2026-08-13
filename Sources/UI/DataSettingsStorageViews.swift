@@ -1,7 +1,13 @@
 import SwiftUI
 
-struct DataSettingsTotalStorageRow: View {
+struct DataSettingsTotalStorageRow<Accessory: View>: View {
     let totalBytes: Int64
+    private let accessory: () -> Accessory
+
+    init(totalBytes: Int64, @ViewBuilder accessory: @escaping () -> Accessory) {
+        self.totalBytes = totalBytes
+        self.accessory = accessory
+    }
 
     var body: some View {
         HStack {
@@ -20,7 +26,15 @@ struct DataSettingsTotalStorageRow: View {
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(.primary)
                 .fontWeight(.medium)
+
+            accessory()
         }
+    }
+}
+
+extension DataSettingsTotalStorageRow where Accessory == EmptyView {
+    init(totalBytes: Int64) {
+        self.init(totalBytes: totalBytes) { EmptyView() }
     }
 }
 

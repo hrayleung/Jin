@@ -46,10 +46,10 @@ struct MinerUOCRPluginSettingsView: View {
 
     var body: some View {
         JinSettingsPage {
-            JinSettingsSection("API Key") {
+            JinSettingsSection("Account") {
                 JinSettingsSecureFieldRow(
                     "API Token",
-                    fieldTitle: "MinerU API Token",
+                    prompt: "Paste token",
                     text: $apiToken,
                     isRevealed: $isTokenVisible,
                     revealHelp: "Show API token",
@@ -63,7 +63,7 @@ struct MinerUOCRPluginSettingsView: View {
 
                 JinSettingsTextFieldRow(
                     "User Header",
-                    fieldTitle: "e.g. team-jin",
+                    prompt: "e.g. team-jin",
                     supportingText: "Sent as an extra user identifier.",
                     text: $userIdentifier
                 )

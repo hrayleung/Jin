@@ -40,13 +40,11 @@ struct CloudflareR2UploadPluginSettingsView: View {
 
     var body: some View {
         JinSettingsPage {
-            JinSettingsSection("Credentials") {
+            JinSettingsSection(
+                "Credentials",
+                detail: "Open dash.cloudflare.com to manage R2 API tokens."
+            ) {
                 JinSettingsTextFieldRow("Account ID", text: $accountID, usesMonospacedFont: true)
-
-                if let dashboardURL = URL(string: "https://dash.cloudflare.com/?to=/:account/r2/overview") {
-                    Link("Open Cloudflare R2 dashboard", destination: dashboardURL)
-                        .font(.caption)
-                }
 
                 JinSettingsTextFieldRow("Access Key ID", text: $accessKeyID, usesMonospacedFont: true)
 
@@ -65,7 +63,7 @@ struct CloudflareR2UploadPluginSettingsView: View {
 
                 JinSettingsTextFieldRow(
                     "Public Base URL",
-                    fieldTitle: "https://pub-xxx.r2.dev",
+                    prompt: "https://pub-xxx.r2.dev",
                     text: $publicBaseURL,
                     usesMonospacedFont: true
                 )

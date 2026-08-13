@@ -7,28 +7,12 @@ struct DataSettingsStorageSection: View {
     let onRecalculate: () -> Void
 
     var body: some View {
-        JinSettingsSection("Storage") {
-            storageDescription
-            totalHeaderRow
+        JinSettingsSection("Storage", detail: "Storage used by Jin on this Mac.") {
             DataSettingsCompositionBar(snapshots: snapshots, totalBytes: totalBytes)
                 .padding(.vertical, JinSpacing.xSmall)
-            DataSettingsTotalStorageRow(totalBytes: totalBytes)
-        }
-    }
-
-    private var storageDescription: some View {
-        Text("Storage used by Jin on this Mac.")
-            .jinInfoCallout()
-    }
-
-    private var totalHeaderRow: some View {
-        HStack {
-            Text("Total")
-                .font(.subheadline.weight(.semibold))
-
-            Spacer()
-
-            recalculateControl
+            DataSettingsTotalStorageRow(totalBytes: totalBytes) {
+                recalculateControl
+            }
         }
     }
 
@@ -88,9 +72,6 @@ struct DataSettingsBreakdownSection: View {
                 onReveal: onReveal,
                 onRequestClear: onRequestClear
             )
-            if snapshot.id != snapshots.last?.id {
-                Divider()
-            }
         }
     }
 }

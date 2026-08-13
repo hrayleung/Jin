@@ -67,7 +67,7 @@ extension SpeechToTextPluginSettingsView {
 
     var openRouterSettingsSection: some View {
         JinSettingsSection("OpenRouter") {
-            JinSettingsTextFieldRow("API Base URL", text: $openRouterBaseURL, usesMonospacedFont: true)
+            JinSettingsTextFieldRow("Base URL", text: $openRouterBaseURL, usesMonospacedFont: true)
 
             JinSettingsPickerRow("Model", selection: $openRouterModel) {
                 ForEach(displayedOpenRouterModels) { model in
@@ -77,7 +77,7 @@ extension SpeechToTextPluginSettingsView {
 
             JinSettingsTextFieldRow(
                 "Language",
-                fieldTitle: "auto-detect",
+                prompt: "auto-detect",
                 text: $openRouterLanguage,
                 usesMonospacedFont: true
             )
@@ -126,7 +126,7 @@ extension SpeechToTextPluginSettingsView {
 
     var elevenLabsSettingsSection: some View {
         JinSettingsSection("ElevenLabs") {
-            JinSettingsTextFieldRow("API Base URL", text: $elevenLabsBaseURL, usesMonospacedFont: true)
+            JinSettingsTextFieldRow("Base URL", text: $elevenLabsBaseURL, usesMonospacedFont: true)
 
             JinSettingsPickerRow("Model", selection: $elevenLabsModel) {
                 ForEach(displayedElevenLabsModels) { model in
@@ -136,7 +136,7 @@ extension SpeechToTextPluginSettingsView {
 
             JinSettingsTextFieldRow(
                 "Language Code",
-                fieldTitle: "auto-detect",
+                prompt: "auto-detect",
                 text: $elevenLabsLanguageCode,
                 usesMonospacedFont: true
             )
@@ -214,7 +214,7 @@ extension SpeechToTextPluginSettingsView {
         diarize: Binding<Bool>? = nil
     ) -> some View {
         JinSettingsSection(title) {
-            JinSettingsTextFieldRow("API Base URL", text: baseURL, usesMonospacedFont: true)
+            JinSettingsTextFieldRow("Base URL", text: baseURL, usesMonospacedFont: true)
 
             JinSettingsPickerRow("Model", selection: model) {
                 ForEach(displayedModels) { model in
@@ -246,7 +246,7 @@ extension SpeechToTextPluginSettingsView {
             case .single:
                 JinSettingsTextFieldRow(
                     "Language",
-                    fieldTitle: "auto-detect",
+                    prompt: "auto-detect",
                     supportingText: capabilities.timestampsConflictWithLanguage
                         ? "Not compatible with timestamps — set one or the other."
                         : nil,
@@ -256,7 +256,7 @@ extension SpeechToTextPluginSettingsView {
             case .multiple:
                 JinSettingsTextFieldRow(
                     "Languages",
-                    fieldTitle: "auto-detect",
+                    prompt: "auto-detect",
                     supportingText: "Comma-separated ISO-639-1 codes, e.g. en, fr. This model accepts several at once.",
                     text: language,
                     usesMonospacedFont: true
@@ -266,7 +266,7 @@ extension SpeechToTextPluginSettingsView {
             if let keywords, capabilities.supportsKeywords {
                 JinSettingsTextFieldRow(
                     "Keywords",
-                    fieldTitle: "product names, acronyms",
+                    prompt: "product names, acronyms",
                     supportingText: "Comma-separated terms to bias the transcript toward.",
                     text: keywords
                 )

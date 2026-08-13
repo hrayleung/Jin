@@ -51,12 +51,19 @@ extension ProviderConfigFormView {
     }
 
     private var nameRow: some View {
-        JinSettingsControlRow("Name") {
+        JinSettingsControlRow("Name", controlAlignment: .leading) {
             // Local-draft field so transforming bindings cannot kill key-repeat;
             // persist is debounced (see scheduleConfigurationSave).
-            JinSettingsTextField("Provider name", text: $provider.name)
+            JinSettingsTextField(namePrompt, text: $provider.name)
                 .onChange(of: provider.name) { _, _ in scheduleConfigurationSave() }
         }
+    }
+
+    private var namePrompt: String {
+        if let providerType {
+            return "e.g. \(providerType.displayName)"
+        }
+        return ""
     }
 
     private var iconRow: some View {
@@ -79,10 +86,10 @@ extension ProviderConfigFormView {
         if providerType == .modal {
             EmptyView()
         } else if let providerType, let defaultBaseURL = providerType.defaultBaseURL {
-            JinSettingsControlRow("API Base URL", supportingText: "Use the provider default unless you need a custom endpoint.") {
+            JinSettingsControlRow("Base URL", controlAlignment: .leading) {
                 HStack(alignment: .center, spacing: JinSpacing.small) {
                     JinSettingsTextField(
-                        "https://…",
+                        defaultBaseURL,
                         text: baseURLBinding(defaultBaseURL: defaultBaseURL),
                         usesMonospacedFont: true
                     )
@@ -94,6 +101,13 @@ extension ProviderConfigFormView {
                     .disabled((provider.baseURL ?? defaultBaseURL) == defaultBaseURL)
                     .buttonStyle(.borderless)
                     .font(.caption)
+
+                    Text("Default if empty")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .frame(alignment: .trailing)
                 }
             }
 
