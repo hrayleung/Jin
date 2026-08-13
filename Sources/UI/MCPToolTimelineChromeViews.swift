@@ -76,12 +76,10 @@ struct MCPSingleToolTimelineRow: View {
     let iconID: String
     let isStreaming: Bool
     let isExpanded: Bool
+    let mountsPayload: Bool
     let onToggle: () -> Void
 
     @State private var isHovering = false
-    /// Payload stays mounted at height 0 while collapsed so the first expand
-    /// has a warm height probe (no snap / text flicker).
-    @State private var hasMountedPayload = false
 
     private var parsed: MCPToolTimelineSupport.ParsedFunctionName {
         MCPToolTimelineSupport.parseFunctionName(entry.call.name)
@@ -94,7 +92,7 @@ struct MCPSingleToolTimelineRow: View {
     }
 
     private var argumentSummary: String? {
-        ToolCallViewSupport.argumentSummary(for: entry.call.arguments)
+        ToolCallViewSupport.quietArgumentPreview(for: entry.call.arguments)
     }
 
     private var statusStyle: ToolTimelinePresentationSupport.StatusVisualStyle {
@@ -105,21 +103,15 @@ struct MCPSingleToolTimelineRow: View {
         VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
             headerButton
 
-            if let argumentSummary {
+            if !isExpanded, let argumentSummary {
                 Text(argumentSummary)
                     .font(.caption)
                     .foregroundStyle(JinSemanticColor.textTertiary)
-                    .lineLimit(2)
-                    .textSelection(.enabled)
+                    .lineLimit(1)
                     .padding(.leading, 24)
-                    .opacity(isExpanded ? 0 : 1)
-                    .frame(height: isExpanded ? 0 : nil, alignment: .top)
-                    .clipped()
-                    .allowsHitTesting(!isExpanded)
-                    .accessibilityHidden(isExpanded)
             }
 
-            if hasMountedPayload {
+            if mountsPayload {
                 JinCollapsibleContent(isExpanded: isExpanded) {
                     ToolCallExpandedContentView(
                         formattedArgumentsJSON: ToolCallViewSupport.formattedArgumentsJSON(
@@ -132,11 +124,6 @@ struct MCPSingleToolTimelineRow: View {
                     .padding(.top, 2)
                     .padding(.bottom, JinSpacing.xSmall)
                 }
-            }
-        }
-        .onAppear {
-            if !hasMountedPayload {
-                hasMountedPayload = true
             }
         }
     }
