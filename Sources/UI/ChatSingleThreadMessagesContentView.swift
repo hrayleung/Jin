@@ -112,7 +112,8 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             codeFontFamily: codeFontFamily,
             streamingObjectID: streamingMessage.map(ObjectIdentifier.init),
             streamingModelLabel: streamingModelLabel,
-            streamingModelID: streamingModelID
+            streamingModelID: streamingModelID,
+            streamingSuppressesIdlePlaceholder: streamingSuppressesIdlePlaceholder
         )
     }
 
@@ -134,7 +135,18 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             onOpenArtifact: onOpenArtifact,
             effectiveRenderMode: effectiveRenderMode,
             onExpandCollapsedContent: expandCollapsedContent,
-            colorScheme: colorScheme
+            colorScheme: colorScheme,
+            isConversationStreaming: isStreaming,
+            streamingSuppressesIdlePlaceholder: streamingSuppressesIdlePlaceholder
+        )
+    }
+
+    private var streamingSuppressesIdlePlaceholder: Bool {
+        ChatTimelineStreamingPresentationSupport.suppressesIdlePlaceholder(
+            lastVisibleTurn: ChatTimelineStreamingPresentationSupport.lastVisibleTurn(
+                from: timelineWindow.visibleMessages,
+                toolResultsByCallID: toolResultsByCallID
+            )
         )
     }
 

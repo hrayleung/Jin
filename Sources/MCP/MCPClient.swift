@@ -95,20 +95,21 @@ actor MCPClient {
         repeat {
             do {
                 let cursorSnapshot = cursor
-                let page = try await withTimeout(method: "tools/list", seconds: requestTimeoutSeconds) {
+                let (pageTools, nextCursor) = try await withTimeout(method: "tools/list", seconds: requestTimeoutSeconds) {
                     try await client.listTools(cursor: cursorSnapshot)
                 }
 
-                tools.append(contentsOf: page.tools.map { tool in
+                tools.append(contentsOf: pageTools.map { tool in
                     MCPToolInfo(
                         name: tool.name,
                         description: tool.description ?? "",
                         inputSchema: decodeParameterSchema(tool.inputSchema)
-                            ?? ParameterSchema(properties: [:], required: [])
+                            ?? ParameterSchema(properties: [:], required: []),
+                        title: tool.title
                     )
                 })
 
-                cursor = page.nextCursor
+                cursor = nextCursor
             } catch {
                 throw enrich(error, method: "tools/list")
             }
@@ -124,13 +125,19 @@ actor MCPClient {
         let args = try decodeArguments(arguments)
 
         do {
-            let result = try await withTimeout(method: "tools/call", seconds: toolCallTimeoutSeconds) {
+            // The SDK's async convenience drops `structuredContent` from the
+            // result (MCP Spec 2025-11-25). A future change can switch to the
+            // `send()` / `RequestContext` path to surface structured JSON.
+            let (content, isError): ([MCP.Tool.Content], Bool?) = try await withTimeout(
+                method: "tools/call",
+                seconds: toolCallTimeoutSeconds
+            ) {
                 try await client.callTool(name: name, arguments: args)
             }
 
-            let text = result.content.compactMap(Self.line(for:)).joined(separator: "\n")
+            let text = content.compactMap(Self.line(for:)).joined(separator: "\n")
 
-            return MCPToolCallResult(text: text, isError: result.isError ?? false)
+            return MCPToolCallResult(text: text, isError: isError ?? false)
         } catch {
             throw enrich(error, method: "tools/call")
         }
@@ -147,7 +154,8 @@ actor MCPClient {
 
         if client != nil { return }
 
-        let client = MCP.Client(name: "Jin", version: "0.1.0")
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
+        let client = MCP.Client(name: "Jin", version: version, title: "Jin")
         self.client = client
 
         do {
@@ -159,9 +167,12 @@ actor MCPClient {
                 try await connectHTTPClient(client: client, http: http)
             }
         } catch {
-            let enriched = enrich(error, method: "initialize")
+            let mapped = MCPOAuthCoordinator.mapError(error)
             await stop()
-            throw enriched
+            if mapped is MCPOAuthError {
+                throw mapped
+            }
+            throw enrich(mapped, method: "initialize")
         }
     }
 
@@ -180,7 +191,16 @@ actor MCPClient {
     }
 
     private func connectHTTPClient(client: MCP.Client, http: MCPHTTPTransportConfig) async throws {
-        let headers = http.resolvedHeaders()
+        var headers = http.resolvedHeaders()
+        let authorizer: (any HTTPClientAuthorizer)?
+        if case .oauth = http.authentication {
+            authorizer = MCPOAuthCoordinator.authorizer(for: http.endpoint, legacyServerID: config.id)
+            if let existing = authorizer?.authorizationHeader(for: http.endpoint) {
+                headers["Authorization"] = existing
+            }
+        } else {
+            authorizer = nil
+        }
         httpDiagnostics = HTTPDiagnostics(endpoint: http.endpoint.absoluteString, headerNames: headers.keys.sorted())
 
         let configuration = httpClientTransportConfiguration()
@@ -188,9 +208,15 @@ actor MCPClient {
             endpoint: http.endpoint,
             configuration: configuration,
             streaming: http.streaming,
+            authorizer: authorizer,
             requestModifier: { request in
                 var modified = request
                 for (key, value) in headers {
+                    // When an OAuth authorizer is active, let the SDK manage
+                    // the Authorization header so refreshed tokens take effect.
+                    if key.lowercased() == "authorization" && authorizer != nil {
+                        continue
+                    }
                     modified.setValue(value, forHTTPHeaderField: key)
                 }
                 return modified
@@ -320,15 +346,19 @@ actor MCPClient {
     /// (Surfacing the bytes themselves needs a newer SDK and is a separate change.)
     static func line(for content: MCP.Tool.Content) -> String? {
         switch content {
-        case .text(let text):
+        case .text(let text, _, _):
             return text
-        case .image(let data, let mimeType, _):
+        case .image(let data, let mimeType, _, _):
             return "[image returned — \(mimeType), \(formattedByteCount(base64Length: data.count)); not shown]"
-        case .audio(let data, let mimeType):
+        case .audio(let data, let mimeType, _, _):
             return "[audio returned — \(mimeType), \(formattedByteCount(base64Length: data.count)); not shown]"
-        case .resource(let uri, let mimeType, let text):
-            if let text, !text.isEmpty { return text }
-            return "[resource \(uri) — \(mimeType)]"
+        case .resource(let resource, _, _):
+            if let text = resource.text, !text.isEmpty { return text }
+            let mimeType = resource.mimeType ?? "unknown"
+            return "[resource \(resource.uri) — \(mimeType)]"
+        case .resourceLink(let uri, let name, _, _, let mimeType, _):
+            let type = mimeType ?? "unknown"
+            return "[resource link \(name) — \(uri), \(type)]"
         @unknown default:
             return nil
         }

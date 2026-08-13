@@ -55,6 +55,11 @@ extension ChatStreamingOrchestrator {
         /// Merge search activities into a previously persisted assistant message.
         let mergeSearchActivities: @MainActor (_ messageID: UUID, _ activities: [SearchActivity]) -> Void
 
+        /// Publish a tool result onto the persisted assistant card immediately,
+        /// without waiting for the hidden `.tool` message rebuild. The live
+        /// bubble no longer hosts these calls after persist.
+        let upsertLiveToolResult: @MainActor (_ result: ToolResult, _ conversationID: UUID) -> Void
+
         /// Optionally auto-rename the conversation after the first assistant reply.
         let maybeAutoRename: @MainActor (
             _ provider: ProviderConfig,

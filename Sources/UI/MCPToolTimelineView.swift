@@ -5,10 +5,10 @@ import SwiftData
 ///
 /// Design (Claude / Cursor progressive-disclosure):
 /// - **Secondary visual weight** — muted chrome that never competes with prose.
-/// - **Single-tool path** collapses outer + inner into one control (no nested
-///   "MCP · name" then "name Done" double header).
+/// - **Stay collapsed while running** — a compact header + one-line preview.
+///   Arguments JSON is user-opened only; auto-expand caused row-height jitter.
+/// - **Single-tool path** is one control (no nested "MCP · name" headers).
 /// - **Multi-tool path** uses a quiet summary + compact per-call rows.
-/// - Expand only reveals payload; status/duration stay on the header.
 struct MCPToolTimelineView: View {
     let toolCalls: [ToolCall]
     let toolResultsByCallID: [String: ToolResult]
@@ -42,16 +42,6 @@ struct MCPToolTimelineView: View {
                 }
             }
             .clipped()
-            .animation(.easeInOut(duration: 0.2), value: entryAnimationSignature)
-            .onAppear {
-                if isStreaming {
-                    openForStreaming()
-                }
-            }
-            .onChange(of: isStreaming) { _, streaming in
-                guard streaming else { return }
-                openForStreaming()
-            }
             .onChange(of: isExpanded) { _, _ in
                 onExpansionChanged()
             }
@@ -67,14 +57,9 @@ struct MCPToolTimelineView: View {
             iconID: summaryIconID,
             isStreaming: isStreaming,
             isExpanded: isExpanded,
+            mountsPayload: hasEverExpanded,
             onToggle: toggleExpanded
         )
-        .onAppear {
-            // Warm-mount payload while collapsed so first expand has a solid height.
-            if !hasEverExpanded {
-                hasEverExpanded = true
-            }
-        }
     }
 
     // MARK: - Multi tool
@@ -107,22 +92,6 @@ struct MCPToolTimelineView: View {
     }
 
     // MARK: - Expand
-
-    private func openForStreaming() {
-        hasEverExpanded = true
-        expandGeneration &+= 1
-        let generation = expandGeneration
-        Task { @MainActor in
-            await Task.yield()
-            await Task.yield()
-            guard generation == expandGeneration else { return }
-            withAnimation(JinMotion.disclosure(expanding: true)) {
-                isExpanded = true
-            }
-            // Layout invalidation comes from `.onChange(of: isExpanded)` only —
-            // an extra call here double-invalidated the parent row.
-        }
-    }
 
     private func toggleExpanded() {
         expandGeneration &+= 1
@@ -202,9 +171,5 @@ struct MCPToolTimelineView: View {
 
     private var totalDurationText: String? {
         MCPToolTimelineSupport.compactDurationText(for: entries)
-    }
-
-    private var entryAnimationSignature: String {
-        MCPToolTimelineSupport.entryAnimationSignature(for: entries)
     }
 }

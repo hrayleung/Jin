@@ -12,7 +12,10 @@ final class MCPToolResultContentTests: XCTestCase {
 
     func testTextOnlyResultsAreUnchanged() {
         XCTAssertEqual(
-            render([.text("first"), .text("second")]),
+            render([
+                .text(text: "first", annotations: nil, _meta: nil),
+                .text(text: "second", annotations: nil, _meta: nil)
+            ]),
             "first\nsecond",
             "Text-only results must render exactly as before"
         )
@@ -23,13 +26,17 @@ final class MCPToolResultContentTests: XCTestCase {
     }
 
     func testEmbeddedResourceTextIsRecovered() {
-        let content = render([.resource(uri: "file:///notes.txt", mimeType: "text/plain", text: "the contents")])
+        let content = render([
+            .resource(resource: .text("the contents", uri: "file:///notes.txt", mimeType: "text/plain"))
+        ])
 
         XCTAssertEqual(content, "the contents", "Inline resource text is real content that used to be dropped")
     }
 
     func testEmbeddedResourceWithoutTextFallsBackToADescriptor() {
-        let content = render([.resource(uri: "file:///a.bin", mimeType: "application/octet-stream", text: nil)])
+        let content = render([
+            .resource(resource: .binary(Data(), uri: "file:///a.bin", mimeType: "application/octet-stream"))
+        ])
 
         XCTAssertEqual(content, "[resource file:///a.bin — application/octet-stream]")
     }
@@ -38,13 +45,18 @@ final class MCPToolResultContentTests: XCTestCase {
         // 1400 base64 chars ≈ 1050 bytes.
         let base64 = String(repeating: "A", count: 1400)
 
-        let content = render([.text("here"), .image(data: base64, mimeType: "image/png", metadata: nil)])
+        let content = render([
+            .text(text: "here", annotations: nil, _meta: nil),
+            .image(data: base64, mimeType: "image/png", annotations: nil, _meta: nil)
+        ])
 
         XCTAssertEqual(content, "here\n[image returned — image/png, 1 KB; not shown]")
     }
 
     func testAudioIsAnnouncedRatherThanDroppedSilently() {
-        let content = render([.audio(data: String(repeating: "A", count: 8), mimeType: "audio/wav")])
+        let content = render([
+            .audio(data: String(repeating: "A", count: 8), mimeType: "audio/wav", annotations: nil, _meta: nil)
+        ])
 
         XCTAssertEqual(content, "[audio returned — audio/wav, 6 B; not shown]")
     }

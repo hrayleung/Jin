@@ -146,6 +146,26 @@ final class ToolCallViewSupportTests: XCTestCase {
         XCTAssertNil(ToolCallViewSupport.argumentSummary(for: ["bad": AnyCodable(Double.nan)]))
     }
 
+    func testQuietArgumentPreviewUsesPreferredKeysAndNeverDumpsJSON() {
+        XCTAssertEqual(
+            ToolCallViewSupport.quietArgumentPreview(
+                for: [
+                    "model": AnyCodable("mini"),
+                    "input": AnyCodable("What are the top news headlines today?")
+                ]
+            ),
+            "What are the top news headlines today?"
+        )
+        XCTAssertNil(
+            ToolCallViewSupport.quietArgumentPreview(
+                for: [
+                    "limit": AnyCodable(5),
+                    "model": AnyCodable("mini")
+                ]
+            )
+        )
+    }
+
     func testArgumentSummaryTruncatesLongValues() {
         XCTAssertEqual(
             ToolCallViewSupport.argumentSummary(

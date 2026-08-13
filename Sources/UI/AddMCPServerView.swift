@@ -8,6 +8,10 @@ struct AddMCPServerView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    @State private var step: Step = .catalog
+    @State private var searchText = ""
+    @State private var category: MCPServerCatalogCategory = .all
+
     @State private var id = ""
     @State private var name = ""
     @State private var iconID: String?
@@ -26,6 +30,7 @@ struct AddMCPServerView: View {
     @State private var httpStreaming = true
     @State private var isBearerTokenVisible = false
     @State private var isHeaderValueVisible = false
+    @State private var isCredentialVisible = false
 
     @State private var runToolsAutomatically = true
     @State private var isEnabled = true
@@ -35,75 +40,97 @@ struct AddMCPServerView: View {
     @State private var importJSON = ""
     @State private var importError: String?
 
+    private enum Step: Equatable {
+        case catalog
+        case configure
+    }
+
     var body: some View {
         NavigationStack {
-            JinSettingsPage(maxWidth: 720, horizontalPadding: 20, verticalPadding: 20) {
-                AddMCPServerQuickSetupSection(
-                    preset: $preset,
-                    isImportSectionExpanded: $isImportSectionExpanded,
-                    importJSON: $importJSON,
-                    importError: importError,
-                    onImport: importFromJSON
-                )
-                .onChange(of: preset) { _, newValue in
-                    applyPreset(newValue)
+            ScrollView {
+                Group {
+                    switch step {
+                    case .catalog:
+                        AddMCPServerCatalogSection(
+                            searchText: $searchText,
+                            category: $category,
+                            items: filteredCatalogItems,
+                            onSelect: selectPreset
+                        )
+                    case .configure:
+                        AddMCPServerConfigureSection(
+                            preset: preset,
+                            catalogItem: MCPServerCatalog.item(for: preset),
+                            id: $id,
+                            name: $name,
+                            iconID: $iconID,
+                            transportKind: $transportKind,
+                            isEnabled: $isEnabled,
+                            runToolsAutomatically: $runToolsAutomatically,
+                            credentialValue: credentialBinding,
+                            isCredentialVisible: $isCredentialVisible,
+                            command: $command,
+                            args: $args,
+                            envPairs: $envPairs,
+                            endpoint: $endpoint,
+                            httpAuthKind: $httpAuthKind,
+                            bearerToken: $bearerToken,
+                            authHeaderName: $authHeaderName,
+                            authHeaderValue: $authHeaderValue,
+                            headerPairs: $headerPairs,
+                            httpStreaming: $httpStreaming,
+                            isBearerTokenVisible: $isBearerTokenVisible,
+                            isHeaderValueVisible: $isHeaderValueVisible,
+                            importJSON: $importJSON,
+                            importError: importError,
+                            authenticationError: httpAuthenticationValidationError,
+                            onImport: importFromJSON
+                        )
+                    }
+                }
+                .padding(JinSpacing.xLarge)
+                .frame(maxWidth: 760, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .background(JinSemanticColor.detailSurface)
+            .navigationTitle(step == .catalog ? "Add MCP Server" : configureTitle)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    if step == .configure {
+                        Button("Back") { step = .catalog }
+                    } else {
+                        Button("Cancel") { dismiss() }
+                    }
                 }
 
-                AddMCPServerIdentitySection(
-                    id: $id,
-                    name: $name,
-                    iconID: $iconID,
-                    transportKind: $transportKind,
-                    isEnabled: $isEnabled,
-                    runToolsAutomatically: $runToolsAutomatically
-                )
-
-                if transportKind == .stdio {
-                    MCPServerStdioTransportSections(
-                        command: $command,
-                        argsText: $args,
-                        envPairs: $envPairs,
-                        argsError: nil,
-                        showsNodeIsolationNote: shouldShowNodeIsolationNote,
-                        showsFirecrawlAPIKeyWarning: false
-                    )
-                } else {
-                    MCPServerHTTPTransportSections(
-                        endpoint: $endpoint,
-                        httpStreaming: $httpStreaming,
-                        endpointError: nil,
-                        httpAuthKind: $httpAuthKind,
-                        bearerToken: $bearerToken,
-                        authHeaderName: $authHeaderName,
-                        authHeaderValue: $authHeaderValue,
-                        headerPairs: $headerPairs,
-                        isBearerTokenVisible: $isBearerTokenVisible,
-                        isHeaderValueVisible: $isHeaderValueVisible,
-                        authenticationError: httpAuthenticationValidationError
-                    )
+                ToolbarItem(placement: .confirmationAction) {
+                    if step == .configure {
+                        Button("Add", action: addServer)
+                            .disabled(isAddDisabled)
+                    }
                 }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                AddMCPServerActionBar(
-                    isAddDisabled: isAddDisabled,
-                    onCancel: { dismiss() },
-                    onAdd: addServer
-                )
-            }
-            .navigationTitle("Add MCP Server")
             .onExitCommand { dismiss() }
             .frame(
-                minWidth: 620,
-                idealWidth: 680,
-                maxWidth: 760,
-                minHeight: 540,
-                idealHeight: 680,
-                maxHeight: 760
+                minWidth: 680,
+                idealWidth: 740,
+                maxWidth: 820,
+                minHeight: 560,
+                idealHeight: 700,
+                maxHeight: 820
             )
         }
         #if os(macOS)
         .background(MovableWindowHelper())
         #endif
+    }
+
+    private var filteredCatalogItems: [MCPServerCatalogItem] {
+        MCPServerCatalog.filtered(query: searchText, category: category)
+    }
+
+    private var configureTitle: String {
+        MCPServerCatalog.item(for: preset)?.title ?? preset.rawValue
     }
 
     private var isAddDisabled: Bool {
@@ -120,14 +147,24 @@ struct AddMCPServerView: View {
         MCPServerFormSupport.parsedEndpoint(endpoint)
     }
 
-    private var shouldShowNodeIsolationNote: Bool {
-        MCPServerFormSupport.shouldShowNodeIsolationNote(command: command)
+    private var credentialBinding: Binding<String> {
+        Binding(
+            get: {
+                AddMCPServerPresetSupport.credentialValue(for: preset, draft: presetDraft)
+            },
+            set: { newValue in
+                applyPresetDraft(
+                    AddMCPServerPresetSupport.applyingCredential(newValue, for: preset, to: presetDraft)
+                )
+            }
+        )
     }
 
-    private func applyPreset(_ preset: AddMCPServerPreset) {
+    private func selectPreset(_ newPreset: AddMCPServerPreset) {
         importError = nil
-        guard preset != .custom else { return }
-        applyPresetDraft(AddMCPServerPresetSupport.applyingPreset(preset, to: presetDraft))
+        preset = newPreset
+        applyPresetDraft(AddMCPServerPresetSupport.applyingPreset(newPreset, to: .blank))
+        step = .configure
     }
 
     private func importFromJSON() {
@@ -194,6 +231,7 @@ struct AddMCPServerView: View {
         }
 
         modelContext.insert(server)
+        try? modelContext.save()
         dismiss()
     }
 
@@ -239,7 +277,7 @@ struct AddMCPServerView: View {
 
     private func applyHTTPAuthentication(_ authentication: MCPHTTPAuthentication) {
         let fields = authentication.formFields
-        httpAuthKind = fields.kind
+        httpAuthKind = MCPHTTPAuthentication.FormKind.coerced(fields.kind, forEndpoint: endpoint)
         bearerToken = fields.bearerToken
         authHeaderName = fields.headerName
         authHeaderValue = fields.headerValue
@@ -249,6 +287,7 @@ struct AddMCPServerView: View {
         AddMCPServerPresetSupport.Draft(
             id: id,
             name: name,
+            iconID: iconID,
             transportKind: transportKind,
             command: command,
             args: args,
@@ -262,6 +301,7 @@ struct AddMCPServerView: View {
     private func applyPresetDraft(_ draft: AddMCPServerPresetSupport.Draft) {
         id = draft.id
         name = draft.name
+        iconID = draft.iconID
         transportKind = draft.transportKind
         command = draft.command
         args = draft.args
@@ -270,5 +310,4 @@ struct AddMCPServerView: View {
         headerPairs = draft.headerPairs
         applyHTTPAuthentication(draft.httpAuthentication)
     }
-
 }

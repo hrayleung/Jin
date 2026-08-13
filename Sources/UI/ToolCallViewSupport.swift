@@ -49,6 +49,20 @@ enum ToolCallViewSupport {
         )
     }
 
+    /// One-line preview for a collapsed tool row. Never dumps JSON — that
+    /// preview used to look like an auto-expanded arguments panel.
+    static func quietArgumentPreview(
+        for arguments: [String: AnyCodable],
+        maxLength: Int = 140
+    ) -> String? {
+        ToolArgumentPresentationSupport.summary(
+            for: arguments,
+            preferredKeys: preferredSummaryKeys,
+            maxLength: maxLength,
+            fallsBackToJSON: false
+        )
+    }
+
     static func statusLabel(for status: ToolCallExecutionStatus) -> String {
         ToolTimelineTextSupport.statusLabel(for: status)
     }

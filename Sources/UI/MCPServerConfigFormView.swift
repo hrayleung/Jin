@@ -35,61 +35,61 @@ struct MCPServerConfigFormView: View {
     @State private var loading = false
 
     var body: some View {
-        JinSettingsPage(maxWidth: 760) {
-            if let configError {
-                MCPServerConfigurationErrorSection(message: configError) {
-                    self.configError = nil
+        ScrollView {
+            VStack(alignment: .leading, spacing: JinSpacing.large) {
+                if let configError {
+                    Text(configError)
+                        .jinInlineErrorText()
                 }
-            }
 
-            MCPServerIdentitySection(
-                server: server,
-                transportKind: $transportKind
-            )
+                heroCard
+                identityCard
+                connectionCard
 
-            if transportKind == .stdio {
-                MCPServerStdioTransportSections(
-                    command: $command,
-                    argsText: $argsText,
-                    envPairs: $envPairs,
-                    argsError: argsError,
-                    showsFirecrawlAPIKeyWarning: isFirecrawlMCP && !hasFirecrawlAPIKey
-                )
-            } else {
-                MCPServerHTTPTransportSections(
-                    endpoint: $endpoint,
-                    httpStreaming: $httpStreaming,
-                    endpointError: endpointError,
-                    httpAuthKind: $httpAuthKind,
-                    bearerToken: $bearerToken,
-                    authHeaderName: $authHeaderName,
-                    authHeaderValue: $authHeaderValue,
-                    headerPairs: $headerPairs,
-                    isBearerTokenVisible: $isBearerTokenVisible,
-                    isHeaderValueVisible: $isHeaderValueVisible,
-                    authenticationError: httpAuthenticationValidationError
-                )
-            }
-
-            MCPServerToolsSection(
-                verifying: verifying,
-                hasTransportValidationError: hasTransportValidationError,
-                verifyError: verifyError,
-                tools: tools,
-                isToolEnabled: { tool in
-                    !disabledTools.contains(tool.name)
-                },
-                onVerify: verifyTools,
-                onHide: {
-                    tools = []
-                    verifyError = nil
-                },
-                onSetToolEnabled: setToolEnabled,
-                onViewSchema: { tool in
-                    schemaPresentedTool = tool
+                if transportKind == .http {
+                    JinSettingsCard {
+                        MCPHTTPAuthViews(
+                            serverID: server.id,
+                            endpoint: endpoint,
+                            httpAuthKind: $httpAuthKind,
+                            bearerToken: $bearerToken,
+                            authHeaderName: $authHeaderName,
+                            authHeaderValue: $authHeaderValue,
+                            isBearerTokenVisible: $isBearerTokenVisible,
+                            isHeaderValueVisible: $isHeaderValueVisible,
+                            authenticationError: httpAuthenticationValidationError
+                        )
+                    }
                 }
-            )
+
+                if transportKind == .stdio {
+                    environmentCard
+                }
+
+                MCPServerToolsSection(
+                    verifying: verifying,
+                    hasTransportValidationError: hasTransportValidationError,
+                    verifyError: verifyError,
+                    tools: tools,
+                    isToolEnabled: { tool in
+                        !disabledTools.contains(tool.name)
+                    },
+                    onVerify: verifyTools,
+                    onHide: {
+                        tools = []
+                        verifyError = nil
+                    },
+                    onSetToolEnabled: setToolEnabled,
+                    onViewSchema: { tool in
+                        schemaPresentedTool = tool
+                    }
+                )
+            }
+            .padding(JinSpacing.xLarge)
+            .frame(maxWidth: 720, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .top)
         }
+        .background(JinSemanticColor.detailSurface)
         .navigationTitle(server.name)
         .task {
             loadFromServer()
@@ -109,6 +109,153 @@ struct MCPServerConfigFormView: View {
             MCPToolSchemaSheet(tool: tool) {
                 schemaPresentedTool = nil
             }
+        }
+    }
+
+    private var heroCard: some View {
+        JinSettingsCard(spacing: JinSpacing.medium, padding: JinSpacing.large) {
+            HStack(alignment: .top, spacing: JinSpacing.medium) {
+                MCPIconView(iconID: server.resolvedMCPIconID, size: 30)
+                    .frame(width: 48, height: 48)
+                    .jinSurface(.subtle, cornerRadius: JinRadius.medium)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
+                        Text(server.name)
+                            .font(.title3.weight(.semibold))
+                        Spacer(minLength: 0)
+                        Text(transportKind == .http ? "HTTP" : "Local")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(JinSemanticColor.textSecondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .jinSurface(.outlined, cornerRadius: JinRadius.small)
+                    }
+
+                    Text(server.transportSummary)
+                        .font(.caption)
+                        .foregroundStyle(JinSemanticColor.textSecondary)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    private var identityCard: some View {
+        JinSettingsCard {
+            Text("Server")
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                labeled("Name") {
+                    JinSettingsTextField("Server name", text: $server.name)
+                        .onChange(of: server.name) { _, _ in try? modelContext.save() }
+                }
+
+                JinSettingsControlRow("Icon") {
+                    MCPIconPickerField(
+                        selectedIconID: Binding(
+                            get: { server.iconID },
+                            set: { newValue in
+                                server.iconID = MCPServerFormSupport.normalizedIconID(newValue)
+                                try? modelContext.save()
+                            }
+                        ),
+                        defaultIconID: MCPIconCatalog.defaultIconID
+                    )
+                }
+
+                JinSettingsToggleRow("Enabled", isOn: $server.isEnabled)
+                    .onChange(of: server.isEnabled) { _, _ in try? modelContext.save() }
+
+                JinSettingsToggleRow(
+                    "Run tools automatically",
+                    supportingText: "When off, Jin asks before each tool call.",
+                    isOn: $server.runToolsAutomatically
+                )
+                .onChange(of: server.runToolsAutomatically) { _, _ in try? modelContext.save() }
+
+                JinDetailsDisclosure(title: "Server ID") {
+                    labeled("ID") {
+                        JinSettingsTextField("exa", text: $server.id, usesMonospacedFont: true)
+                            .onChange(of: server.id) { _, _ in try? modelContext.save() }
+                        Text("Short identifier used inside Jin.")
+                            .font(.caption)
+                            .foregroundStyle(JinSemanticColor.textSecondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private var connectionCard: some View {
+        JinSettingsCard {
+            Text("Connection")
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                JinSettingsPickerRow("Transport", selection: $transportKind) {
+                    Text("Local command").tag(MCPTransportKind.stdio)
+                    Text("Remote HTTP").tag(MCPTransportKind.http)
+                }
+
+                if transportKind == .stdio {
+                    labeled("Command") {
+                        JinSettingsTextField("npx", text: $command, usesMonospacedFont: true)
+                    }
+                    labeled("Arguments") {
+                        JinSettingsTextField("-y package-name", text: $argsText, usesMonospacedFont: true)
+                    }
+
+                    if MCPServerFormSupport.shouldShowNodeIsolationNote(command: command) {
+                        Text("Node launchers run with an isolated HOME/cache to avoid ~/.npmrc conflicts.")
+                            .font(.caption)
+                            .foregroundStyle(JinSemanticColor.textSecondary)
+                    }
+
+                    if isFirecrawlMCP && !hasFirecrawlAPIKey {
+                        Text("Firecrawl needs FIRECRAWL_API_KEY in Environment, or initialize may never return.")
+                            .jinInfoCallout()
+                    }
+
+                    if let argsError {
+                        JinSettingsErrorText(text: argsError)
+                    }
+                } else {
+                    labeled("Endpoint URL") {
+                        JinSettingsTextField("https://mcp.example.com/mcp", text: $endpoint, usesMonospacedFont: true)
+                    }
+                    JinSettingsToggleRow(
+                        "Streamable HTTP",
+                        supportingText: "Leave on unless this server only accepts plain request/response HTTP.",
+                        isOn: $httpStreaming
+                    )
+                    if let endpointError {
+                        JinSettingsErrorText(text: endpointError)
+                    }
+
+                    labeled("Additional headers") {
+                        EnvironmentVariablesEditor(pairs: $headerPairs)
+                    }
+                }
+            }
+        }
+    }
+
+    private var environmentCard: some View {
+        JinSettingsCard {
+            Text("Environment")
+                .font(.headline)
+            EnvironmentVariablesEditor(pairs: $envPairs)
+        }
+    }
+
+    private func labeled<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+            content()
         }
     }
 
@@ -282,7 +429,7 @@ struct MCPServerConfigFormView: View {
 
     private func applyHTTPAuthentication(_ authentication: MCPHTTPAuthentication) {
         let fields = authentication.formFields
-        httpAuthKind = fields.kind
+        httpAuthKind = MCPHTTPAuthentication.FormKind.coerced(fields.kind, forEndpoint: endpoint)
         bearerToken = fields.bearerToken
         authHeaderName = fields.headerName
         authHeaderValue = fields.headerValue

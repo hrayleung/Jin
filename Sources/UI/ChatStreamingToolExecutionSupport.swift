@@ -15,6 +15,16 @@ extension ChatStreamingOrchestrator {
         toolCalls.filter { !isGoogleProviderNativeToolName($0.name) }
     }
 
+    /// After the assistant turn that requested tools is persisted, the live
+    /// bubble must not clone those calls. The persisted row is the only
+    /// timeline for that turn until the next model tokens arrive.
+    @MainActor
+    static func clearLiveBubbleAfterPersistingToolTurn(
+        _ streamingState: StreamingMessageState
+    ) {
+        streamingState.reset()
+    }
+
     static func toolOutputLine(
         toolName: String,
         content: String,

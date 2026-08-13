@@ -156,13 +156,13 @@ struct MCPServerHTTPTransportSections: View {
 
             JinSettingsSection("Authentication") {
                 JinSettingsPickerRow("Type", selection: $httpAuthKind) {
-                    Text("None").tag(MCPHTTPAuthentication.FormKind.none)
-                    Text("Bearer token").tag(MCPHTTPAuthentication.FormKind.bearerToken)
-                    Text("Custom header").tag(MCPHTTPAuthentication.FormKind.customHeader)
+                    ForEach(MCPHTTPAuthentication.FormKind.available(forEndpoint: endpoint), id: \.self) { kind in
+                        Text(kind.title).tag(kind)
+                    }
                 }
 
                 switch httpAuthKind {
-                case .none:
+                case .none, .oauth:
                     EmptyView()
                 case .bearerToken:
                     JinSettingsSecureFieldRow(

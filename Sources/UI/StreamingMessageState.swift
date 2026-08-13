@@ -30,6 +30,18 @@ final class StreamingMessageState: ObservableObject {
     var textContent: String { textStorage }
     var thinkingContent: String { thinkingStorage }
 
+    /// Anything the live bubble would actually paint. Empty after a tool-turn
+    /// persist/reset — the timeline then collapses this row instead of
+    /// showing a second Generating / Running card.
+    var hasVisiblePresentation: Bool {
+        hasVisibleText
+            || !thinkingChunks.isEmpty
+            || !searchActivities.isEmpty
+            || !codeExecutionActivities.isEmpty
+            || !streamingToolCalls.isEmpty
+            || !artifacts.isEmpty
+    }
+
     func reset() {
         objectWillChange.send()
         textStorage = ""

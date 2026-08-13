@@ -136,11 +136,6 @@ struct ToolCallExpandedContentView: View {
                 if let rawOutputPath = toolResult.rawOutputPath {
                     ToolOutputFileActionRowView(rawOutputPath: rawOutputPath)
                 }
-            } else {
-                Text("Waiting for tool result…")
-                    .font(.caption)
-                    .foregroundStyle(JinSemanticColor.textTertiary)
-                    .padding(.vertical, 2)
             }
 
             if let signature, !signature.isEmpty {

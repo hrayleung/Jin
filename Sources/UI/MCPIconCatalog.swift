@@ -89,29 +89,33 @@ enum MCPIconCatalog {
         return image
     }
 
-    private static func loadBundledIcons() -> [MCPIcon] {
-        guard let urls = JinResourceBundle.bundle?.urls(forResourcesWithExtension: "png", subdirectory: nil),
-              !urls.isEmpty else {
-            return fallbackIcons()
+    /// SwiftPM `.process("Resources")` flattens `mcpIcons/` into the bundle
+    /// root. Prefer the subdirectory when it exists; otherwise scan the root
+    /// and keep only MCP-style `{id}_light` / `{id}_dark` names so provider
+    /// assets (`light_{id}`) stay out of the picker.
+    static func bundledPNGURLs(in bundle: Bundle?) -> [URL] {
+        guard let bundle else { return [] }
+        if let nested = bundle.urls(forResourcesWithExtension: "png", subdirectory: "mcpIcons"),
+           !nested.isEmpty {
+            return nested
         }
+        return bundle.urls(forResourcesWithExtension: "png", subdirectory: nil) ?? []
+    }
 
+    static func icons(fromPNGURLs urls: [URL]) -> [MCPIcon] {
         var variantsByID: [String: (light: String?, dark: String?)] = [:]
 
         for url in urls {
             let resourceName = url.deletingPathExtension().lastPathComponent
-            let lowercased = resourceName.lowercased()
-
-            if lowercased.hasSuffix("_light") {
-                let id = String(lowercased.dropLast("_light".count))
-                var variants = variantsByID[id] ?? (nil, nil)
+            guard let parsed = parsedMCPIconResource(resourceName) else { continue }
+            var variants = variantsByID[parsed.id] ?? (nil, nil)
+            switch parsed.appearance {
+            case .light:
                 variants.light = resourceName
-                variantsByID[id] = variants
-            } else if lowercased.hasSuffix("_dark") {
-                let id = String(lowercased.dropLast("_dark".count))
-                var variants = variantsByID[id] ?? (nil, nil)
+            case .dark:
                 variants.dark = resourceName
-                variantsByID[id] = variants
             }
+            variantsByID[parsed.id] = variants
         }
 
         var icons = variantsByID.compactMap { id, variants -> MCPIcon? in
@@ -132,6 +136,37 @@ enum MCPIconCatalog {
         }
 
         return icons
+    }
+
+    private static func loadBundledIcons() -> [MCPIcon] {
+        let urls = bundledPNGURLs(in: JinResourceBundle.bundle)
+        let icons = icons(fromPNGURLs: urls)
+        guard icons.count > fallbackIcons().count else {
+            return fallbackIcons()
+        }
+        return icons
+    }
+
+    private static func parsedMCPIconResource(_ resourceName: String) -> (id: String, appearance: IconAppearance)? {
+        let lowercased = resourceName.lowercased()
+        // Provider icons are `light_{id}` / `dark_{id}`. MCP icons are
+        // `{id}_light` / `{id}_dark`. Require the suffix form.
+        if lowercased.hasSuffix("_light") {
+            let id = String(lowercased.dropLast("_light".count))
+            guard !id.isEmpty, !id.hasPrefix("light_"), !id.hasPrefix("dark_") else { return nil }
+            return (id, .light)
+        }
+        if lowercased.hasSuffix("_dark") {
+            let id = String(lowercased.dropLast("_dark".count))
+            guard !id.isEmpty, !id.hasPrefix("light_"), !id.hasPrefix("dark_") else { return nil }
+            return (id, .dark)
+        }
+        return nil
+    }
+
+    private enum IconAppearance {
+        case light
+        case dark
     }
 
     private static func fallbackIcons() -> [MCPIcon] {

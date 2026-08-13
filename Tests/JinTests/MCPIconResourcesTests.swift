@@ -2,6 +2,23 @@ import XCTest
 @testable import Jin
 
 final class MCPIconResourcesTests: XCTestCase {
+    func testBundledCatalogIsNotTheThreeIconFallback() {
+        let ids = Set(MCPIconCatalog.all.map(\.id))
+        let required = [
+            "mcp", "tinyfish", "exa", "tavily", "firecrawl",
+            "playwright", "github", "notion", "linear", "context7"
+        ]
+
+        XCTAssertGreaterThan(
+            MCPIconCatalog.all.count,
+            20,
+            "Catalog collapsed to fallback (\(MCPIconCatalog.all.map(\.id).joined(separator: ", "))). SwiftPM flattens mcpIcons/ into the bundle root."
+        )
+        for id in required {
+            XCTAssertTrue(ids.contains(id), "Missing bundled MCP icon \(id)")
+        }
+    }
+
     func testBundledMCPIconsIncludeAllCatalogEntries() {
         var missing: [String] = []
 
@@ -15,6 +32,24 @@ final class MCPIconResourcesTests: XCTestCase {
         }
 
         XCTAssertTrue(missing.isEmpty, "Missing bundled MCP icons: \(missing.joined(separator: ", "))")
+    }
+
+    func testIconsFromMixedBundleKeepMCPSuffixNamesAndDropProviderPrefixes() {
+        let urls = [
+            URL(fileURLWithPath: "/tmp/tinyfish_light.png"),
+            URL(fileURLWithPath: "/tmp/tinyfish_dark.png"),
+            URL(fileURLWithPath: "/tmp/tavily_light.png"),
+            URL(fileURLWithPath: "/tmp/tavily_dark.png"),
+            URL(fileURLWithPath: "/tmp/light_openai.png"),
+            URL(fileURLWithPath: "/tmp/dark_openai.png"),
+            URL(fileURLWithPath: "/tmp/github_light.png"),
+            URL(fileURLWithPath: "/tmp/github_dark.png")
+        ]
+
+        XCTAssertEqual(
+            MCPIconCatalog.icons(fromPNGURLs: urls).map(\.id),
+            ["mcp", "github", "tavily", "tinyfish"]
+        )
     }
 
     func testResolvedIconIDFallsBackToDefault() {

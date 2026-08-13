@@ -40,6 +40,7 @@ struct MCPStdioTransportConfig: Codable, Equatable, Sendable {
 
 enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
     case none
+    case oauth
     case bearerToken(String)
     case header(MCPHeader)
 
@@ -51,6 +52,7 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
 
     private enum Kind: String, Codable {
         case none
+        case oauth
         case bearerToken
         case header
     }
@@ -62,6 +64,8 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         switch kind {
         case .none:
             self = .none
+        case .oauth:
+            self = .oauth
         case .bearerToken:
             self = .bearerToken(try container.decode(String.self, forKey: .token))
         case .header:
@@ -75,6 +79,8 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         switch self {
         case .none:
             try container.encode(Kind.none, forKey: .type)
+        case .oauth:
+            try container.encode(Kind.oauth, forKey: .type)
         case .bearerToken(let token):
             try container.encode(Kind.bearerToken, forKey: .type)
             try container.encode(token, forKey: .token)
@@ -86,16 +92,19 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
 
     var resolvedHeader: MCPHeader? {
         switch self {
-        case .none:
+        case .none, .oauth:
             return nil
         case .bearerToken(let token):
             guard let trimmedToken = token.trimmedNonEmpty else { return nil }
             return MCPHeader(name: "Authorization", value: "Bearer \(trimmedToken)", isSensitive: true)
         case .header(let header):
-            guard let trimmedName = header.name.trimmedNonEmpty else { return nil }
+            guard let trimmedName = header.name.trimmedNonEmpty,
+                  let trimmedValue = header.value.trimmedNonEmpty else {
+                return nil
+            }
             return MCPHeader(
                 name: trimmedName,
-                value: header.value,
+                value: trimmedValue,
                 isSensitive: header.isSensitive || MCPHTTPTransportConfig.isSensitiveHeaderName(trimmedName)
             )
         }
@@ -104,17 +113,20 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
     /// Returns a cleaned-up version: trims whitespace and collapses empty values to `.none`.
     var normalized: MCPHTTPAuthentication {
         switch self {
-        case .none:
-            return .none
+        case .none, .oauth:
+            return self
         case .bearerToken(let token):
             guard let trimmed = token.trimmedNonEmpty else { return .none }
             return .bearerToken(trimmed)
         case .header(let header):
-            guard let trimmedName = header.name.trimmedNonEmpty else { return .none }
+            guard let trimmedName = header.name.trimmedNonEmpty,
+                  let trimmedValue = header.value.trimmedNonEmpty else {
+                return .none
+            }
             return .header(
                 MCPHeader(
                     name: trimmedName,
-                    value: header.value,
+                    value: trimmedValue,
                     isSensitive: header.isSensitive || MCPHTTPTransportConfig.isSensitiveHeaderName(trimmedName)
                 )
             )
@@ -125,9 +137,46 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
 
     /// Picker-friendly representation for SwiftUI forms.
     enum FormKind: String, CaseIterable {
-        case none
+        case oauth
         case bearerToken
         case customHeader
+        case none
+
+        var title: String {
+            switch self {
+            case .oauth: return "Sign in with browser"
+            case .bearerToken: return "Bearer token"
+            case .customHeader: return "Custom header"
+            case .none: return "None"
+            }
+        }
+
+        /// GitHub’s remote MCP has no DCR and no public desktop client, so
+        /// third-party apps cannot complete browser sign-in.
+        static func available(forEndpoint endpoint: String) -> [Self] {
+            allCases.filter { $0.isAllowed(forEndpoint: endpoint) }
+        }
+
+        static func coerced(_ kind: Self, forEndpoint endpoint: String) -> Self {
+            kind.isAllowed(forEndpoint: endpoint) ? kind : .bearerToken
+        }
+
+        func isAllowed(forEndpoint endpoint: String) -> Bool {
+            switch self {
+            case .oauth:
+                return !Self.isGitHubRemoteMCP(endpoint)
+            case .bearerToken, .customHeader, .none:
+                return true
+            }
+        }
+
+        static func isGitHubRemoteMCP(_ endpoint: String) -> Bool {
+            let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let host = URL(string: trimmed)?.host?.lowercased() else {
+                return false
+            }
+            return host == "api.githubcopilot.com" || host.hasSuffix(".githubcopilot.com")
+        }
     }
 
     /// Returns a validation error message when the form fields are incomplete, or nil when valid.
@@ -138,7 +187,7 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         headerValue: String
     ) -> String? {
         switch kind {
-        case .none:
+        case .none, .oauth:
             return nil
         case .bearerToken:
             return bearerToken.trimmedNonEmpty == nil
@@ -167,6 +216,8 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         switch kind {
         case .none:
             return MCPHTTPAuthentication.none
+        case .oauth:
+            return .oauth
         case .bearerToken:
             return .bearerToken(bearerToken.trimmed)
         case .customHeader:
@@ -193,6 +244,8 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         switch self {
         case .none:
             return FormFields(kind: .none, bearerToken: "", headerName: "Authorization", headerValue: "")
+        case .oauth:
+            return FormFields(kind: .oauth, bearerToken: "", headerName: "Authorization", headerValue: "")
         case .bearerToken(let token):
             return FormFields(kind: .bearerToken, bearerToken: token, headerName: "Authorization", headerValue: "")
         case .header(let header):

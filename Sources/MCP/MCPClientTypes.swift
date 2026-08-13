@@ -6,8 +6,29 @@ struct MCPToolInfo: Identifiable, Sendable {
     let name: String
     let description: String
     let inputSchema: ParameterSchema
+    let title: String?
 
     var id: String { name }
+
+    var displayName: String {
+        title?.trimmedNonEmpty ?? name
+    }
+
+    /// Description shown to the model. Prefer the human title when it adds information.
+    var modelFacingDescription: String {
+        if let title = title?.trimmedNonEmpty, title != name {
+            if description.isEmpty { return title }
+            return "\(title). \(description)"
+        }
+        return description
+    }
+
+    init(name: String, description: String, inputSchema: ParameterSchema, title: String? = nil) {
+        self.name = name
+        self.description = description
+        self.inputSchema = inputSchema
+        self.title = title
+    }
 }
 
 struct MCPToolCallResult: Sendable {
@@ -146,7 +167,7 @@ enum MCPClientError: Error, LocalizedError {
                     message += "\n\nTip: If this server works in another client, compare the exact command line + env. Jin runs the command directly (no login shell), so tools installed via nvm/asdf/fnm may require using a wrapper script or running via /bin/zsh -lc."
                     message += "\n\nIf you're using npx and it hangs without output, check your ~/.npmrc (e.g. custom prefix=) and consider setting HOME or NPM_CONFIG_USERCONFIG in the server env vars to isolate npm state."
                 case .http:
-                    message += "\n\nTip: Verify endpoint URL, auth headers/token, and whether the server expects streamable HTTP with SSE enabled."
+                    message += "\n\nTip: Verify the endpoint URL and sign-in method. Hosted servers usually want Sign in with browser, or a Bearer token / API header."
                 }
             }
 

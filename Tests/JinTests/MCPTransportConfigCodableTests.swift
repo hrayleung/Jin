@@ -97,4 +97,15 @@ final class MCPTransportConfigCodableTests: XCTestCase {
         XCTAssertEqual(http.resolvedHeaders()["X-Test"], "abc")
         XCTAssertEqual(http.resolvedHeaders()["X-API-Key"], "secret")
     }
+
+    func testHTTPTransportDropsEmptyCustomHeaderValues() {
+        let http = MCPHTTPTransportConfig(
+            endpoint: URL(string: "https://mcp.exa.ai/mcp")!,
+            authentication: .header(MCPHeader(name: "x-api-key", value: "   ", isSensitive: true))
+        )
+
+        XCTAssertEqual(http.authentication, .none)
+        XCTAssertNil(http.resolvedHeaders()["x-api-key"])
+        XCTAssertTrue(http.resolvedHeaders().isEmpty)
+    }
 }

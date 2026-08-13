@@ -134,7 +134,9 @@ enum TimelineRowFixtures {
             // silently skip most of the view tree these probes exist to cover.
             effectiveRenderMode: { _, _ in .fullWeb },
             onExpandCollapsedContent: { _ in },
-            colorScheme: .dark
+            colorScheme: .dark,
+            isConversationStreaming: false,
+            streamingSuppressesIdlePlaceholder: false
         )
     }
 
@@ -160,7 +162,8 @@ enum TimelineRowFixtures {
             codeFontFamily: "",
             streamingObjectID: nil,
             streamingModelLabel: nil,
-            streamingModelID: nil
+            streamingModelID: nil,
+            streamingSuppressesIdlePlaceholder: false
         )
     }
 

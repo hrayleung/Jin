@@ -115,8 +115,10 @@ enum ChatStreamingOrchestrator {
                     }
 
                     await MainActor.run {
-                        streamingState.reset()
-                        streamingState.setToolCalls(executableToolCalls)
+                        // The persisted assistant already owns these calls.
+                        // Re-attaching them here painted a second empty
+                        // DEFAULT / model bubble with the same Running card.
+                        clearLiveBubbleAfterPersistingToolTurn(streamingState)
                     }
 
                     let toolExecutionResult = await executeToolCalls(
