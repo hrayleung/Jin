@@ -5,33 +5,40 @@ enum OpenRouterOCRModelCatalog {
         let id: String
         let name: String
         let detail: String
+        /// Compact composer badge — the model, not the gateway.
+        let composerBadge: String
     }
 
     static let entries: [Entry] = [
         Entry(
             id: "baidu/qianfan-ocr-fast:free",
             name: "Qianfan OCR Fast (free)",
-            detail: "Baidu OCR-specialized model."
+            detail: "Baidu OCR-specialized model.",
+            composerBadge: "Qian"
         ),
         Entry(
             id: "z-ai/glm-4.6v",
             name: "GLM 4.6V",
-            detail: "Z.ai document and mixed-media vision model."
+            detail: "Z.ai document and mixed-media vision model.",
+            composerBadge: "GLM"
         ),
         Entry(
             id: "qwen/qwen3-vl-8b-instruct",
             name: "Qwen3 VL 8B Instruct",
-            detail: "Qwen multimodal vision-language model."
+            detail: "Qwen multimodal vision-language model.",
+            composerBadge: "Qwen"
         ),
         Entry(
             id: "qwen/qwen2.5-vl-72b-instruct",
             name: "Qwen2.5 VL 72B Instruct",
-            detail: "Qwen document, chart, and layout understanding."
+            detail: "Qwen document, chart, and layout understanding.",
+            composerBadge: "Qwen"
         ),
         Entry(
             id: "mistralai/pixtral-large-2411",
             name: "Pixtral Large 2411",
-            detail: "Mistral document and chart vision model."
+            detail: "Mistral document and chart vision model.",
+            composerBadge: "Pix"
         )
     ]
 

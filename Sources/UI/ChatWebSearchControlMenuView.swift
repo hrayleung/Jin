@@ -52,7 +52,6 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                         menuItemLabel("Jin Search", usesBuiltinSearchPlugin)
                     }
                 }
-                .id("web-search-engine-\(usesBuiltinSearchPlugin)")
             }
 
             if usesBuiltinSearchPlugin {
@@ -66,7 +65,6 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                         }
                     }
                 }
-                .id("web-search-provider-\(effectiveSearchPluginProvider.rawValue)")
 
                 Menu(maxResultsMenuTitle) {
                     ForEach([3, 5, 8, 10, 20, 30, 50], id: \.self) { value in
@@ -77,7 +75,6 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                         }
                     }
                 }
-                .id("web-search-max-results-\(builtinMaxResults)")
 
                 Menu(recencyMenuTitle) {
                     Button {
@@ -94,7 +91,6 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                         }
                     }
                 }
-                .id("web-search-recency-\(builtinRecencyDays.map(String.init) ?? "any")")
 
                 Divider()
                 Toggle("Include raw snippets", isOn: builtinSearchIncludeRawBinding)
@@ -154,7 +150,6 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                             }
                         }
                     }
-                    .id("web-search-max-keywords-\(anthropicMaxUses.map(String.init) ?? "default")")
                 case .anthropic:
                     Divider()
                     Menu(maxUsesMenuTitle) {
@@ -171,7 +166,6 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                             }
                         }
                     }
-                    .id("web-search-max-uses-\(anthropicMaxUses.map(String.init) ?? "default")")
                     if supportsAnthropicDynamicFiltering {
                         Toggle("Dynamic Filtering", isOn: anthropicDynamicFilteringBinding)
                     }

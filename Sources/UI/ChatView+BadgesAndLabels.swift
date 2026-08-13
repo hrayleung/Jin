@@ -138,48 +138,85 @@ extension ChatView {
 
     func setPDFProcessingMode(_ mode: PDFProcessingMode) {
         guard isPDFProcessingModeAvailable(mode) else { return }
-        controls = ChatModelCapabilitySupport.setPDFProcessingMode(
-            mode,
-            controls: controls
-        )
-        persistControlsToConversation()
+        applyComposerControlMutation {
+            controls = ChatModelCapabilitySupport.setPDFProcessingMode(
+                mode,
+                controls: controls
+            )
+        }
     }
 
     func setFirecrawlPDFParserMode(_ mode: FirecrawlPDFParserMode) {
-        controls = ChatModelCapabilitySupport.setFirecrawlPDFParserMode(
-            mode,
-            controls: controls
-        )
-        persistControlsToConversation()
+        applyComposerControlMutation {
+            controls = ChatModelCapabilitySupport.setFirecrawlPDFParserMode(
+                mode,
+                controls: controls
+            )
+        }
     }
 
     @ViewBuilder
     var pdfProcessingMenuContent: some View {
         if supportsNativePDF {
-            Button { setPDFProcessingMode(.native) } label: { menuItemLabel("Native", isSelected: resolvedPDFProcessingMode == .native) }
+            Button { setPDFProcessingMode(.native) } label: {
+                menuItemLabel(
+                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .native),
+                    isSelected: resolvedPDFProcessingMode == .native
+                )
+            }
         }
 
         if mistralOCRPluginEnabled {
-            Button { setPDFProcessingMode(.mistralOCR) } label: { menuItemLabel("Mistral OCR", isSelected: resolvedPDFProcessingMode == .mistralOCR) }
+            Button { setPDFProcessingMode(.mistralOCR) } label: {
+                menuItemLabel(
+                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .mistralOCR),
+                    isSelected: resolvedPDFProcessingMode == .mistralOCR
+                )
+            }
         }
 
         if mineruOCRPluginEnabled {
-            Button { setPDFProcessingMode(.mineruOCR) } label: { menuItemLabel("MinerU OCR", isSelected: resolvedPDFProcessingMode == .mineruOCR) }
+            Button { setPDFProcessingMode(.mineruOCR) } label: {
+                menuItemLabel(
+                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .mineruOCR),
+                    isSelected: resolvedPDFProcessingMode == .mineruOCR
+                )
+            }
         }
 
         if deepSeekOCRPluginEnabled {
-            Button { setPDFProcessingMode(.deepSeekOCR) } label: { menuItemLabel("DeepSeek OCR (DeepInfra)", isSelected: resolvedPDFProcessingMode == .deepSeekOCR) }
+            Button { setPDFProcessingMode(.deepSeekOCR) } label: {
+                menuItemLabel(
+                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .deepSeekOCR),
+                    isSelected: resolvedPDFProcessingMode == .deepSeekOCR
+                )
+            }
         }
 
         if openRouterOCRPluginEnabled {
-            Button { setPDFProcessingMode(.openRouterOCR) } label: { menuItemLabel("OpenRouter OCR", isSelected: resolvedPDFProcessingMode == .openRouterOCR) }
+            Button { setPDFProcessingMode(.openRouterOCR) } label: {
+                menuItemLabel(
+                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .openRouterOCR),
+                    isSelected: resolvedPDFProcessingMode == .openRouterOCR
+                )
+            }
         }
 
         if firecrawlOCRPluginEnabled {
-            Button { setPDFProcessingMode(.firecrawlOCR) } label: { menuItemLabel("Firecrawl OCR", isSelected: resolvedPDFProcessingMode == .firecrawlOCR) }
+            Button { setPDFProcessingMode(.firecrawlOCR) } label: {
+                menuItemLabel(
+                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .firecrawlOCR),
+                    isSelected: resolvedPDFProcessingMode == .firecrawlOCR
+                )
+            }
         }
 
-        Button { setPDFProcessingMode(.macOSExtract) } label: { menuItemLabel("macOS Extract", isSelected: resolvedPDFProcessingMode == .macOSExtract) }
+        Button { setPDFProcessingMode(.macOSExtract) } label: {
+            menuItemLabel(
+                ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .macOSExtract),
+                isSelected: resolvedPDFProcessingMode == .macOSExtract
+            )
+        }
 
         if resolvedPDFProcessingMode == .mistralOCR, !mistralOCRConfigured {
             Divider()

@@ -15,6 +15,14 @@ extension ChatView {
         nonmutating set { composerTextStore.text = newValue }
     }
 
+    /// Accessor for generation controls. **Only safe to use from action
+    /// handlers**. Reading this from `ChatView.body` observes the store and
+    /// rebuilds the timeline for a thinking / search / MCP click.
+    var controls: GenerationControls {
+        get { composerControlsStore.controls }
+        nonmutating set { composerControlsStore.controls = newValue }
+    }
+
     var trimmedMessageText: String {
         messageText.trimmed
     }

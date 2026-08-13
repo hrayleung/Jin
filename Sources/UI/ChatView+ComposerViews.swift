@@ -55,7 +55,9 @@ extension ChatView {
                 onRemovePerMessageMCPServer: removePerMessageMCPServer,
                 onInterceptKeyDown: isSlashMCPPopoverVisible ? handleSlashCommandKeyDown : nil
             ) {
-                composerControlsRow()
+                ChatComposerControlsAccess(store: composerControlsStore) {
+                    composerControlsRow()
+                }
             }
         }
     }
@@ -119,7 +121,9 @@ extension ChatView {
                 onRemovePerMessageMCPServer: removePerMessageMCPServer,
                 onInterceptKeyDown: (isSlashMCPPopoverVisible && isComposerTarget) ? handleSlashCommandKeyDown : nil
             ) {
-                composerControlsRow(showsTrailingSpacer: false)
+                ChatComposerControlsAccess(store: composerControlsStore) {
+                    composerControlsRow(showsTrailingSpacer: false)
+                }
             }
         }
     }

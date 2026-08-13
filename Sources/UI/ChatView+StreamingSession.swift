@@ -16,6 +16,10 @@ extension ChatView {
         // already draining the stream.
         guard !streamingStore.hasActiveStreamingTask(conversationID: conversationID) else { return }
 
+        // Control clicks defer the blob write so the composer can paint first.
+        // Send must see the live thinking / search / MCP selection.
+        flushGenerationControlsPersist(save: false)
+
         let threadControls: GenerationControls
         do {
             threadControls = try JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData)
@@ -378,6 +382,7 @@ extension ChatView {
     func flushPendingPersistenceSave() {
         pendingPersistenceSaveTask?.cancel()
         pendingPersistenceSaveTask = nil
+        flushGenerationControlsPersist(save: false)
         persistModelContext(context: "streaming save flush")
     }
 

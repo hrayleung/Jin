@@ -11,21 +11,74 @@ extension ChatView {
         controls = (try? JSONDecoder().decode(GenerationControls.self, from: conversationEntity.modelConfigData))
             ?? GenerationControls()
         normalizeControlsForCurrentSelection()
+        syncGoogleMapsLocationBiasSnapshot()
     }
 
     func persistControlsToConversation() {
-        do {
-            let stored = storedGenerationControls()
-            var merged = controls
-            merged.claudeManagedSessionID = stored?.claudeManagedSessionID
-            merged.claudeManagedSessionModelID = stored?.claudeManagedSessionModelID
-            merged.claudeManagedPendingCustomToolResults = stored?.claudeManagedPendingCustomToolResults ?? []
+        // Paint the chrome first. Encode + SwiftData save used to run inside
+        // the Menu/Toggle action and freeze the badge under the menu.
+        syncGoogleMapsLocationBiasSnapshot()
+        scheduleGenerationControlsPersist()
+    }
 
-            conversationEntity.modelConfigData = try JSONEncoder().encode(merged)
-            conversationEntity.updatedAt = Date()
-            try modelContext.save()
+    func applyComposerControlMutation(_ mutate: () -> Void) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        transaction.animation = nil
+        withTransaction(transaction) {
+            mutate()
+        }
+        persistControlsToConversation()
+    }
+
+    func scheduleGenerationControlsPersist() {
+        pendingGenerationControlsPersistTask?.cancel()
+        pendingGenerationControlsPersistTask = Task { @MainActor in
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            commitGenerationControlsToConversation(save: true)
+            pendingGenerationControlsPersistTask = nil
+        }
+    }
+
+    func flushGenerationControlsPersist(save: Bool = true) {
+        pendingGenerationControlsPersistTask?.cancel()
+        pendingGenerationControlsPersistTask = nil
+        commitGenerationControlsToConversation(save: save)
+    }
+
+    func commitGenerationControlsToConversation(save: Bool) {
+        do {
+            let merged = ChatGenerationControlsPersistenceSupport.mergedForPersist(
+                live: controls,
+                stored: storedGenerationControls()
+            )
+            guard let encoded = ChatGenerationControlsPersistenceSupport.encodedPayloadIfChanged(
+                merged: merged,
+                currentData: conversationEntity.modelConfigData
+            ) else {
+                return
+            }
+
+            // Do not bump `updatedAt`. That watermark means message activity
+            // (sidebar sort + timeline cache rebuild), not a settings tweak.
+            conversationEntity.modelConfigData = encoded
+            if save {
+                try modelContext.save()
+            }
         } catch {
             presentError(error.localizedDescription)
+        }
+    }
+
+    func syncGoogleMapsLocationBiasSnapshot() {
+        let next = ChatGenerationControlsPersistenceSupport.googleMapsLocationBias(from: controls)
+        guard googleMapsLocationBiasSnapshot != next else { return }
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            googleMapsLocationBiasSnapshot = next
         }
     }
 

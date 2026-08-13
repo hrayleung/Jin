@@ -180,12 +180,13 @@ extension ChatView {
                 )
             },
             set: { enabled in
-                controls = ChatAuxiliaryControlSupport.setWebSearchEnabled(
-                    enabled,
-                    controls: controls,
-                    providerType: providerType
-                )
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setWebSearchEnabled(
+                        enabled,
+                        controls: controls,
+                        providerType: providerType
+                    )
+                }
             }
         )
     }
@@ -253,38 +254,44 @@ extension ChatView {
                 setSearchEnginePreference(useJinSearch: useJinSearch)
             },
             onSelectSearchProvider: { provider in
-                controls = ChatAuxiliaryControlSupport.setSearchPluginProvider(provider, controls: controls)
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setSearchPluginProvider(provider, controls: controls)
+                }
             },
             onSelectBuiltinMaxResults: { value in
-                controls = ChatAuxiliaryControlSupport.setSearchPluginMaxResults(value, controls: controls)
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setSearchPluginMaxResults(value, controls: controls)
+                }
             },
             onSelectBuiltinRecencyDays: { value in
-                controls = ChatAuxiliaryControlSupport.setSearchPluginRecencyDays(value, controls: controls)
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setSearchPluginRecencyDays(value, controls: controls)
+                }
             },
             onSelectOpenAIContextSize: { size in
-                controls = ChatAuxiliaryControlSupport.setExistingWebSearchContextSize(
-                    size,
-                    controls: controls
-                )
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setExistingWebSearchContextSize(
+                        size,
+                        controls: controls
+                    )
+                }
             },
             onSelectPerplexityContextSize: { size in
-                controls = ChatAuxiliaryControlSupport.setPerplexityWebSearchContextSize(
-                    size,
-                    controls: controls,
-                    providerType: providerType
-                )
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setPerplexityWebSearchContextSize(
+                        size,
+                        controls: controls,
+                        providerType: providerType
+                    )
+                }
             },
             onSelectAnthropicMaxUses: { value in
-                controls = ChatAuxiliaryControlSupport.setAnthropicWebSearchMaxUses(
-                    value,
-                    controls: controls
-                )
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setAnthropicWebSearchMaxUses(
+                        value,
+                        controls: controls
+                    )
+                }
             },
             onOpenAnthropicConfiguration: {
                 openAnthropicWebSearchEditor()
@@ -293,11 +300,12 @@ extension ChatView {
     }
 
     func setSearchEnginePreference(useJinSearch: Bool) {
-        controls = ChatAuxiliaryControlSupport.setSearchEnginePreference(
-            useJinSearch: useJinSearch,
-            controls: controls
-        )
-        persistControlsToConversation()
+        applyComposerControlMutation {
+            controls = ChatAuxiliaryControlSupport.setSearchEnginePreference(
+                useJinSearch: useJinSearch,
+                controls: controls
+            )
+        }
     }
 
     @ViewBuilder
@@ -342,8 +350,9 @@ extension ChatView {
                 )
             },
             set: { enabled in
-                controls = ChatAuxiliaryControlSupport.setMCPToolsEnabled(enabled, controls: controls)
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    controls = ChatAuxiliaryControlSupport.setMCPToolsEnabled(enabled, controls: controls)
+                }
             }
         )
     }

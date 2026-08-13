@@ -727,6 +727,15 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
             ),
             "99+"
         )
+
+        XCTAssertEqual(
+            ChatAuxiliaryControlSupport.mcpToolsServersSectionTitle(selectedServerCount: 0),
+            "Servers"
+        )
+        XCTAssertEqual(
+            ChatAuxiliaryControlSupport.mcpToolsServersSectionTitle(selectedServerCount: 3),
+            "Servers · 3"
+        )
     }
 
     func testSetMCPToolsEnabledCreatesControlsAndPreservesSelection() {

@@ -5,26 +5,28 @@ import SwiftUI
 extension ChatView {
 
     func setReasoningOff() {
-        ChatReasoningSupport.setReasoningOff(
-            controls: &controls,
-            reasoningMustRemainEnabled: reasoningMustRemainEnabled,
-            selectedReasoningConfig: selectedReasoningConfig,
-            providerType: providerType,
-            modelID: activeModelID,
-            defaultBudget: anthropicDefaultBudgetTokens
-        )
-        persistControlsToConversation()
+        applyComposerControlMutation {
+            ChatReasoningSupport.setReasoningOff(
+                controls: &controls,
+                reasoningMustRemainEnabled: reasoningMustRemainEnabled,
+                selectedReasoningConfig: selectedReasoningConfig,
+                providerType: providerType,
+                modelID: activeModelID,
+                defaultBudget: anthropicDefaultBudgetTokens
+            )
+        }
     }
 
     func setReasoningOn() {
-        ChatReasoningSupport.setReasoningOn(
-            controls: &controls,
-            providerType: providerType,
-            modelID: activeModelID,
-            defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
-            defaultBudget: anthropicDefaultBudgetTokens
-        )
-        persistControlsToConversation()
+        applyComposerControlMutation {
+            ChatReasoningSupport.setReasoningOn(
+                controls: &controls,
+                providerType: providerType,
+                modelID: activeModelID,
+                defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
+                defaultBudget: anthropicDefaultBudgetTokens
+            )
+        }
     }
 
     func setReasoningEffort(_ effort: ReasoningEffort) {
@@ -33,12 +35,13 @@ extension ChatView {
             return
         }
 
-        ChatReasoningSupport.setReasoningEffort(
-            controls: &controls,
-            effort: effort,
-            supportsReasoningSummaryControl: supportsReasoningSummaryControl
-        )
-        persistControlsToConversation()
+        applyComposerControlMutation {
+            ChatReasoningSupport.setReasoningEffort(
+                controls: &controls,
+                effort: effort,
+                supportsReasoningSummaryControl: supportsReasoningSummaryControl
+            )
+        }
     }
 
     func setAnthropicThinkingBudget(_ budgetTokens: Int) {
@@ -87,15 +90,16 @@ extension ChatView {
                 )
             },
             set: { newValue in
-                ChatReasoningSupport.setAnthropicEffort(
-                    controls: &controls,
-                    newValue: newValue,
-                    anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
-                    modelID: activeModelID,
-                    defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
-                    defaultBudget: anthropicDefaultBudgetTokens
-                )
-                persistControlsToConversation()
+                applyComposerControlMutation {
+                    ChatReasoningSupport.setAnthropicEffort(
+                        controls: &controls,
+                        newValue: newValue,
+                        anthropicUsesAdaptiveThinking: anthropicUsesAdaptiveThinking,
+                        modelID: activeModelID,
+                        defaultEffort: selectedReasoningConfig?.defaultEffort ?? .high,
+                        defaultBudget: anthropicDefaultBudgetTokens
+                    )
+                }
             }
         )
     }
@@ -179,13 +183,14 @@ extension ChatView {
     }
 
     func setReasoningSummary(_ summary: ReasoningSummary) {
-        ChatReasoningSupport.setReasoningSummary(
-            controls: &controls,
-            summary: summary,
-            supportsReasoningSummaryControl: supportsReasoningSummaryControl,
-            defaultEffort: selectedReasoningConfig?.defaultEffort ?? .medium
-        )
-        persistControlsToConversation()
+        applyComposerControlMutation {
+            ChatReasoningSupport.setReasoningSummary(
+                controls: &controls,
+                summary: summary,
+                supportsReasoningSummaryControl: supportsReasoningSummaryControl,
+                defaultEffort: selectedReasoningConfig?.defaultEffort ?? .medium
+            )
+        }
     }
 
     func updateReasoning(_ mutate: (inout ReasoningControls) -> Void) {

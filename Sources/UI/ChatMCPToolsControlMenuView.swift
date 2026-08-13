@@ -25,7 +25,11 @@ struct MCPToolsControlMenuView: View {
                     .foregroundStyle(.secondary)
             } else {
                 Divider()
-                Text("Servers")
+                Text(
+                    ChatAuxiliaryControlSupport.mcpToolsServersSectionTitle(
+                        selectedServerCount: selectedServerIDs.count
+                    )
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

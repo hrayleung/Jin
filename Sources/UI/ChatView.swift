@@ -84,7 +84,13 @@ struct ChatView: View {
         // Seed from the conversation blob so the first composer frame already
         // has inherited web-search / MCP / reasoning active states. Appear
         // still normalizes; this only closes the empty-default flash.
-        _controls = State(initialValue: Self.initialControls(from: conversationEntity.modelConfigData))
+        let initialControls = Self.initialControls(from: conversationEntity.modelConfigData)
+        _composerControlsStore = State(initialValue: ComposerControlsStore(controls: initialControls))
+        _googleMapsLocationBiasSnapshot = State(
+            initialValue: ChatGenerationControlsPersistenceSupport.googleMapsLocationBias(
+                from: initialControls
+            )
+        )
     }
 
     static func initialControls(from data: Data) -> GenerationControls {
@@ -98,7 +104,13 @@ struct ChatView: View {
 
     // MARK: - State Properties
 
-    @State var controls: GenerationControls = GenerationControls()
+    // Composer generation controls live in an @Observable store so thinking /
+    // search / MCP writes do not invalidate ChatView's body. Read
+    // `composerControlsStore.controls` only from action handlers (or via the
+    // `controls` accessor); body-context reads must go through
+    // ChatComposerControlsAccess so the dependency stays on the chrome.
+    // swiftlint:disable:next private_swiftui_state
+    @State var composerControlsStore = ComposerControlsStore()
     // Composer text lives in an @Observable store so per-keystroke writes do
     // not invalidate ChatView's body. Read `composerTextStore.text` only from
     // action handlers (or via the `messageText` accessor); body-context reads
@@ -220,6 +232,11 @@ struct ChatView: View {
     // swiftlint:disable:next private_swiftui_state
     @State var pendingPersistenceSaveTask: Task<Void, Never>?
     // swiftlint:disable:next private_swiftui_state
+    @State var pendingGenerationControlsPersistTask: Task<Void, Never>?
+    // Cached so ChatView.body can set the maps environment without reading
+    // `controls` (which would invalidate the timeline on every thinking click).
+    @State var googleMapsLocationBiasSnapshot: GoogleMapsLocationBias?
+    // swiftlint:disable:next private_swiftui_state
     @State var defersObservedMessageCacheRebuild = false
     @EnvironmentObject var ttsPlaybackManager: TextToSpeechPlaybackManager
     @StateObject var speechToTextManager = SpeechToTextManager()
@@ -322,11 +339,7 @@ struct ChatView: View {
     }
 
     var googleMapsLocationBiasValue: GoogleMapsLocationBias? {
-        guard let lat = controls.googleMaps?.latitude,
-              let lng = controls.googleMaps?.longitude else {
-            return nil
-        }
-        return GoogleMapsLocationBias(latitude: lat, longitude: lng)
+        googleMapsLocationBiasSnapshot
     }
 
     // MARK: - Body

@@ -59,7 +59,10 @@ extension ChatView {
     }
 
     var pdfProcessingBadgeText: String? {
-        ChatModelCapabilitySupport.pdfProcessingBadgeText(mode: resolvedPDFProcessingMode)
+        ChatModelCapabilitySupport.pdfProcessingBadgeText(
+            mode: resolvedPDFProcessingMode,
+            openRouterModelID: storedOpenRouterOCRModelID
+        )
     }
 
     var pdfProcessingHelpText: String {
@@ -70,8 +73,17 @@ extension ChatView {
             mineruOCRConfigured: mineruOCRConfigured,
             deepSeekOCRConfigured: deepSeekOCRConfigured,
             openRouterOCRConfigured: openRouterOCRConfigured,
-            firecrawlOCRConfigured: firecrawlOCRConfigured
+            firecrawlOCRConfigured: firecrawlOCRConfigured,
+            openRouterModelName: storedOpenRouterOCRModelName
         )
+    }
+
+    private var storedOpenRouterOCRModelID: String? {
+        UserDefaults.standard.string(forKey: AppPreferenceKeys.pluginOpenRouterOCRModelID)
+    }
+
+    private var storedOpenRouterOCRModelName: String {
+        OpenRouterOCRModelCatalog.resolvedEntry(for: storedOpenRouterOCRModelID).name
     }
 
     // MARK: - Reasoning
