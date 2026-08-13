@@ -42,11 +42,13 @@ final class ModelCapabilityRegistryTests: XCTestCase {
 
     func testXAICodeExecutionUsesExactCatalogModelsConservatively() {
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.3"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.6"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.5"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.20"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.20-multi-agent"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.20-multi-agent-0309"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-build-0.1"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.6-custom"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .xai, modelID: "grok-4.3-custom"))
 
         // Proxy IDs must expose the same effort bands as native xAI.
@@ -484,6 +486,30 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .openai, modelID: "gpt-5.5"),
             [.low, .medium, .high, .xhigh]
         )
+    }
+
+    func testGrok46EffortMenuIsLowMediumHighXHigh() {
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .xai, modelID: "grok-4.6"),
+            [.low, .medium, .high, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "x-ai/grok-4.6"),
+            [.low, .medium, .high, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vercelAIGateway, modelID: "xai/grok-4.6"),
+            [.low, .medium, .high, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .xai, modelID: "grok-4.6"),
+            .xhigh
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.max, for: .xai, modelID: "grok-4.6"),
+            .xhigh
+        )
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.6-custom", provider: .xai))
     }
 
     func testGrok45EffortMenuIsLowMediumHigh() {

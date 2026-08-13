@@ -152,4 +152,126 @@ final class ChatModelSelectionSupportTests: XCTestCase {
             "zai-org/GLM-5.1"
         )
     }
+
+    func testPreferredModelIDPrefersOfficialDeepSeekV4ProOverLegacyAliases() {
+        let models = [
+            ModelInfo(
+                id: "deepseek-chat",
+                name: "DeepSeek Chat (Legacy)",
+                capabilities: [.streaming],
+                contextWindow: 1_000_000,
+                reasoningConfig: nil,
+                isEnabled: true
+            ),
+            ModelInfo(
+                id: "deepseek-v4-flash",
+                name: "DeepSeek V4 Flash",
+                capabilities: [.streaming],
+                contextWindow: 1_000_000,
+                reasoningConfig: nil,
+                isEnabled: true
+            ),
+            ModelInfo(
+                id: "deepseek-v4-pro",
+                name: "DeepSeek V4 Pro",
+                capabilities: [.streaming],
+                contextWindow: 1_000_000,
+                reasoningConfig: nil,
+                isEnabled: true
+            )
+        ]
+
+        let provider = ProviderConfigEntity(
+            id: "deepseek",
+            name: "DeepSeek",
+            typeRaw: ProviderType.deepseek.rawValue,
+            modelsData: try! JSONEncoder().encode(models)
+        )
+
+        XCTAssertEqual(
+            ChatModelSelectionSupport.preferredModelID(
+                in: models,
+                providerID: "deepseek",
+                providers: [provider],
+                geminiPreferredModelOrder: []
+            ),
+            "deepseek-v4-pro"
+        )
+    }
+
+    func testPreferredModelIDFallsBackToDeepSeekV4FlashWhenProIsMissing() {
+        let models = [
+            ModelInfo(
+                id: "deepseek-chat",
+                name: "DeepSeek Chat (Legacy)",
+                capabilities: [.streaming],
+                contextWindow: 1_000_000,
+                reasoningConfig: nil,
+                isEnabled: true
+            ),
+            ModelInfo(
+                id: "deepseek-v4-flash",
+                name: "DeepSeek V4 Flash",
+                capabilities: [.streaming],
+                contextWindow: 1_000_000,
+                reasoningConfig: nil,
+                isEnabled: true
+            )
+        ]
+
+        let provider = ProviderConfigEntity(
+            id: "deepseek",
+            name: "DeepSeek",
+            typeRaw: ProviderType.deepseek.rawValue,
+            modelsData: try! JSONEncoder().encode(models)
+        )
+
+        XCTAssertEqual(
+            ChatModelSelectionSupport.preferredModelID(
+                in: models,
+                providerID: "deepseek",
+                providers: [provider],
+                geminiPreferredModelOrder: []
+            ),
+            "deepseek-v4-flash"
+        )
+    }
+
+    func testPreferredModelIDFallsBackToLegacyDeepSeekChatWhenV4IsMissing() {
+        let models = [
+            ModelInfo(
+                id: "deepseek-reasoner",
+                name: "DeepSeek Reasoner (Legacy)",
+                capabilities: [.streaming],
+                contextWindow: 1_000_000,
+                reasoningConfig: nil,
+                isEnabled: true
+            ),
+            ModelInfo(
+                id: "deepseek-chat",
+                name: "DeepSeek Chat (Legacy)",
+                capabilities: [.streaming],
+                contextWindow: 1_000_000,
+                reasoningConfig: nil,
+                isEnabled: true
+            )
+        ]
+
+        let provider = ProviderConfigEntity(
+            id: "deepseek",
+            name: "DeepSeek",
+            typeRaw: ProviderType.deepseek.rawValue,
+            modelsData: try! JSONEncoder().encode(models)
+        )
+
+        XCTAssertEqual(
+            ChatModelSelectionSupport.preferredModelID(
+                in: models,
+                providerID: "deepseek",
+                providers: [provider],
+                geminiPreferredModelOrder: []
+            ),
+            "deepseek-chat"
+        )
+    }
 }

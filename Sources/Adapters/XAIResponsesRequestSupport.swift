@@ -8,6 +8,11 @@ enum XAIResponsesRequestSupport {
         "grok-4.20-multi-agent",
         "grok-4.20-multi-agent-0309",
     ]
+    /// Models that accept `reasoning: {"effort": ...}` with low/medium/high/xhigh
+    /// (docs.x.ai: grok-4.6 reasoning is always-on; xhigh is available).
+    private static let standardReasoningEffortWithXHighModelIDs: Set<String> = [
+        "grok-4.6",
+    ]
     /// Models that accept `reasoning: {"effort": ...}` with low/medium/high only
     /// (docs.x.ai: grok-4.5 reasoning is always-on and rejects none).
     private static let standardReasoningEffortModelIDs: Set<String> = [
@@ -22,6 +27,7 @@ enum XAIResponsesRequestSupport {
         "grok-4",
         "grok-4.3",
         "grok-4.5",
+        "grok-4.6",
         "grok-4.20",
         "grok-4.20-0309-reasoning",
         "grok-4.20-0309-non-reasoning",
@@ -35,6 +41,7 @@ enum XAIResponsesRequestSupport {
         "grok-4",
         "grok-4.3",
         "grok-4.5",
+        "grok-4.6",
         "grok-4.20",
         "grok-4.20-0309-reasoning",
         "grok-4.20-0309-non-reasoning",
@@ -142,6 +149,21 @@ enum XAIResponsesRequestSupport {
             guard let reasoning = controls.reasoning, reasoning.enabled else { return }
             let effort = reasoning.effort ?? .none
             body["reasoning"] = ["effort": mapReasoningEffortNoneDisabled(effort)]
+            return
+        }
+
+        if supportsStandardReasoningEffortWithXHigh(modelID: modelID) {
+            // Always-on grok-4.6: emit effort even when controls are sparse.
+            // Defaults to high per docs when effort is missing. xhigh is valid.
+            let effort: ReasoningEffort
+            if let reasoning = controls.reasoning, reasoning.enabled, let explicit = reasoning.effort {
+                effort = explicit
+            } else if controls.reasoning?.enabled == false {
+                effort = .low
+            } else {
+                effort = .high
+            }
+            body["reasoning"] = ["effort": mapStandardReasoningEffortWithXHigh(effort)]
             return
         }
 
@@ -308,6 +330,10 @@ enum XAIResponsesRequestSupport {
         multiAgentReasoningModelIDs.contains(modelID.lowercased())
     }
 
+    static func supportsStandardReasoningEffortWithXHigh(modelID: String) -> Bool {
+        standardReasoningEffortWithXHighModelIDs.contains(modelID.lowercased())
+    }
+
     static func supportsStandardReasoningEffort(modelID: String) -> Bool {
         standardReasoningEffortModelIDs.contains(modelID.lowercased())
     }
@@ -331,6 +357,21 @@ enum XAIResponsesRequestSupport {
     /// Multi-agent effort maps 1:1 to API values: low/medium → 4 agents, high/xhigh → 16
     /// (docs.x.ai multi-agent).
     static func mapMultiAgentReasoningEffort(_ effort: ReasoningEffort) -> String {
+        switch effort {
+        case .none, .minimal, .low:
+            return "low"
+        case .medium:
+            return "medium"
+        case .high:
+            return "high"
+        case .xhigh, .max:
+            return "xhigh"
+        }
+    }
+
+    /// grok-4.6 accepts low/medium/high/xhigh (no none); clamp max → xhigh and
+    /// none/minimal → low so a persisted out-of-range effort never produces a 400.
+    static func mapStandardReasoningEffortWithXHigh(_ effort: ReasoningEffort) -> String {
         switch effort {
         case .none, .minimal, .low:
             return "low"

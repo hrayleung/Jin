@@ -1357,6 +1357,17 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "hy3")
         )
+        // DeepSeek V4 on Go still thinks when reasoning_effort is omitted; Off is a lie.
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "deepseek-v4-pro")
+        )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "deepseek-v4-flash")
+        )
+        // Official DeepSeek can send thinking.type=disabled, so Off stays available there.
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .deepseek, modelID: "deepseek-v4-pro")
+        )
     }
 
     func testResolverInfersOpenCodeGoDeepSeekV4MetadataForLegacyPersistedModels() {
@@ -2088,19 +2099,23 @@ final class ModelSettingsResolverTests: XCTestCase {
     }
 
     func testAlwaysOnReasoningModelsCannotDisableReasoning() {
-        // grok-4.5: "Reasoning cannot be disabled" (docs.x.ai); exact-ID only.
+        // grok-4.6 / grok-4.5: "Reasoning cannot be disabled" (docs.x.ai); exact-ID only.
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.6"))
         XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.5"))
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.3"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.6-custom"))
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.5-custom"))
+        // OpenCode Go does not host grok-4.6; do not inherit the lock by prefix.
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.6"))
 
-        // OpenRouter reasoning.mandatory=true models (live metadata, 2026-07-11).
-        for id in ["x-ai/grok-4.5", "anthropic/claude-fable-5", "sakana/fugu-ultra"] {
+        // OpenRouter reasoning.mandatory=true models (live metadata, 2026-07-11 / 2026-08-12).
+        for id in ["x-ai/grok-4.6", "x-ai/grok-4.5", "anthropic/claude-fable-5", "sakana/fugu-ultra"] {
             XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: id), id)
         }
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "anthropic/claude-sonnet-5"))
 
         // Vercel AI Gateway twins of always-on upstream models.
-        for id in ["xai/grok-4.5", "meta/muse-spark-1.1", "meta/muse-spark-1.2", "meta/muse-spark-1.2-contributor"] {
+        for id in ["xai/grok-4.6", "xai/grok-4.5", "meta/muse-spark-1.1", "meta/muse-spark-1.2", "meta/muse-spark-1.2-contributor"] {
             XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: id), id)
         }
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "openai/gpt-5.6-sol"))

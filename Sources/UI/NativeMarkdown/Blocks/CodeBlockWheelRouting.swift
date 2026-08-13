@@ -90,3 +90,23 @@ struct CodeBlockWheelRouter {
         return nil
     }
 }
+
+/// `NSTextView.hitTest` can return `nil` for in-bounds points that sit in
+/// `textContainerInset` (no glyphs). AppKit then reports the SwiftUI
+/// horizontal-scroll `DocumentView` behind the text, which is a wheel
+/// dead-zone. Both code-block text views claim those pixels themselves.
+enum CodeBlockHitTesting {
+    /// `point` is in the receiver's **superview** coordinates, matching
+    /// `NSView.hitTest(_:)`. Prefer `superHit` (subviews, glyphs) and only
+    /// claim the view when AppKit declined an in-bounds point.
+    static func hitTest(
+        _ view: NSView,
+        pointInSuperview point: NSPoint,
+        superHit: NSView?
+    ) -> NSView? {
+        if let superHit { return superHit }
+        guard !view.isHidden, view.alphaValue > 0.01 else { return nil }
+        let local = view.convert(point, from: view.superview)
+        return view.bounds.contains(local) ? view : nil
+    }
+}

@@ -850,6 +850,15 @@ final class JinMessageTextView: NSTextView {
         }
     }
 
+    /// Code blocks set a 14pt leading `textContainerInset`. `NSTextView` on
+    /// some AppKit versions (GitHub-hosted macOS 15 / Xcode 26) returns `nil`
+    /// for points in that padding, so the SwiftUI `DocumentView` behind the
+    /// text eats vertical wheels. Claim every in-bounds pixel; prose uses a
+    /// zero inset so this is a no-op there.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        CodeBlockHitTesting.hitTest(self, pointInSuperview: point, superHit: super.hitTest(point))
+    }
+
     // MARK: - Selection
 
     /// Read-only message text must still take focus so selection can be live

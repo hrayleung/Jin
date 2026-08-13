@@ -56,6 +56,9 @@ extension ContentView {
         if providerID == "anthropic", let sonnet45 = models.first(where: { $0.id == "claude-sonnet-4-5-20250929" }) {
             return sonnet45.id
         }
+        if providerID == "xai", let grok46 = models.first(where: { $0.id == "grok-4.6" }) {
+            return grok46.id
+        }
         if providerID == "xai", let grok45 = models.first(where: { $0.id == "grok-4.5" }) {
             return grok45.id
         }
@@ -67,6 +70,12 @@ extension ContentView {
         }
         if providerID == "xai", let grokBuild = models.first(where: { $0.id == "grok-build-0.1" }) {
             return grokBuild.id
+        }
+        if providerID == "deepseek", let deepseekV4Pro = models.first(where: { $0.id == "deepseek-v4-pro" }) {
+            return deepseekV4Pro.id
+        }
+        if providerID == "deepseek", let deepseekV4Flash = models.first(where: { $0.id == "deepseek-v4-flash" }) {
+            return deepseekV4Flash.id
         }
         if providerID == "deepseek", let deepseekChat = models.first(where: { $0.id == "deepseek-chat" }) {
             return deepseekChat.id
@@ -182,8 +191,8 @@ extension ContentView {
 
     private static let absoluteFallbackModelIDs: [String: String] = [
         "anthropic": "claude-opus-5",
-        "xai": "grok-4.5",
-        "deepseek": "deepseek-chat",
+        "xai": "grok-4.6",
+        "deepseek": "deepseek-v4-pro",
         "zhipu-coding-plan": "glm-5.2[1m]",
         "kimi-for-coding": "k3",
         "minimax": "MiniMax-M2.7",

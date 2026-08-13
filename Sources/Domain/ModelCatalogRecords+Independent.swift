@@ -427,15 +427,23 @@ extension ModelCatalog {
 
     // MARK: xAI
 
-    // Verified against docs.x.ai/developers/models + pricing (2026-07-12):
-    // Chat/Code contexts are 500k (4.5), 1M (4.3 / 4.20 / multi-agent), 256k (build).
-    // Multi-agent: built-in tools only (no client function tools), effort = agent count.
-    // grok-4.5 reasoning always-on low/medium/high (default high); code_interpreter is
-    // documented in tools overview examples. presence/frequency/stop rejected on reasoning.
-    // Imagine: pro is an alias of quality; video-1.5 is image→video only (1080p supported).
-    // Retired 4.1/* slugs still resolve (redirect to 4.3) but are catalog-only, not seeded.
+    // Verified against docs.x.ai/developers/models + pricing + reasoning
+    // (2026-08-12): Chat/Code contexts are 500k (4.6 / 4.5), 1M (4.3 / 4.20 /
+    // multi-agent), 256k (build). Multi-agent: built-in tools only (no client
+    // function tools), effort = agent count. grok-4.6 reasoning is always-on
+    // low/medium/high/xhigh (default high); grok-4.5 is the same band minus
+    // xhigh. code_interpreter is documented in tools overview examples for
+    // both. presence/frequency/stop rejected on reasoning. Imagine: pro is an
+    // alias of quality; video-1.5 is image→video only (1080p supported).
+    // Retired 4.1/* slugs still resolve (redirect to 4.3) but are catalog-only,
+    // not seeded.
     static let xAIRecords: [Record] = [
         // Seeded
+        Record(id: "grok-4.6", displayName: "Grok 4.6",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 500_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "grok-4.5", displayName: "Grok 4.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 500_000,

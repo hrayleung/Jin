@@ -437,6 +437,7 @@ private struct CodeLineNumberGutterView: NSViewRepresentable {
     private func apply(to view: CodeLineNumberTextView) {
         view.textContainerInset = NSSize(width: CodeLineNumberGutter.horizontalInset, height: verticalInset)
         view.textStorage?.setAttributedString(CodeLineNumberGutter.attributedNumbers(count: count, font: font))
+        view.invalidateIntrinsicContentSize()
     }
 
 }
@@ -531,6 +532,15 @@ final class CodeLineNumberTextView: NSTextView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// SwiftUI on some CI/AppKit paths sizes the representable from
+    /// `intrinsicContentSize` instead of `sizeThatFits`. That path used to
+    /// omit the trailing divider, leaving a 1pt DocumentView strip at the
+    /// gutter/code seam (`testShortCodeFillsTheCardWithForwardingViews` on
+    /// GitHub-hosted runners).
+    override var intrinsicContentSize: NSSize {
+        naturalSize()
+    }
+
     override func scrollWheel(with event: NSEvent) {
         switch wheelRouter.route(event: event, from: self) {
         case .forwardToTimeline(let timeline):
@@ -538,6 +548,12 @@ final class CodeLineNumberTextView: NSTextView {
         case .passToSuper:
             super.scrollWheel(with: event)
         }
+    }
+
+    /// Same inset click-through as `JinMessageTextView`: the gutter's 8pt
+    /// horizontal padding has no glyphs, and a `nil` hit lands on DocumentView.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        CodeBlockHitTesting.hitTest(self, pointInSuperview: point, superHit: super.hitTest(point))
     }
 
     override func draw(_ dirtyRect: NSRect) {

@@ -182,6 +182,134 @@ final class CodeBlockWheelTargetTests: XCTestCase {
         return NSEvent(cgEvent: cgEvent)
     }
 
+    /// Prints the live frames around column 0 so a CI failure names the
+    /// actual hole (gutter width, code-view origin, inset, hit-test leaf)
+    /// instead of only `(29,64) -> DocumentView`.
+    private func describeHitLandscape(timeline: ChatTimelineScrollView, host: NSView) -> String {
+        let gutter = firstView(ofType: CodeLineNumberTextView.self, in: host)
+        let code = firstView(ofType: JinMessageTextView.self, in: host)
+        var lines: [String] = []
+        lines.append("host=\(host.bounds.size) fitting=\(host.fittingSize)")
+        if let gutter {
+            let inSuperview = NSPoint(x: gutter.frame.midX, y: gutter.frame.midY)
+            lines.append(
+                "gutter frame(in host)=\(gutter.convert(gutter.bounds, to: host)) "
+                    + "bounds=\(gutter.bounds) inset=\(gutter.textContainerInset) "
+                    + "intrinsic=\(gutter.intrinsicContentSize) "
+                    + "hitInBounds=\(gutter.hitTest(inSuperview).map { String(describing: type(of: $0)) } ?? "nil")"
+            )
+        } else {
+            lines.append("gutter=nil")
+        }
+        if let code {
+            let frameInHost = code.convert(code.bounds, to: host)
+            let sampleInHost = NSPoint(x: 29, y: 64)
+            let sampleInSuperview = code.superview.map { host.convert(sampleInHost, to: $0) } ?? sampleInHost
+            lines.append(
+                "code frame(in host)=\(frameInHost) bounds=\(code.bounds) "
+                    + "inset=\(code.textContainerInset) "
+                    + "intrinsic=\(code.intrinsicContentSize) "
+                    + "sampleInSuperview=\(sampleInSuperview) "
+                    + "code.hitTest=\(code.hitTest(sampleInSuperview).map { String(describing: type(of: $0)) } ?? "nil")"
+            )
+        } else {
+            lines.append("code=nil")
+        }
+        let sampleHit = timeline.hitTest(host.convert(NSPoint(x: 29, y: 64), to: nil))
+        lines.append(
+            "timeline.hitTest(29,64)=\(sampleHit.map { String(describing: type(of: $0)) } ?? "nil") "
+                + "routing=\(sampleHit.map { routing(from: $0, timeline: timeline) } ?? "nil")"
+        )
+        return lines.joined(separator: "\n")
+    }
+
+    /// The CI failure was never a 1pt gutter/code seam: column 0 of the 12-wide
+    /// grid (`x ≈ 29`) sits in the code view's 14pt leading `textContainerInset`.
+    /// `NSTextView.hitTest` can return nil there, which the grid then reports
+    /// as `DocumentView`. Pin the inset itself so a sizing-only "fix" cannot
+    /// go green while the hole remains.
+    func testCodeViewLeadingInsetHitTestsToForwarder() {
+        let (timeline, host) = realize(source: Self.shortSource, showLineNumbers: true)
+        guard let code = firstView(ofType: JinMessageTextView.self, in: host) else {
+            return XCTFail("no code text view realized")
+        }
+        XCTAssertGreaterThan(code.textContainerInset.width, 2, "test assumes a leading inset")
+        let local = NSPoint(x: 2, y: code.bounds.midY)
+        let hit = timeline.hitTest(code.convert(local, to: nil))
+        XCTAssertTrue(
+            hit is JinMessageTextView,
+            "2pt inside the code view's leading edge must stay on the code text "
+                + "(hit \(hit.map { String(describing: type(of: $0)) } ?? "nil"))\n"
+                + describeHitLandscape(timeline: timeline, host: host)
+        )
+    }
+
+    func testGutterTrailingEdgeHitTestsToForwarder() {
+        let (timeline, host) = realize(source: Self.shortSource, showLineNumbers: true)
+        guard let gutter = firstView(ofType: CodeLineNumberTextView.self, in: host) else {
+            return XCTFail("no gutter text view realized")
+        }
+        let local = NSPoint(x: max(gutter.bounds.maxX - 2, gutter.bounds.midX), y: gutter.bounds.midY)
+        let hit = timeline.hitTest(gutter.convert(local, to: nil))
+        XCTAssertTrue(
+            hit is CodeLineNumberTextView,
+            "2pt inside the gutter's trailing edge must stay on the gutter "
+                + "(hit \(hit.map { String(describing: type(of: $0)) } ?? "nil"))\n"
+                + describeHitLandscape(timeline: timeline, host: host)
+        )
+    }
+
+    func testMessageTextViewClaimsHitsInTextContainerInset() {
+        let view = JinMessageTextView()
+        view.textContainerInset = NSSize(width: 14, height: 10)
+        view.textStorage?.setAttributedString(
+            NSAttributedString(
+                string: "let x = 1",
+                attributes: [.font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)]
+            )
+        )
+        let host = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))
+        view.frame = host.bounds
+        host.addSubview(view)
+        // Off-window `NSTextView.hitTest` / `convert` is not reliable on the
+        // GitHub-hosted AppKit (returns nil). The product path always has a
+        // window; match that here.
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 200, height: 40),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let hit = view.hitTest(NSPoint(x: 3, y: 20))
+        XCTAssertTrue(
+            hit === view,
+            "left textContainerInset must hit-test to the text view, not nil "
+                + "(hit \(hit.map { String(describing: type(of: $0)) } ?? "nil") "
+                + "alpha=\(view.alphaValue) bounds=\(view.bounds) window=\(view.window != nil))"
+        )
+    }
+
+    func testHitTestingHelperClaimsInBoundsWhenSuperDeclines() {
+        let view = NSView(frame: NSRect(x: 10, y: 20, width: 50, height: 30))
+        let host = NSView(frame: NSRect(x: 0, y: 0, width: 100, height: 80))
+        host.addSubview(view)
+        let claimed = CodeBlockHitTesting.hitTest(
+            view,
+            pointInSuperview: NSPoint(x: 12, y: 25),
+            superHit: nil
+        )
+        XCTAssertTrue(claimed === view)
+        XCTAssertNil(
+            CodeBlockHitTesting.hitTest(
+                view,
+                pointInSuperview: NSPoint(x: 0, y: 0),
+                superHit: nil
+            )
+        )
+    }
+
     /// SHORT code leaves most of a full-width card empty, and that empty area
     /// used to belong to the SwiftUI horizontal scroll view — which eats
     /// vertical wheels. Every point of the card must land on a view that
@@ -218,7 +346,8 @@ final class CodeBlockWheelTargetTests: XCTestCase {
             XCTAssertTrue(
                 offenders.isEmpty,
                 "[gutter=\(gutter)] \(offenders.count) points inside the code body do not belong to a "
-                    + "wheel-forwarding view: \(offenders.prefix(6).joined(separator: ", "))"
+                    + "wheel-forwarding view: \(offenders.prefix(6).joined(separator: ", "))\n"
+                    + describeHitLandscape(timeline: timeline, host: host)
             )
         }
     }
