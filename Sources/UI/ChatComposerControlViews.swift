@@ -69,15 +69,17 @@ struct ComposerControlIconLabel: View {
 
             if let badgeText, !badgeText.isEmpty {
                 Text(badgeText)
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .padding(.horizontal, JinSpacing.xSmall)
+                    .font(.system(size: 8, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 3)
                     .padding(.vertical, 1)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(isActive ? activeColor : .secondary)
                     .background(
                         Capsule()
-                            .fill(JinSemanticColor.subtleSurface)
+                            .fill(isActive ? activeColor.opacity(0.15) : JinSemanticColor.subtleSurface)
                     )
                     .offset(x: JinSpacing.xSmall, y: JinSpacing.xSmall)
+                    .lineLimit(1)
+                    .fixedSize()
             }
         }
     }
