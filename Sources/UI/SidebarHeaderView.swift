@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SidebarHeaderView: View {
+    @Environment(\.openSettings) private var openSettings
+
     let assistantDisplayName: String
     let extendsContentIntoTitlebar: Bool
     let titlebarLeadingInset: CGFloat
@@ -28,8 +30,8 @@ struct SidebarHeaderView: View {
 
             Spacer(minLength: JinSpacing.small)
 
-            // Sidebar-toggle is now provided by NavigationSplitView's system
-            // chrome (auto Liquid Glass on macOS 26). New Chat + Settings stay
+            // Sidebar toggle lives in the column toolbar (`MainSidebarToggleButton`)
+            // so it occupies the system title-bar slot. New Chat + Settings stay
             // inline here because they're frequently used and a dedicated
             // sidebar location keeps the chat-side toolbar lean.
             Button(action: onNewChat) {
@@ -40,7 +42,7 @@ struct SidebarHeaderView: View {
             .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .newChat))
             .help("New Chat")
 
-            SettingsLink {
+            Button(action: { openSettings() }) {
                 Image(systemName: "gearshape")
                     .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
             }

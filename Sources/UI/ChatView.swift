@@ -365,6 +365,9 @@ struct ChatView: View {
         .toolbar {
             chatToolbarItems
         }
+        // After `.toolbar { }`. A later toolbar pass is where Tahoe
+        // re-injects `.sidebarToggle` once the sidebar column is gone.
+        .toolbar(removing: .sidebarToggle)
     }
 
     @ToolbarContentBuilder
