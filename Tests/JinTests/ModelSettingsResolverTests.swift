@@ -1357,6 +1357,17 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "hy3")
         )
+        // DeepSeek V4 on Go still thinks when reasoning_effort is omitted; Off is a lie.
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "deepseek-v4-pro")
+        )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "deepseek-v4-flash")
+        )
+        // Official DeepSeek can send thinking.type=disabled, so Off stays available there.
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .deepseek, modelID: "deepseek-v4-pro")
+        )
     }
 
     func testResolverInfersOpenCodeGoDeepSeekV4MetadataForLegacyPersistedModels() {
