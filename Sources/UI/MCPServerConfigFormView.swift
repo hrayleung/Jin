@@ -108,7 +108,7 @@ struct MCPServerConfigFormView: View {
         .onChange(of: endpoint) { oldValue, newValue in
             if let oldURL = MCPServerFormSupport.parsedEndpoint(oldValue),
                let newURL = MCPServerFormSupport.parsedEndpoint(newValue) {
-                MCPOAuthKeychainTokenStorage.move(from: oldURL, to: newURL)
+                MCPOAuthTokenStore.move(from: oldURL, to: newURL)
             }
         }
         .sheet(item: $schemaPresentedTool) { tool in

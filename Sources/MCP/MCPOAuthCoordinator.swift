@@ -9,7 +9,7 @@ struct MCPOAuthAuthorizationDelegate: OAuthAuthorizationDelegate {
 
 enum MCPOAuthCoordinator {
     static func authorizer(for endpoint: URL, legacyServerID: String? = nil) -> OAuthAuthorizer {
-        _ = MCPOAuthKeychainTokenStorage.loadToken(endpoint: endpoint, legacyServerID: legacyServerID)
+        _ = MCPOAuthTokenStore.loadToken(endpoint: endpoint, legacyServerID: legacyServerID)
         return makeAuthorizer(endpoint: endpoint)
     }
 
@@ -39,12 +39,12 @@ enum MCPOAuthCoordinator {
     }
 
     static func signOut(endpoint: URL, legacyServerID: String? = nil) {
-        MCPOAuthKeychainTokenStorage.delete(endpoint: endpoint, legacyServerID: legacyServerID)
+        MCPOAuthTokenStore.delete(endpoint: endpoint, legacyServerID: legacyServerID)
         notifyChange(endpoint: endpoint)
     }
 
     static func status(for endpoint: URL, legacyServerID: String? = nil) -> OAuthAccessToken? {
-        MCPOAuthKeychainTokenStorage.loadToken(endpoint: endpoint, legacyServerID: legacyServerID)
+        MCPOAuthTokenStore.loadToken(endpoint: endpoint, legacyServerID: legacyServerID)
     }
 
     static func mapError(_ error: Error) -> Error {
@@ -80,7 +80,7 @@ enum MCPOAuthCoordinator {
     }
 
     private static func makeAuthorizer(endpoint: URL) -> OAuthAuthorizer {
-        let stored = MCPOAuthKeychainTokenStorage.loadToken(endpoint: endpoint)
+        let stored = MCPOAuthTokenStore.loadToken(endpoint: endpoint)
         let clientID = stored?.clientID?.trimmedNonEmpty ?? MCPOAuthConstants.placeholderClientID
         let configuration = OAuthConfiguration(
             grantType: .authorizationCode,
@@ -91,7 +91,7 @@ enum MCPOAuthCoordinator {
         )
         return OAuthAuthorizer(
             configuration: configuration,
-            tokenStorage: MCPOAuthKeychainTokenStorage(endpoint: endpoint)
+            tokenStorage: MCPOAuthTokenStore(endpoint: endpoint)
         )
     }
 
@@ -126,7 +126,7 @@ enum MCPOAuthCoordinator {
         NotificationCenter.default.post(
             name: .mcpOAuthStatusDidChange,
             object: nil,
-            userInfo: ["endpoint": MCPOAuthKeychainTokenStorage.account(for: endpoint)]
+            userInfo: ["endpoint": MCPOAuthTokenStore.account(for: endpoint)]
         )
     }
 }

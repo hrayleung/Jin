@@ -1,9 +1,16 @@
 import Foundation
 import MCP
-import Security
 
-final class MCPOAuthKeychainTokenStorage: TokenStorage, @unchecked Sendable {
-    private static let service = "com.jin.app.mcp.oauth"
+/// Local MCP OAuth token store.
+///
+/// Tokens stay on this Mac under Application Support. Keychain is not used —
+/// ad-hoc / iteratively signed debug builds prompted on every SecItem read.
+final class MCPOAuthTokenStore: TokenStorage, @unchecked Sendable {
+    private static let lock = NSLock()
+    private static let fileName = "mcp-oauth-tokens.json"
+
+    /// Tests replace the store file so they never touch the real app-support tree.
+    static var storeURLOverride: URL?
 
     let account: String
 
@@ -16,16 +23,9 @@ final class MCPOAuthKeychainTokenStorage: TokenStorage, @unchecked Sendable {
     }
 
     func save(_ token: OAuthAccessToken) {
-        guard let data = try? JSONEncoder().encode(token) else { return }
-        Self.delete(account: account)
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        ]
-        SecItemAdd(query as CFDictionary, nil)
+        Self.update { store in
+            store[account] = token
+        }
     }
 
     func load() -> OAuthAccessToken? {
@@ -56,22 +56,15 @@ final class MCPOAuthKeychainTokenStorage: TokenStorage, @unchecked Sendable {
             return nil
         }
         guard let token = loadToken(account: legacyServerID) else { return nil }
-        MCPOAuthKeychainTokenStorage(account: resourceAccount).save(token)
+        MCPOAuthTokenStore(account: resourceAccount).save(token)
         delete(account: legacyServerID)
         return token
     }
 
     static func loadToken(account: String) -> OAuthAccessToken? {
-        guard let data = loadData(account: account) else { return nil }
-        if let token = try? JSONDecoder().decode(OAuthAccessToken.self, from: data) {
-            return token
-        }
-        if let legacy = try? JSONDecoder().decode(MCPOAuthStoredSession.self, from: data) {
-            let token = migrate(legacy)
-            MCPOAuthKeychainTokenStorage(account: account).save(token)
-            return token
-        }
-        return nil
+        lock.lock()
+        defer { lock.unlock() }
+        return readStore()[account]
     }
 
     static func delete(endpoint: URL, legacyServerID: String? = nil) {
@@ -82,19 +75,16 @@ final class MCPOAuthKeychainTokenStorage: TokenStorage, @unchecked Sendable {
     }
 
     static func delete(account: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-        SecItemDelete(query as CFDictionary)
+        update { store in
+            store.removeValue(forKey: account)
+        }
     }
 
     static func move(from oldEndpoint: URL, to newEndpoint: URL) {
         let oldAccount = account(for: oldEndpoint)
         let newAccount = account(for: newEndpoint)
         guard oldAccount != newAccount, let token = loadToken(account: oldAccount) else { return }
-        MCPOAuthKeychainTokenStorage(account: newAccount).save(token)
+        MCPOAuthTokenStore(account: newAccount).save(token)
         delete(account: oldAccount)
     }
 
@@ -116,17 +106,40 @@ final class MCPOAuthKeychainTokenStorage: TokenStorage, @unchecked Sendable {
         )
     }
 
-    private static func loadData(account: String) -> Data? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess else { return nil }
-        return item as? Data
+    private static func update(_ body: (inout [String: OAuthAccessToken]) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        var store = readStore()
+        body(&store)
+        writeStore(store)
+    }
+
+    private static func readStore() -> [String: OAuthAccessToken] {
+        guard let url = try? storeURL(),
+              let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([String: OAuthAccessToken].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }
+
+    private static func writeStore(_ store: [String: OAuthAccessToken]) {
+        guard let url = try? storeURL() else { return }
+        let directory = url.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        guard let data = try? JSONEncoder().encode(store) else { return }
+        try? data.write(to: url, options: .atomic)
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: url.path
+        )
+    }
+
+    private static func storeURL() throws -> URL {
+        if let storeURLOverride {
+            return storeURLOverride
+        }
+        return try AppDataLocations.preferencesDirectoryURL()
+            .appendingPathComponent(fileName, isDirectory: false)
     }
 }

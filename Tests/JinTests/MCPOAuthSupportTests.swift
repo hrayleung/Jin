@@ -82,7 +82,7 @@ final class MCPOAuthSupportTests: XCTestCase {
             authorizationEndpoint: URL(string: "https://auth.example.com/authorize")!,
             resource: "https://agent.tinyfish.ai/mcp"
         )
-        let token = MCPOAuthKeychainTokenStorage.migrate(legacy)
+        let token = MCPOAuthTokenStore.migrate(legacy)
         XCTAssertEqual(token.value, "access-1")
         XCTAssertEqual(token.refreshToken, "refresh-1")
         XCTAssertEqual(token.clientID, "registered-client")
@@ -127,16 +127,52 @@ final class MCPOAuthSupportTests: XCTestCase {
 
     func testResourceAccountsNormalizeTrailingSlashAndStayIsolated() {
         XCTAssertEqual(
-            MCPOAuthKeychainTokenStorage.account(for: URL(string: "https://mcp.tavily.com/mcp/")!),
+            MCPOAuthTokenStore.account(for: URL(string: "https://mcp.tavily.com/mcp/")!),
             "https://mcp.tavily.com/mcp"
         )
         XCTAssertEqual(
-            MCPOAuthKeychainTokenStorage.account(for: URL(string: "https://agent.tinyfish.ai/mcp")!),
+            MCPOAuthTokenStore.account(for: URL(string: "https://agent.tinyfish.ai/mcp")!),
             "https://agent.tinyfish.ai/mcp"
         )
         XCTAssertNotEqual(
-            MCPOAuthKeychainTokenStorage.account(for: URL(string: "https://agent.tinyfish.ai/mcp")!),
-            MCPOAuthKeychainTokenStorage.account(for: URL(string: "https://api.githubcopilot.com/mcp/")!)
+            MCPOAuthTokenStore.account(for: URL(string: "https://agent.tinyfish.ai/mcp")!),
+            MCPOAuthTokenStore.account(for: URL(string: "https://api.githubcopilot.com/mcp/")!)
         )
+    }
+
+    func testFileStoreRoundTripsMovesAndDeletesWithoutKeychain() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("jin-oauth-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fileURL = directory.appendingPathComponent("tokens.json")
+        MCPOAuthTokenStore.storeURLOverride = fileURL
+        defer {
+            MCPOAuthTokenStore.storeURLOverride = nil
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        let tinyfish = URL(string: "https://agent.tinyfish.ai/mcp")!
+        let token = OAuthAccessToken(
+            value: "access-file",
+            tokenType: "Bearer",
+            expiresAt: nil,
+            scopes: ["openid"],
+            authorizationServer: nil,
+            refreshToken: "refresh-file",
+            clientID: "jin-dcr"
+        )
+        MCPOAuthTokenStore(endpoint: tinyfish).save(token)
+
+        let loaded = try XCTUnwrap(MCPOAuthTokenStore.loadToken(endpoint: tinyfish))
+        XCTAssertEqual(loaded.value, "access-file")
+        XCTAssertEqual(loaded.refreshToken, "refresh-file")
+
+        let moved = URL(string: "https://agent.tinyfish.ai/mcp/v2")!
+        MCPOAuthTokenStore.move(from: tinyfish, to: moved)
+        XCTAssertNil(MCPOAuthTokenStore.loadToken(endpoint: tinyfish))
+        XCTAssertEqual(MCPOAuthTokenStore.loadToken(endpoint: moved)?.value, "access-file")
+
+        MCPOAuthTokenStore.delete(endpoint: moved)
+        XCTAssertNil(MCPOAuthTokenStore.loadToken(endpoint: moved))
     }
 }
