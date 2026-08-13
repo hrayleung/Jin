@@ -149,8 +149,14 @@ private struct MCPToolCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text(tool.name)
+            Text(tool.displayName)
                 .font(.headline)
+
+            if tool.displayName != tool.name {
+                Text(tool.name)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+            }
 
             if !tool.description.isEmpty {
                 Text(tool.description)

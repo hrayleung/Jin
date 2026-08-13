@@ -1,53 +1,40 @@
-import AuthenticationServices
 import Foundation
 #if os(macOS)
 import AppKit
 #endif
 
-@MainActor
-final class MCPOAuthBrowserSession: NSObject, ASWebAuthenticationPresentationContextProviding {
-    private var session: ASWebAuthenticationSession?
-
-    func start(url: URL) async throws -> URL {
-        try await withCheckedThrowingContinuation { continuation in
-            let authSession = ASWebAuthenticationSession(
-                url: url,
-                callbackURLScheme: MCPOAuthConstants.callbackScheme
-            ) { callbackURL, error in
-                self.session = nil
-                if let callbackURL {
-                    continuation.resume(returning: callbackURL)
-                    return
-                }
-                if let error {
-                    let nsError = error as NSError
-                    if nsError.domain == ASWebAuthenticationSessionErrorDomain,
-                       nsError.code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
-                        continuation.resume(throwing: MCPOAuthError.cancelled)
-                        return
-                    }
-                    continuation.resume(throwing: MCPOAuthError.authorizationFailed(error.localizedDescription))
-                    return
-                }
-                continuation.resume(throwing: MCPOAuthError.cancelled)
-            }
-
-            authSession.presentationContextProvider = self
-            authSession.prefersEphemeralWebBrowserSession = false
-            self.session = authSession
-
-            if !authSession.start() {
-                self.session = nil
-                continuation.resume(throwing: MCPOAuthError.browserUnavailable)
-            }
+/// Opens the system browser and waits for the OAuth loopback redirect.
+final class MCPOAuthBrowserSession: Sendable {
+    func start(authorizationURL: URL) async throws -> URL {
+        guard let redirectURI = MCPOAuthLoopbackListener.redirectURI(fromAuthorizationURL: authorizationURL) else {
+            throw MCPOAuthError.authorizationFailed("The sign-in URL is missing a redirect URI.")
         }
+
+        let server = MCPOAuthLoopbackServer()
+        try await server.start(redirectURI: redirectURI)
+        defer { server.stop() }
+
+        try await openBrowser(authorizationURL)
+
+        let callback = try await server.accept(timeoutSeconds: 300)
+        if let message = MCPOAuthLoopbackListener.errorMessage(fromCallback: callback) {
+            let lowered = message.lowercased()
+            if lowered == "access_denied" || lowered.contains("denied") {
+                throw MCPOAuthError.cancelled
+            }
+            throw MCPOAuthError.authorizationFailed(message)
+        }
+        return callback
     }
 
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+    @MainActor
+    private func openBrowser(_ url: URL) throws {
         #if os(macOS)
-        NSApp.keyWindow ?? NSApp.windows.first { $0.isVisible } ?? ASPresentationAnchor()
+        guard NSWorkspace.shared.open(url) else {
+            throw MCPOAuthError.browserUnavailable
+        }
         #else
-        ASPresentationAnchor()
+        throw MCPOAuthError.browserUnavailable
         #endif
     }
 }

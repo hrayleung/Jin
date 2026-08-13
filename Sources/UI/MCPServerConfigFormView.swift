@@ -106,7 +106,7 @@ struct MCPServerConfigFormView: View {
         .onChange(of: headerPairs) { _, _ in persistTransport() }
         .onChange(of: httpStreaming) { _, _ in persistTransport() }
         .onChange(of: server.id) { oldValue, newValue in
-            MCPOAuthTokenStore.move(from: oldValue, to: newValue)
+            MCPOAuthKeychainTokenStorage.move(from: oldValue, to: newValue)
         }
         .sheet(item: $schemaPresentedTool) { tool in
             MCPToolSchemaSheet(tool: tool) {

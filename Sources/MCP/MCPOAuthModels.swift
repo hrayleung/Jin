@@ -38,72 +38,8 @@ enum MCPOAuthError: Error, LocalizedError, Equatable {
     }
 }
 
-struct MCPOAuthProtectedResourceMetadata: Decodable, Equatable, Sendable {
-    let resource: String?
-    let authorizationServers: [URL]
-    let scopesSupported: [String]?
-
-    enum CodingKeys: String, CodingKey {
-        case resource
-        case authorizationServers = "authorization_servers"
-        case scopesSupported = "scopes_supported"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        resource = try container.decodeIfPresent(String.self, forKey: .resource)
-        let rawServers = try container.decodeIfPresent([String].self, forKey: .authorizationServers) ?? []
-        authorizationServers = rawServers.compactMap(URL.init(string:))
-        scopesSupported = try container.decodeIfPresent([String].self, forKey: .scopesSupported)
-    }
-}
-
-struct MCPOAuthAuthorizationServerMetadata: Decodable, Equatable, Sendable {
-    let issuer: String?
-    let authorizationEndpoint: URL
-    let tokenEndpoint: URL
-    let registrationEndpoint: URL?
-    let scopesSupported: [String]?
-    let codeChallengeMethodsSupported: [String]?
-
-    enum CodingKeys: String, CodingKey {
-        case issuer
-        case authorizationEndpoint = "authorization_endpoint"
-        case tokenEndpoint = "token_endpoint"
-        case registrationEndpoint = "registration_endpoint"
-        case scopesSupported = "scopes_supported"
-        case codeChallengeMethodsSupported = "code_challenge_methods_supported"
-    }
-}
-
-struct MCPOAuthClientRegistration: Decodable, Equatable, Sendable {
-    let clientID: String
-    let clientSecret: String?
-    let tokenEndpointAuthMethod: String?
-
-    enum CodingKeys: String, CodingKey {
-        case clientID = "client_id"
-        case clientSecret = "client_secret"
-        case tokenEndpointAuthMethod = "token_endpoint_auth_method"
-    }
-}
-
-struct MCPOAuthTokenResponse: Decodable, Equatable, Sendable {
-    let accessToken: String
-    let tokenType: String?
-    let expiresIn: Int?
-    let refreshToken: String?
-    let scope: String?
-
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case tokenType = "token_type"
-        case expiresIn = "expires_in"
-        case refreshToken = "refresh_token"
-        case scope
-    }
-}
-
+/// Previous custom-OAuth keychain payload. Kept so 0.12 tokens can be migrated
+/// onto the SDK’s `OAuthAccessToken` shape.
 struct MCPOAuthStoredSession: Codable, Equatable, Sendable {
     var accessToken: String
     var refreshToken: String?
@@ -115,15 +51,9 @@ struct MCPOAuthStoredSession: Codable, Equatable, Sendable {
     var tokenEndpoint: URL
     var authorizationEndpoint: URL?
     var resource: String
-
-    var isExpired: Bool {
-        guard let expiresAt else { return false }
-        return expiresAt.timeIntervalSinceNow < 60
-    }
 }
 
 enum MCPOAuthConstants {
-    static let callbackScheme = "jin-mcp"
-    static let redirectURI = "jin-mcp://oauth"
     static let clientName = "Jin"
+    static let placeholderClientID = "jin"
 }

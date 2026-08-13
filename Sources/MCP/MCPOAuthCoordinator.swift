@@ -1,108 +1,101 @@
 import Foundation
+import MCP
 
-extension Notification.Name {
-    static let mcpOAuthStatusDidChange = Notification.Name("mcpOAuthStatusDidChange")
+struct MCPOAuthAuthorizationDelegate: OAuthAuthorizationDelegate {
+    func presentAuthorizationURL(_ url: URL) async throws -> URL {
+        try await MCPOAuthBrowserSession().start(authorizationURL: url)
+    }
 }
 
 enum MCPOAuthCoordinator {
+    private static let lock = NSLock()
+    private static var authorizers: [String: OAuthAuthorizer] = [:]
+
+    static func authorizer(for serverID: String) -> OAuthAuthorizer {
+        lock.lock()
+        defer { lock.unlock() }
+        if let existing = authorizers[serverID] {
+            return existing
+        }
+        let created = makeAuthorizer(serverID: serverID)
+        authorizers[serverID] = created
+        return created
+    }
+
     @MainActor
     static func signIn(serverID: String, endpoint: URL) async throws {
-        let discovery = try await MCPOAuthClient.discover(endpoint: endpoint)
-        let redirectURI = MCPOAuthConstants.redirectURI
-
-        let registration: MCPOAuthClientRegistration
-        if let registrationEndpoint = discovery.authorizationServer.registrationEndpoint {
-            registration = try await MCPOAuthClient.registerClient(
-                registrationEndpoint: registrationEndpoint,
-                redirectURI: redirectURI
+        let authorizer = authorizer(for: serverID)
+        do {
+            let handled = try await authorizer.handleChallenge(
+                statusCode: 401,
+                headers: [:],
+                endpoint: endpoint,
+                operationKey: "signin",
+                session: .shared
             )
-        } else {
-            throw MCPOAuthError.registrationFailed("No dynamic client registration endpoint was advertised.")
+            guard handled else {
+                throw MCPOAuthError.authorizationFailed("The server didn’t accept browser sign-in.")
+            }
+        } catch {
+            let mapped = mapError(error)
+            if mapped is MCPOAuthError {
+                throw mapped
+            }
+            throw MCPOAuthError.authorizationFailed(mapped.localizedDescription)
         }
-
-        let verifier = MCPOAuthPKCE.makeVerifier()
-        let state = MCPOAuthPKCE.makeState()
-        let challenge = MCPOAuthPKCE.challenge(for: verifier)
-        let scope = discovery.scopes.isEmpty ? nil : discovery.scopes.joined(separator: " ")
-
-        let authorizationURL = try MCPOAuthClient.authorizationURL(
-            authorizationEndpoint: discovery.authorizationServer.authorizationEndpoint,
-            clientID: registration.clientID,
-            redirectURI: redirectURI,
-            state: state,
-            codeChallenge: challenge,
-            resource: discovery.resource,
-            scope: scope
-        )
-
-        let callbackURL = try await MCPOAuthBrowserSession().start(url: authorizationURL)
-        let code = try MCPOAuthClient.parseCallback(callbackURL, expectedState: state)
-
-        let tokens = try await MCPOAuthClient.exchangeCode(
-            tokenEndpoint: discovery.authorizationServer.tokenEndpoint,
-            code: code,
-            redirectURI: redirectURI,
-            clientID: registration.clientID,
-            clientSecret: registration.clientSecret,
-            codeVerifier: verifier,
-            resource: discovery.resource
-        )
-
-        let stored = MCPOAuthClient.storedSession(
-            from: tokens,
-            clientID: registration.clientID,
-            clientSecret: registration.clientSecret,
-            tokenEndpoint: discovery.authorizationServer.tokenEndpoint,
-            authorizationEndpoint: discovery.authorizationServer.authorizationEndpoint,
-            resource: discovery.resource
-        )
-        try MCPOAuthTokenStore.save(stored, serverID: serverID)
         notifyChange(serverID: serverID)
     }
 
     static func signOut(serverID: String) {
-        MCPOAuthTokenStore.delete(serverID: serverID)
+        lock.lock()
+        authorizers.removeValue(forKey: serverID)
+        lock.unlock()
+        MCPOAuthKeychainTokenStorage.delete(serverID: serverID)
         notifyChange(serverID: serverID)
     }
 
-    static func validAccessToken(for serverID: String, endpoint: URL) async throws -> String {
-        guard var session = MCPOAuthTokenStore.load(serverID: serverID) else {
-            throw MCPOAuthError.notAuthenticated
-        }
-
-        if session.isExpired {
-            guard let refreshToken = session.refreshToken else {
-                throw MCPOAuthError.notAuthenticated
-            }
-            let tokens = try await MCPOAuthClient.refresh(
-                tokenEndpoint: session.tokenEndpoint,
-                refreshToken: refreshToken,
-                clientID: session.clientID,
-                clientSecret: session.clientSecret,
-                resource: session.resource
-            )
-            session = MCPOAuthClient.storedSession(
-                from: tokens,
-                clientID: session.clientID,
-                clientSecret: session.clientSecret,
-                tokenEndpoint: session.tokenEndpoint,
-                authorizationEndpoint: session.authorizationEndpoint,
-                resource: session.resource,
-                previousRefreshToken: refreshToken
-            )
-            try MCPOAuthTokenStore.save(session, serverID: serverID)
-            notifyChange(serverID: serverID)
-        }
-
-        guard let token = session.accessToken.trimmedNonEmpty else {
-            throw MCPOAuthError.notAuthenticated
-        }
-        _ = endpoint
-        return token
+    static func status(for serverID: String) -> OAuthAccessToken? {
+        MCPOAuthKeychainTokenStorage.loadToken(serverID: serverID)
     }
 
-    static func status(for serverID: String) -> MCPOAuthStoredSession? {
-        MCPOAuthTokenStore.load(serverID: serverID)
+    static func mapError(_ error: Error) -> Error {
+        if error is MCPOAuthError { return error }
+        if error is CancellationError { return MCPOAuthError.cancelled }
+
+        guard let oauth = error as? OAuthAuthorizationError else {
+            return error
+        }
+
+        switch oauth {
+        case .metadataDiscoveryFailed, .authorizationServerMetadataDiscoveryFailed, .missingAuthorizationServer:
+            return MCPOAuthError.discoveryFailed(oauth.localizedDescription)
+        case .registrationInformationRequired, .cimdNotSupported:
+            return MCPOAuthError.registrationFailed(oauth.localizedDescription)
+        case .tokenRequestFailed, .tokenResponseInvalid, .tokenEndpointMissing:
+            return MCPOAuthError.tokenExchangeFailed(oauth.localizedDescription)
+        case .authorizationResponseStateMismatch:
+            return MCPOAuthError.stateMismatch
+        case .authorizationResponseMissingCode, .authorizationResponseMissingState, .authorizationResponseMissingRedirectLocation:
+            return MCPOAuthError.invalidCallback
+        default:
+            return MCPOAuthError.authorizationFailed(oauth.localizedDescription)
+        }
+    }
+
+    private static func makeAuthorizer(serverID: String) -> OAuthAuthorizer {
+        let stored = MCPOAuthKeychainTokenStorage.loadToken(serverID: serverID)
+        let clientID = stored?.clientID?.trimmedNonEmpty ?? MCPOAuthConstants.placeholderClientID
+        let configuration = OAuthConfiguration(
+            grantType: .authorizationCode,
+            authentication: .none(clientID: clientID),
+            authorizationRedirectURI: MCPOAuthLoopbackListener.makeRedirectURI(),
+            clientName: MCPOAuthConstants.clientName,
+            authorizationDelegate: MCPOAuthAuthorizationDelegate()
+        )
+        return OAuthAuthorizer(
+            configuration: configuration,
+            tokenStorage: MCPOAuthKeychainTokenStorage(serverID: serverID)
+        )
     }
 
     private static func notifyChange(serverID: String) {

@@ -86,7 +86,7 @@ actor MCPHub {
                     ToolDefinition(
                         id: "\(server.id):\(tool.name)",
                         name: functionName,
-                        description: tool.description,
+                        description: tool.modelFacingDescription,
                         parameters: tool.inputSchema,
                         source: .mcp(serverID: server.id)
                     )

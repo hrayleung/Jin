@@ -85,7 +85,7 @@ struct MCPHTTPAuthViews: View {
                 Spacer()
             }
 
-            Text("Opens your browser and uses the official MCP OAuth flow (PKCE). Tokens stay on this Mac.")
+            Text("Opens your browser and uses the official MCP OAuth 2.1 flow (PKCE). Tokens stay on this Mac.")
                 .font(.caption)
                 .foregroundStyle(JinSemanticColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -157,7 +157,7 @@ struct MCPHTTPAuthViews: View {
 
     private func refreshStatus() {
         let session = MCPOAuthCoordinator.status(for: serverID)
-        isSignedIn = session?.accessToken.trimmedNonEmpty != nil
+        isSignedIn = session?.value.trimmedNonEmpty != nil
         signedInExpiry = session?.expiresAt
     }
 

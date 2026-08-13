@@ -6,8 +6,29 @@ struct MCPToolInfo: Identifiable, Sendable {
     let name: String
     let description: String
     let inputSchema: ParameterSchema
+    let title: String?
 
     var id: String { name }
+
+    var displayName: String {
+        title?.trimmedNonEmpty ?? name
+    }
+
+    /// Description shown to the model. Prefer the human title when it adds information.
+    var modelFacingDescription: String {
+        if let title = title?.trimmedNonEmpty, title != name {
+            if description.isEmpty { return title }
+            return "\(title). \(description)"
+        }
+        return description
+    }
+
+    init(name: String, description: String, inputSchema: ParameterSchema, title: String? = nil) {
+        self.name = name
+        self.description = description
+        self.inputSchema = inputSchema
+        self.title = title
+    }
 }
 
 struct MCPToolCallResult: Sendable {
