@@ -26,7 +26,7 @@ final class AddMCPServerPresetSupportTests: XCTestCase {
         XCTAssertEqual(draft.httpAuthentication, .none)
     }
 
-    func testExaLocalPresetPreservesExistingIdentityAndAddsAPIKeyOnce() {
+    func testExaLocalPresetReplacesIdentityAndKeepsExistingAPIKey() {
         let draft = AddMCPServerPresetSupport.applyingPreset(
             .exaLocal,
             to: self.draft(
@@ -36,8 +36,8 @@ final class AddMCPServerPresetSupportTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(draft.id, "custom")
-        XCTAssertEqual(draft.name, "Custom")
+        XCTAssertEqual(draft.id, "exa")
+        XCTAssertEqual(draft.name, "Exa")
         XCTAssertEqual(draft.transportKind, .stdio)
         XCTAssertEqual(draft.command, "npx")
         XCTAssertEqual(draft.args, "-y exa-mcp-server")
@@ -83,13 +83,30 @@ final class AddMCPServerPresetSupportTests: XCTestCase {
         XCTAssertEqual(draft.httpAuthentication, .oauth)
     }
 
-    func testGitHubPresetUsesOfficialRemoteEndpointAndOAuth() {
+    func testGitHubPresetUsesOfficialRemoteEndpointAndPersonalAccessToken() {
         let draft = AddMCPServerPresetSupport.applyingPreset(.github, to: self.draft(id: "", name: ""))
 
         XCTAssertEqual(draft.id, "github")
         XCTAssertEqual(draft.iconID, "github")
         XCTAssertEqual(draft.transportKind, .http)
         XCTAssertEqual(draft.endpoint, "https://api.githubcopilot.com/mcp/")
+        XCTAssertEqual(draft.httpAuthentication, .bearerToken(""))
+    }
+
+    func testSwitchingFromGitHubToTinyFishReplacesIdentityAndEndpoint() {
+        let github = AddMCPServerPresetSupport.applyingPreset(.github, to: .blank)
+        let tinyfish = AddMCPServerPresetSupport.applyingPreset(.tinyfish, to: github)
+
+        XCTAssertEqual(tinyfish.id, "tinyfish")
+        XCTAssertEqual(tinyfish.name, "TinyFish")
+        XCTAssertEqual(tinyfish.iconID, "tinyfish")
+        XCTAssertEqual(tinyfish.endpoint, "https://agent.tinyfish.ai/mcp")
+        XCTAssertEqual(tinyfish.httpAuthentication, .oauth)
+    }
+
+    func testTavilyPresetUsesCanonicalResourceEndpoint() {
+        let draft = AddMCPServerPresetSupport.applyingPreset(.tavily, to: .blank)
+        XCTAssertEqual(draft.endpoint, "https://mcp.tavily.com/mcp")
         XCTAssertEqual(draft.httpAuthentication, .oauth)
     }
 

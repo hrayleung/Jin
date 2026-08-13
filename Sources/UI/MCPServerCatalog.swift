@@ -149,10 +149,11 @@ enum MCPServerCatalog {
             category: .apps,
             iconID: "github",
             badge: "HTTP",
-            credential: .oauth(
-                help: "GitHub’s hosted MCP supports browser sign-in. A personal access token still works as Bearer."
+            credential: .bearerToken(
+                title: "Personal access token",
+                help: "GitHub’s remote MCP for third-party apps uses a personal access token (Authorization: Bearer). Create one at github.com/settings/tokens. Browser OAuth only works for hosts that registered their own GitHub OAuth App."
             ),
-            docs: "https://docs.github.com/en/copilot/how-tos/provide-context/use-mcp-in-your-ide/set-up-the-github-mcp-server",
+            docs: "https://github.com/github/github-mcp-server",
             terms: ["github", "git", "repo", "pull request"]
         ),
         item(

@@ -8,27 +8,19 @@ struct MCPOAuthAuthorizationDelegate: OAuthAuthorizationDelegate {
 }
 
 enum MCPOAuthCoordinator {
-    private static let lock = NSLock()
-    private static var authorizers: [String: OAuthAuthorizer] = [:]
-
-    static func authorizer(for serverID: String) -> OAuthAuthorizer {
-        lock.lock()
-        defer { lock.unlock() }
-        if let existing = authorizers[serverID] {
-            return existing
-        }
-        let created = makeAuthorizer(serverID: serverID)
-        authorizers[serverID] = created
-        return created
+    static func authorizer(for endpoint: URL, legacyServerID: String? = nil) -> OAuthAuthorizer {
+        _ = MCPOAuthKeychainTokenStorage.loadToken(endpoint: endpoint, legacyServerID: legacyServerID)
+        return makeAuthorizer(endpoint: endpoint)
     }
 
     @MainActor
-    static func signIn(serverID: String, endpoint: URL) async throws {
-        let authorizer = authorizer(for: serverID)
+    static func signIn(endpoint: URL, legacyServerID: String? = nil) async throws {
+        let challenge = await probeChallenge(endpoint: endpoint)
+        let authorizer = authorizer(for: endpoint, legacyServerID: legacyServerID)
         do {
             let handled = try await authorizer.handleChallenge(
-                statusCode: 401,
-                headers: [:],
+                statusCode: challenge.statusCode,
+                headers: challenge.headers,
                 endpoint: endpoint,
                 operationKey: "signin",
                 session: .shared
@@ -43,19 +35,16 @@ enum MCPOAuthCoordinator {
             }
             throw MCPOAuthError.authorizationFailed(mapped.localizedDescription)
         }
-        notifyChange(serverID: serverID)
+        notifyChange(endpoint: endpoint)
     }
 
-    static func signOut(serverID: String) {
-        lock.lock()
-        authorizers.removeValue(forKey: serverID)
-        lock.unlock()
-        MCPOAuthKeychainTokenStorage.delete(serverID: serverID)
-        notifyChange(serverID: serverID)
+    static func signOut(endpoint: URL, legacyServerID: String? = nil) {
+        MCPOAuthKeychainTokenStorage.delete(endpoint: endpoint, legacyServerID: legacyServerID)
+        notifyChange(endpoint: endpoint)
     }
 
-    static func status(for serverID: String) -> OAuthAccessToken? {
-        MCPOAuthKeychainTokenStorage.loadToken(serverID: serverID)
+    static func status(for endpoint: URL, legacyServerID: String? = nil) -> OAuthAccessToken? {
+        MCPOAuthKeychainTokenStorage.loadToken(endpoint: endpoint, legacyServerID: legacyServerID)
     }
 
     static func mapError(_ error: Error) -> Error {
@@ -71,6 +60,14 @@ enum MCPOAuthCoordinator {
             return MCPOAuthError.discoveryFailed(oauth.localizedDescription)
         case .registrationInformationRequired, .cimdNotSupported:
             return MCPOAuthError.registrationFailed(oauth.localizedDescription)
+        case .pkceCodeChallengeMethodsMissing, .pkceS256NotSupported:
+            return MCPOAuthError.authorizationFailed(
+                "This server doesn’t support MCP’s required PKCE S256 browser flow. Use a token or API key instead."
+            )
+        case .protectedResourceMismatch:
+            return MCPOAuthError.authorizationFailed(
+                "Sign-in used metadata from a different MCP server. Choose the server again, then sign in."
+            )
         case .tokenRequestFailed, .tokenResponseInvalid, .tokenEndpointMissing:
             return MCPOAuthError.tokenExchangeFailed(oauth.localizedDescription)
         case .authorizationResponseStateMismatch:
@@ -82,8 +79,8 @@ enum MCPOAuthCoordinator {
         }
     }
 
-    private static func makeAuthorizer(serverID: String) -> OAuthAuthorizer {
-        let stored = MCPOAuthKeychainTokenStorage.loadToken(serverID: serverID)
+    private static func makeAuthorizer(endpoint: URL) -> OAuthAuthorizer {
+        let stored = MCPOAuthKeychainTokenStorage.loadToken(endpoint: endpoint)
         let clientID = stored?.clientID?.trimmedNonEmpty ?? MCPOAuthConstants.placeholderClientID
         let configuration = OAuthConfiguration(
             grantType: .authorizationCode,
@@ -94,15 +91,42 @@ enum MCPOAuthCoordinator {
         )
         return OAuthAuthorizer(
             configuration: configuration,
-            tokenStorage: MCPOAuthKeychainTokenStorage(serverID: serverID)
+            tokenStorage: MCPOAuthKeychainTokenStorage(endpoint: endpoint)
         )
     }
 
-    private static func notifyChange(serverID: String) {
+    /// Asks the MCP endpoint for a 401 so we can pass `WWW-Authenticate` into the SDK.
+    private static func probeChallenge(endpoint: URL) async -> (statusCode: Int, headers: [String: String]) {
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = Data(
+            #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"Jin","version":"0.1.0"}}}"#.utf8
+        )
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return (401, [:])
+            }
+            var headers: [String: String] = [:]
+            for (key, value) in http.allHeaderFields {
+                guard let name = key as? String else { continue }
+                headers[name] = String(describing: value)
+            }
+            let status = (400...499).contains(http.statusCode) ? http.statusCode : 401
+            return (status == 403 ? 403 : 401, headers)
+        } catch {
+            return (401, [:])
+        }
+    }
+
+    private static func notifyChange(endpoint: URL) {
         NotificationCenter.default.post(
             name: .mcpOAuthStatusDidChange,
             object: nil,
-            userInfo: ["serverID": serverID]
+            userInfo: ["endpoint": MCPOAuthKeychainTokenStorage.account(for: endpoint)]
         )
     }
 }

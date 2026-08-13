@@ -69,6 +69,7 @@ struct MCPHTTPAuthViews: View {
         }
         .onAppear(perform: refreshStatus)
         .onChange(of: serverID) { _, _ in refreshStatus() }
+        .onChange(of: endpoint) { _, _ in refreshStatus() }
         .onReceive(NotificationCenter.default.publisher(for: .mcpOAuthStatusDidChange)) { _ in
             refreshStatus()
         }
@@ -85,7 +86,7 @@ struct MCPHTTPAuthViews: View {
                 Spacer()
             }
 
-            Text("Opens your browser and uses the official MCP OAuth 2.1 flow (PKCE). Tokens stay on this Mac.")
+            Text(oauthHelpText)
                 .font(.caption)
                 .foregroundStyle(JinSemanticColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -106,7 +107,9 @@ struct MCPHTTPAuthViews: View {
 
                 if isSignedIn {
                     Button("Sign out", role: .destructive) {
-                        MCPOAuthCoordinator.signOut(serverID: serverID)
+                        if let url = MCPServerFormSupport.parsedEndpoint(endpoint) {
+                            MCPOAuthCoordinator.signOut(endpoint: url, legacyServerID: serverID)
+                        }
                         refreshStatus()
                     }
                     .disabled(isSigningIn)
@@ -145,6 +148,17 @@ struct MCPHTTPAuthViews: View {
         }
     }
 
+    private var oauthHelpText: String {
+        if isGitHubRemoteMCP {
+            return "GitHub’s remote MCP for third-party apps uses a personal access token. Switch the method to Bearer token and paste a PAT from github.com/settings/tokens."
+        }
+        return "Opens your browser and uses the official MCP OAuth 2.1 flow (PKCE). Tokens stay on this Mac."
+    }
+
+    private var isGitHubRemoteMCP: Bool {
+        MCPServerFormSupport.parsedEndpoint(endpoint)?.host?.lowercased() == "api.githubcopilot.com"
+    }
+
     private var statusText: String {
         if isSignedIn {
             if let signedInExpiry {
@@ -156,7 +170,12 @@ struct MCPHTTPAuthViews: View {
     }
 
     private func refreshStatus() {
-        let session = MCPOAuthCoordinator.status(for: serverID)
+        guard let url = MCPServerFormSupport.parsedEndpoint(endpoint) else {
+            isSignedIn = false
+            signedInExpiry = nil
+            return
+        }
+        let session = MCPOAuthCoordinator.status(for: url, legacyServerID: serverID)
         isSignedIn = session?.value.trimmedNonEmpty != nil
         signedInExpiry = session?.expiresAt
     }
@@ -171,7 +190,7 @@ struct MCPHTTPAuthViews: View {
         defer { isSigningIn = false }
 
         do {
-            try await MCPOAuthCoordinator.signIn(serverID: serverID, endpoint: url)
+            try await MCPOAuthCoordinator.signIn(endpoint: url, legacyServerID: serverID)
             refreshStatus()
         } catch {
             signInError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription

@@ -12,6 +12,19 @@ enum AddMCPServerPresetSupport {
         var endpoint: String
         var headerPairs: [EnvironmentVariablePair]
         var httpAuthentication: MCPHTTPAuthentication
+
+        static let blank = Draft(
+            id: "",
+            name: "",
+            iconID: nil,
+            transportKind: .stdio,
+            command: "",
+            args: "",
+            envPairs: [],
+            endpoint: "",
+            headerPairs: [],
+            httpAuthentication: .none
+        )
     }
 
     static func canImportJSON(_ importJSON: String) -> Bool {
@@ -25,71 +38,71 @@ enum AddMCPServerPresetSupport {
         case .custom, .importJSON:
             break
         case .tinyfish:
-            fillIdentityIfBlank(id: "tinyfish", name: "TinyFish", iconID: "tinyfish", draft: &draft)
+            applyIdentity(id: "tinyfish", name: "TinyFish", iconID: "tinyfish", to: &draft)
             applyHTTP(endpoint: "https://agent.tinyfish.ai/mcp", authentication: .oauth, to: &draft)
         case .exaHTTP:
-            fillIdentityIfBlank(id: "exa", name: "Exa", iconID: "exa", draft: &draft)
+            applyIdentity(id: "exa", name: "Exa", iconID: "exa", to: &draft)
             applyHTTP(endpoint: "https://mcp.exa.ai/mcp", authentication: .none, to: &draft)
             appendPairIfMissingKey("X-Client", value: "jin", to: &draft.headerPairs, caseInsensitive: true)
         case .tavily:
-            fillIdentityIfBlank(id: "tavily", name: "Tavily", iconID: "tavily", draft: &draft)
-            applyHTTP(endpoint: "https://mcp.tavily.com/mcp/", authentication: .oauth, to: &draft)
+            applyIdentity(id: "tavily", name: "Tavily", iconID: "tavily", to: &draft)
+            applyHTTP(endpoint: "https://mcp.tavily.com/mcp", authentication: .oauth, to: &draft)
         case .firecrawlLocal:
-            fillIdentityIfBlank(id: "firecrawl", name: "Firecrawl", iconID: "firecrawl", draft: &draft)
+            applyIdentity(id: "firecrawl", name: "Firecrawl", iconID: "firecrawl", to: &draft)
             applyLocalPreset(args: "-y firecrawl-mcp", apiKey: "FIRECRAWL_API_KEY", to: &draft)
         case .exaLocal:
-            fillIdentityIfBlank(id: "exa", name: "Exa", iconID: "exa", draft: &draft)
+            applyIdentity(id: "exa", name: "Exa", iconID: "exa", to: &draft)
             applyLocalPreset(args: "-y exa-mcp-server", apiKey: "EXA_API_KEY", to: &draft)
         case .context7:
-            fillIdentityIfBlank(id: "context7", name: "Context7", iconID: "context7", draft: &draft)
+            applyIdentity(id: "context7", name: "Context7", iconID: "context7", to: &draft)
             applyHTTP(
                 endpoint: "https://mcp.context7.com/mcp",
                 authentication: .header(MCPHeader(name: "CONTEXT7_API_KEY", value: "", isSensitive: true)),
                 to: &draft
             )
         case .playwright:
-            fillIdentityIfBlank(id: "playwright", name: "Playwright", iconID: "playwright", draft: &draft)
+            applyIdentity(id: "playwright", name: "Playwright", iconID: "playwright", to: &draft)
             applyStdio(command: "npx", args: "-y @playwright/mcp@latest", to: &draft)
         case .github:
-            fillIdentityIfBlank(id: "github", name: "GitHub", iconID: "github", draft: &draft)
+            applyIdentity(id: "github", name: "GitHub", iconID: "github", to: &draft)
             applyHTTP(
                 endpoint: "https://api.githubcopilot.com/mcp/",
-                authentication: .oauth,
+                authentication: .bearerToken(""),
                 to: &draft
             )
         case .notion:
-            fillIdentityIfBlank(id: "notion", name: "Notion", iconID: "notion", draft: &draft)
+            applyIdentity(id: "notion", name: "Notion", iconID: "notion", to: &draft)
             applyHTTP(
                 endpoint: "https://mcp.notion.com/mcp",
                 authentication: .oauth,
                 to: &draft
             )
         case .linear:
-            fillIdentityIfBlank(id: "linear", name: "Linear", iconID: "linear", draft: &draft)
+            applyIdentity(id: "linear", name: "Linear", iconID: "linear", to: &draft)
             applyHTTP(
                 endpoint: "https://mcp.linear.app/mcp",
                 authentication: .oauth,
                 to: &draft
             )
         case .filesystem:
-            fillIdentityIfBlank(id: "filesystem", name: "Filesystem", iconID: nil, draft: &draft)
+            applyIdentity(id: "filesystem", name: "Filesystem", iconID: nil, to: &draft)
             applyStdio(
                 command: "npx",
                 args: "-y @modelcontextprotocol/server-filesystem \(defaultFilesystemPath())",
                 to: &draft
             )
         case .memory:
-            fillIdentityIfBlank(id: "memory", name: "Memory", iconID: nil, draft: &draft)
+            applyIdentity(id: "memory", name: "Memory", iconID: nil, to: &draft)
             applyStdio(command: "npx", args: "-y @modelcontextprotocol/server-memory", to: &draft)
         case .sequentialThinking:
-            fillIdentityIfBlank(id: "sequential-thinking", name: "Sequential Thinking", iconID: nil, draft: &draft)
+            applyIdentity(id: "sequential-thinking", name: "Sequential Thinking", iconID: nil, to: &draft)
             applyStdio(
                 command: "npx",
                 args: "-y @modelcontextprotocol/server-sequential-thinking",
                 to: &draft
             )
         case .fetch:
-            fillIdentityIfBlank(id: "fetch", name: "Fetch", iconID: nil, draft: &draft)
+            applyIdentity(id: "fetch", name: "Fetch", iconID: nil, to: &draft)
             applyStdio(command: "uvx", args: "mcp-server-fetch", to: &draft)
         }
 
@@ -175,21 +188,15 @@ enum AddMCPServerPresetSupport {
         appendPairIfMissingKey(apiKey, value: "", to: &draft.envPairs)
     }
 
-    private static func fillIdentityIfBlank(
+    private static func applyIdentity(
         id: String,
         name: String,
         iconID: String?,
-        draft: inout Draft
+        to draft: inout Draft
     ) {
-        if draft.id.trimmedNonEmpty == nil {
-            draft.id = id
-        }
-        if draft.name.trimmedNonEmpty == nil {
-            draft.name = name
-        }
-        if let iconID {
-            draft.iconID = iconID
-        }
+        draft.id = id
+        draft.name = name
+        draft.iconID = iconID
     }
 
     private static func appendPairIfMissingKey(

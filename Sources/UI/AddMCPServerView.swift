@@ -163,9 +163,7 @@ struct AddMCPServerView: View {
     private func selectPreset(_ newPreset: AddMCPServerPreset) {
         importError = nil
         preset = newPreset
-        if !newPreset.isBlankCanvas {
-            applyPresetDraft(AddMCPServerPresetSupport.applyingPreset(newPreset, to: presetDraft))
-        }
+        applyPresetDraft(AddMCPServerPresetSupport.applyingPreset(newPreset, to: .blank))
         step = .configure
     }
 

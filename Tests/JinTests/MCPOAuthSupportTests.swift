@@ -112,5 +112,31 @@ final class MCPOAuthSupportTests: XCTestCase {
 
         let passedThrough = MCPOAuthCoordinator.mapError(MCPClientError.notRunning)
         XCTAssertTrue(passedThrough is MCPClientError)
+
+        let mismatch = MCPOAuthCoordinator.mapError(
+            OAuthAuthorizationError.protectedResourceMismatch(
+                expected: "https://agent.tinyfish.ai/mcp",
+                actual: "https://api.githubcopilot.com/mcp"
+            )
+        ) as? MCPOAuthError
+        guard case .authorizationFailed(let message) = mismatch else {
+            return XCTFail("Expected a user-facing mismatch error")
+        }
+        XCTAssertTrue(message.contains("different MCP server"))
+    }
+
+    func testResourceAccountsNormalizeTrailingSlashAndStayIsolated() {
+        XCTAssertEqual(
+            MCPOAuthKeychainTokenStorage.account(for: URL(string: "https://mcp.tavily.com/mcp/")!),
+            "https://mcp.tavily.com/mcp"
+        )
+        XCTAssertEqual(
+            MCPOAuthKeychainTokenStorage.account(for: URL(string: "https://agent.tinyfish.ai/mcp")!),
+            "https://agent.tinyfish.ai/mcp"
+        )
+        XCTAssertNotEqual(
+            MCPOAuthKeychainTokenStorage.account(for: URL(string: "https://agent.tinyfish.ai/mcp")!),
+            MCPOAuthKeychainTokenStorage.account(for: URL(string: "https://api.githubcopilot.com/mcp/")!)
+        )
     }
 }

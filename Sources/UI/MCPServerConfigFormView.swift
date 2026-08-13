@@ -105,8 +105,11 @@ struct MCPServerConfigFormView: View {
         .onChange(of: authHeaderValue) { _, _ in persistTransport() }
         .onChange(of: headerPairs) { _, _ in persistTransport() }
         .onChange(of: httpStreaming) { _, _ in persistTransport() }
-        .onChange(of: server.id) { oldValue, newValue in
-            MCPOAuthKeychainTokenStorage.move(from: oldValue, to: newValue)
+        .onChange(of: endpoint) { oldValue, newValue in
+            if let oldURL = MCPServerFormSupport.parsedEndpoint(oldValue),
+               let newURL = MCPServerFormSupport.parsedEndpoint(newValue) {
+                MCPOAuthKeychainTokenStorage.move(from: oldURL, to: newURL)
+            }
         }
         .sheet(item: $schemaPresentedTool) { tool in
             MCPToolSchemaSheet(tool: tool) {

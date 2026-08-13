@@ -191,7 +191,7 @@ actor MCPClient {
         var headers = http.resolvedHeaders()
         let authorizer: (any HTTPClientAuthorizer)?
         if case .oauth = http.authentication {
-            authorizer = MCPOAuthCoordinator.authorizer(for: config.id)
+            authorizer = MCPOAuthCoordinator.authorizer(for: http.endpoint, legacyServerID: config.id)
             if let existing = authorizer?.authorizationHeader(for: http.endpoint) {
                 headers["Authorization"] = existing
             }
