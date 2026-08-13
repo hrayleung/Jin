@@ -83,6 +83,20 @@ final class AddMCPServerPresetSupportTests: XCTestCase {
         XCTAssertEqual(draft.httpAuthentication, .oauth)
     }
 
+    func testGitHubRemoteMCPHidesBrowserSignIn() {
+        let github = "https://api.githubcopilot.com/mcp/"
+        let kinds = MCPHTTPAuthentication.FormKind.available(forEndpoint: github)
+        XCTAssertFalse(kinds.contains(.oauth))
+        XCTAssertTrue(kinds.contains(.bearerToken))
+        XCTAssertEqual(
+            MCPHTTPAuthentication.FormKind.coerced(.oauth, forEndpoint: github),
+            .bearerToken
+        )
+
+        let tinyfish = "https://agent.tinyfish.ai/mcp"
+        XCTAssertTrue(MCPHTTPAuthentication.FormKind.available(forEndpoint: tinyfish).contains(.oauth))
+    }
+
     func testGitHubPresetUsesOfficialRemoteEndpointAndPersonalAccessToken() {
         let draft = AddMCPServerPresetSupport.applyingPreset(.github, to: self.draft(id: "", name: ""))
 

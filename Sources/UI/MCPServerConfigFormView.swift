@@ -435,7 +435,7 @@ struct MCPServerConfigFormView: View {
 
     private func applyHTTPAuthentication(_ authentication: MCPHTTPAuthentication) {
         let fields = authentication.formFields
-        httpAuthKind = fields.kind
+        httpAuthKind = MCPHTTPAuthentication.FormKind.coerced(fields.kind, forEndpoint: endpoint)
         bearerToken = fields.bearerToken
         authHeaderName = fields.headerName
         authHeaderValue = fields.headerValue

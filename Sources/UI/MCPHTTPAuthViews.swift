@@ -27,7 +27,7 @@ struct MCPHTTPAuthViews: View {
 
             if showsMethodPicker {
                 Picker("Method", selection: $httpAuthKind) {
-                    ForEach(MCPHTTPAuthentication.FormKind.allCases, id: \.self) { kind in
+                    ForEach(availableAuthKinds, id: \.self) { kind in
                         Text(kind.title).tag(kind)
                     }
                 }
@@ -40,11 +40,19 @@ struct MCPHTTPAuthViews: View {
             case .oauth:
                 oauthBody
             case .bearerToken:
-                tokenField(
-                    title: "Bearer token",
-                    text: $bearerToken,
-                    isRevealed: $isBearerTokenVisible
-                )
+                VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                    tokenField(
+                        title: "Bearer token",
+                        text: $bearerToken,
+                        isRevealed: $isBearerTokenVisible
+                    )
+                    if MCPHTTPAuthentication.FormKind.isGitHubRemoteMCP(endpoint) {
+                        Text("GitHub’s remote MCP uses a personal access token. Create one at github.com/settings/tokens.")
+                            .font(.caption)
+                            .foregroundStyle(JinSemanticColor.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             case .customHeader:
                 VStack(alignment: .leading, spacing: JinSpacing.small) {
                     labeled("Header name") {
@@ -67,9 +75,15 @@ struct MCPHTTPAuthViews: View {
                     .jinInlineErrorText()
             }
         }
-        .onAppear(perform: refreshStatus)
+        .onAppear {
+            coerceAuthKindIfNeeded()
+            refreshStatus()
+        }
         .onChange(of: serverID) { _, _ in refreshStatus() }
-        .onChange(of: endpoint) { _, _ in refreshStatus() }
+        .onChange(of: endpoint) { _, _ in
+            coerceAuthKindIfNeeded()
+            refreshStatus()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .mcpOAuthStatusDidChange)) { _ in
             refreshStatus()
         }
@@ -148,15 +162,19 @@ struct MCPHTTPAuthViews: View {
         }
     }
 
-    private var oauthHelpText: String {
-        if isGitHubRemoteMCP {
-            return "GitHub’s remote MCP for third-party apps uses a personal access token. Switch the method to Bearer token and paste a PAT from github.com/settings/tokens."
-        }
-        return "Opens your browser and uses the official MCP OAuth 2.1 flow (PKCE). Tokens stay on this Mac."
+    private var availableAuthKinds: [MCPHTTPAuthentication.FormKind] {
+        MCPHTTPAuthentication.FormKind.available(forEndpoint: endpoint)
     }
 
-    private var isGitHubRemoteMCP: Bool {
-        MCPServerFormSupport.parsedEndpoint(endpoint)?.host?.lowercased() == "api.githubcopilot.com"
+    private var oauthHelpText: String {
+        "Opens your browser and uses the official MCP OAuth 2.1 flow (PKCE). Tokens stay on this Mac."
+    }
+
+    private func coerceAuthKindIfNeeded() {
+        let coerced = MCPHTTPAuthentication.FormKind.coerced(httpAuthKind, forEndpoint: endpoint)
+        if coerced != httpAuthKind {
+            httpAuthKind = coerced
+        }
     }
 
     private var statusText: String {

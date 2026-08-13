@@ -144,6 +144,33 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
             case .none: return "None"
             }
         }
+
+        /// GitHub’s remote MCP has no DCR and no public desktop client, so
+        /// third-party apps cannot complete browser sign-in.
+        static func available(forEndpoint endpoint: String) -> [Self] {
+            allCases.filter { $0.isAllowed(forEndpoint: endpoint) }
+        }
+
+        static func coerced(_ kind: Self, forEndpoint endpoint: String) -> Self {
+            kind.isAllowed(forEndpoint: endpoint) ? kind : .bearerToken
+        }
+
+        func isAllowed(forEndpoint endpoint: String) -> Bool {
+            switch self {
+            case .oauth:
+                return !Self.isGitHubRemoteMCP(endpoint)
+            case .bearerToken, .customHeader, .none:
+                return true
+            }
+        }
+
+        static func isGitHubRemoteMCP(_ endpoint: String) -> Bool {
+            let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let host = URL(string: trimmed)?.host?.lowercased() else {
+                return false
+            }
+            return host == "api.githubcopilot.com" || host.hasSuffix(".githubcopilot.com")
+        }
     }
 
     /// Returns a validation error message when the form fields are incomplete, or nil when valid.

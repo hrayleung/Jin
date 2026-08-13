@@ -156,7 +156,7 @@ struct MCPServerHTTPTransportSections: View {
 
             JinSettingsSection("Authentication") {
                 JinSettingsPickerRow("Type", selection: $httpAuthKind) {
-                    ForEach(MCPHTTPAuthentication.FormKind.allCases, id: \.self) { kind in
+                    ForEach(MCPHTTPAuthentication.FormKind.available(forEndpoint: endpoint), id: \.self) { kind in
                         Text(kind.title).tag(kind)
                     }
                 }
