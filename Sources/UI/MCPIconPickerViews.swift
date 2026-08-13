@@ -141,7 +141,7 @@ private struct MCPIconPickerSheet: View {
 
         return MCPIconPickerIconCell(
             iconID: icon.id,
-            title: icon.id,
+            title: MCPIconPickerSupport.displayName(for: icon.id),
             isSelected: isSelected
         ) {
             draftIconID = icon.id

@@ -159,6 +159,10 @@ actor MCPClient {
                 try await connectHTTPClient(client: client, http: http)
             }
         } catch {
+            if error is MCPOAuthError {
+                await stop()
+                throw error
+            }
             let enriched = enrich(error, method: "initialize")
             await stop()
             throw enriched
@@ -180,7 +184,11 @@ actor MCPClient {
     }
 
     private func connectHTTPClient(client: MCP.Client, http: MCPHTTPTransportConfig) async throws {
-        let headers = http.resolvedHeaders()
+        var headers = http.resolvedHeaders()
+        if case .oauth = http.authentication {
+            let token = try await MCPOAuthCoordinator.validAccessToken(for: config.id, endpoint: http.endpoint)
+            headers["Authorization"] = "Bearer \(token)"
+        }
         httpDiagnostics = HTTPDiagnostics(endpoint: http.endpoint.absoluteString, headerNames: headers.keys.sorted())
 
         let configuration = httpClientTransportConfiguration()

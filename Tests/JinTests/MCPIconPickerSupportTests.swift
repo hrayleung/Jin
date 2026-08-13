@@ -30,7 +30,11 @@ final class MCPIconPickerSupportTests: XCTestCase {
         )
         XCTAssertEqual(
             MCPIconPickerSupport.displayLabel(selectedIconID: " github ", defaultIconID: "mcp"),
-            "github"
+            "GitHub"
+        )
+        XCTAssertEqual(
+            MCPIconPickerSupport.displayName(for: "tinyfish"),
+            "TinyFish"
         )
     }
 

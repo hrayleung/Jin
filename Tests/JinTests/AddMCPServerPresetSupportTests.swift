@@ -72,6 +72,73 @@ final class AddMCPServerPresetSupportTests: XCTestCase {
         )
     }
 
+    func testTinyFishPresetFillsOfficialHTTPEndpointAndIcon() {
+        let draft = AddMCPServerPresetSupport.applyingPreset(.tinyfish, to: self.draft(id: "", name: ""))
+
+        XCTAssertEqual(draft.id, "tinyfish")
+        XCTAssertEqual(draft.name, "TinyFish")
+        XCTAssertEqual(draft.iconID, "tinyfish")
+        XCTAssertEqual(draft.transportKind, .http)
+        XCTAssertEqual(draft.endpoint, "https://agent.tinyfish.ai/mcp")
+        XCTAssertEqual(draft.httpAuthentication, .oauth)
+    }
+
+    func testGitHubPresetUsesOfficialRemoteEndpointAndOAuth() {
+        let draft = AddMCPServerPresetSupport.applyingPreset(.github, to: self.draft(id: "", name: ""))
+
+        XCTAssertEqual(draft.id, "github")
+        XCTAssertEqual(draft.iconID, "github")
+        XCTAssertEqual(draft.transportKind, .http)
+        XCTAssertEqual(draft.endpoint, "https://api.githubcopilot.com/mcp/")
+        XCTAssertEqual(draft.httpAuthentication, .oauth)
+    }
+
+    func testContext7PresetUsesOfficialHeader() {
+        let draft = AddMCPServerPresetSupport.applyingPreset(.context7, to: self.draft(id: "", name: ""))
+
+        XCTAssertEqual(draft.endpoint, "https://mcp.context7.com/mcp")
+        XCTAssertEqual(
+            draft.httpAuthentication,
+            .header(MCPHeader(name: "CONTEXT7_API_KEY", value: "", isSensitive: true))
+        )
+    }
+
+    func testPlaywrightPresetUsesOfficialLocalPackage() {
+        let draft = AddMCPServerPresetSupport.applyingPreset(.playwright, to: self.draft(id: "", name: ""))
+
+        XCTAssertEqual(draft.transportKind, .stdio)
+        XCTAssertEqual(draft.command, "npx")
+        XCTAssertEqual(draft.args, "-y @playwright/mcp@latest")
+        XCTAssertEqual(draft.iconID, "playwright")
+    }
+
+    func testFilesystemPresetIncludesAllowedPath() {
+        let draft = AddMCPServerPresetSupport.applyingPreset(.filesystem, to: self.draft(id: "", name: ""))
+
+        XCTAssertEqual(draft.command, "npx")
+        XCTAssertTrue(draft.args.contains("@modelcontextprotocol/server-filesystem"))
+        XCTAssertEqual(
+            AddMCPServerPresetSupport.filesystemPath(from: draft.args),
+            AddMCPServerPresetSupport.defaultFilesystemPath()
+        )
+    }
+
+    func testApplyingOAuthCredentialKeepsOAuthKind() {
+        let seeded = AddMCPServerPresetSupport.applyingPreset(.linear, to: draft(id: "", name: ""))
+        let updated = AddMCPServerPresetSupport.applyingCredential("", for: .linear, to: seeded)
+
+        XCTAssertEqual(updated.httpAuthentication, .oauth)
+    }
+
+    func testReplacingFilesystemPathKeepsPackageArgs() {
+        let updated = AddMCPServerPresetSupport.replacingFilesystemPath(
+            in: "-y @modelcontextprotocol/server-filesystem /tmp/old",
+            with: "/tmp/allowed"
+        )
+
+        XCTAssertEqual(updated, "-y @modelcontextprotocol/server-filesystem /tmp/allowed")
+    }
+
     private func draft(
         id: String = "",
         name: String = "",

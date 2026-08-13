@@ -14,7 +14,36 @@ enum MCPIconPickerSupport {
     }
 
     static func displayLabel(selectedIconID: String?, defaultIconID: String) -> String {
-        normalizedCustomIconID(selectedIconID, defaultIconID: defaultIconID) ?? "Default"
+        guard let iconID = normalizedCustomIconID(selectedIconID, defaultIconID: defaultIconID) else {
+            return "Default"
+        }
+        return displayName(for: iconID)
+    }
+
+    static func displayName(for iconID: String) -> String {
+        switch iconID.lowercased() {
+        case "tinyfish": return "TinyFish"
+        case "context7": return "Context7"
+        case "playwright": return "Playwright"
+        case "linear": return "Linear"
+        case "slack": return "Slack"
+        case "stripe": return "Stripe"
+        case "sentry": return "Sentry"
+        case "supabase": return "Supabase"
+        case "huggingface": return "Hugging Face"
+        case "cloudflare": return "Cloudflare"
+        case "brave": return "Brave"
+        case "jina": return "Jina"
+        case "morph": return "Morph"
+        case "github": return "GitHub"
+        case "notion": return "Notion"
+        case "figma": return "Figma"
+        case "exa": return "Exa"
+        case "tavily": return "Tavily"
+        case "firecrawl": return "Firecrawl"
+        case "elevenlabs": return "ElevenLabs"
+        default: return iconID
+        }
     }
 
     static func selectableIcons(from icons: [MCPIcon], defaultIconID: String) -> [MCPIcon] {
@@ -33,6 +62,7 @@ enum MCPIconPickerSupport {
 
         return selectableIcons.filter { icon in
             icon.id.lowercased().contains(query)
+                || displayName(for: icon.id).lowercased().contains(query)
         }
     }
 

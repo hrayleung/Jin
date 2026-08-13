@@ -12,11 +12,15 @@ struct MCPServerToolsSection: View {
     let onViewSchema: (MCPToolInfo) -> Void
 
     var body: some View {
-        JinSettingsSection(
-            "Tools",
-            detail: "Verify the server to inspect and selectively disable tools."
-        ) {
-            VStack(alignment: .leading, spacing: 8) {
+        JinSettingsCard {
+            VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                Text("Tools")
+                    .font(.headline)
+
+                Text("Check the connection to list tools. Turn a tool off to hide it from the model.")
+                    .font(.caption)
+                    .foregroundStyle(JinSemanticColor.textSecondary)
+
                 verificationActions
                 verificationError
                 toolGrid
@@ -31,12 +35,12 @@ struct MCPServerToolsSection: View {
             Button {
                 onVerify()
             } label: {
-                HStack {
-                    Text("Verify (View Tools)")
+                HStack(spacing: 6) {
                     if verifying {
                         ProgressView()
-                            .scaleEffect(0.7)
+                            .controlSize(.small)
                     }
+                    Text(tools.isEmpty ? "Check connection" : "Refresh tools")
                 }
             }
             .disabled(verifying || hasTransportValidationError)

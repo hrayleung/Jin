@@ -40,6 +40,7 @@ struct MCPStdioTransportConfig: Codable, Equatable, Sendable {
 
 enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
     case none
+    case oauth
     case bearerToken(String)
     case header(MCPHeader)
 
@@ -51,6 +52,7 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
 
     private enum Kind: String, Codable {
         case none
+        case oauth
         case bearerToken
         case header
     }
@@ -62,6 +64,8 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         switch kind {
         case .none:
             self = .none
+        case .oauth:
+            self = .oauth
         case .bearerToken:
             self = .bearerToken(try container.decode(String.self, forKey: .token))
         case .header:
@@ -75,6 +79,8 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         switch self {
         case .none:
             try container.encode(Kind.none, forKey: .type)
+        case .oauth:
+            try container.encode(Kind.oauth, forKey: .type)
         case .bearerToken(let token):
             try container.encode(Kind.bearerToken, forKey: .type)
             try container.encode(token, forKey: .token)
@@ -86,7 +92,7 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
 
     var resolvedHeader: MCPHeader? {
         switch self {
-        case .none:
+        case .none, .oauth:
             return nil
         case .bearerToken(let token):
             guard let trimmedToken = token.trimmedNonEmpty else { return nil }
@@ -104,8 +110,8 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
     /// Returns a cleaned-up version: trims whitespace and collapses empty values to `.none`.
     var normalized: MCPHTTPAuthentication {
         switch self {
-        case .none:
-            return .none
+        case .none, .oauth:
+            return self
         case .bearerToken(let token):
             guard let trimmed = token.trimmedNonEmpty else { return .none }
             return .bearerToken(trimmed)
@@ -125,9 +131,19 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
 
     /// Picker-friendly representation for SwiftUI forms.
     enum FormKind: String, CaseIterable {
-        case none
+        case oauth
         case bearerToken
         case customHeader
+        case none
+
+        var title: String {
+            switch self {
+            case .oauth: return "Sign in with browser"
+            case .bearerToken: return "Bearer token"
+            case .customHeader: return "Custom header"
+            case .none: return "None"
+            }
+        }
     }
 
     /// Returns a validation error message when the form fields are incomplete, or nil when valid.
@@ -138,7 +154,7 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         headerValue: String
     ) -> String? {
         switch kind {
-        case .none:
+        case .none, .oauth:
             return nil
         case .bearerToken:
             return bearerToken.trimmedNonEmpty == nil
@@ -167,6 +183,8 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         switch kind {
         case .none:
             return MCPHTTPAuthentication.none
+        case .oauth:
+            return .oauth
         case .bearerToken:
             return .bearerToken(bearerToken.trimmed)
         case .customHeader:
@@ -193,6 +211,8 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
         switch self {
         case .none:
             return FormFields(kind: .none, bearerToken: "", headerName: "Authorization", headerValue: "")
+        case .oauth:
+            return FormFields(kind: .oauth, bearerToken: "", headerName: "Authorization", headerValue: "")
         case .bearerToken(let token):
             return FormFields(kind: .bearerToken, bearerToken: token, headerName: "Authorization", headerValue: "")
         case .header(let header):

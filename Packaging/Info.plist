@@ -59,6 +59,17 @@
 	<string>Jin uses your location to bias Google Maps grounding around your current area.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Jin uses your location to bias Google Maps grounding around your current area.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.jin.app.mcp.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>jin-mcp</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
