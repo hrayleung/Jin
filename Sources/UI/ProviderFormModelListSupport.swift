@@ -27,7 +27,7 @@ extension ProviderFormSupport {
     }
 
     static func enabledByModelID(_ models: [ModelInfo]) -> [String: Bool] {
-        Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0.isEnabled) })
+        Dictionary(models.map { ($0.id, $0.isEnabled) }, uniquingKeysWith: { _, last in last })
     }
 
     static func fullySupportedModelIDs(

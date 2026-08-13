@@ -15,6 +15,14 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertEqual(ProviderFormSupport.enabledByModelID(models), ["a": true, "b": false])
     }
 
+    func testEnabledByModelIDKeepsLastDuplicateIDWithoutTrapping() {
+        let models = [
+            ModelInfo(id: "dup", name: "First", capabilities: [], contextWindow: 1, isEnabled: true),
+            ModelInfo(id: "dup", name: "Second", capabilities: [], contextWindow: 1, isEnabled: false)
+        ]
+        XCTAssertEqual(ProviderFormSupport.enabledByModelID(models), ["dup": false])
+    }
+
     func testFullySupportedModelIDsUsesPredicate() {
         let models = [
             ModelInfo(id: "keep", name: "Keep", capabilities: [], contextWindow: 1),

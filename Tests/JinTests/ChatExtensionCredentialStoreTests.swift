@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import Jin
 
@@ -78,12 +79,22 @@ final class ChatExtensionCredentialStoreTests: XCTestCase {
         let store = ChatExtensionCredentialStore(defaults: defaults)
         XCTAssertFalse(store.status.webSearchPluginConfigured)
 
+        let statusUpdated = expectation(description: "credential status refreshes")
+        let cancellable = store.$status
+            .dropFirst()
+            .sink { status in
+                if status.webSearchPluginConfigured {
+                    statusUpdated.fulfill()
+                }
+            }
+
         defaults.set(true, forKey: AppPreferenceKeys.pluginWebSearchEnabled)
         defaults.set("jina-key", forKey: AppPreferenceKeys.pluginWebSearchJinaAPIKey)
         NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
 
-        try? await Task.sleep(for: .milliseconds(50))
+        await fulfillment(of: [statusUpdated], timeout: 1)
         XCTAssertTrue(store.status.webSearchPluginConfigured)
+        _ = cancellable
     }
 
     func testInitialControlsDecodeConversationBlob() {

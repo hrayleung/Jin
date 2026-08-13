@@ -1,6 +1,17 @@
 import Foundation
 
 enum MCPServerFormSupport {
+    /// Compare against the last *successfully saved* transport, not the live
+    /// SwiftData entity. `setTransport` mutates the entity before `save()`, so
+    /// comparing to `server.transportConfig()` would skip a retry after a
+    /// failed persist.
+    static func shouldPersistTransport(
+        draft: MCPTransportConfig,
+        lastPersisted: MCPTransportConfig?
+    ) -> Bool {
+        lastPersisted != draft
+    }
+
     static func parsedEndpoint(_ endpoint: String) -> URL? {
         guard let trimmed = endpoint.trimmedNonEmpty,
               let url = URL(string: trimmed),

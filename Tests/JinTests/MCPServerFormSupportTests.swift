@@ -2,6 +2,26 @@ import XCTest
 @testable import Jin
 
 final class MCPServerFormSupportTests: XCTestCase {
+    func testShouldPersistTransportSkipsUnchangedDraft() {
+        let persisted = MCPTransportConfig.stdio(MCPStdioTransportConfig(command: "npx"))
+        XCTAssertFalse(
+            MCPServerFormSupport.shouldPersistTransport(draft: persisted, lastPersisted: persisted)
+        )
+    }
+
+    func testShouldPersistTransportRetriesAfterFailedSaveKeepsOldSnapshot() {
+        let persisted = MCPTransportConfig.stdio(MCPStdioTransportConfig(command: "npx"))
+        let draft = MCPTransportConfig.stdio(MCPStdioTransportConfig(command: "uvx"))
+
+        XCTAssertTrue(
+            MCPServerFormSupport.shouldPersistTransport(draft: draft, lastPersisted: persisted)
+        )
+        XCTAssertTrue(
+            MCPServerFormSupport.shouldPersistTransport(draft: draft, lastPersisted: persisted),
+            "A failed save must leave lastPersisted stale so the next persist retries"
+        )
+    }
+
     func testParsedEndpointRequiresNonEmptyAbsoluteURLWithScheme() {
         XCTAssertEqual(MCPServerFormSupport.parsedEndpoint(" https://mcp.example.com/path ")?.absoluteString, "https://mcp.example.com/path")
         XCTAssertNil(MCPServerFormSupport.parsedEndpoint(""))

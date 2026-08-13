@@ -32,7 +32,8 @@ struct MCPServerConfigFormView: View {
     @State private var schemaPresentedTool: MCPToolInfo?
 
     @State private var configError: String?
-    @State private var loading = false
+    @State private var loading = true
+    @State private var lastPersistedTransport: MCPTransportConfig?
 
     var body: some View {
         ScrollView {
@@ -89,6 +90,7 @@ struct MCPServerConfigFormView: View {
             .frame(maxWidth: 720, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .top)
         }
+        .disabled(loading)
         .background(JinSemanticColor.detailSurface)
         .navigationTitle(server.name)
         .task {
@@ -274,8 +276,9 @@ struct MCPServerConfigFormView: View {
 
     private func hydrateFromServer() {
         loading = true
-
-        applyTransportDraft(MCPServerTransportDraftSupport.draft(from: server.transportConfig()))
+        let persisted = server.transportConfig()
+        lastPersistedTransport = persisted
+        applyTransportDraft(MCPServerTransportDraftSupport.draft(from: persisted))
 
         do {
             disabledTools = try server.disabledTools()
@@ -315,15 +318,15 @@ struct MCPServerConfigFormView: View {
             argsError = nil
         }
 
-        if server.transportConfig() == transport {
-            configError = nil
-            clearTransportBuildError()
+        guard MCPServerFormSupport.shouldPersistTransport(
+            draft: transport,
+            lastPersisted: lastPersistedTransport
+        ) else {
             return
         }
 
         do {
             try server.setTransport(transport)
-            configError = nil
         } catch {
             configError = "Failed to save transport config: \(error.localizedDescription)"
             return
@@ -334,6 +337,8 @@ struct MCPServerConfigFormView: View {
         server.isLongRunning = true
         do {
             try modelContext.save()
+            lastPersistedTransport = transport
+            configError = nil
         } catch {
             configError = "Failed to persist server settings: \(error.localizedDescription)"
         }
