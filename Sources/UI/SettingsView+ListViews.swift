@@ -6,7 +6,7 @@ import SwiftData
 extension SettingsView {
     var providersList: some View {
         settingsInsetList {
-            List(filteredProviders, selection: animatedSelectedProviderID) { provider in
+            List(filteredProviders, selection: $selectedProviderID) { provider in
                 NavigationLink(value: provider.id) {
                     HStack(spacing: JinSpacing.small + 2) {
                         ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 16)
@@ -58,7 +58,7 @@ extension SettingsView {
 
     var generalCategoriesList: some View {
         settingsInsetList {
-            List(GeneralSettingsCategory.allCases, selection: animatedSelectedGeneralCategory) { category in
+            List(GeneralSettingsCategory.allCases, selection: $selectedGeneralCategory) { category in
                 NavigationLink(value: category) {
                     HStack(spacing: JinSpacing.small + 2) {
                         Image(systemName: category.systemImage)
@@ -79,7 +79,7 @@ extension SettingsView {
 
     var pluginsList: some View {
         settingsInsetList {
-            List(filteredPlugins, selection: animatedSelectedPluginID) { plugin in
+            List(filteredPlugins, selection: $selectedPluginID) { plugin in
                 let isSelected = selectedPluginID == plugin.id
 
                 HStack(spacing: JinSpacing.small + 2) {
@@ -95,7 +95,6 @@ extension SettingsView {
                         .truncationMode(.tail)
                         .fixedSize(horizontal: false, vertical: isSelected)
                         .layoutPriority(1)
-                        .animation(pluginSelectionAnimation, value: isSelected)
 
                     Spacer(minLength: JinSpacing.small)
 
@@ -110,7 +109,7 @@ extension SettingsView {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     guard selectedPluginID != plugin.id else { return }
-                    animatedSelectedPluginID.wrappedValue = plugin.id
+                    selectedPluginID = plugin.id
                 }
                 .tag(plugin.id)
             }
@@ -133,7 +132,7 @@ extension SettingsView {
 
     var mcpServersList: some View {
         settingsInsetList {
-            List(filteredMCPServers, selection: animatedSelectedServerID) { server in
+            List(filteredMCPServers, selection: $selectedServerID) { server in
                 NavigationLink(value: server.id) {
                     HStack(spacing: JinSpacing.small + 2) {
                         ZStack(alignment: .bottomTrailing) {

@@ -28,10 +28,18 @@ extension ProviderConfigFormView {
         ProviderFormSupport.filteredModels(decodedModels, searchText: modelSearchText)
     }
 
+    var enabledByModelID: [String: Bool] {
+        ProviderFormSupport.enabledByModelID(decodedModels)
+    }
+
+    var fullySupportedModelIDs: Set<String> {
+        ProviderFormSupport.fullySupportedModelIDs(decodedModels, isFullySupported: isFullySupportedModel)
+    }
+
     var modelListSummary: ProviderFormSupport.ModelListSummary {
         ProviderFormSupport.modelListSummary(
             models: decodedModels,
-            isFullySupported: isFullySupportedModel
+            isFullySupported: { fullySupportedModelIDs.contains($0) }
         )
     }
 
@@ -76,7 +84,7 @@ extension ProviderConfigFormView {
     func modelEnabledBinding(modelID: String) -> Binding<Bool> {
         Binding(
             get: {
-                decodedModels.first(where: { $0.id == modelID })?.isEnabled ?? true
+                enabledByModelID[modelID] ?? true
             },
             set: { isEnabled in
                 var models = decodedModels

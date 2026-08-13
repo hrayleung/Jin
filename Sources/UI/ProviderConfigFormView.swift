@@ -29,7 +29,6 @@ struct ProviderConfigFormView: View {
     @State var modelSearchText = ""
     @State var editingModel: ModelInfo?
     @State var modelPendingDeletion: ModelInfo?
-    @State var hoveredModelID: String?
     @State var openRouterUsageStatus: OpenRouterUsageStatus = .idle
     @State var openRouterUsage: OpenRouterKeyUsage?
     @State var openRouterUsageTask: Task<Void, Never>?

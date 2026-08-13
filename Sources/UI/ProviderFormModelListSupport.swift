@@ -26,6 +26,17 @@ extension ProviderFormSupport {
         )
     }
 
+    static func enabledByModelID(_ models: [ModelInfo]) -> [String: Bool] {
+        Dictionary(models.map { ($0.id, $0.isEnabled) }, uniquingKeysWith: { _, last in last })
+    }
+
+    static func fullySupportedModelIDs(
+        _ models: [ModelInfo],
+        isFullySupported: (String) -> Bool
+    ) -> Set<String> {
+        Set(models.compactMap { isFullySupported($0.id) ? $0.id : nil })
+    }
+
     static func modelUpdating(_ models: [ModelInfo], with updated: ModelInfo) -> [ModelInfo]? {
         var models = models
         guard let index = models.firstIndex(where: { $0.id == updated.id }) else { return nil }

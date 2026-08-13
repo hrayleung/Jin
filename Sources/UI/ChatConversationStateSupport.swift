@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-struct ChatExtensionCredentialStatus {
+struct ChatExtensionCredentialStatus: Equatable {
     let mistralOCRConfigured: Bool
     let mineruOCRConfigured: Bool
     let deepSeekOCRConfigured: Bool

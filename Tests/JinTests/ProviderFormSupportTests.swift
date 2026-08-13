@@ -2,6 +2,38 @@ import XCTest
 @testable import Jin
 
 final class ProviderFormSupportTests: XCTestCase {
+    func testModelListHeightIsBoundedSoFormDoesNotRealizeEveryRow() {
+        XCTAssertGreaterThan(ProviderFormSupport.modelListHeight, 180)
+        XCTAssertLessThanOrEqual(ProviderFormSupport.modelListHeight, 400)
+    }
+
+    func testEnabledByModelIDUsesStoredFlags() {
+        let models = [
+            ModelInfo(id: "a", name: "A", capabilities: [], contextWindow: 1, isEnabled: true),
+            ModelInfo(id: "b", name: "B", capabilities: [], contextWindow: 1, isEnabled: false)
+        ]
+        XCTAssertEqual(ProviderFormSupport.enabledByModelID(models), ["a": true, "b": false])
+    }
+
+    func testEnabledByModelIDKeepsLastDuplicateIDWithoutTrapping() {
+        let models = [
+            ModelInfo(id: "dup", name: "First", capabilities: [], contextWindow: 1, isEnabled: true),
+            ModelInfo(id: "dup", name: "Second", capabilities: [], contextWindow: 1, isEnabled: false)
+        ]
+        XCTAssertEqual(ProviderFormSupport.enabledByModelID(models), ["dup": false])
+    }
+
+    func testFullySupportedModelIDsUsesPredicate() {
+        let models = [
+            ModelInfo(id: "keep", name: "Keep", capabilities: [], contextWindow: 1),
+            ModelInfo(id: "drop", name: "Drop", capabilities: [], contextWindow: 1)
+        ]
+        XCTAssertEqual(
+            ProviderFormSupport.fullySupportedModelIDs(models, isFullySupported: { $0 == "keep" }),
+            ["keep"]
+        )
+    }
+
     func testCredentialKindClassifiesProviderAuthenticationRequirements() {
         XCTAssertEqual(ProviderFormSupport.credentialKind(for: .openai), .apiKey)
         XCTAssertEqual(ProviderFormSupport.credentialKind(for: .githubCopilot), .apiKey)

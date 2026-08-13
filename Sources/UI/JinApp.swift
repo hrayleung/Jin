@@ -36,6 +36,7 @@ struct JinApp: App {
     @NSApplicationDelegateAdaptor(JinAppDelegate.self) private var appDelegate
     @StateObject private var launchCoordinator: AppLaunchCoordinator
     @StateObject private var streamingStore = ConversationStreamingStore()
+    @StateObject private var extensionCredentialStore = ChatExtensionCredentialStore()
     @StateObject private var responseCompletionNotifier = ResponseCompletionNotifier()
     @StateObject private var shortcutsStore = AppShortcutsStore.shared
     @StateObject private var updateManager: SparkleUpdateManager
@@ -79,6 +80,7 @@ struct JinApp: App {
                 ContentView()
                     .modelContainer(container)
                     .environmentObject(streamingStore)
+                    .environmentObject(extensionCredentialStore)
                     .environmentObject(responseCompletionNotifier)
                     .environmentObject(shortcutsStore)
                     .environmentObject(updateManager)
@@ -118,6 +120,7 @@ struct JinApp: App {
             AppRootContentView(launchCoordinator: launchCoordinator) { container in
                 SettingsView()
                     .modelContainer(container)
+                    .environmentObject(extensionCredentialStore)
                     .environmentObject(responseCompletionNotifier)
                     .environmentObject(shortcutsStore)
                     .environmentObject(updateManager)
