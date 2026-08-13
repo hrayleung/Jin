@@ -431,13 +431,7 @@ private struct CodeLineNumberGutterView: NSViewRepresentable {
         // The gutter's size is a pure function of the number of lines and the
         // font, so it needs no live view at all.
         let inset = NSSize(width: CodeLineNumberGutter.horizontalInset, height: verticalInset)
-        var size = CodeLineNumberGutter.size(count: count, font: font, inset: inset)
-        // If SwiftUI offers extra width (rounding / HStack slack), claim it so
-        // the gutter/code seam cannot become a DocumentView wheel dead-zone.
-        if let proposedWidth = proposal.width, proposedWidth.isFinite {
-            size.width = max(size.width, proposedWidth)
-        }
-        return size
+        return CodeLineNumberGutter.size(count: count, font: font, inset: inset)
     }
 
     private func apply(to view: CodeLineNumberTextView) {
@@ -554,6 +548,12 @@ final class CodeLineNumberTextView: NSTextView {
         case .passToSuper:
             super.scrollWheel(with: event)
         }
+    }
+
+    /// Same inset click-through as `JinMessageTextView`: the gutter's 8pt
+    /// horizontal padding has no glyphs, and a `nil` hit lands on DocumentView.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        CodeBlockHitTesting.hitTest(self, pointInSuperview: point, superHit: super.hitTest(point))
     }
 
     override func draw(_ dirtyRect: NSRect) {
