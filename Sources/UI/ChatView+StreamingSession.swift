@@ -255,6 +255,14 @@ extension ChatView {
                     }
 
                     defersObservedMessageCacheRebuild = false
+                    // Handoff BEFORE the cache rebuild so the timeline never
+                    // paints the same tool turn twice: the persisted row
+                    // appears in the same MainActor turn the live bubble
+                    // is cleared. Do not re-attach the calls on the live
+                    // state — that is the duplicate Running card.
+                    if message.toolCalls?.isEmpty == false {
+                        streamingStore.streamingState(conversationID: conversationID)?.reset()
+                    }
                     rebuildMessageCaches()
                     autoOpenLatestArtifactIfNeeded(from: message)
                     return entity.id
@@ -289,6 +297,9 @@ extension ChatView {
             },
             mergeSearchActivities: { [self] messageID, activities in
                 mergeSearchActivitiesIntoAssistantMessage(messageID: messageID, newActivities: activities)
+            },
+            upsertLiveToolResult: { [self] result in
+                renderCache.upsertLiveToolResult(result)
             },
             maybeAutoRename: { [self] provider, targetModelID, history, assistantMessage in
                 await maybeAutoRenameConversation(

@@ -25,6 +25,12 @@ final class ChatRenderCacheController {
     private(set) var activeThreadHistory: [Message] = []
     private(set) var isHistoryReady = true
     private(set) var toolResultsByCallID: [String: ToolResult] = [:]
+    /// Results published while MCP tools run, before the hidden `.tool`
+    /// message lands. Merged over persisted results so the first assistant
+    /// card can flip Running → Done without cloning the call onto the live
+    /// bubble.
+    private var persistedToolResultsByCallID: [String: ToolResult] = [:]
+    private var liveToolResultsByCallID: [String: ToolResult] = [:]
     private(set) var artifactCatalog: ArtifactCatalog = .empty
     /// Total message count from the most recent rebuild. Mirror of the
     /// previously-private `lastRebuildMessageCount`, exposed so `ChatView.body`
@@ -263,6 +269,8 @@ final class ChatRenderCacheController {
         messageEntitiesByID = [:]
         activeThreadHistory = []
         isHistoryReady = true
+        persistedToolResultsByCallID = [:]
+        liveToolResultsByCallID = [:]
         toolResultsByCallID = [:]
         artifactCatalog = .empty
         cachedTotalMessageCount = 0
@@ -279,6 +287,32 @@ final class ChatRenderCacheController {
             toolResultsByCallID: toolResultsByCallID,
             artifactCatalog: artifactCatalog
         )
+    }
+
+    func upsertLiveToolResult(_ result: ToolResult) {
+        liveToolResultsByCallID[result.toolCallID] = result
+        publishMergedToolResults()
+        version &+= 1
+    }
+
+    private func replacePersistedToolResults(_ results: [String: ToolResult]) {
+        persistedToolResultsByCallID = results
+        if !liveToolResultsByCallID.isEmpty {
+            liveToolResultsByCallID = liveToolResultsByCallID.filter { callID, _ in
+                persistedToolResultsByCallID[callID] == nil
+            }
+        }
+        publishMergedToolResults()
+    }
+
+    private func publishMergedToolResults() {
+        if liveToolResultsByCallID.isEmpty {
+            toolResultsByCallID = persistedToolResultsByCallID
+        } else {
+            toolResultsByCallID = persistedToolResultsByCallID.merging(liveToolResultsByCallID) { _, live in
+                live
+            }
+        }
     }
 
     /// Synchronous tail-only decode for the first paint after a conversation
@@ -309,7 +343,7 @@ final class ChatRenderCacheController {
                 .filter { tailIDs.contains($0.id) }
                 .map { ($0.id, $0) }
         )
-        toolResultsByCallID = context.toolResultsByCallID
+        replacePersistedToolResults(context.toolResultsByCallID)
         version &+= 1
     }
 
@@ -325,7 +359,7 @@ final class ChatRenderCacheController {
         self.messageEntitiesByID = messageEntitiesByID
         activeThreadHistory = context.historyMessages
         isHistoryReady = !context.historyMessages.isEmpty || activeMessageCount == 0
-        toolResultsByCallID = context.toolResultsByCallID
+        replacePersistedToolResults(context.toolResultsByCallID)
         artifactCatalog = context.artifactCatalog
         if cachedTotalMessageCount != cacheMessageCount {
             cachedTotalMessageCount = cacheMessageCount

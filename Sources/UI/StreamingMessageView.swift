@@ -11,6 +11,9 @@ struct StreamingMessageView: View {
     let providerType: ProviderType?
     let providerIconID: String?
     let onContentUpdate: () -> Void
+    /// When the last persisted assistant already owns in-flight MCP tools,
+    /// collapse this row instead of painting a second empty bubble.
+    var suppressIdlePlaceholder: Bool = false
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
     /// Bumped when row-internal state changes the content's height outside
     /// of a streaming delta (thinking block expand/collapse). Folded into
@@ -29,7 +32,18 @@ struct StreamingMessageView: View {
         }
         let visibleCodeExecutionActivities = hidesManagedAgentInternalUI ? [] : state.codeExecutionActivities
         let visibleThinkingChunks = hidesManagedAgentInternalUI ? [] : state.thinkingChunks
+        let showsIdlePlaceholder = showsIdleGeneratingPlaceholder(
+            visibleThinkingChunks: visibleThinkingChunks,
+            visibleCodeExecutionActivities: visibleCodeExecutionActivities,
+            visibleToolCalls: visibleToolCalls
+        )
 
+        if showsIdlePlaceholder, suppressIdlePlaceholder {
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: 0)
+                .accessibilityHidden(true)
+        } else {
         HStack(alignment: .top, spacing: 0) {
             ConstrainedWidth(maxBubbleWidth) {
                 VStack(alignment: .leading, spacing: JinSpacing.small - 2) {
@@ -72,15 +86,6 @@ struct StreamingMessageView: View {
                             )
                         }
 
-                        if !visibleToolCalls.isEmpty {
-                            MCPToolTimelineView(
-                                toolCalls: visibleToolCalls,
-                                toolResultsByCallID: state.toolResultsByCallID,
-                                isStreaming: true,
-                                onExpansionChanged: { layoutEpoch &+= 1 }
-                            )
-                        }
-
                         if !visibleThinkingChunks.isEmpty {
                             StreamingThinkingBlockView(
                                 chunks: visibleThinkingChunks,
@@ -105,16 +110,24 @@ struct StreamingMessageView: View {
                             ForEach(Array(state.artifacts.enumerated()), id: \.offset) { _, artifact in
                                 StreamingArtifactIndicator(artifact: artifact)
                             }
-                        } else if showsIdleGeneratingPlaceholder(
-                            visibleThinkingChunks: visibleThinkingChunks,
-                            visibleCodeExecutionActivities: visibleCodeExecutionActivities,
-                            visibleToolCalls: visibleToolCalls
-                        ) {
+                        } else if showsIdlePlaceholder {
                             // Elegant time-based idle chrome — never a system spinner.
                             // Identity transition: opacity cross-fade with the first
                             // token layer caused a one-frame glyph stack.
                             JinStreamingPlaceholder(label: "Generating")
                                 .transition(.identity)
+                        }
+
+                        // After prose, matching MessageRow. Painting MCP cards
+                        // above the text here made search/fetch jump under the
+                        // paragraph the moment the turn persisted.
+                        if !visibleToolCalls.isEmpty {
+                            MCPToolTimelineView(
+                                toolCalls: visibleToolCalls,
+                                toolResultsByCallID: state.toolResultsByCallID,
+                                isStreaming: true,
+                                onExpansionChanged: { layoutEpoch &+= 1 }
+                            )
                         }
                     }
                     .padding(JinSpacing.medium)
@@ -154,6 +167,7 @@ struct StreamingMessageView: View {
         }
         .onChange(of: state.renderTick) { _, _ in
             onContentUpdate()
+        }
         }
     }
 

@@ -23,6 +23,8 @@ struct ChatTimelineSharedInputs {
     let effectiveRenderMode: (Int, MessageRenderItem) -> MessageRenderMode
     let onExpandCollapsedContent: (UUID) -> Void
     let colorScheme: ColorScheme
+    let isConversationStreaming: Bool
+    let streamingSuppressesIdlePlaceholder: Bool
 }
 
 // MARK: - Row model
@@ -73,6 +75,7 @@ struct ChatTimelineMessageContent: View {
             deferCodeHighlightUpgrade: index < shared.eagerCodeHighlightStartIndex,
             payloadResolver: shared.payloadResolver,
             toolResultsByCallID: shared.toolResultsByCallID,
+            isConversationStreaming: shared.isConversationStreaming,
             textToSpeechEnabled: interaction.textToSpeechEnabled,
             textToSpeechConfigured: interaction.textToSpeechConfigured,
             textToSpeechIsGenerating: interaction.textToSpeechIsGenerating(item.id),
@@ -214,6 +217,9 @@ struct ChatTimelineContentEpoch: Equatable {
     let streamingObjectID: ObjectIdentifier?
     let streamingModelLabel: String?
     let streamingModelID: String?
+    /// When the last persisted assistant still owns in-flight MCP tools, the
+    /// empty live row must collapse instead of showing a second Running card.
+    let streamingSuppressesIdlePlaceholder: Bool
 }
 
 // MARK: - Scroll handle (SwiftUI ⇆ controller bridge)
@@ -880,6 +886,15 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         let hasStreaming = newModel.rows.contains { if case .streaming = $0 { return true } else { return false } }
         if hadStreaming, !hasStreaming {
             heightCache[heightKey("streaming")] = nil
+        }
+        // After persist the live bubble is cleared so it does not clone the
+        // Running card. Drop the pre-persist height or the empty row stays
+        // as tall as the old assistant bubble.
+        if hasStreaming,
+           newModel.shared.streamingSuppressesIdlePlaceholder,
+           !(newModel.streamingMessage?.hasVisiblePresentation ?? false) {
+            heightCache[heightKey("streaming")] = nil
+            estimateCache[heightKey("streaming")] = nil
         }
 
         currentColumnWidth = newModel.shared.columnWidth
@@ -1593,6 +1608,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         case .loadEarlier:
             return 56
         case .streaming:
+            if model?.shared.streamingSuppressesIdlePlaceholder == true,
+               !(model?.streamingMessage?.hasVisiblePresentation ?? false) {
+                return 1
+            }
             // Header (~22) + bubble padding + JinStreamingPlaceholder (28) +
             // vertical row padding. Overshoot paints empty clear under the
             // host and reads as a white band until first measure.
@@ -1892,7 +1911,8 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                         // row height tracks content instead of leaving a blank
                         // band or clipping the first tokens.
                         self?.invalidateStreamingRowLayout()
-                    }
+                    },
+                    suppressIdlePlaceholder: shared.streamingSuppressesIdlePlaceholder
                 )
                 // Streaming placeholder only — never user bubbles.
                 .jinMessageAppear(enabled: animateAppear),

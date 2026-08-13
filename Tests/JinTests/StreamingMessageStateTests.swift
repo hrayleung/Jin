@@ -69,6 +69,21 @@ final class StreamingMessageStateTests: XCTestCase {
         XCTAssertEqual(state.artifacts, [])
         XCTAssertEqual(state.streamingToolCalls.count, 0)
         XCTAssertEqual(state.toolResultsByCallID.count, 0)
+        XCTAssertFalse(state.hasVisiblePresentation)
+    }
+
+    func testHasVisiblePresentationTracksToolsTextAndActivities() {
+        let state = StreamingMessageState()
+        XCTAssertFalse(state.hasVisiblePresentation)
+
+        state.setToolCalls([
+            ToolCall(id: "fetch_1", name: "tinyfish__fetch_content", arguments: [:]),
+        ])
+        XCTAssertTrue(state.hasVisiblePresentation)
+
+        state.reset()
+        state.appendDeltas(textDelta: "hello", thinkingDelta: "")
+        XCTAssertTrue(state.hasVisiblePresentation)
     }
 
     func testAppendDeltasCachesVisibleTextAndArtifactsForStreaming() {

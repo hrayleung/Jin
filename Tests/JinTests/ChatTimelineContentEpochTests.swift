@@ -57,6 +57,10 @@ final class ChatTimelineContentEpochTests: XCTestCase {
         )
         XCTAssertNotEqual(makeEpoch(), makeEpoch(streamingModelLabel: "GPT"))
         XCTAssertNotEqual(makeEpoch(), makeEpoch(streamingModelID: "gpt-x"))
+        XCTAssertNotEqual(
+            makeEpoch(),
+            makeEpoch(streamingSuppressesIdlePlaceholder: true)
+        )
     }
 
     private func makeEpoch(
@@ -80,7 +84,8 @@ final class ChatTimelineContentEpochTests: XCTestCase {
         codeFontFamily: String = "System",
         streamingObjectID: ObjectIdentifier? = nil,
         streamingModelLabel: String? = nil,
-        streamingModelID: String? = nil
+        streamingModelID: String? = nil,
+        streamingSuppressesIdlePlaceholder: Bool = false
     ) -> ChatTimelineContentEpoch {
         ChatTimelineContentEpoch(
             renderRevision: renderRevision,
@@ -111,7 +116,8 @@ final class ChatTimelineContentEpochTests: XCTestCase {
             codeFontFamily: codeFontFamily,
             streamingObjectID: streamingObjectID,
             streamingModelLabel: streamingModelLabel,
-            streamingModelID: streamingModelID
+            streamingModelID: streamingModelID,
+            streamingSuppressesIdlePlaceholder: streamingSuppressesIdlePlaceholder
         )
     }
 }

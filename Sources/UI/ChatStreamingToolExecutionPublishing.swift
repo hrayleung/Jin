@@ -5,10 +5,15 @@ extension ChatStreamingOrchestrator {
         _ record: ToolExecutionRecord,
         progress: inout ToolExecutionProgress,
         accumulator: inout StreamingResponseAccumulator,
-        streamingState: StreamingMessageState
+        streamingState: StreamingMessageState,
+        callbacks: SessionCallbacks
     ) async {
         await applyToolResult(record.toolResult, streamingState: streamingState)
         progress.appendResult(record.toolResult, outputLine: record.outputLine)
+
+        await MainActor.run {
+            callbacks.upsertLiveToolResult(record.toolResult)
+        }
 
         if let searchActivity = record.searchActivity {
             progress.upsertSearchActivity(searchActivity)

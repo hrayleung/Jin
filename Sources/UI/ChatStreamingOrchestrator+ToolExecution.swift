@@ -60,7 +60,8 @@ extension ChatStreamingOrchestrator {
                     record,
                     progress: &progress,
                     accumulator: &accumulator,
-                    streamingState: streamingState
+                    streamingState: streamingState,
+                    callbacks: callbacks
                 )
             } catch is CancellationError {
                 // The user stopped the turn; recording this as a tool failure would be
@@ -83,7 +84,8 @@ extension ChatStreamingOrchestrator {
                     record,
                     progress: &progress,
                     accumulator: &accumulator,
-                    streamingState: streamingState
+                    streamingState: streamingState,
+                    callbacks: callbacks
                 )
             }
         }

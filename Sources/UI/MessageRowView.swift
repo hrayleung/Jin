@@ -13,6 +13,7 @@ struct MessageRow: View, Equatable {
     let deferCodeHighlightUpgrade: Bool
     let payloadResolver: RenderedMessagePayloadResolver
     let toolResultsByCallID: [String: ToolResult]
+    let isConversationStreaming: Bool
     let textToSpeechEnabled: Bool
     let textToSpeechConfigured: Bool
     let textToSpeechIsGenerating: Bool
@@ -186,11 +187,17 @@ struct MessageRow: View, Equatable {
                                         }
                                     }
 
+                                    // Keep MCP cards under prose — same stack as
+                                    // StreamingMessageView (`ChatAssistantBubbleStackSupport`).
                                     if !presentation.visibleToolCalls.isEmpty {
                                         MCPToolTimelineView(
                                             toolCalls: presentation.visibleToolCalls,
                                             toolResultsByCallID: toolResultsByCallID,
-                                            isStreaming: false,
+                                            isStreaming: ChatTimelineStreamingPresentationSupport.isLiveToolTimeline(
+                                                isConversationStreaming: isConversationStreaming,
+                                                visibleToolCalls: presentation.visibleToolCalls,
+                                                toolResultsByCallID: toolResultsByCallID
+                                            ),
                                             onExpansionChanged: { layoutEpoch &+= 1 }
                                         )
                                     }
@@ -351,7 +358,8 @@ struct MessageRow: View, Equatable {
               lhs.textToSpeechIsGenerating == rhs.textToSpeechIsGenerating,
               lhs.textToSpeechIsPlaying == rhs.textToSpeechIsPlaying,
               lhs.textToSpeechIsPaused == rhs.textToSpeechIsPaused,
-              lhs.toolResultsByCallID == rhs.toolResultsByCallID
+              lhs.toolResultsByCallID == rhs.toolResultsByCallID,
+              lhs.isConversationStreaming == rhs.isConversationStreaming
         else { return false }
         return true
     }
