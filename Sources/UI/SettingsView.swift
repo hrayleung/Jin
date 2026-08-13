@@ -7,7 +7,6 @@ import AppKit
 
 struct SettingsView: View {
     @Environment(\.modelContext) var modelContext
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     enum SettingsSection: String, CaseIterable, Identifiable {
         case providers = "Providers"
@@ -86,55 +85,25 @@ struct SettingsView: View {
         SettingsSearchSupport.filteredPlugins(Self.availablePlugins, searchText: searchText)
     }
 
-    // MARK: - Animation Helpers
+    // Instant-swap destinations. Animating a section change cross-fades the
+    // outgoing form against an incoming Form+models List that is still being
+    // measured, which surfaces as a hitch then a pop-in.
 
-    var settingsMotionAnimation: Animation? {
-        reduceMotion ? nil : .easeInOut(duration: 0.2)
+    var resolvedSelectedProviderID: String? {
+        selectedProviderID ?? filteredProviders.first?.id
     }
 
-    var pluginSelectionAnimation: Animation? {
-        settingsMotionAnimation
+    var resolvedSelectedServerID: String? {
+        selectedServerID ?? filteredMCPServers.first?.id
     }
 
-    private var settingsColumnTransition: AnyTransition {
-        guard !reduceMotion else { return .identity }
-        return .asymmetric(
-            insertion: .opacity.combined(with: .offset(y: 4)),
-            removal: .opacity.combined(with: .offset(y: -2))
-        )
+    var resolvedSelectedPluginID: String? {
+        selectedPluginID ?? filteredPlugins.first?.id
     }
 
-    private var detailSelectionKey: String {
-        switch selectedSection {
-        case .providers:
-            return "providers:\(selectedProviderID ?? "")"
-        case .mcpServers:
-            return "mcp:\(selectedServerID ?? "")"
-        case .plugins:
-            return "plugins:\(selectedPluginID ?? "")"
-        case .general:
-            return "general:\(selectedGeneralCategory?.rawValue ?? "")"
-        case .none:
-            return "none"
-        }
+    var resolvedSelectedGeneralCategory: GeneralSettingsCategory? {
+        selectedGeneralCategory ?? .appearance
     }
-
-    func animatedBinding<T>(_ value: Binding<T>) -> Binding<T> {
-        Binding(
-            get: { value.wrappedValue },
-            set: { newValue in
-                withAnimation(settingsMotionAnimation) {
-                    value.wrappedValue = newValue
-                }
-            }
-        )
-    }
-
-    var animatedSelectedSection: Binding<SettingsSection?> { animatedBinding($selectedSection) }
-    var animatedSelectedProviderID: Binding<String?> { animatedBinding($selectedProviderID) }
-    var animatedSelectedServerID: Binding<String?> { animatedBinding($selectedServerID) }
-    var animatedSelectedPluginID: Binding<String?> { animatedBinding($selectedPluginID) }
-    var animatedSelectedGeneralCategory: Binding<GeneralSettingsCategory?> { animatedBinding($selectedGeneralCategory) }
 
     // MARK: - Body
 
@@ -184,10 +153,8 @@ struct SettingsView: View {
                 let pluginID = notification.userInfo?[SettingsNavigationUserInfoKey.pluginID] as? String,
                 Self.availablePlugins.contains(where: { $0.id == pluginID })
             else { return }
-            withAnimation(settingsMotionAnimation) {
-                selectedSection = .plugins
-                selectedPluginID = pluginID
-            }
+            selectedSection = .plugins
+            selectedPluginID = pluginID
         }
         .confirmationDialog(
             "Delete provider?",
@@ -212,7 +179,7 @@ struct SettingsView: View {
     // MARK: - Columns
 
     private var sidebarColumn: some View {
-        List(SettingsSection.allCases, selection: animatedSelectedSection) { section in
+        List(SettingsSection.allCases, selection: $selectedSection) { section in
             NavigationLink(value: section) {
                 Label(section.rawValue, systemImage: section.systemImage)
             }
@@ -237,16 +204,15 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             switch selectedSection {
             case .providers:
-                providersListWithActions.transition(settingsColumnTransition)
+                providersListWithActions
             case .mcpServers:
-                mcpServersListWithActions.transition(settingsColumnTransition)
+                mcpServersListWithActions
             case .plugins:
-                pluginsList.transition(settingsColumnTransition)
+                pluginsList
             case .general, .none:
-                generalCategoriesList.transition(settingsColumnTransition)
+                generalCategoriesList
             }
         }
-        .animation(settingsMotionAnimation, value: selectedSection)
         .background {
             JinSemanticColor.surface.ignoresSafeArea()
         }
@@ -271,7 +237,6 @@ struct SettingsView: View {
                 generalDetailView
             }
         }
-        .animation(settingsMotionAnimation, value: detailSelectionKey)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             JinSemanticColor.detailSurface.ignoresSafeArea()
@@ -286,7 +251,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var providerDetailView: some View {
-        if let id = selectedProviderID, let provider = providers.first(where: { $0.id == id }) {
+        if let id = resolvedSelectedProviderID, let provider = providers.first(where: { $0.id == id }) {
             identifiedDetail(id) {
                 ProviderConfigFormView(provider: provider)
             }
@@ -299,7 +264,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var mcpServerDetailView: some View {
-        if let id = selectedServerID, let server = mcpServers.first(where: { $0.id == id }) {
+        if let id = resolvedSelectedServerID, let server = mcpServers.first(where: { $0.id == id }) {
             identifiedDetail(id) {
                 MCPServerConfigFormView(server: server)
             }
@@ -312,7 +277,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var pluginDetailView: some View {
-        switch selectedPluginID {
+        switch resolvedSelectedPluginID {
         case "mistral_ocr":
             identifiedDetail("mistral_ocr") { MistralOCRPluginSettingsView() }
         case "mineru_ocr":
@@ -342,7 +307,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var generalDetailView: some View {
-        switch selectedGeneralCategory {
+        switch resolvedSelectedGeneralCategory {
         case .appearance:
             identifiedDetail("appearance") { AppearanceSettingsView() }
         case .chat:
@@ -369,7 +334,6 @@ struct SettingsView: View {
     ) -> some View {
         content()
             .id(id)
-            .transition(settingsColumnTransition)
     }
 
     @ViewBuilder
@@ -377,6 +341,5 @@ struct SettingsView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
-            .transition(settingsColumnTransition)
     }
 }

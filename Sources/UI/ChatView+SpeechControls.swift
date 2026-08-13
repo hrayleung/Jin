@@ -4,34 +4,33 @@ import Foundation
 
 extension ChatView {
 
-    func refreshExtensionCredentialsStatus() async {
-        let status = ChatConversationStateSupport.resolveExtensionCredentialStatus()
+    var mistralOCRConfigured: Bool { extensionCredentialStore.status.mistralOCRConfigured }
+    var mineruOCRConfigured: Bool { extensionCredentialStore.status.mineruOCRConfigured }
+    var deepSeekOCRConfigured: Bool { extensionCredentialStore.status.deepSeekOCRConfigured }
+    var openRouterOCRConfigured: Bool { extensionCredentialStore.status.openRouterOCRConfigured }
+    var firecrawlOCRConfigured: Bool { extensionCredentialStore.status.firecrawlOCRConfigured }
+    var textToSpeechConfigured: Bool { extensionCredentialStore.status.textToSpeechConfigured }
+    var speechToTextConfigured: Bool { extensionCredentialStore.status.speechToTextConfigured }
+    var webSearchPluginConfigured: Bool { extensionCredentialStore.status.webSearchPluginConfigured }
 
-        await MainActor.run {
-            mistralOCRConfigured = status.mistralOCRConfigured
-            mineruOCRConfigured = status.mineruOCRConfigured
-            deepSeekOCRConfigured = status.deepSeekOCRConfigured
-            openRouterOCRConfigured = status.openRouterOCRConfigured
-            firecrawlOCRConfigured = status.firecrawlOCRConfigured
-            textToSpeechConfigured = status.textToSpeechConfigured
-            speechToTextConfigured = status.speechToTextConfigured
-            webSearchPluginConfigured = status.webSearchPluginConfigured
+    var mistralOCRPluginEnabled: Bool { extensionCredentialStore.status.mistralOCRPluginEnabled }
+    var mineruOCRPluginEnabled: Bool { extensionCredentialStore.status.mineruOCRPluginEnabled }
+    var deepSeekOCRPluginEnabled: Bool { extensionCredentialStore.status.deepSeekOCRPluginEnabled }
+    var openRouterOCRPluginEnabled: Bool { extensionCredentialStore.status.openRouterOCRPluginEnabled }
+    var firecrawlOCRPluginEnabled: Bool { extensionCredentialStore.status.firecrawlOCRPluginEnabled }
+    var textToSpeechPluginEnabled: Bool { extensionCredentialStore.status.textToSpeechPluginEnabled }
+    var speechToTextPluginEnabled: Bool { extensionCredentialStore.status.speechToTextPluginEnabled }
+    var webSearchPluginEnabled: Bool { extensionCredentialStore.status.webSearchPluginEnabled }
 
-            mistralOCRPluginEnabled = status.mistralOCRPluginEnabled
-            mineruOCRPluginEnabled = status.mineruOCRPluginEnabled
-            deepSeekOCRPluginEnabled = status.deepSeekOCRPluginEnabled
-            openRouterOCRPluginEnabled = status.openRouterOCRPluginEnabled
-            firecrawlOCRPluginEnabled = status.firecrawlOCRPluginEnabled
-            textToSpeechPluginEnabled = status.textToSpeechPluginEnabled
-            speechToTextPluginEnabled = status.speechToTextPluginEnabled
-            webSearchPluginEnabled = status.webSearchPluginEnabled
-
-            if !status.textToSpeechPluginEnabled {
-                ttsPlaybackManager.stop()
-            }
-            if !status.speechToTextPluginEnabled {
-                speechToTextManager.cancelAndCleanup()
-            }
+    func handleExtensionCredentialStatusSideEffects(
+        previous: ChatExtensionCredentialStatus,
+        current: ChatExtensionCredentialStatus
+    ) {
+        if previous.textToSpeechPluginEnabled, !current.textToSpeechPluginEnabled {
+            ttsPlaybackManager.stop()
+        }
+        if previous.speechToTextPluginEnabled, !current.speechToTextPluginEnabled {
+            speechToTextManager.cancelAndCleanup()
         }
     }
 

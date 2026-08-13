@@ -133,8 +133,6 @@ extension ProviderConfigFormView {
             JinSettingsSection("Models") {
                 modelsSection
             }
-            .animation(.easeInOut(duration: 0.18), value: filteredModels.count)
-            .animation(.easeInOut(duration: 0.18), value: modelSearchText)
         }
     }
 

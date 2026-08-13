@@ -45,6 +45,7 @@ struct ChatView: View {
     @Environment(\.modelContext) var modelContext
     @Environment(\.accessibilityReduceMotion) var accessibilityReduceMotion
     @EnvironmentObject var streamingStore: ConversationStreamingStore
+    @EnvironmentObject var extensionCredentialStore: ChatExtensionCredentialStore
     @EnvironmentObject var responseCompletionNotifier: ResponseCompletionNotifier
     @EnvironmentObject var shortcutsStore: AppShortcutsStore
     @Bindable var conversationEntity: ConversationEntity
@@ -57,6 +58,38 @@ struct ChatView: View {
     var onNewChat: (() -> Void)? = nil
     var titlebarLeadingInset: CGFloat = 0
     var mainWindowIsFullScreen = false
+
+    init(
+        conversationEntity: ConversationEntity,
+        onRequestDeleteConversation: @escaping () -> Void,
+        isAssistantInspectorPresented: Binding<Bool>,
+        onPersistConversationIfNeeded: @escaping () -> Void = {},
+        isSidebarHidden: Bool = false,
+        mainSidebarWidth: CGFloat = SidebarWidthPersistence.defaultWidth,
+        onToggleSidebar: (() -> Void)? = nil,
+        onNewChat: (() -> Void)? = nil,
+        titlebarLeadingInset: CGFloat = 0,
+        mainWindowIsFullScreen: Bool = false
+    ) {
+        self.conversationEntity = conversationEntity
+        self.onRequestDeleteConversation = onRequestDeleteConversation
+        _isAssistantInspectorPresented = isAssistantInspectorPresented
+        self.onPersistConversationIfNeeded = onPersistConversationIfNeeded
+        self.isSidebarHidden = isSidebarHidden
+        self.mainSidebarWidth = mainSidebarWidth
+        self.onToggleSidebar = onToggleSidebar
+        self.onNewChat = onNewChat
+        self.titlebarLeadingInset = titlebarLeadingInset
+        self.mainWindowIsFullScreen = mainWindowIsFullScreen
+        // Seed from the conversation blob so the first composer frame already
+        // has inherited web-search / MCP / reasoning active states. Appear
+        // still normalizes; this only closes the empty-default flash.
+        _controls = State(initialValue: Self.initialControls(from: conversationEntity.modelConfigData))
+    }
+
+    static func initialControls(from data: Data) -> GenerationControls {
+        (try? JSONDecoder().decode(GenerationControls.self, from: data)) ?? GenerationControls()
+    }
     @Query var providers: [ProviderConfigEntity]
     @Query var mcpServers: [MCPServerConfigEntity]
 
@@ -180,25 +213,6 @@ struct ChatView: View {
     @State var imageGenerationSeedDraft = ""
     @State var imageGenerationCompressionQualityDraft = ""
     @State var imageGenerationDraftError: String?
-    // Accessed from ChatView extensions in separate files.
-    // swiftlint:disable private_swiftui_state
-    @State var mistralOCRConfigured = false
-    @State var mineruOCRConfigured = false
-    @State var deepSeekOCRConfigured = false
-    @State var openRouterOCRConfigured = false
-    @State var firecrawlOCRConfigured = false
-    @State var textToSpeechConfigured = false
-    @State var speechToTextConfigured = false
-    @State var mistralOCRPluginEnabled = true
-    @State var mineruOCRPluginEnabled = true
-    @State var deepSeekOCRPluginEnabled = true
-    @State var openRouterOCRPluginEnabled = true
-    @State var firecrawlOCRPluginEnabled = true
-    @State var textToSpeechPluginEnabled = true
-    @State var speechToTextPluginEnabled = true
-    @State var webSearchPluginEnabled = true
-    @State var webSearchPluginConfigured = false
-    // swiftlint:enable private_swiftui_state
     @State var isPreparingToSend = false
     @State var prepareToSendStatus: String?
     @State var prepareToSendTask: Task<Void, Never>?

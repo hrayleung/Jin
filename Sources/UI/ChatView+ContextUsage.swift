@@ -111,12 +111,10 @@ extension ChatView {
     private func applyContextUsageEstimate(_ estimate: ChatContextUsageEstimate?) {
         guard currentContextUsageEstimate != estimate else { return }
 
-        if let estimate {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                currentContextUsageEstimate = estimate
-            }
-        } else {
-            currentContextUsageEstimate = nil
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            currentContextUsageEstimate = estimate
         }
     }
 

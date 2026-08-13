@@ -27,15 +27,8 @@ extension ChatView {
             .onChange(of: contextUsageRefreshToken) { _, _ in
                 refreshContextUsageEstimate()
             }
-            .task {
-                // Chat-local state is already prepared in onAppear / onChange.
-                // Avoid repeating these mutations here to prevent extra render churn.
-                await refreshExtensionCredentialsStatus()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .pluginCredentialsDidChange)) { _ in
-                Task {
-                    await refreshExtensionCredentialsStatus()
-                }
+            .onChange(of: extensionCredentialStore.status) { previous, current in
+                handleExtensionCredentialStatusSideEffects(previous: previous, current: current)
             }
             .focusedSceneValue(\.chatActions, chatFocusedActions)
     }

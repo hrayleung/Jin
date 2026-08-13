@@ -16,6 +16,20 @@ extension ContentView {
         ConversationActivitySupport.sortedByActivityDescending(fetchPersistedConversations())
     }
 
+    func fetchLastUsedPersistedConversation(excluding excludedID: UUID?) -> ConversationEntity? {
+        var descriptor = FetchDescriptor<ConversationEntity>(
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = ContentViewConversationListSupport.lastUsedConversationFetchLimit
+        let matches = (try? modelContext.fetch(descriptor)) ?? []
+        return ContentViewConversationListSupport.lastUsedConversation(
+            from: matches,
+            excluding: excludedID,
+            id: \.id,
+            hasMessages: { $0.resolvedMessageCount > 0 }
+        )
+    }
+
     func providerName(for providerID: String) -> String {
         providers.first(where: { $0.id == providerID })?.name ?? providerID
     }

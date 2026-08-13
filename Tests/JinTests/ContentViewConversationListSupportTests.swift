@@ -15,4 +15,26 @@ final class ContentViewConversationListSupportTests: XCTestCase {
             ""
         )
     }
+
+    func testLastUsedConversationSkipsExcludedAndEmptyRows() {
+        struct Row {
+            let id: UUID
+            let hasMessages: Bool
+        }
+
+        let empty = Row(id: UUID(), hasMessages: false)
+        let excluded = Row(id: UUID(), hasMessages: true)
+        let keep = Row(id: UUID(), hasMessages: true)
+        let later = Row(id: UUID(), hasMessages: true)
+
+        let result = ContentViewConversationListSupport.lastUsedConversation(
+            from: [empty, excluded, keep, later],
+            excluding: excluded.id,
+            id: \.id,
+            hasMessages: \.hasMessages
+        )
+
+        XCTAssertEqual(result?.id, keep.id)
+        XCTAssertEqual(ContentViewConversationListSupport.lastUsedConversationFetchLimit, 8)
+    }
 }

@@ -92,7 +92,9 @@ struct MCPServerConfigFormView: View {
         .background(JinSemanticColor.detailSurface)
         .navigationTitle(server.name)
         .task {
-            loadFromServer()
+            hydrateFromServer()
+            await Task.yield()
+            loading = false
         }
         .onChange(of: transportKind) { _, _ in persistTransport() }
         .onChange(of: command) { _, _ in persistTransport() }
@@ -270,9 +272,8 @@ struct MCPServerConfigFormView: View {
         )
     }
 
-    private func loadFromServer() {
+    private func hydrateFromServer() {
         loading = true
-        defer { loading = false }
 
         applyTransportDraft(MCPServerTransportDraftSupport.draft(from: server.transportConfig()))
 
@@ -282,7 +283,6 @@ struct MCPServerConfigFormView: View {
             configError = "Failed to load disabled tools (defaulting to all enabled): \(error.localizedDescription)"
             disabledTools = []
         }
-        persistTransport()
     }
 
     private func applyTransportDraft(_ draft: MCPServerTransportDraftSupport.Draft) {
@@ -313,6 +313,12 @@ struct MCPServerConfigFormView: View {
         }
         if transportKind == .stdio {
             argsError = nil
+        }
+
+        if server.transportConfig() == transport {
+            configError = nil
+            clearTransportBuildError()
+            return
         }
 
         do {

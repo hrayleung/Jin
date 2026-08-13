@@ -85,79 +85,18 @@ extension ProviderConfigFormView {
                 .jinInfoCallout()
         } else {
             List(filteredModels) { model in
-                modelListRow(model)
+                ProviderModelListRow(
+                    model: model,
+                    isFullySupported: fullySupportedModelIDs.contains(model.id),
+                    isEnabled: modelEnabledBinding(modelID: model.id),
+                    onEdit: { editingModel = model },
+                    onDelete: { requestDeleteModel(model) }
+                )
             }
-            .frame(minHeight: 180)
+            .frame(height: ProviderFormSupport.modelListHeight)
             .scrollContentBackground(.hidden)
             .background(JinSemanticColor.detailSurface)
             .jinSurface(.outlined, cornerRadius: JinRadius.medium)
-        }
-    }
-
-    private func modelListRow(_ model: ModelInfo) -> some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(model.name)
-                        .lineLimit(1)
-
-                    if isFullySupportedModel(model.id) {
-                        Text(JinModelSupport.fullSupportSymbol)
-                            .jinTagStyle(foreground: .green)
-                            .help("Jin full support")
-                    }
-
-                    if model.overrides != nil {
-                        Text("Custom")
-                            .jinTagStyle(foreground: .orange)
-                            .help("This model has manual capability overrides.")
-                    }
-                }
-
-                Text(model.id)
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
-            }
-
-            Spacer(minLength: 8)
-
-            modelSettingsButton(model)
-            deleteModelButton(model)
-
-            Toggle("", isOn: modelEnabledBinding(modelID: model.id))
-                .labelsHidden()
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            editingModel = model
-        }
-        .onHover { isHovered in
-            if isHovered {
-                hoveredModelID = model.id
-            } else if hoveredModelID == model.id {
-                hoveredModelID = nil
-            }
-        }
-    }
-
-    private func modelSettingsButton(_ model: ModelInfo) -> some View {
-        ProviderModelActionButton(
-            systemImage: "slider.horizontal.3",
-            help: "Model Settings",
-            isVisible: hoveredModelID == model.id
-        ) {
-            editingModel = model
-        }
-    }
-
-    private func deleteModelButton(_ model: ModelInfo) -> some View {
-        ProviderModelActionButton(
-            systemImage: "trash",
-            help: "Delete Model",
-            role: .destructive,
-            isVisible: hoveredModelID == model.id
-        ) {
-            requestDeleteModel(model)
         }
     }
 
@@ -189,6 +128,65 @@ extension ProviderConfigFormView {
             .disabled(decodedModels.isEmpty)
             .buttonStyle(.borderless)
         }
+    }
+}
+
+private struct ProviderModelListRow: View {
+    let model: ModelInfo
+    let isFullySupported: Bool
+    @Binding var isEnabled: Bool
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(model.name)
+                        .lineLimit(1)
+
+                    if isFullySupported {
+                        Text(JinModelSupport.fullSupportSymbol)
+                            .jinTagStyle(foreground: .green)
+                            .help("Jin full support")
+                    }
+
+                    if model.overrides != nil {
+                        Text("Custom")
+                            .jinTagStyle(foreground: .orange)
+                            .help("This model has manual capability overrides.")
+                    }
+                }
+
+                Text(model.id)
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+
+            Spacer(minLength: 8)
+
+            ProviderModelActionButton(
+                systemImage: "slider.horizontal.3",
+                help: "Model Settings",
+                isVisible: isHovered,
+                action: onEdit
+            )
+            ProviderModelActionButton(
+                systemImage: "trash",
+                help: "Delete Model",
+                role: .destructive,
+                isVisible: isHovered,
+                action: onDelete
+            )
+
+            Toggle("", isOn: $isEnabled)
+                .labelsHidden()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onEdit)
+        .onHover { isHovered = $0 }
     }
 }
 
