@@ -271,11 +271,23 @@ final class CodeBlockWheelTargetTests: XCTestCase {
         let host = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))
         view.frame = host.bounds
         host.addSubview(view)
+        // Off-window `NSTextView.hitTest` / `convert` is not reliable on the
+        // GitHub-hosted AppKit (returns nil). The product path always has a
+        // window; match that here.
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 200, height: 40),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
         let hit = view.hitTest(NSPoint(x: 3, y: 20))
         XCTAssertTrue(
             hit === view,
             "left textContainerInset must hit-test to the text view, not nil "
-                + "(hit \(hit.map { String(describing: type(of: $0)) } ?? "nil"))"
+                + "(hit \(hit.map { String(describing: type(of: $0)) } ?? "nil") "
+                + "alpha=\(view.alphaValue) bounds=\(view.bounds) window=\(view.window != nil))"
         )
     }
 
