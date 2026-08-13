@@ -103,18 +103,19 @@ struct AddModelSheet: View {
     }
 
     private var trimmedModelID: String {
-        AddModelSheetSupport.normalizedModelID(modelID)
+        AddModelSheetSupport.normalizedModelID(modelID, providerType: providerType)
     }
 
     private var resolvedModelName: String {
         AddModelSheetSupport.resolvedModelName(
             nickname: nickname,
-            modelID: modelID
+            modelID: modelID,
+            providerType: providerType
         )
     }
 
     private var canAddModel: Bool {
-        AddModelSheetSupport.canAddModel(modelID: modelID)
+        AddModelSheetSupport.canAddModel(modelID: modelID, providerType: providerType)
     }
 
     private var headerSection: some View {
@@ -141,9 +142,13 @@ struct AddModelSheet: View {
                 )
 
                 fieldBlock(
-                    title: "Model ID",
-                    prompt: "Required (for example: gpt-5.2-codex)",
-                    helperText: "Must match the provider model ID exactly.",
+                    title: providerType == .modal ? "Model ID or endpoint URL" : "Model ID",
+                    prompt: providerType == .modal
+                        ? "Qwen/Qwen3.8-2.4T-A95B or https://…modal.direct"
+                        : "Required (for example: gpt-5.2-codex)",
+                    helperText: providerType == .modal
+                        ? nil
+                        : "Must match the provider model ID exactly.",
                     text: $modelID,
                     monospaced: true
                 )
@@ -257,6 +262,8 @@ struct AddModelSheet: View {
     }
 
     private func makeModelInfo(id: String, name: String) -> ModelInfo {
-        ModelCatalog.modelInfo(for: id, provider: providerType ?? .openaiCompatible, name: name)
+        let info = ModelCatalog.modelInfo(for: id, provider: providerType ?? .openaiCompatible, name: name)
+        guard providerType == .modal else { return info }
+        return ModalEndpointSupport.applyEndpointMetadataIfNeeded(to: info)
     }
 }

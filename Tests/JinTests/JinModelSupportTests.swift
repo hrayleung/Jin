@@ -160,6 +160,15 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-397B-A17B-custom"))
     }
 
+    func testModalUsesExactMatchForFullySupportedTag() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .modal, modelID: "moonshotai/Kimi-K3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .modal, modelID: "Qwen/Qwen3.8-2.4T-A95B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .modal, modelID: "thinkingmachines/Inkling-NVFP4"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .modal, modelID: "qwen3.8-max"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .modal, modelID: "Qwen/Qwen3.8-2.4T-A95B-custom"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .modal, modelID: "thinkingmachines/inkling"))
+    }
+
     func testSambaNovaUsesExactMatchForFullySupportedTag() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .sambanova, modelID: "MiniMax-M2.5"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .sambanova, modelID: "gpt-oss-120b"))

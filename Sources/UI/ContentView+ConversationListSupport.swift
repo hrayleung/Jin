@@ -72,7 +72,7 @@ extension ContentView {
             )
         }
 
-        return provider.allModels.first(where: { $0.id == modelID })?.name ?? modelID
+        return displayName(for: modelID, in: provider)
     }
 
     func modelName(id modelID: String, providerID: String) -> String {
@@ -89,7 +89,15 @@ extension ContentView {
             )
         }
 
-        return provider.allModels.first(where: { $0.id == modelID })?.name ?? modelID
+        return displayName(for: modelID, in: provider)
+    }
+
+    private func displayName(for modelID: String, in provider: ProviderConfigEntity) -> String {
+        ProviderModelAliasResolver.resolvedModel(
+            for: modelID,
+            providerType: ProviderType(rawValue: provider.typeRaw),
+            availableModels: provider.allModels
+        )?.name ?? modelID
     }
 
     func requestRenameSelectedConversation() {

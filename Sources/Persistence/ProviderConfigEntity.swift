@@ -55,7 +55,10 @@ final class ProviderConfigEntity {
         if providerType == .claudeManagedAgents {
             models = []
         } else {
-            models = try decoder.decode([ModelInfo].self, from: modelsData)
+            let decoded = try decoder.decode([ModelInfo].self, from: modelsData)
+            models = providerType == .modal
+                ? ModalEndpointSupport.promoteIdentities(in: decoded)
+                : decoded
         }
 
         var config = ProviderConfig(

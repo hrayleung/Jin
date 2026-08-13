@@ -2129,6 +2129,69 @@ final class ModelSettingsResolverTests: XCTestCase {
         for id in ["muse-spark-1.1", "muse-spark-1.2", "muse-spark-1.2-contributor"] {
             XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .meta, modelID: id), id)
         }
+
+        // Modal Qwen3.8-2.4T-A95B: thinking cannot be disabled (HF card + Modal library).
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(
+                for: .modal,
+                modelID: "Qwen/Qwen3.8-2.4T-A95B"
+            )
+        )
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(
+                for: .modal,
+                modelID: "moonshotai/Kimi-K3"
+            )
+        )
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(
+                for: .modal,
+                modelID: "qwen3.8-max"
+            )
+        )
+    }
+
+    func testResolverInfersModalQwen38CatalogMetadataForLegacyPersistedModels() {
+        let legacy = ModelInfo(
+            id: "Qwen/Qwen3.8-2.4T-A95B",
+            name: "Qwen/Qwen3.8-2.4T-A95B",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolved = ModelSettingsResolver.resolve(model: legacy, providerType: .modal)
+        XCTAssertEqual(resolved.contextWindow, 1_000_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 262_144)
+        XCTAssertEqual(
+            resolved.capabilities,
+            [.streaming, .toolCalling, .reasoning, .promptCaching]
+        )
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .xhigh)
+        XCTAssertFalse(resolved.reasoningCanDisable)
+        XCTAssertFalse(resolved.supportsWebSearch)
+        XCTAssertEqual(resolved.requestShape, .openAICompatible)
+    }
+
+    func testResolverLooksUpModalCatalogThroughUpstreamIDForLegacyHostnameRows() {
+        let leftover = ModelInfo(
+            id: "workspace--ep-qwen3-8-2-4t-a95b-server.us-west.modal.direct",
+            name: "Qwen3.8 Max",
+            capabilities: [.streaming],
+            contextWindow: 128_000,
+            catalogMetadata: ModelCatalogMetadata(
+                requestBaseURL: "https://workspace--ep-qwen3-8-2-4t-a95b-server.us-west.modal.direct/v1",
+                upstreamModelID: "Qwen/Qwen3.8-2.4T-A95B"
+            ),
+            isEnabled: true
+        )
+        let resolved = ModelSettingsResolver.resolve(model: leftover, providerType: .modal)
+        XCTAssertEqual(resolved.contextWindow, 1_000_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 262_144)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertFalse(resolved.reasoningCanDisable)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .xhigh)
     }
 
 }

@@ -8,6 +8,7 @@ struct ProviderConfigFormView: View {
     @State var apiKey = ""
     @State var serviceAccountJSON = ""
     @State var showingAPIKey = false
+    @State var showingTokenSecret = false
     @State var hasLoadedCredentials = false
     @State var credentialSaveError: String?
     @State var credentialSaveTask: Task<Void, Never>?
@@ -19,6 +20,7 @@ struct ProviderConfigFormView: View {
     @State var isFetchingModels = false
     @State var modelsError: String?
     @State var showingAddModel = false
+    @State var showingAddEndpoint = false
     @State var showingDeleteAllModelsConfirmation = false
     @State var showingDeleteModelConfirmation = false
     @State var showingKeepFullySupportedModelsConfirmation = false

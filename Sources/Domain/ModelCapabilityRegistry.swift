@@ -487,6 +487,12 @@ enum ModelCapabilityRegistry {
     private static let modalInklingReasoningEffortModelIDs: Set<String> = [
         "thinkingmachines/inkling-nvfp4",
     ]
+    /// Modal Shared API Qwen3.8-2.4T-A95B. HF card + Modal library (2026-08-12):
+    /// `reasoning_effort` is only low / medium / xhigh. Thinking cannot be
+    /// disabled — do not offer `none`, `high`, or `max`.
+    private static let modalQwen38TextReasoningEffortModelIDs: Set<String> = [
+        "qwen/qwen3.8-2.4t-a95b",
+    ]
     /// Baseten Mercury 2: none/low/medium/high (Inception + OpenRouter, 2026-07-29).
     private static let basetenMercury2ReasoningEffortModelIDs: Set<String> = [
         "inception/mercury-2",
@@ -746,6 +752,8 @@ enum ModelCapabilityRegistry {
             return [.none, .low, .high, .max]
         case .modal where modalInklingReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
+        case .modal where modalQwen38TextReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .xhigh]
         case .xai where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
             // Multi-agent: low/medium → 4 agents, high/xhigh → 16 agents.
             return [.low, .medium, .high, .xhigh]

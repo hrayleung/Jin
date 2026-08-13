@@ -1629,14 +1629,10 @@ extension ModelCatalog {
 
     // MARK: Modal Shared API
 
-    // Modal's Shared API is the multi-tenant, billed-per-token surface behind
-    // `inference.<region>.modal.direct` (modal.com/docs/guide/endpoint-integrations,
-    // modal.com/library, verified 2026-08-01). Only these two models are published
-    // there today; everything else a token can reach is the user's own Auto Endpoint,
-    // which arrives through `fetchAvailableModels` and takes the conservative
-    // fallback. Automatic vLLM prefix caching is priced separately (Kimi K3: $0.30
-    // vs $3.00 /MTok) → promptCaching. Model IDs are Hugging Face repo IDs, exactly
-    // as Modal documents for the `model` field.
+    // These IDs are recognized when Fetch / Add Endpoint actually returns them.
+    // They are NOT first-launch seeds: a proxy token only reaches the endpoints
+    // that workspace deployed (or Shared Endpoints the token is allowed to hit).
+    // modal.com/docs/guide/endpoints — one token, many endpoint URLs.
     static let modalRecords: [Record] = [
         // Kimi K3: 2.8T MoE with native vision and a 1M window (config.json
         // max_length 1048576). Reasoning is effort-controlled, not a true toggle.
@@ -1645,7 +1641,26 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
-               isFullySupported: true, isSeeded: true),
+               isFullySupported: true, isSeeded: false),
+        // Qwen3.8-2.4T-A95B (Modal Shared Endpoint, announced 2026-08-12): the
+        // open-weight Max-class text model, NOT Alibaba Cloud's multimodal
+        // `qwen3.8-max`. Exact HF repo ID is what Modal's library page and
+        // `/endpoints?model=Qwen/Qwen3.8-2.4T-A95B` publish. Text-only — the HF
+        // card and Modal copy both say multimodal input is unsupported (cloud
+        // Qwen3.8-Max adds vision / non-thinking / built-in tools on top of
+        // these weights). Thinking cannot be disabled; `reasoning_effort` is
+        // only low / medium / xhigh (xhigh default). Context is Modal's 1M
+        // Shared Endpoint window (HF native 262,144, extensible to 1,010,000;
+        // OpenRouter lists 1,000,000 for the same weights). maxOutputTokens is
+        // the HF "Reasoning Content" generation ceiling of 262,144 — the 131,072
+        // figure is the recommended *final* answer budget when a runtime splits
+        // the two, which Chat Completions `max_tokens` does not.
+        Record(id: "Qwen/Qwen3.8-2.4T-A95B", displayName: "Qwen3.8 Max",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
         // Thinking Machines Inkling, NVFP4 build. Note the ID differs from the
         // `thinkingmachines/inkling` slug other providers use — catalog lookup is by
         // exact ID, so this one must stay verbatim. Text + image + audio input per
@@ -1655,6 +1670,6 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
-               isFullySupported: true, isSeeded: true),
+               isFullySupported: true, isSeeded: false),
     ]
 }

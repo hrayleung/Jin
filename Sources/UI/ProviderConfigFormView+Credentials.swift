@@ -24,19 +24,10 @@ extension ProviderConfigFormView {
 
     @ViewBuilder
     var proxyTokenFields: some View {
-        JinSettingsSecureFieldRow(
-            "Token ID",
-            text: ProviderFormSupport.proxyTokenIDBinding($apiKey),
-            isRevealed: $showingAPIKey,
-            revealHelp: "Show token ID",
-            concealHelp: "Hide token ID"
-        )
-        JinSettingsSecureFieldRow(
-            "Token Secret",
-            text: ProviderFormSupport.proxyTokenSecretBinding($apiKey),
-            isRevealed: $showingAPIKey,
-            revealHelp: "Show token secret",
-            concealHelp: "Hide token secret"
+        ModalProxyTokenFields(
+            storedCredential: $apiKey,
+            isIDRevealed: $showingAPIKey,
+            isSecretRevealed: $showingTokenSecret
         )
     }
 

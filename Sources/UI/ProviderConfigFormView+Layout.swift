@@ -76,11 +76,13 @@ extension ProviderConfigFormView {
 
     @ViewBuilder
     private var apiBaseURLRows: some View {
-        if let providerType, let defaultBaseURL = providerType.defaultBaseURL {
+        if providerType == .modal {
+            EmptyView()
+        } else if let providerType, let defaultBaseURL = providerType.defaultBaseURL {
             JinSettingsControlRow("API Base URL", supportingText: "Use the provider default unless you need a custom endpoint.") {
                 HStack(alignment: .center, spacing: JinSpacing.small) {
                     JinSettingsTextField(
-                        "API Base URL",
+                        "https://…",
                         text: baseURLBinding(defaultBaseURL: defaultBaseURL),
                         usesMonospacedFont: true
                     )
@@ -130,7 +132,7 @@ extension ProviderConfigFormView {
                 claudeManagedDefaultsSection
             }
         } else {
-            JinSettingsSection("Models") {
+            JinSettingsSection(providerType == .modal ? "Endpoints" : "Models") {
                 modelsSection
             }
         }

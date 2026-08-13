@@ -16,11 +16,12 @@ struct AddProviderView: View {
     @State private var serviceAccountJSON = ""
 
     @State private var isKeyVisible = false
+    @State private var isTokenSecretVisible = false
     @State private var isSaving = false
     @State private var saveError: String?
 
     private var prefersExpandedCredentialEditor: Bool {
-        providerType == .vertexai
+        providerType == .vertexai || providerType == .modal
     }
 
     var body: some View {
@@ -68,21 +69,22 @@ struct AddProviderView: View {
                         iconID = values.iconID
                     }
 
-                    if providerType != .vertexai {
+                    if providerType != .vertexai, providerType != .modal {
                         JinSettingsTextFieldRow(
                             "API Base URL",
+                            fieldTitle: "https://…",
                             supportingText: "Default endpoint is pre-filled.",
                             text: $baseURL,
                             usesMonospacedFont: true
                         )
                     }
 
-                    if let providerSetupCallout {
+                    if providerType != .modal, let providerSetupCallout {
                         Text(providerSetupCallout)
                             .jinInfoCallout()
                     }
 
-                    if let providerDetailsText {
+                    if providerType != .modal, let providerDetailsText {
                         JinDetailsDisclosure(title: "Provider Details") {
                             Text(providerDetailsText)
                                 .font(.caption)
@@ -102,19 +104,10 @@ struct AddProviderView: View {
                             concealHelp: ProviderFormSupport.apiKeyConcealHelp(for: providerType)
                         )
                     case .proxyTokenPair:
-                        JinSettingsSecureFieldRow(
-                            "Token ID",
-                            text: ProviderFormSupport.proxyTokenIDBinding($apiKey),
-                            isRevealed: $isKeyVisible,
-                            revealHelp: "Show token ID",
-                            concealHelp: "Hide token ID"
-                        )
-                        JinSettingsSecureFieldRow(
-                            "Token Secret",
-                            text: ProviderFormSupport.proxyTokenSecretBinding($apiKey),
-                            isRevealed: $isKeyVisible,
-                            revealHelp: "Show token secret",
-                            concealHelp: "Hide token secret"
+                        ModalProxyTokenFields(
+                            storedCredential: $apiKey,
+                            isIDRevealed: $isKeyVisible,
+                            isSecretRevealed: $isTokenSecretVisible
                         )
                     case .serviceAccountJSON:
                         JinSettingsBlockRow(
@@ -147,8 +140,8 @@ struct AddProviderView: View {
                 }
             }
             .frame(
-                width: prefersExpandedCredentialEditor ? 740 : 500,
-                height: prefersExpandedCredentialEditor ? 660 : 400
+                width: addProviderWindowSize.width,
+                height: addProviderWindowSize.height
             )
         }
         #if os(macOS)
@@ -183,7 +176,8 @@ struct AddProviderView: View {
                     iconID: ProviderFormSupport.normalizedIconID(iconID),
                     apiKey: resolvedAPIKey,
                     serviceAccountJSON: isVertexAI ? trimmedServiceAccountJSON : nil,
-                    baseURL: resolvedBaseURL
+                    baseURL: resolvedBaseURL,
+                    models: []
                 )
 
                 let entity = try ProviderConfigEntity.fromDomain(config)
@@ -207,6 +201,17 @@ struct AddProviderView: View {
 
     private var providerDetailsText: String? {
         ProviderFormSupport.providerDetailsText(for: providerType)
+    }
+
+    private var addProviderWindowSize: (width: CGFloat, height: CGFloat) {
+        switch providerType {
+        case .vertexai:
+            return (740, 660)
+        case .modal:
+            return (520, 480)
+        default:
+            return (500, 400)
+        }
     }
 
     private var isAddDisabled: Bool {

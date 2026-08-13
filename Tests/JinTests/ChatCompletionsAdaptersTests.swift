@@ -7028,6 +7028,136 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testModalAdapterPostsToTheModelEndpointURLWithTheRepoID() async throws {
+        let endpoint = try XCTUnwrap(
+            ModalEndpointSupport.modelInfo(
+                fromPasted: "https://acme--qwen-server.us-west.modal.direct",
+                nickname: nil,
+                upstreamModelID: "Qwen/Qwen3.8-2.4T-A95B"
+            )
+        )
+        var config = makeModalProviderConfig()
+        config.models = [endpoint]
+
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(
+                request.url?.absoluteString,
+                "https://acme--qwen-server.us-west.modal.direct/v1/chat/completions"
+            )
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "Qwen/Qwen3.8-2.4T-A95B")
+            return try self.modalStubResponse(for: request)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: config,
+            apiKey: "wk-abc.ws-def",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: endpoint.id,
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testModalAdapterOmitsNoneEffortForAlwaysOnQwen38() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "Qwen/Qwen3.8-2.4T-A95B")
+            // HF: thinking cannot be disabled. Sending `none` would be a 400-class
+            // request; omit the key so SGLang keeps its default (`xhigh`).
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["chat_template_kwargs"])
+            XCTAssertNil(root["enable_thinking"])
+            XCTAssertNil(root["preserve_thinking"])
+
+            return try self.modalStubResponse(for: request)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: makeModalProviderConfig(),
+            apiKey: "wk-abc.ws-def",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "Qwen/Qwen3.8-2.4T-A95B",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testModalAdapterSendsQwen38DocumentedReasoningEfforts() async throws {
+        for effort in [ReasoningEffort.low, .medium, .xhigh] {
+            let (configuration, protocolType) = makeMockedSessionConfiguration()
+            let networkManager = NetworkManager(configuration: configuration)
+
+            protocolType.requestHandler = { request in
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(root["reasoning_effort"] as? String, effort.rawValue)
+                XCTAssertNil(root["chat_template_kwargs"])
+                return try self.modalStubResponse(for: request)
+            }
+
+            let adapter = ModalAdapter(
+                providerConfig: makeModalProviderConfig(),
+                apiKey: "wk-abc.ws-def",
+                networkManager: networkManager
+            )
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: "Qwen/Qwen3.8-2.4T-A95B",
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort)),
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+    }
+
+    func testModalAdapterMapsUnsupportedQwen38EffortToXhigh() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            // `high` / `max` are not in the documented band; closest supported is xhigh.
+            XCTAssertEqual(root["reasoning_effort"] as? String, "xhigh")
+            return try self.modalStubResponse(for: request)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: makeModalProviderConfig(),
+            apiKey: "wk-abc.ws-def",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "Qwen/Qwen3.8-2.4T-A95B",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
     func testModalAdapterSendsNoneEffortWhenReasoningDisabled() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -7035,7 +7165,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         protocolType.requestHandler = { request in
             let body = try XCTUnwrap(requestBodyData(request))
             let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
-            // "none" is in the documented band for both Shared API models.
+            // "none" is in the documented band for Kimi K3 / Inkling.
             XCTAssertEqual(root["reasoning_effort"] as? String, "none")
 
             let response: [String: Any] = [
@@ -7134,6 +7264,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 "object": "list",
                 "data": [
                     ["id": "moonshotai/Kimi-K3", "object": "model"],
+                    ["id": "Qwen/Qwen3.8-2.4T-A95B", "object": "model"],
                     ["id": "my-endpoint.us-west.modal.direct", "object": "model"]
                 ]
             ]
@@ -7148,7 +7279,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
         let models = try await adapter.fetchAvailableModels()
 
-        XCTAssertEqual(models.map(\.id), ["moonshotai/Kimi-K3", "my-endpoint.us-west.modal.direct"])
+        XCTAssertEqual(
+            models.map(\.id),
+            ["moonshotai/Kimi-K3", "Qwen/Qwen3.8-2.4T-A95B", "my-endpoint.us-west.modal.direct"]
+        )
 
         // A Shared API model picks up its catalog metadata…
         let kimi = try XCTUnwrap(models.first)
@@ -7156,12 +7290,22 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(kimi.contextWindow, 1_048_576)
         XCTAssertTrue(kimi.capabilities.contains(.vision))
 
+        let qwen = models[1]
+        XCTAssertEqual(qwen.name, "Qwen3.8 Max")
+        XCTAssertEqual(qwen.contextWindow, 1_000_000)
+        XCTAssertEqual(qwen.maxOutputTokens, 262_144)
+        XCTAssertTrue(qwen.capabilities.contains(.reasoning))
+        XCTAssertFalse(qwen.capabilities.contains(.vision))
+
         // …while an Auto Endpoint reached by hostname gets a readable name and the
         // conservative fallback, since its model is unknowable from the ID.
-        let endpoint = models[1]
+        // Do not stamp a dedicated requestBaseURL: Shared API routes on the
+        // hostname `model` field (modal.com/docs/guide/endpoint-integrations).
+        let endpoint = models[2]
         XCTAssertEqual(endpoint.name, "my-endpoint")
         XCTAssertEqual(endpoint.contextWindow, 128_000)
         XCTAssertFalse(endpoint.capabilities.contains(.vision))
+        XCTAssertNil(endpoint.catalogMetadata?.requestBaseURL)
     }
 
     func testModalAdapterFetchModelsFallsBackToBearerForANonPairCredential() async throws {

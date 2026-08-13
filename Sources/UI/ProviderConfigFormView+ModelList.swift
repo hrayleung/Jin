@@ -78,7 +78,11 @@ extension ProviderConfigFormView {
     @ViewBuilder
     private var modelsListContent: some View {
         if decodedModels.isEmpty {
-            Text("No models found. Fetch from provider or add manually.")
+            Text(
+                providerType == .modal
+                    ? "No endpoints yet."
+                    : "No models found. Fetch from provider or add manually."
+            )
                 .jinInfoCallout()
         } else if filteredModels.isEmpty {
             Text("No models match your search.")
@@ -113,10 +117,19 @@ extension ProviderConfigFormView {
 
             Spacer()
 
+            if providerType == .modal {
+                Button {
+                    showingAddEndpoint = true
+                } label: {
+                    Label("Add Endpoint", systemImage: "link.badge.plus")
+                }
+                .buttonStyle(.borderless)
+            }
+
             Button {
                 showingAddModel = true
             } label: {
-                Label("Add", systemImage: "plus")
+                Label(providerType == .modal ? "Add Model" : "Add", systemImage: "plus")
             }
             .buttonStyle(.borderless)
 
@@ -158,11 +171,21 @@ private struct ProviderModelListRow: View {
                             .jinTagStyle(foreground: .orange)
                             .help("This model has manual capability overrides.")
                     }
+
+                    if ModalEndpointSupport.isAutoEndpointModel(model) {
+                        Text("Endpoint")
+                            .jinTagStyle(foreground: .accentColor)
+                            .help("Deployed as its own Modal endpoint.")
+                    }
                 }
 
-                Text(model.id)
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
+                if let visibleID = ModalEndpointSupport.userFacingModelID(for: model) {
+                    Text(visibleID)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
 
             Spacer(minLength: 8)

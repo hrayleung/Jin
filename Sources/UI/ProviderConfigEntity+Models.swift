@@ -33,7 +33,13 @@ private final class ProviderModelsDecodeCache: @unchecked Sendable {
         }
         lock.unlock()
 
-        let allModels = (try? JSONDecoder().decode([ModelInfo].self, from: data)) ?? []
+        let decoded = (try? JSONDecoder().decode([ModelInfo].self, from: data)) ?? []
+        let allModels: [ModelInfo]
+        if ProviderType(rawValue: provider.typeRaw) == .modal {
+            allModels = ModalEndpointSupport.promoteIdentities(in: decoded)
+        } else {
+            allModels = decoded
+        }
         let resolved = ProviderResolvedModels(
             all: allModels,
             enabled: allModels.filter(\.isEnabled)

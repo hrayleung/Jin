@@ -17,6 +17,7 @@ enum ModelSettingsResolver {
 
     static func resolve(model: ModelInfo, providerType: ProviderType?) -> ResolvedModelSettings {
         let overrides = model.overrides
+        let lookupID = ModalEndpointSupport.catalogModelID(for: model)
         let catalogEntry = catalogEntry(for: model, providerType: providerType)
 
         let capabilities = resolvedCapabilities(
@@ -43,19 +44,19 @@ enum ModelSettingsResolver {
             catalogEntry: catalogEntry,
             fallback: model.maxOutputTokens
         )
-        let modelType = overrides?.modelType ?? inferModelType(capabilities: capabilities, modelID: model.id)
+        let modelType = overrides?.modelType ?? inferModelType(capabilities: capabilities, modelID: lookupID)
         let reasoningCanDisable = overrides?.reasoningCanDisable
-            ?? defaultReasoningCanDisable(for: providerType, modelID: model.id)
+            ?? defaultReasoningCanDisable(for: providerType, modelID: lookupID)
         let supportsWebSearch = overrides?.webSearchSupported
-            ?? ModelCapabilityRegistry.supportsWebSearch(for: providerType, modelID: model.id)
-        let requestShape = ModelCapabilityRegistry.requestShape(for: providerType, modelID: model.id)
+            ?? ModelCapabilityRegistry.supportsWebSearch(for: providerType, modelID: lookupID)
+        let requestShape = ModelCapabilityRegistry.requestShape(for: providerType, modelID: lookupID)
         let supportsOpenAIStyleReasoningEffort = ModelCapabilityRegistry.supportsOpenAIStyleReasoningEffort(
             for: providerType,
-            modelID: model.id
+            modelID: lookupID
         )
         let supportsOpenAIStyleExtremeEffort = ModelCapabilityRegistry.supportsOpenAIStyleExtremeEffort(
             for: providerType,
-            modelID: model.id
+            modelID: lookupID
         )
 
         return ResolvedModelSettings(
@@ -116,6 +117,11 @@ enum ModelSettingsResolver {
             // reasoningConfig nil so this default is moot for it.
             return !kimiForCodingAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType == .modal {
+            // Qwen3.8-2.4T-A95B requires thinking on every turn (HF card + Modal
+            // library, 2026-08-12). Kimi K3 / Inkling stay toggleable via `none`.
+            return !modalAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
         return true
     }
 
@@ -171,7 +177,10 @@ enum ModelSettingsResolver {
         providerType: ProviderType?
     ) -> ModelCatalogEntry? {
         guard let providerType else { return nil }
-        return ModelCatalog.entry(for: model.id, provider: providerType)
+        return ModelCatalog.entry(
+            for: ModalEndpointSupport.catalogModelID(for: model),
+            provider: providerType
+        )
     }
 
     private static func normalizedPositiveInt(_ value: Int?) -> Int? {
@@ -249,6 +258,13 @@ enum ModelSettingsResolver {
     private static let kimiForCodingAlwaysOnReasoningModelIDs: Set<String> = [
         "kimi-for-coding",
         "kimi-for-coding-highspeed",
+    ]
+
+    /// Modal Shared API IDs whose thinking cannot be disabled. Exact-ID only:
+    /// `qwen3.8-max` and other Qwen slugs are different products (cloud Max is
+    /// multimodal and toggleable).
+    private static let modalAlwaysOnReasoningModelIDs: Set<String> = [
+        "qwen/qwen3.8-2.4t-a95b",
     ]
 
     private static func isSambaNovaAlwaysOnReasoningModel(_ modelID: String) -> Bool {
