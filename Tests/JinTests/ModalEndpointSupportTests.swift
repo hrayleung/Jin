@@ -167,6 +167,41 @@ final class ModalEndpointSupportTests: XCTestCase {
         XCTAssertEqual(route.wireModelID, "Qwen/Qwen3.8-2.4T-A95B")
     }
 
+    func testRequestRouteKeepsHostnameOnlyRowsOnTheSharedAPI() throws {
+        let sharedBase = "https://inference.us-west.modal.direct/v1"
+        let fetchedHost = "my-endpoint.us-west.modal.direct"
+        let fetched = ModalEndpointSupport.applyEndpointMetadataIfNeeded(
+            to: ModelCatalog.modelInfo(for: fetchedHost, provider: .modal, name: "my-endpoint")
+        )
+        XCTAssertNil(fetched.catalogMetadata?.requestBaseURL)
+
+        let fetchedRoute = ModalEndpointSupport.requestRoute(
+            modelID: fetchedHost,
+            configured: fetched,
+            providerBaseURL: sharedBase
+        )
+        XCTAssertEqual(fetchedRoute.baseURL, sharedBase)
+        XCTAssertEqual(fetchedRoute.wireModelID, fetchedHost)
+
+        let pastedWithoutLookup = try XCTUnwrap(
+            ModalEndpointSupport.modelInfo(
+                fromPasted: "https://acme--qwen-server.us-west.modal.direct",
+                nickname: "Qwen coding"
+            )
+        )
+        XCTAssertEqual(
+            pastedWithoutLookup.catalogMetadata?.requestBaseURL,
+            "https://acme--qwen-server.us-west.modal.direct/v1"
+        )
+        let pastedRoute = ModalEndpointSupport.requestRoute(
+            modelID: pastedWithoutLookup.id,
+            configured: pastedWithoutLookup,
+            providerBaseURL: sharedBase
+        )
+        XCTAssertEqual(pastedRoute.baseURL, sharedBase)
+        XCTAssertEqual(pastedRoute.wireModelID, "acme--qwen-server.us-west.modal.direct")
+    }
+
     func testAddModelSheetNormalizesModalEndpointPaste() {
         XCTAssertEqual(
             AddModelSheetSupport.normalizedModelID(

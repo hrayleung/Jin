@@ -7299,10 +7299,13 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         // …while an Auto Endpoint reached by hostname gets a readable name and the
         // conservative fallback, since its model is unknowable from the ID.
+        // Do not stamp a dedicated requestBaseURL: Shared API routes on the
+        // hostname `model` field (modal.com/docs/guide/endpoint-integrations).
         let endpoint = models[2]
         XCTAssertEqual(endpoint.name, "my-endpoint")
         XCTAssertEqual(endpoint.contextWindow, 128_000)
         XCTAssertFalse(endpoint.capabilities.contains(.vision))
+        XCTAssertNil(endpoint.catalogMetadata?.requestBaseURL)
     }
 
     func testModalAdapterFetchModelsFallsBackToBearerForANonPairCredential() async throws {

@@ -244,7 +244,11 @@ enum ModalEndpointSupport {
     }
 
     static func applyEndpointMetadataIfNeeded(to model: ModelInfo) -> ModelInfo {
-        guard let host = autoEndpointHost(from: model.id) else { return model }
+        guard let host = autoEndpointHost(from: model.id),
+              model.catalogMetadata?.upstreamModelID?.trimmedNonEmpty != nil
+        else {
+            return model
+        }
         var updated = model
         var metadata = updated.catalogMetadata ?? ModelCatalogMetadata()
         if metadata.requestBaseURL?.trimmedNonEmpty == nil {
@@ -255,24 +259,36 @@ enum ModalEndpointSupport {
     }
 
     /// Resolves the request host and wire `model` for a configured Modal model.
+    ///
+    /// Two documented shapes (modal.com/docs/guide/endpoints and
+    /// modal.com/docs/guide/endpoint-integrations):
+    /// - Dedicated Auto Endpoint: `POST <endpoint-url>/v1/chat/completions`
+    ///   with the Hugging Face repo ID. A hostname is not a valid `model`.
+    /// - Shared API: `POST https://inference.<region>.modal.direct/v1/…` and
+    ///   route on `model`, which may be an HF repo ID or an endpoint hostname.
     static func requestRoute(
         modelID: String,
         configured: ModelInfo?,
         providerBaseURL: String
     ) -> (baseURL: String, wireModelID: String) {
-        if let requestBaseURL = configured?.catalogMetadata?.requestBaseURL?.trimmedNonEmpty {
-            return (
-                normalizedChatBaseURL(requestBaseURL),
-                configured?.catalogMetadata?.upstreamModelID?.trimmedNonEmpty ?? modelID
-            )
+        let upstream = configured?.catalogMetadata?.upstreamModelID?.trimmedNonEmpty
+        let dedicatedURL = configured?.catalogMetadata?.requestBaseURL?.trimmedNonEmpty
+        let wireCandidate = upstream ?? modelID
+
+        if let dedicatedURL, let wire = nonHostnameModelID(wireCandidate) {
+            return (normalizedChatBaseURL(dedicatedURL), wire)
         }
-        if let host = autoEndpointHost(from: modelID) {
-            return (
-                chatBaseURL(forHost: host),
-                configured?.catalogMetadata?.upstreamModelID?.trimmedNonEmpty ?? modelID
-            )
+
+        return (providerBaseURL, wireCandidate)
+    }
+
+    /// Dedicated endpoint URLs only accept a Hugging Face (or other catalog)
+    /// repo ID in `model`. Hostnames belong on the Shared API.
+    private static func nonHostnameModelID(_ raw: String) -> String? {
+        guard let trimmed = raw.trimmedNonEmpty, !isAutoEndpointModelID(trimmed) else {
+            return nil
         }
-        return (providerBaseURL, modelID)
+        return trimmed
     }
 
     private static func replacingIdentity(_ model: ModelInfo, id: String) -> ModelInfo {
