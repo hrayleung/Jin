@@ -11,7 +11,13 @@ extension ProviderConfigFormView {
 
     func isFullySupportedModel(_ modelID: String) -> Bool {
         guard let providerType else { return false }
-        return JinModelSupport.isFullySupported(providerType: providerType, modelID: modelID)
+        let lookupID: String
+        if let model = decodedModels.first(where: { $0.id == modelID }) {
+            lookupID = ModalEndpointSupport.catalogModelID(for: model)
+        } else {
+            lookupID = modelID
+        }
+        return JinModelSupport.isFullySupported(providerType: providerType, modelID: lookupID)
     }
 
     var decodedModels: [ModelInfo] {

@@ -88,7 +88,7 @@ OpenAI · OpenAI (WebSocket) · Anthropic · Claude Managed Agents · Gemini (AI
 - **Claude Managed Agents** uses an Anthropic API key and routes through Anthropic's managed-agent runtime (custom tools, persistent sessions, prompt caching).
 - **Meta** uses a Model API key against `https://api.meta.ai/v1` and ships Muse Spark 1.2 / 1.1 / 1.2 Contributor. Jin talks to Meta over the Responses API for multimodal input, tools, and web search grounding.
 - **Xiaomi MiMo Token Plan** ships in two flavors — Anthropic-compatible and OpenAI-compatible — so you can use whichever upstream API surface a given MiMo model expects.
-- **Modal** takes a proxy token pair in two fields — Token ID (`wk-…`) and Token Secret (`ws-…`) — sent as `Modal-Key` / `Modal-Secret`. It defaults to the us-west Shared API (`https://inference.us-west.modal.direct/v1`); change the region in the base URL, or paste an Auto Endpoint URL such as `https://<workspace>--<app>-server.us-west.modal.direct` to talk to your own deployment. Because the model list is scoped to your token, use **Fetch Models** after entering it.
+- **Modal** uses one provider and one proxy token (Token ID `wk-…` + Token Secret `ws-…`). Each model you deploy (`modal endpoint create --model …`) has its own URL — add those URLs with **Add Endpoint** or **Fetch from Provider**. Do not create a new Modal provider per model.
 - **Gateway providers** such as OpenRouter, Cloudflare AI Gateway, Vercel AI Gateway, and OpenAI Compatible can route upstream models while still benefiting from Jin's model metadata when the exact upstream model ID is known.
 
 ### Model Catalog

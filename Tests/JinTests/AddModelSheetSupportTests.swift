@@ -14,6 +14,10 @@ final class AddModelSheetSupportTests: XCTestCase {
             AddModelSheetSupport.normalizedModelID(" \n gpt-5.2-codex\t "),
             "gpt-5.2-codex"
         )
+        XCTAssertEqual(
+            AddModelSheetSupport.normalizedModelID(" \n gpt-5.2-codex\t ", providerType: .openai),
+            "gpt-5.2-codex"
+        )
     }
 
     func testResolvedModelNameUsesTrimmedNicknameWhenPresent() {

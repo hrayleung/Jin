@@ -132,6 +132,12 @@ struct FetchedModelsSelectionSheet: View {
 
     private func isFullySupported(_ modelID: String) -> Bool {
         guard let providerType else { return false }
-        return JinModelSupport.isFullySupported(providerType: providerType, modelID: modelID)
+        let lookupID: String
+        if let model = fetchedModels.first(where: { $0.id == modelID }) {
+            lookupID = ModalEndpointSupport.catalogModelID(for: model)
+        } else {
+            lookupID = modelID
+        }
+        return JinModelSupport.isFullySupported(providerType: providerType, modelID: lookupID)
     }
 }

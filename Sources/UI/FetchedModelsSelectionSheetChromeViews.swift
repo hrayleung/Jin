@@ -197,11 +197,13 @@ private struct FetchedModelsSelectionModelRow: View {
         VStack(alignment: .leading, spacing: 2) {
             modelTitle
 
-            Text(model.id)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            if let visibleID = ModalEndpointSupport.userFacingModelID(for: model) {
+                Text(visibleID)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
         }
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }

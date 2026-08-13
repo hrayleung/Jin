@@ -62,6 +62,7 @@ enum ChatModelSelectionSupport {
     ]
     static let preferredModalModelOrder: [String] = [
         "moonshotai/Kimi-K3",
+        "Qwen/Qwen3.8-2.4T-A95B",
         "thinkingmachines/Inkling-NVFP4",
     ]
     static let preferredDatabricksModelOrder: [String] = [
@@ -167,8 +168,10 @@ enum ChatModelSelectionSupport {
             return nil
         case .modal:
             for preferredID in preferredModalModelOrder {
-                if let modelID = models.first(where: { $0.id == preferredID })?.id {
-                    return modelID
+                if let model = models.first(where: {
+                    $0.id == preferredID || ModalEndpointSupport.catalogModelID(for: $0) == preferredID
+                }) {
+                    return model.id
                 }
             }
             return nil

@@ -71,11 +71,6 @@ enum ChatNamingModelSupport {
     }
 
     private static func configuredModel(in providerConfig: ProviderConfig, modelID: String) -> ModelInfo? {
-        if let exact = providerConfig.models.first(where: { $0.id == modelID }) {
-            return exact
-        }
-
-        let target = modelID.lowercased()
-        return providerConfig.models.first { $0.id.lowercased() == target }
+        findConfiguredModel(in: providerConfig, for: modelID)
     }
 }

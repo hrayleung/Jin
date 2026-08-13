@@ -342,7 +342,7 @@ enum DefaultProviderSeeds {
             type: .modal,
             iconID: LobeProviderIconCatalog.defaultIconID(for: .modal),
             baseURL: ProviderType.modal.defaultBaseURL,
-            models: ModelCatalog.seededModels(for: .modal)
+            models: []
         )
     }
 
