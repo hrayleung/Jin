@@ -276,17 +276,8 @@ extension ChatView {
     }
 
     func singleThreadMessageStage(geometry: GeometryProxy) -> some View {
-        let visibleContainerWidth = ChatConversationLayoutMetrics.visibleContainerWidth(
-            containerWidth: geometry.size.width,
-            sidebarWidth: mainSidebarWidth,
-            isSidebarHidden: isSidebarHidden
-        )
-        let compensationRatio = sidebarCompensationRatio
-        let layoutCenterOffset = ChatConversationLayoutMetrics.sidebarCompensationOffset(
-            sidebarWidth: mainSidebarWidth,
-            isSidebarHidden: isSidebarHidden,
-            compensationRatio: compensationRatio
-        )
+        let visibleContainerWidth = geometry.size.width
+        let layoutCenterOffset: CGFloat = 0
 
         let renderContext = renderCache.singleThreadContext()
 
@@ -323,11 +314,5 @@ extension ChatView {
             isPinnedToBottom: $isPinnedToBottom,
             pinnedBottomRefreshGeneration: $pinnedBottomRefreshGeneration
         )
-    }
-
-    var sidebarCompensationRatio: CGFloat {
-        mainWindowIsFullScreen
-            ? ChatConversationLayoutMetrics.fullScreenSidebarCompensationRatio
-            : ChatConversationLayoutMetrics.standardSidebarCompensationRatio
     }
 }

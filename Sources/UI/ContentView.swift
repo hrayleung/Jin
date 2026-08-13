@@ -38,6 +38,7 @@ struct ContentView: View {
     @State var showingTitleRegenerationError = false
     @State var regeneratingConversationID: UUID?
     @State private var mainWindowChromeLayout = MainWindowChromeLayout.zero
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @AppStorage("assistantSidebarLayout") var assistantSidebarLayoutRaw = AssistantSidebarLayout.grid.rawValue
     @AppStorage("assistantSidebarSort") var assistantSidebarSortRaw = AssistantSidebarSort.custom.rawValue
     @AppStorage("assistantSidebarShowName") var assistantSidebarShowName = true
@@ -70,17 +71,19 @@ struct ContentView: View {
     private var rootSplitView: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarContent
+                // `min` must stay near 0. A 240pt column minimum fights the
+                // collapse-to-zero animation and hitches even with empty
+                // children (known SwiftUI / NSSplitView macOS bug).
                 .navigationSplitViewColumnWidth(
-                    min: CGFloat(SidebarWidthPersistence.minimumWidth),
+                    min: MainSidebarSplitSupport.animatableColumnMinimumWidth,
                     ideal: SidebarWidthPersistence.resolvedWidth(from: persistedSidebarWidth),
                     max: CGFloat(SidebarWidthPersistence.maximumWidth)
                 )
+                .isolatedFromSidebarColumnAnimation(columnVisibility)
         } detail: {
             detailContent
-                // Tahoe-only: lets the detail's bg colors mirror into the safe
-                // area under the floating sidebar, so the sidebar glass has
-                // colour to refract instead of sitting on grey nothing.
                 .modifier(JinDetailBackgroundExtension())
+                .isolatedFromSidebarColumnAnimation(columnVisibility)
         }
         // No .navigationSplitViewStyle — let the system pick. On Tahoe
         // .balanced explicitly biases toward inset-floating sidebar; omitting
@@ -145,9 +148,6 @@ struct ContentView: View {
                     onRequestDeleteConversation: { requestDeleteConversation(conversation) },
                     isAssistantInspectorPresented: $isAssistantInspectorPresented,
                     onPersistConversationIfNeeded: { persistConversationIfNeeded(conversation) },
-                    isSidebarHidden: !isSidebarVisible,
-                    mainSidebarWidth: 0,
-                    onToggleSidebar: toggleSidebarVisibility,
                     onNewChat: createNewConversation,
                     titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset,
                     mainWindowIsFullScreen: mainWindowChromeLayout.isFullScreen
@@ -157,9 +157,6 @@ struct ContentView: View {
                 .environmentObject(ttsPlaybackManager)
             } else {
                 ContentViewEmptyDetailView(
-                    sidebarWidth: 0,
-                    isSidebarHidden: !isSidebarVisible,
-                    compensationRatio: sidebarCompensationRatio,
                     onNewChat: createNewConversation
                 )
                 .background(JinSemanticColor.detailSurface)
@@ -179,31 +176,70 @@ struct ContentView: View {
     // MARK: - Navigation
 
     var isSidebarVisible: Bool {
-        columnVisibility != .detailOnly
+        MainSidebarSplitSupport.isVisible(columnVisibility)
     }
 
     func toggleSidebarVisibility() {
-        #if os(macOS)
-        // Match the title-bar sidebar button by routing through AppKit's
-        // native split-view action when it is available.
-        if NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil) {
-            return
-        }
-        #endif
-
-        columnVisibility = (columnVisibility == .detailOnly) ? .all : .detailOnly
+        applySidebarVisibility(MainSidebarSplitSupport.nextVisibility(columnVisibility))
     }
 
     func focusChatSearch() {
         let shouldDelayFocus = !isSidebarVisible
         if shouldDelayFocus {
-            columnVisibility = .all
+            applySidebarVisibility(.all)
         }
         Task { @MainActor in
             if shouldDelayFocus {
                 try? await Task.sleep(nanoseconds: 180_000_000)
             }
             isSidebarSearchFieldFocused = true
+        }
+    }
+
+    private func applySidebarVisibility(_ visibility: NavigationSplitViewVisibility) {
+        guard columnVisibility != visibility else { return }
+
+        let shouldSnap = MainSidebarSplitSupport.shouldSnapColumnChange(
+            reduceMotion: accessibilityReduceMotion,
+            hasOpenConversation: selectedConversation != nil
+        )
+
+        if shouldSnap {
+            snapSidebarVisibility(visibility)
+            return
+        }
+
+        #if os(macOS)
+        // Empty detail is cheap: keep the system slide.
+        if NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil) {
+            return
+        }
+        #endif
+
+        withTransaction(MainSidebarSplitSupport.suppressedAnimationTransaction) {
+            columnVisibility = visibility
+        }
+    }
+
+    private func snapSidebarVisibility(_ visibility: NavigationSplitViewVisibility) {
+        #if os(macOS)
+        var didToggle = false
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            context.allowsImplicitAnimation = false
+            didToggle = NSApp.sendAction(
+                #selector(NSSplitViewController.toggleSidebar(_:)),
+                to: nil,
+                from: nil
+            )
+        }
+        if didToggle {
+            return
+        }
+        #endif
+
+        withTransaction(MainSidebarSplitSupport.suppressedAnimationTransaction) {
+            columnVisibility = visibility
         }
     }
 
@@ -216,11 +252,4 @@ struct ContentView: View {
         selectConversation(conversation)
     }
 
-    // MARK: - Empty State
-
-    private var sidebarCompensationRatio: CGFloat {
-        mainWindowChromeLayout.isFullScreen
-            ? ChatConversationLayoutMetrics.fullScreenSidebarCompensationRatio
-            : ChatConversationLayoutMetrics.standardSidebarCompensationRatio
-    }
 }
