@@ -1,8 +1,5 @@
 import SwiftUI
 import SwiftData
-#if os(macOS)
-import AppKit
-#endif
 
 struct ContentView: View {
     @Environment(\.modelContext) var modelContext
@@ -62,32 +59,70 @@ struct ContentView: View {
 
     /// macOS 26 (Tahoe) renders this as a floating Liquid Glass sidebar
     /// automatically. macOS 14/15 fall back to the system's standard sidebar
-    /// material. We deliberately do NOT use `.toolbar { ... }` here — adding
-    /// one creates a unified titlebar strip across the whole window that
-    /// reserves space above the floating sidebar and looks orphaned. The
-    /// chat action buttons (star / inspector / trash) live inside
-    /// `ChatHeaderBarView` so they sit *inside* the detail pane, where they
-    /// belong visually.
+    /// material. Chat actions (model picker / star / inspector / trash) live
+    /// in `ChatView`'s `.toolbar`. The system `.sidebarToggle` is removed
+    /// and replaced with one `MainSidebarToggleButton` on the sidebar column
+    /// only. Do not also attach that item to the detail column: when the
+    /// sidebar hides, SwiftUI migrates the sidebar toolbar into the remaining
+    /// title bar, and a second copy would sit beside it in the same glass
+    /// capsule.
     private var rootSplitView: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            sidebarContent
-                // `min` must stay near 0. A 240pt column minimum fights the
-                // collapse-to-zero animation and hitches even with empty
-                // children (known SwiftUI / NSSplitView macOS bug).
-                .navigationSplitViewColumnWidth(
-                    min: MainSidebarSplitSupport.animatableColumnMinimumWidth,
-                    ideal: SidebarWidthPersistence.resolvedWidth(from: persistedSidebarWidth),
-                    max: CGFloat(SidebarWidthPersistence.maximumWidth)
-                )
-                .isolatedFromSidebarColumnAnimation(columnVisibility)
+            sidebarColumn
         } detail: {
             detailContent
                 .modifier(JinDetailBackgroundExtension())
+                .toolbar {
+                    preTahoeCollapsedSidebarToggle
+                }
+                .toolbar(removing: .sidebarToggle)
                 .isolatedFromSidebarColumnAnimation(columnVisibility)
         }
         // No .navigationSplitViewStyle — let the system pick. On Tahoe
         // .balanced explicitly biases toward inset-floating sidebar; omitting
         // it gives the OS the option to render whichever style fits the OS.
+    }
+
+    private var sidebarColumn: some View {
+        let width = MainSidebarVisibility.columnWidth(
+            isVisible: isSidebarVisible,
+            persistedWidth: persistedSidebarWidth
+        )
+        return sidebarContent
+            .navigationSplitViewColumnWidth(
+                min: width.min,
+                ideal: width.ideal,
+                max: width.max
+            )
+            // Must attach to the column, not the NavigationSplitView —
+            // applied on the split view it silently no-ops.
+            .toolbar {
+                sidebarToggleToolbarItem
+            }
+            // `removing` must come after `.toolbar { }` or a later toolbar
+            // pass can reinstall the stock `.sidebarToggle`.
+            .toolbar(removing: .sidebarToggle)
+            .isolatedFromSidebarColumnAnimation(columnVisibility)
+    }
+
+    @ToolbarContentBuilder
+    private var sidebarToggleToolbarItem: some ToolbarContent {
+        ToolbarItem(id: "jin.mainSidebarToggle", placement: .navigation) {
+            MainSidebarToggleButton(
+                isSidebarVisible: isSidebarVisible,
+                action: toggleSidebarVisibility
+            )
+        }
+    }
+
+    /// macOS 14/15 tear down sidebar-column toolbar items with the column.
+    /// Tahoe migrates that item into the remaining title bar, so a detail
+    /// copy there becomes the second glass button.
+    @ToolbarContentBuilder
+    private var preTahoeCollapsedSidebarToggle: some ToolbarContent {
+        if !isSidebarVisible, !MainSidebarVisibility.sidebarToolbarMigratesWhenCollapsed {
+            sidebarToggleToolbarItem
+        }
     }
 
     // MARK: - Sidebar
@@ -176,20 +211,24 @@ struct ContentView: View {
     // MARK: - Navigation
 
     var isSidebarVisible: Bool {
-        MainSidebarSplitSupport.isVisible(columnVisibility)
+        MainSidebarVisibility.isVisible(columnVisibility)
     }
 
     func toggleSidebarVisibility() {
-        applySidebarVisibility(MainSidebarSplitSupport.nextVisibility(columnVisibility))
+        applySidebarVisibility(MainSidebarVisibility.toggled(columnVisibility))
     }
 
     func focusChatSearch() {
         let shouldDelayFocus = !isSidebarVisible
+        let shouldSnap = MainSidebarSplitSupport.shouldSnapColumnChange(
+            reduceMotion: accessibilityReduceMotion,
+            hasOpenConversation: selectedConversation != nil
+        )
         if shouldDelayFocus {
-            applySidebarVisibility(.all)
+            applySidebarVisibility(MainSidebarVisibility.splitVisibility(isVisible: true))
         }
         Task { @MainActor in
-            if shouldDelayFocus {
+            if shouldDelayFocus, !shouldSnap {
                 try? await Task.sleep(nanoseconds: 180_000_000)
             }
             isSidebarSearchFieldFocused = true
@@ -199,46 +238,22 @@ struct ContentView: View {
     private func applySidebarVisibility(_ visibility: NavigationSplitViewVisibility) {
         guard columnVisibility != visibility else { return }
 
+        // Drive the SwiftUI binding only. `NSSplitViewController.toggleSidebar`
+        // can report success on macOS 26 without collapsing Tahoe's floating
+        // sidebar or writing `columnVisibility`.
         let shouldSnap = MainSidebarSplitSupport.shouldSnapColumnChange(
             reduceMotion: accessibilityReduceMotion,
             hasOpenConversation: selectedConversation != nil
         )
 
         if shouldSnap {
-            snapSidebarVisibility(visibility)
+            withTransaction(MainSidebarSplitSupport.suppressedAnimationTransaction) {
+                columnVisibility = visibility
+            }
             return
         }
 
-        #if os(macOS)
-        // Empty detail is cheap: keep the system slide.
-        if NSApp.sendAction(#selector(NSSplitViewController.toggleSidebar(_:)), to: nil, from: nil) {
-            return
-        }
-        #endif
-
-        withTransaction(MainSidebarSplitSupport.suppressedAnimationTransaction) {
-            columnVisibility = visibility
-        }
-    }
-
-    private func snapSidebarVisibility(_ visibility: NavigationSplitViewVisibility) {
-        #if os(macOS)
-        var didToggle = false
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0
-            context.allowsImplicitAnimation = false
-            didToggle = NSApp.sendAction(
-                #selector(NSSplitViewController.toggleSidebar(_:)),
-                to: nil,
-                from: nil
-            )
-        }
-        if didToggle {
-            return
-        }
-        #endif
-
-        withTransaction(MainSidebarSplitSupport.suppressedAnimationTransaction) {
+        withAnimation(.easeInOut(duration: 0.22)) {
             columnVisibility = visibility
         }
     }

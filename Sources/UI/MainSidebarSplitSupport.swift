@@ -1,28 +1,10 @@
 import SwiftUI
 
-/// Column-width and animation policy for the main `NavigationSplitView`.
+/// Animation policy for the main `NavigationSplitView`.
 ///
-/// SwiftUI on macOS animates sidebar visibility by interpolating the split
-/// column. A `minWidth` on the split view — or a high `navigationSplitViewColumnWidth(min:)`
-/// — fights the collapse-to-zero animation and hitches even with empty
-/// children (Hacking with Swift forums, Mar 2025). Keep the column's layout
-/// minimum tiny so AppKit can slide, and isolate descendants so they do not
-/// inherit that transaction.
+/// Visibility mapping and column-width bounds live in `MainSidebarVisibility`.
+/// This type only decides whether a visibility change may interpolate.
 enum MainSidebarSplitSupport {
-    /// Floor for `navigationSplitViewColumnWidth(min:)`. Must stay well below
-    /// `SidebarWidthPersistence.minimumWidth` so hide/show can animate to 0.
-    static let animatableColumnMinimumWidth: CGFloat = 1
-
-    static func isVisible(_ visibility: NavigationSplitViewVisibility) -> Bool {
-        visibility != .detailOnly
-    }
-
-    static func nextVisibility(
-        _ visibility: NavigationSplitViewVisibility
-    ) -> NavigationSplitViewVisibility {
-        isVisible(visibility) ? .detailOnly : .all
-    }
-
     static var suppressedAnimationTransaction: Transaction {
         var transaction = Transaction()
         transaction.animation = nil
