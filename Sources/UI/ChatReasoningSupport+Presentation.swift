@@ -32,29 +32,24 @@ extension ChatReasoningSupport {
 
         switch reasoningType {
         case .budget:
-            switch controls.reasoning?.budgetTokens {
-            case 1024: return "L"
-            case 2048: return "M"
-            case 4096: return "H"
-            case 8192: return "X"
-            default: return "On"
-            }
+            guard let tokens = controls.reasoning?.budgetTokens else { return "On" }
+            return formatBudgetBadge(tokens)
         case .effort:
             guard let effort = controls.reasoning?.effort else { return "On" }
-            switch effort {
-            case .none: return nil
-            case .minimal: return "Min"
-            case .low: return "L"
-            case .medium: return "M"
-            case .high: return "H"
-            case .xhigh: return "X"
-            case .max: return "Max"
-            }
+            return effort.badgeName
         case .toggle:
             return "On"
         case .none:
             return nil
         }
+    }
+
+    /// Compact human-readable label for a token budget (e.g. "1K", "8K").
+    private static func formatBudgetBadge(_ tokens: Int) -> String {
+        if tokens >= 1000, tokens % 1000 == 0 {
+            return "\(tokens / 1000)K"
+        }
+        return "\(tokens)"
     }
 
     /// Effort levels rendered next to the dedicated "Off" disable row.

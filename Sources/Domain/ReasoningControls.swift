@@ -107,6 +107,19 @@ enum ReasoningEffort: String, Codable, CaseIterable {
         }
     }
 
+    /// Short label shown as the composer badge — clear enough without full context.
+    var badgeName: String? {
+        switch self {
+        case .none: return nil
+        case .minimal: return "Min"
+        case .low: return "Low"
+        case .medium: return "Med"
+        case .high: return "High"
+        case .xhigh: return "Ext"
+        case .max: return "Max"
+        }
+    }
+
     var anthropicDisplayName: String {
         switch self {
         case .xhigh:
