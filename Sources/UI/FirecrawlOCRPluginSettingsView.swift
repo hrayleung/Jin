@@ -19,8 +19,8 @@ struct FirecrawlOCRPluginSettingsView: View {
     var body: some View {
         JinSettingsPage(maxWidth: 620) {
             JinSettingsSection(
-                "Shared Firecrawl API Key",
-                detail: "Used by Firecrawl OCR and the Web Search plugin."
+                "Connection",
+                detail: "Shared with the Web Search plugin."
             ) {
                 JinSettingsSecureFieldRow(
                     "API Key",

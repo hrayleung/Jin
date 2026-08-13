@@ -7,10 +7,10 @@ struct WebSearchAPIKeyRow: View {
     let onClear: () -> Void
 
     var body: some View {
-        JinSettingsControlRow(label) {
+        JinSettingsControlRow(label, controlAlignment: .leading) {
             HStack(spacing: JinSpacing.small) {
                 JinRevealableSecureField(
-                    title: label,
+                    prompt: "",
                     text: $text,
                     isRevealed: $isRevealed,
                     usesMonospacedFont: true,
@@ -96,7 +96,7 @@ struct WebSearchAdvancedProviderSettingsView: View {
 
         JinSettingsTextFieldRow(
             "User location",
-            fieldTitle: "e.g. US",
+            prompt: "e.g. US",
             text: $exaUserLocation,
             usesMonospacedFont: true
         )
@@ -114,7 +114,7 @@ struct WebSearchAdvancedProviderSettingsView: View {
     private var braveCountryRow: some View {
         JinSettingsTextFieldRow(
             "Country",
-            fieldTitle: "e.g. US",
+            prompt: "e.g. US",
             text: $braveCountry,
             usesMonospacedFont: true
         )
@@ -123,7 +123,7 @@ struct WebSearchAdvancedProviderSettingsView: View {
     private var braveLanguageRow: some View {
         JinSettingsTextFieldRow(
             "Language",
-            fieldTitle: "e.g. en",
+            prompt: "e.g. en",
             text: $braveLanguage,
             usesMonospacedFont: true
         )
@@ -144,14 +144,14 @@ struct WebSearchAdvancedProviderSettingsView: View {
 
         JinSettingsTextFieldRow(
             "Country",
-            fieldTitle: "e.g. US",
+            prompt: "e.g. US",
             text: $jinaCountry,
             usesMonospacedFont: true
         )
 
         JinSettingsTextFieldRow(
             "Locale",
-            fieldTitle: "e.g. en-US",
+            prompt: "e.g. en-US",
             text: $jinaLocale,
             usesMonospacedFont: true
         )
@@ -163,7 +163,7 @@ struct WebSearchAdvancedProviderSettingsView: View {
 
         JinSettingsTextFieldRow(
             "Country",
-            fieldTitle: "e.g. US",
+            prompt: "e.g. US",
             text: $firecrawlCountry,
             usesMonospacedFont: true
         )
@@ -180,7 +180,7 @@ struct WebSearchAdvancedProviderSettingsView: View {
 
         JinSettingsTextFieldRow(
             "Country",
-            fieldTitle: "e.g. US",
+            prompt: "e.g. US",
             supportingText: "Applies on General topic only.",
             text: $tavilyCountry,
             usesMonospacedFont: true
@@ -214,14 +214,14 @@ struct WebSearchAdvancedProviderSettingsView: View {
     private var perplexitySettings: some View {
         JinSettingsTextFieldRow(
             "Country",
-            fieldTitle: "e.g. US",
+            prompt: "e.g. US",
             text: $perplexityCountry,
             usesMonospacedFont: true
         )
 
         JinSettingsTextFieldRow(
             "Language",
-            fieldTitle: "e.g. en",
+            prompt: "e.g. en",
             text: $perplexityLanguage,
             usesMonospacedFont: true
         )

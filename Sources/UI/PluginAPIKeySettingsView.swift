@@ -33,7 +33,7 @@ struct PluginAPIKeySettingsView: View {
 
     var body: some View {
         JinSettingsPage {
-            JinSettingsSection("API Key") {
+            JinSettingsSection("Connection") {
                 JinSettingsSecureFieldRow(
                     "API Key",
                     text: $apiKey,

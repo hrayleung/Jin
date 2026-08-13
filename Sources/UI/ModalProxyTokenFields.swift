@@ -13,7 +13,7 @@ struct ModalProxyTokenFields: View {
     var body: some View {
         JinFormFieldRow("Token ID") {
             JinRevealableSecureField(
-                title: "wk-…",
+                prompt: "wk-…",
                 text: ProviderFormSupport.proxyTokenIDBinding($storedCredential),
                 isRevealed: $isIDRevealed,
                 usesMonospacedFont: true,
@@ -24,7 +24,7 @@ struct ModalProxyTokenFields: View {
 
         JinFormFieldRow("Token Secret") {
             JinRevealableSecureField(
-                title: "ws-…",
+                prompt: "ws-…",
                 text: ProviderFormSupport.proxyTokenSecretBinding($storedCredential),
                 isRevealed: $isSecretRevealed,
                 usesMonospacedFont: true,

@@ -11,7 +11,7 @@ import SwiftUI
 /// to interrupt hold-Delete. Echoes of our own pushes are ignored while true
 /// external changes (Reset, provider switch) still replace the draft.
 struct JinSettingsTextField: View {
-    let title: String
+    let prompt: String
     @Binding var text: String
     var usesMonospacedFont = false
 
@@ -19,11 +19,11 @@ struct JinSettingsTextField: View {
     @State private var lastPushedValue: String?
 
     init(
-        _ title: String,
+        _ prompt: String = "",
         text: Binding<String>,
         usesMonospacedFont: Bool = false
     ) {
-        self.title = title
+        self.prompt = prompt
         _text = text
         self.usesMonospacedFont = usesMonospacedFont
     }
@@ -63,8 +63,18 @@ struct JinSettingsTextField: View {
     }
 
     private var baseTextField: some View {
-        TextField(title, text: $draft)
+        TextField("", text: $draft, prompt: promptText)
+            .labelsHidden()
+            .multilineTextAlignment(.leading)
             .textFieldStyle(.roundedBorder)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .lineLimit(1)
+            .truncationMode(.tail)
+    }
+
+    private var promptText: Text? {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : Text(trimmed)
     }
 
     private func pushToExternal(_ value: String) {
@@ -86,29 +96,29 @@ struct JinSettingsTextField: View {
 
 struct JinSettingsTextFieldRow: View {
     let title: String
-    let fieldTitle: String
+    let prompt: String
     let supportingText: String?
     let usesMonospacedFont: Bool
     @Binding var text: String
 
     init(
         _ title: String,
-        fieldTitle: String? = nil,
+        prompt: String? = nil,
         supportingText: String? = nil,
         text: Binding<String>,
         usesMonospacedFont: Bool = false
     ) {
         self.title = title
-        self.fieldTitle = fieldTitle ?? title
+        self.prompt = prompt ?? ""
         self.supportingText = supportingText
         _text = text
         self.usesMonospacedFont = usesMonospacedFont
     }
 
     var body: some View {
-        JinSettingsControlRow(title, supportingText: supportingText) {
+        JinSettingsControlRow(title, supportingText: supportingText, controlAlignment: .leading) {
             JinSettingsTextField(
-                fieldTitle,
+                prompt,
                 text: $text,
                 usesMonospacedFont: usesMonospacedFont
             )
@@ -173,7 +183,7 @@ struct JinSettingsTextEditor: View {
 
 struct JinSettingsSecureFieldRow: View {
     let title: String
-    let fieldTitle: String
+    let prompt: String
     let supportingText: String?
     @Binding var text: String
     @Binding var isRevealed: Bool
@@ -183,7 +193,7 @@ struct JinSettingsSecureFieldRow: View {
 
     init(
         _ title: String,
-        fieldTitle: String? = nil,
+        prompt: String? = nil,
         supportingText: String? = nil,
         text: Binding<String>,
         isRevealed: Binding<Bool>,
@@ -192,7 +202,7 @@ struct JinSettingsSecureFieldRow: View {
         concealHelp: String = "Hide value"
     ) {
         self.title = title
-        self.fieldTitle = fieldTitle ?? title
+        self.prompt = prompt ?? ""
         self.supportingText = supportingText
         _text = text
         _isRevealed = isRevealed
@@ -202,9 +212,9 @@ struct JinSettingsSecureFieldRow: View {
     }
 
     var body: some View {
-        JinSettingsControlRow(title, supportingText: supportingText) {
+        JinSettingsControlRow(title, supportingText: supportingText, controlAlignment: .leading) {
             JinRevealableSecureField(
-                title: fieldTitle,
+                prompt: prompt,
                 text: $text,
                 isRevealed: $isRevealed,
                 usesMonospacedFont: usesMonospacedFont,
@@ -330,10 +340,9 @@ struct JinSettingsSliderValueRow: View {
     /// binding instead when the value should still snap.
     var step: Double? = nil
     var valueWidth: CGFloat = 52
-    var labelWidth: CGFloat = 156
 
     var body: some View {
-        JinSettingsControlRow(title) {
+        JinSettingsControlRow(title, controlAlignment: .leading) {
             HStack {
                 slider
                 Text(value.formatted(.number.precision(.fractionLength(2))))

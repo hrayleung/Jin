@@ -26,14 +26,15 @@ struct MCPHTTPAuthViews: View {
             }
 
             if showsMethodPicker {
-                Picker("Method", selection: $httpAuthKind) {
-                    ForEach(availableAuthKinds, id: \.self) { kind in
-                        Text(kind.title).tag(kind)
+                LabeledContent("Method") {
+                    Picker("Method", selection: $httpAuthKind) {
+                        ForEach(availableAuthKinds, id: \.self) { kind in
+                            Text(kind.title).tag(kind)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             switch httpAuthKind {
@@ -144,7 +145,7 @@ struct MCPHTTPAuthViews: View {
     ) -> some View {
         labeled(title) {
             JinRevealableSecureField(
-                title: title,
+                prompt: "",
                 text: text,
                 isRevealed: isRevealed,
                 usesMonospacedFont: true,

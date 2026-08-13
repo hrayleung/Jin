@@ -7,7 +7,7 @@ struct KeyboardShortcutsSettingsView: View {
     var body: some View {
         JinSettingsPage {
             ForEach(AppShortcutSection.allCases, id: \.rawValue) { section in
-                JinSettingsSection(section.title) {
+                JinSettingsSection(section.title, detail: section.subtitle) {
                     ForEach(actions(in: section)) { action in
                         shortcutRow(for: action)
                     }

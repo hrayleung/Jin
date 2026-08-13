@@ -153,7 +153,7 @@ struct MCPServerConfigFormView: View {
 
             VStack(alignment: .leading, spacing: JinSpacing.medium) {
                 labeled("Name") {
-                    JinSettingsTextField("Server name", text: $server.name)
+                    JinSettingsTextField(text: $server.name)
                         .onChange(of: server.name) { _, _ in try? modelContext.save() }
                 }
 

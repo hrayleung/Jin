@@ -133,16 +133,12 @@ struct AssistantConversationLimitsSection: View {
             "Conversation Limits",
             detail: "Oldest messages are dropped as the conversation grows."
         ) {
-            JinSettingsControlRow("Truncate History") {
-                JinSettingsSegmentedPicker(
-                    "Truncate History",
-                    selection: $truncateMessagesSetting
-                ) {
-                    ForEach(AssistantTruncateHistorySetting.allCases) { item in
-                        Text(item.label).tag(item)
-                    }
+            Picker("Truncate History", selection: $truncateMessagesSetting) {
+                ForEach(AssistantTruncateHistorySetting.allCases) { item in
+                    Text(item.label).tag(item)
                 }
             }
+            .pickerStyle(.segmented)
 
             if truncateMessagesSetting == .on {
                 JinSettingsControlRow("Keep Last Messages") {
@@ -170,7 +166,7 @@ struct AssistantReplyLanguageSection: View {
 
     var body: some View {
         JinSettingsSection("Response Language") {
-            JinSettingsPickerRow("Preset", selection: $selection) {
+            JinSettingsPickerRow("Language", selection: $selection) {
                 ForEach(AssistantReplyLanguageOption.allCases) { option in
                     Text(option.label).tag(option)
                 }
@@ -182,7 +178,7 @@ struct AssistantReplyLanguageSection: View {
             if selection == .custom {
                 JinSettingsTextFieldRow(
                     "Custom Language",
-                    fieldTitle: "e.g. English, \u{4E2D}\u{6587}, \u{65E5}\u{672C}\u{8A9E}",
+                    prompt: "e.g. English, \u{4E2D}\u{6587}, \u{65E5}\u{672C}\u{8A9E}",
                     text: $customLanguage
                 )
                 .onChange(of: customLanguage) { _, newValue in

@@ -101,7 +101,7 @@ struct SpeechToTextPluginSettingsView: View {
                 )
             }
 
-            JinSettingsSection("API Key") {
+            JinSettingsSection("Connection") {
                 JinSettingsSecureFieldRow(
                     "API Key",
                     text: $apiKey,

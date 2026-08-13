@@ -72,13 +72,6 @@ extension ProviderFormSupport {
         providerType == .githubCopilot ? "Hide GitHub token" : "Hide API key"
     }
 
-    static func providerSetupCallout(for providerType: ProviderType) -> String? {
-        switch providerType {
-        default:
-            return nil
-        }
-    }
-
     static func providerDetailsText(for providerType: ProviderType) -> String? {
         switch providerType {
         case .openaiWebSocket:

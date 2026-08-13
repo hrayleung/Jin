@@ -16,7 +16,7 @@ struct DefaultsSettingsView: View {
     var body: some View {
         JinSettingsPage {
             JinSettingsSection("New Chat Model") {
-                Picker("Model", selection: $newChatModelMode) {
+                Picker("When starting a chat", selection: $newChatModelMode) {
                     ForEach(NewChatModelMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }

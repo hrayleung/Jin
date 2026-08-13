@@ -154,16 +154,14 @@ struct WebSearchPluginSettingsView: View {
                 }
             }
 
-            JinSettingsControlRow("Default max results") {
-                Stepper(
-                    value: Binding(
-                        get: { effectiveDefaultMaxResults },
-                        set: { defaultMaxResults = WebSearchPluginSettingsSupport.effectiveMaxResults($0) }
-                    ),
-                    in: 1...50
-                ) {
-                    Text("\(effectiveDefaultMaxResults) results")
-                }
+            Stepper(
+                value: Binding(
+                    get: { effectiveDefaultMaxResults },
+                    set: { defaultMaxResults = WebSearchPluginSettingsSupport.effectiveMaxResults($0) }
+                ),
+                in: 1...50
+            ) {
+                Text("Default max results: \(effectiveDefaultMaxResults)")
             }
 
             JinSettingsPickerRow("Default recency", selection: $defaultRecencyDays) {

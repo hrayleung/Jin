@@ -32,15 +32,16 @@ struct AddProviderView: View {
                 verticalPadding: 20
             ) {
                 JinSettingsSection("Provider") {
-                    JinSettingsControlRow("Name", supportingText: "Required.") {
-                        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                            TextField("Provider name", text: $name, prompt: Text("e.g., \(providerType.displayName)"))
-                                .textFieldStyle(.roundedBorder)
+                    VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                        JinSettingsTextFieldRow(
+                            "Name",
+                            prompt: "e.g. \(providerType.displayName)",
+                            text: $name
+                        )
 
-                            if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Text("Name is required.")
-                                    .jinInlineErrorText()
-                            }
+                        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("Name is required.")
+                                .jinInlineErrorText()
                         }
                     }
 
@@ -70,18 +71,21 @@ struct AddProviderView: View {
                     }
 
                     if providerType != .vertexai, providerType != .modal {
-                        JinSettingsTextFieldRow(
-                            "API Base URL",
-                            fieldTitle: "https://…",
-                            supportingText: "Default endpoint is pre-filled.",
-                            text: $baseURL,
-                            usesMonospacedFont: true
-                        )
-                    }
+                        JinSettingsControlRow("Base URL", controlAlignment: .leading) {
+                            HStack(alignment: .center, spacing: JinSpacing.small) {
+                                JinSettingsTextField(
+                                    providerType.defaultBaseURL ?? "",
+                                    text: $baseURL,
+                                    usesMonospacedFont: true
+                                )
 
-                    if providerType != .modal, let providerSetupCallout {
-                        Text(providerSetupCallout)
-                            .jinInfoCallout()
+                                Text("Default if empty")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                                    .fixedSize()
+                            }
+                        }
                     }
 
                     if providerType != .modal, let providerDetailsText {
@@ -193,10 +197,6 @@ struct AddProviderView: View {
                 }
             }
         }
-    }
-
-    private var providerSetupCallout: String? {
-        ProviderFormSupport.providerSetupCallout(for: providerType)
     }
 
     private var providerDetailsText: String? {

@@ -169,7 +169,7 @@ struct AddMCPServerConfigureSection: View {
                     Text(title)
                         .font(.subheadline.weight(.medium))
                     JinRevealableSecureField(
-                        title: title,
+                        prompt: "",
                         text: $credentialValue,
                         isRevealed: $isCredentialVisible,
                         usesMonospacedFont: true,
@@ -204,7 +204,7 @@ struct AddMCPServerConfigureSection: View {
                 VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
                     Text("Name")
                         .font(.subheadline.weight(.medium))
-                    JinSettingsTextField("Server name", text: $name)
+                    JinSettingsTextField(text: $name)
                 }
 
                 JinSettingsToggleRow("Enabled", isOn: $isEnabled)
