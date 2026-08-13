@@ -90,9 +90,24 @@ final class MCPOAuthSupportTests: XCTestCase {
     }
 
     func testLoopbackServerCapturesAuthorizationRedirect() async throws {
-        let redirect = MCPOAuthLoopbackListener.makeRedirectURI()
         let server = MCPOAuthLoopbackServer()
-        try await server.start(redirectURI: redirect)
+        var boundRedirect: URL?
+        var lastError: Error?
+        for _ in 0..<5 {
+            let candidate = MCPOAuthLoopbackListener.makeRedirectURI()
+            do {
+                try await server.start(redirectURI: candidate)
+                boundRedirect = candidate
+                lastError = nil
+                break
+            } catch {
+                lastError = error
+            }
+        }
+        if boundRedirect == nil, lastError != nil {
+            throw XCTSkip("Loopback listen is unavailable in this test host.")
+        }
+        let redirect = try XCTUnwrap(boundRedirect)
         defer { server.stop() }
 
         async let accepted = server.accept(timeoutSeconds: 5)
@@ -140,7 +155,7 @@ final class MCPOAuthSupportTests: XCTestCase {
         )
     }
 
-    func testFileStoreRoundTripsMovesAndDeletesWithoutKeychain() throws {
+    func testFileStoreRoundTripsAndDeletesWithoutKeychain() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("jin-oauth-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -167,12 +182,39 @@ final class MCPOAuthSupportTests: XCTestCase {
         XCTAssertEqual(loaded.value, "access-file")
         XCTAssertEqual(loaded.refreshToken, "refresh-file")
 
-        let moved = URL(string: "https://agent.tinyfish.ai/mcp/v2")!
-        MCPOAuthTokenStore.move(from: tinyfish, to: moved)
-        XCTAssertNil(MCPOAuthTokenStore.loadToken(endpoint: tinyfish))
-        XCTAssertEqual(MCPOAuthTokenStore.loadToken(endpoint: moved)?.value, "access-file")
+        let otherHost = URL(string: "https://mcp.tavily.com/mcp")!
+        XCTAssertNil(MCPOAuthTokenStore.loadToken(endpoint: otherHost))
+        XCTAssertEqual(MCPOAuthTokenStore.loadToken(endpoint: tinyfish)?.value, "access-file")
 
-        MCPOAuthTokenStore.delete(endpoint: moved)
-        XCTAssertNil(MCPOAuthTokenStore.loadToken(endpoint: moved))
+        MCPOAuthTokenStore.delete(endpoint: tinyfish)
+        XCTAssertNil(MCPOAuthTokenStore.loadToken(endpoint: tinyfish))
+    }
+
+    func testWrittenTokenFileUsesOwnerOnlyPermissions() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("jin-oauth-mode-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fileURL = directory.appendingPathComponent("tokens.json")
+        MCPOAuthTokenStore.storeURLOverride = fileURL
+        defer {
+            MCPOAuthTokenStore.storeURLOverride = nil
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        MCPOAuthTokenStore(endpoint: URL(string: "https://agent.tinyfish.ai/mcp")!).save(
+            OAuthAccessToken(
+                value: "access-mode",
+                tokenType: "Bearer",
+                expiresAt: nil,
+                scopes: [],
+                authorizationServer: nil,
+                refreshToken: nil,
+                clientID: "jin-dcr"
+            )
+        )
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let permissions = try XCTUnwrap(attributes[.posixPermissions] as? NSNumber)
+        XCTAssertEqual(permissions.uint16Value, 0o600)
     }
 }

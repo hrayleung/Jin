@@ -12,8 +12,17 @@ final class ChatStreamingToolLoopPresentationTests: XCTestCase {
         )
         state.appendDeltas(textDelta: "Looking that up.", thinkingDelta: "")
         state.setToolCalls([call])
+        state.upsertToolResult(
+            ToolResult(
+                toolCallID: "fetch_1",
+                toolName: "tinyfish__fetch_content",
+                content: "done",
+                isError: false
+            )
+        )
         XCTAssertTrue(state.hasVisiblePresentation)
         XCTAssertEqual(state.streamingToolCalls.map(\.id), ["fetch_1"])
+        XCTAssertEqual(state.toolResultsByCallID["fetch_1"]?.content, "done")
 
         ChatStreamingOrchestrator.clearLiveBubbleAfterPersistingToolTurn(state)
 

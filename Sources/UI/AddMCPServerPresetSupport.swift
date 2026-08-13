@@ -260,7 +260,6 @@ enum AddMCPServerPresetSupport {
             let resolved = path.trimmedNonEmpty ?? defaultFilesystemPath()
             if pathIndex < tokens.count {
                 tokens[pathIndex] = resolved
-                tokens = Array(tokens.prefix(pathIndex + 1))
             } else {
                 tokens.append(resolved)
             }

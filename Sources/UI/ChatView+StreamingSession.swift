@@ -298,8 +298,8 @@ extension ChatView {
             mergeSearchActivities: { [self] messageID, activities in
                 mergeSearchActivitiesIntoAssistantMessage(messageID: messageID, newActivities: activities)
             },
-            upsertLiveToolResult: { [self] result in
-                renderCache.upsertLiveToolResult(result)
+            upsertLiveToolResult: { [self] result, resultConversationID in
+                renderCache.upsertLiveToolResult(result, conversationID: resultConversationID)
             },
             maybeAutoRename: { [self] provider, targetModelID, history, assistantMessage in
                 await maybeAutoRenameConversation(

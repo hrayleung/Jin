@@ -6,13 +6,14 @@ extension ChatStreamingOrchestrator {
         progress: inout ToolExecutionProgress,
         accumulator: inout StreamingResponseAccumulator,
         streamingState: StreamingMessageState,
-        callbacks: SessionCallbacks
+        callbacks: SessionCallbacks,
+        conversationID: UUID
     ) async {
         await applyToolResult(record.toolResult, streamingState: streamingState)
         progress.appendResult(record.toolResult, outputLine: record.outputLine)
 
         await MainActor.run {
-            callbacks.upsertLiveToolResult(record.toolResult)
+            callbacks.upsertLiveToolResult(record.toolResult, conversationID)
         }
 
         if let searchActivity = record.searchActivity {

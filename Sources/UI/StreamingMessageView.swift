@@ -38,6 +38,7 @@ struct StreamingMessageView: View {
             visibleToolCalls: visibleToolCalls
         )
 
+        Group {
         if showsIdlePlaceholder, suppressIdlePlaceholder {
             Color.clear
                 .frame(maxWidth: .infinity)
@@ -165,9 +166,10 @@ struct StreamingMessageView: View {
             transaction.animation = nil
             transaction.disablesAnimations = true
         }
+        }
+        }
         .onChange(of: state.renderTick) { _, _ in
             onContentUpdate()
-        }
         }
     }
 

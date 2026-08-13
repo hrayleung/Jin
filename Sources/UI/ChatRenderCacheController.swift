@@ -31,6 +31,7 @@ final class ChatRenderCacheController {
     /// bubble.
     private var persistedToolResultsByCallID: [String: ToolResult] = [:]
     private var liveToolResultsByCallID: [String: ToolResult] = [:]
+    private var activeConversationID: UUID?
     private(set) var artifactCatalog: ArtifactCatalog = .empty
     /// Total message count from the most recent rebuild. Mirror of the
     /// previously-private `lastRebuildMessageCount`, exposed so `ChatView.body`
@@ -74,6 +75,7 @@ final class ChatRenderCacheController {
         onHistoryReady: @escaping @MainActor () -> Void
     ) {
         cancelBuild()
+        activeConversationID = request.conversationID
 
         let activeMessageCount = request.orderedMessages.count
         let cacheMessageCount = request.allMessages.count
@@ -271,6 +273,7 @@ final class ChatRenderCacheController {
         isHistoryReady = true
         persistedToolResultsByCallID = [:]
         liveToolResultsByCallID = [:]
+        activeConversationID = nil
         toolResultsByCallID = [:]
         artifactCatalog = .empty
         cachedTotalMessageCount = 0
@@ -289,7 +292,8 @@ final class ChatRenderCacheController {
         )
     }
 
-    func upsertLiveToolResult(_ result: ToolResult) {
+    func upsertLiveToolResult(_ result: ToolResult, conversationID: UUID) {
+        guard activeConversationID == conversationID else { return }
         liveToolResultsByCallID[result.toolCallID] = result
         publishMergedToolResults()
         version &+= 1

@@ -36,7 +36,9 @@ struct AddMCPServerCatalogSection: View {
                 .foregroundStyle(JinSemanticColor.textTertiary)
                 .font(.body.weight(.medium))
 
-            TextField("Search servers", text: $searchText)
+            TextField(text: $searchText, prompt: Text("Search servers")) {
+                Text("Search servers")
+            }
                 .textFieldStyle(.plain)
                 .font(.body)
         }

@@ -9,8 +9,14 @@ final class MCPOAuthTokenStore: TokenStorage, @unchecked Sendable {
     private static let lock = NSLock()
     private static let fileName = "mcp-oauth-tokens.json"
 
+    private static let overrideLock = NSLock()
+    private static var storeURLOverrideStorage: URL?
+
     /// Tests replace the store file so they never touch the real app-support tree.
-    static var storeURLOverride: URL?
+    static var storeURLOverride: URL? {
+        get { overrideLock.withLock { storeURLOverrideStorage } }
+        set { overrideLock.withLock { storeURLOverrideStorage = newValue } }
+    }
 
     let account: String
 
@@ -80,14 +86,6 @@ final class MCPOAuthTokenStore: TokenStorage, @unchecked Sendable {
         }
     }
 
-    static func move(from oldEndpoint: URL, to newEndpoint: URL) {
-        let oldAccount = account(for: oldEndpoint)
-        let newAccount = account(for: newEndpoint)
-        guard oldAccount != newAccount, let token = loadToken(account: oldAccount) else { return }
-        MCPOAuthTokenStore(account: newAccount).save(token)
-        delete(account: oldAccount)
-    }
-
     static func migrate(_ session: MCPOAuthStoredSession) -> OAuthAccessToken {
         let scopes = Set(
             (session.scope ?? "")
@@ -125,14 +123,34 @@ final class MCPOAuthTokenStore: TokenStorage, @unchecked Sendable {
 
     private static func writeStore(_ store: [String: OAuthAccessToken]) {
         guard let url = try? storeURL() else { return }
+        let fileManager = FileManager.default
         let directory = url.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        guard let data = try? JSONEncoder().encode(store) else { return }
-        try? data.write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes(
-            [.posixPermissions: 0o600],
-            ofItemAtPath: url.path
+        try? fileManager.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
         )
+        guard let data = try? JSONEncoder().encode(store) else { return }
+        let temporaryURL = directory.appendingPathComponent(
+            ".\(fileName).tmp-\(UUID().uuidString)",
+            isDirectory: false
+        )
+        guard fileManager.createFile(
+            atPath: temporaryURL.path,
+            contents: data,
+            attributes: [.posixPermissions: 0o600]
+        ) else {
+            return
+        }
+        do {
+            if fileManager.fileExists(atPath: url.path) {
+                _ = try fileManager.replaceItemAt(url, withItemAt: temporaryURL)
+            } else {
+                try fileManager.moveItem(at: temporaryURL, to: url)
+            }
+        } catch {
+            try? fileManager.removeItem(at: temporaryURL)
+        }
     }
 
     private static func storeURL() throws -> URL {

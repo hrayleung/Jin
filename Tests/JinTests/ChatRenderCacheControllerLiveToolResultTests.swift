@@ -15,7 +15,13 @@ final class ChatRenderCacheControllerLiveToolResultTests: XCTestCase {
                 ]
             )
         )
-        rebuild(controller, messages: [assistant], updatedAt: Date(timeIntervalSince1970: 1))
+        let conversationID = UUID()
+        rebuild(
+            controller,
+            messages: [assistant],
+            updatedAt: Date(timeIntervalSince1970: 1),
+            conversationID: conversationID
+        )
         XCTAssertTrue(controller.toolResultsByCallID.isEmpty)
 
         let live = ToolResult(
@@ -25,7 +31,7 @@ final class ChatRenderCacheControllerLiveToolResultTests: XCTestCase {
             isError: false
         )
         let versionBefore = controller.version
-        controller.upsertLiveToolResult(live)
+        controller.upsertLiveToolResult(live, conversationID: conversationID)
 
         XCTAssertEqual(controller.toolResultsByCallID["fetch_1"]?.content, "page body")
         XCTAssertEqual(controller.version, versionBefore &+ 1)
@@ -43,14 +49,21 @@ final class ChatRenderCacheControllerLiveToolResultTests: XCTestCase {
                 ]
             )
         )
-        rebuild(controller, messages: [assistant], updatedAt: Date(timeIntervalSince1970: 1))
+        let conversationID = UUID()
+        rebuild(
+            controller,
+            messages: [assistant],
+            updatedAt: Date(timeIntervalSince1970: 1),
+            conversationID: conversationID
+        )
         controller.upsertLiveToolResult(
             ToolResult(
                 toolCallID: "fetch_1",
                 toolName: "tinyfish__fetch_content",
                 content: "live",
                 isError: false
-            )
+            ),
+            conversationID: conversationID
         )
 
         let toolMessage = try MessageEntity.fromDomain(
@@ -71,7 +84,8 @@ final class ChatRenderCacheControllerLiveToolResultTests: XCTestCase {
         rebuild(
             controller,
             messages: [assistant, toolMessage],
-            updatedAt: Date(timeIntervalSince1970: 2)
+            updatedAt: Date(timeIntervalSince1970: 2),
+            conversationID: conversationID
         )
 
         XCTAssertEqual(controller.toolResultsByCallID["fetch_1"]?.content, "persisted")
@@ -79,13 +93,21 @@ final class ChatRenderCacheControllerLiveToolResultTests: XCTestCase {
 
     func testConversationSwitchClearsLiveToolResults() throws {
         let controller = ChatRenderCacheController()
+        let conversationID = UUID()
+        rebuild(
+            controller,
+            messages: [],
+            updatedAt: Date(timeIntervalSince1970: 1),
+            conversationID: conversationID
+        )
         controller.upsertLiveToolResult(
             ToolResult(
                 toolCallID: "fetch_1",
                 toolName: "tinyfish__fetch_content",
                 content: "live",
                 isError: false
-            )
+            ),
+            conversationID: conversationID
         )
         XCTAssertEqual(controller.toolResultsByCallID["fetch_1"]?.content, "live")
 
@@ -94,14 +116,46 @@ final class ChatRenderCacheControllerLiveToolResultTests: XCTestCase {
         XCTAssertTrue(controller.toolResultsByCallID.isEmpty)
     }
 
+    func testLateLiveResultFromPreviousConversationIsIgnored() throws {
+        let controller = ChatRenderCacheController()
+        let previousConversationID = UUID()
+        let currentConversationID = UUID()
+        rebuild(
+            controller,
+            messages: [],
+            updatedAt: Date(timeIntervalSince1970: 1),
+            conversationID: previousConversationID
+        )
+        controller.clearForConversationSwitch()
+        rebuild(
+            controller,
+            messages: [],
+            updatedAt: Date(timeIntervalSince1970: 2),
+            conversationID: currentConversationID
+        )
+
+        controller.upsertLiveToolResult(
+            ToolResult(
+                toolCallID: "fetch_1",
+                toolName: "tinyfish__fetch_content",
+                content: "stale",
+                isError: false
+            ),
+            conversationID: previousConversationID
+        )
+
+        XCTAssertTrue(controller.toolResultsByCallID.isEmpty)
+    }
+
     private func rebuild(
         _ controller: ChatRenderCacheController,
         messages: [MessageEntity],
-        updatedAt: Date
+        updatedAt: Date,
+        conversationID: UUID = UUID()
     ) {
         controller.rebuild(
             request: ChatRenderCacheRebuildRequest(
-                conversationID: UUID(),
+                conversationID: conversationID,
                 allMessages: messages,
                 orderedMessages: messages,
                 updatedAt: updatedAt,

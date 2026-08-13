@@ -170,6 +170,18 @@ final class AddMCPServerPresetSupportTests: XCTestCase {
         XCTAssertEqual(updated, "-y @modelcontextprotocol/server-filesystem /tmp/allowed")
     }
 
+    func testReplacingFilesystemPathKeepsAdditionalAllowedDirectories() {
+        let updated = AddMCPServerPresetSupport.replacingFilesystemPath(
+            in: "-y @modelcontextprotocol/server-filesystem /tmp/old /tmp/extra",
+            with: "/tmp/allowed"
+        )
+
+        XCTAssertEqual(
+            updated,
+            "-y @modelcontextprotocol/server-filesystem /tmp/allowed /tmp/extra"
+        )
+    }
+
     private func draft(
         id: String = "",
         name: String = "",

@@ -52,7 +52,11 @@ final class MCPOAuthLoopbackServer: @unchecked Sendable {
 
         return try await withThrowingTaskGroup(of: URL.self) { group in
             group.addTask {
-                try await self.acceptMatchingCallback(listenFD: fd, redirectURI: redirectURI)
+                try await withTaskCancellationHandler {
+                    try await self.acceptMatchingCallback(listenFD: fd, redirectURI: redirectURI)
+                } onCancel: {
+                    self.stop()
+                }
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
@@ -89,25 +93,40 @@ final class MCPOAuthLoopbackServer: @unchecked Sendable {
     }
 
     private func acceptClient(listenFD: Int32) async throws -> Int32 {
-        try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                var address = sockaddr_in()
-                var length = socklen_t(MemoryLayout<sockaddr_in>.size)
-                let clientFD = withUnsafeMutablePointer(to: &address) { pointer in
-                    pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
-                        Darwin.accept(listenFD, sockaddrPointer, &length)
-                    }
-                }
-                if clientFD >= 0 {
-                    continuation.resume(returning: clientFD)
-                } else {
-                    continuation.resume(throwing: MCPOAuthError.cancelled)
+        let flags = fcntl(listenFD, F_GETFL)
+        if flags >= 0 {
+            _ = fcntl(listenFD, F_SETFL, flags | O_NONBLOCK)
+        }
+
+        while !Task.isCancelled {
+            var address = sockaddr_in()
+            var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+            let clientFD = withUnsafeMutablePointer(to: &address) { pointer in
+                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
+                    Darwin.accept(listenFD, sockaddrPointer, &length)
                 }
             }
+            if clientFD >= 0 {
+                return clientFD
+            }
+            let code = errno
+            if code != EAGAIN && code != EWOULDBLOCK {
+                throw MCPOAuthError.cancelled
+            }
+            try await Task.sleep(nanoseconds: 50_000_000)
         }
+        throw MCPOAuthError.cancelled
     }
 
     private func handle(clientFD: Int32, redirectURI: URL) throws -> URL? {
+        var timeout = timeval(tv_sec: 5, tv_usec: 0)
+        _ = setsockopt(
+            clientFD,
+            SOL_SOCKET,
+            SO_RCVTIMEO,
+            &timeout,
+            socklen_t(MemoryLayout<timeval>.size)
+        )
         let request = try readHTTPRequest(from: clientFD)
         guard let callback = MCPOAuthLoopbackListener.callbackURL(
             fromHTTPRequest: request,

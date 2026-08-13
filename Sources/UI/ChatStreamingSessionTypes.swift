@@ -58,7 +58,7 @@ extension ChatStreamingOrchestrator {
         /// Publish a tool result onto the persisted assistant card immediately,
         /// without waiting for the hidden `.tool` message rebuild. The live
         /// bubble no longer hosts these calls after persist.
-        let upsertLiveToolResult: @MainActor (_ result: ToolResult) -> Void
+        let upsertLiveToolResult: @MainActor (_ result: ToolResult, _ conversationID: UUID) -> Void
 
         /// Optionally auto-rename the conversation after the first assistant reply.
         let maybeAutoRename: @MainActor (
