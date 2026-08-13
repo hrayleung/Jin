@@ -35,6 +35,7 @@ struct ContentView: View {
     @State var showingTitleRegenerationError = false
     @State var regeneratingConversationID: UUID?
     @State private var mainWindowChromeLayout = MainWindowChromeLayout.zero
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @AppStorage("assistantSidebarLayout") var assistantSidebarLayoutRaw = AssistantSidebarLayout.grid.rawValue
     @AppStorage("assistantSidebarSort") var assistantSidebarSortRaw = AssistantSidebarSort.custom.rawValue
     @AppStorage("assistantSidebarShowName") var assistantSidebarShowName = true
@@ -70,14 +71,12 @@ struct ContentView: View {
             sidebarColumn
         } detail: {
             detailContent
-                // Tahoe-only: lets the detail's bg colors mirror into the safe
-                // area under the floating sidebar, so the sidebar glass has
-                // colour to refract instead of sitting on grey nothing.
                 .modifier(JinDetailBackgroundExtension())
                 .toolbar {
                     preTahoeCollapsedSidebarToggle
                 }
                 .toolbar(removing: .sidebarToggle)
+                .isolatedFromSidebarColumnAnimation(columnVisibility)
         }
         // No .navigationSplitViewStyle — let the system pick. On Tahoe
         // .balanced explicitly biases toward inset-floating sidebar; omitting
@@ -103,6 +102,7 @@ struct ContentView: View {
             // `removing` must come after `.toolbar { }` or a later toolbar
             // pass can reinstall the stock `.sidebarToggle`.
             .toolbar(removing: .sidebarToggle)
+            .isolatedFromSidebarColumnAnimation(columnVisibility)
     }
 
     @ToolbarContentBuilder
@@ -183,9 +183,6 @@ struct ContentView: View {
                     onRequestDeleteConversation: { requestDeleteConversation(conversation) },
                     isAssistantInspectorPresented: $isAssistantInspectorPresented,
                     onPersistConversationIfNeeded: { persistConversationIfNeeded(conversation) },
-                    isSidebarHidden: !isSidebarVisible,
-                    mainSidebarWidth: 0,
-                    onToggleSidebar: toggleSidebarVisibility,
                     onNewChat: createNewConversation,
                     titlebarLeadingInset: mainWindowChromeLayout.titlebarLeadingInset,
                     mainWindowIsFullScreen: mainWindowChromeLayout.isFullScreen
@@ -195,9 +192,6 @@ struct ContentView: View {
                 .environmentObject(ttsPlaybackManager)
             } else {
                 ContentViewEmptyDetailView(
-                    sidebarWidth: 0,
-                    isSidebarHidden: !isSidebarVisible,
-                    compensationRatio: sidebarCompensationRatio,
                     onNewChat: createNewConversation
                 )
                 .background(JinSemanticColor.detailSurface)
@@ -221,25 +215,46 @@ struct ContentView: View {
     }
 
     func toggleSidebarVisibility() {
-        // Drive the SwiftUI binding only. `NSSplitViewController.toggleSidebar`
-        // can report success on macOS 26 without collapsing Tahoe's floating
-        // sidebar or writing `columnVisibility`, which made both this command
-        // and the stock title-bar button look dead.
-        withAnimation(.easeInOut(duration: 0.22)) {
-            columnVisibility = MainSidebarVisibility.toggled(columnVisibility)
-        }
+        applySidebarVisibility(MainSidebarVisibility.toggled(columnVisibility))
     }
 
     func focusChatSearch() {
         let shouldDelayFocus = !isSidebarVisible
+        let shouldSnap = MainSidebarSplitSupport.shouldSnapColumnChange(
+            reduceMotion: accessibilityReduceMotion,
+            hasOpenConversation: selectedConversation != nil
+        )
         if shouldDelayFocus {
-            columnVisibility = MainSidebarVisibility.splitVisibility(isVisible: true)
+            applySidebarVisibility(MainSidebarVisibility.splitVisibility(isVisible: true))
         }
         Task { @MainActor in
-            if shouldDelayFocus {
+            if shouldDelayFocus, !shouldSnap {
                 try? await Task.sleep(nanoseconds: 180_000_000)
             }
             isSidebarSearchFieldFocused = true
+        }
+    }
+
+    private func applySidebarVisibility(_ visibility: NavigationSplitViewVisibility) {
+        guard columnVisibility != visibility else { return }
+
+        // Drive the SwiftUI binding only. `NSSplitViewController.toggleSidebar`
+        // can report success on macOS 26 without collapsing Tahoe's floating
+        // sidebar or writing `columnVisibility`.
+        let shouldSnap = MainSidebarSplitSupport.shouldSnapColumnChange(
+            reduceMotion: accessibilityReduceMotion,
+            hasOpenConversation: selectedConversation != nil
+        )
+
+        if shouldSnap {
+            withTransaction(MainSidebarSplitSupport.suppressedAnimationTransaction) {
+                columnVisibility = visibility
+            }
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 0.22)) {
+            columnVisibility = visibility
         }
     }
 
@@ -252,11 +267,4 @@ struct ContentView: View {
         selectConversation(conversation)
     }
 
-    // MARK: - Empty State
-
-    private var sidebarCompensationRatio: CGFloat {
-        mainWindowChromeLayout.isFullScreen
-            ? ChatConversationLayoutMetrics.fullScreenSidebarCompensationRatio
-            : ChatConversationLayoutMetrics.standardSidebarCompensationRatio
-    }
 }

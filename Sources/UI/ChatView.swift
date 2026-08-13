@@ -52,9 +52,6 @@ struct ChatView: View {
     let onRequestDeleteConversation: () -> Void
     @Binding var isAssistantInspectorPresented: Bool
     var onPersistConversationIfNeeded: () -> Void = {}
-    var isSidebarHidden: Bool = false
-    var mainSidebarWidth: CGFloat = SidebarWidthPersistence.defaultWidth
-    var onToggleSidebar: (() -> Void)? = nil
     var onNewChat: (() -> Void)? = nil
     var titlebarLeadingInset: CGFloat = 0
     var mainWindowIsFullScreen = false
@@ -64,9 +61,6 @@ struct ChatView: View {
         onRequestDeleteConversation: @escaping () -> Void,
         isAssistantInspectorPresented: Binding<Bool>,
         onPersistConversationIfNeeded: @escaping () -> Void = {},
-        isSidebarHidden: Bool = false,
-        mainSidebarWidth: CGFloat = SidebarWidthPersistence.defaultWidth,
-        onToggleSidebar: (() -> Void)? = nil,
         onNewChat: (() -> Void)? = nil,
         titlebarLeadingInset: CGFloat = 0,
         mainWindowIsFullScreen: Bool = false
@@ -75,9 +69,6 @@ struct ChatView: View {
         self.onRequestDeleteConversation = onRequestDeleteConversation
         _isAssistantInspectorPresented = isAssistantInspectorPresented
         self.onPersistConversationIfNeeded = onPersistConversationIfNeeded
-        self.isSidebarHidden = isSidebarHidden
-        self.mainSidebarWidth = mainSidebarWidth
-        self.onToggleSidebar = onToggleSidebar
         self.onNewChat = onNewChat
         self.titlebarLeadingInset = titlebarLeadingInset
         self.mainWindowIsFullScreen = mainWindowIsFullScreen

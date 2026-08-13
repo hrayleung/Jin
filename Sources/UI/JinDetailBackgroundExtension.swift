@@ -8,7 +8,17 @@ import SwiftUI
 struct JinDetailBackgroundExtension: ViewModifier {
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
-            content.backgroundExtensionEffect()
+            // Apple's effect *duplicates* the view it is attached to and
+            // mirrors the copy into the under-sidebar safe area. Attaching
+            // it to the live chat tree (NSTableView of hosted markdown)
+            // remakes that tree every time the sidebar slides — empty
+            // detail is cheap, an open conversation is not. Extend only
+            // the flat surface tint, which is what Landmarks / HIG show.
+            content.background {
+                JinSemanticColor.detailSurface
+                    .ignoresSafeArea()
+                    .backgroundExtensionEffect()
+            }
         } else {
             content
         }
