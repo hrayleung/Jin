@@ -98,10 +98,13 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
             guard let trimmedToken = token.trimmedNonEmpty else { return nil }
             return MCPHeader(name: "Authorization", value: "Bearer \(trimmedToken)", isSensitive: true)
         case .header(let header):
-            guard let trimmedName = header.name.trimmedNonEmpty else { return nil }
+            guard let trimmedName = header.name.trimmedNonEmpty,
+                  let trimmedValue = header.value.trimmedNonEmpty else {
+                return nil
+            }
             return MCPHeader(
                 name: trimmedName,
-                value: header.value,
+                value: trimmedValue,
                 isSensitive: header.isSensitive || MCPHTTPTransportConfig.isSensitiveHeaderName(trimmedName)
             )
         }
@@ -116,11 +119,14 @@ enum MCPHTTPAuthentication: Codable, Equatable, Sendable {
             guard let trimmed = token.trimmedNonEmpty else { return .none }
             return .bearerToken(trimmed)
         case .header(let header):
-            guard let trimmedName = header.name.trimmedNonEmpty else { return .none }
+            guard let trimmedName = header.name.trimmedNonEmpty,
+                  let trimmedValue = header.value.trimmedNonEmpty else {
+                return .none
+            }
             return .header(
                 MCPHeader(
                     name: trimmedName,
-                    value: header.value,
+                    value: trimmedValue,
                     isSensitive: header.isSensitive || MCPHTTPTransportConfig.isSensitiveHeaderName(trimmedName)
                 )
             )

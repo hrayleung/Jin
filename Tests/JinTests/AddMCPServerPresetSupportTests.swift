@@ -23,7 +23,22 @@ final class AddMCPServerPresetSupportTests: XCTestCase {
         XCTAssertEqual(draft.transportKind, .http)
         XCTAssertEqual(draft.endpoint, "https://mcp.exa.ai/mcp")
         XCTAssertEqual(draft.headerPairs.map(\.key), ["x-client"])
+        // Official hosted Exa MCP works without a key (rate-limited). An empty
+        // x-api-key header would both fail Add-form validation and be sent on
+        // the wire. The catalog still offers an optional key field.
         XCTAssertEqual(draft.httpAuthentication, .none)
+    }
+
+    func testApplyingExaHTTPCredentialSetsHeaderAndClearsBackToNone() {
+        let seeded = AddMCPServerPresetSupport.applyingPreset(.exaHTTP, to: .blank)
+        let withKey = AddMCPServerPresetSupport.applyingCredential("exa-secret", for: .exaHTTP, to: seeded)
+        XCTAssertEqual(
+            withKey.httpAuthentication,
+            .header(MCPHeader(name: "x-api-key", value: "exa-secret", isSensitive: true))
+        )
+
+        let cleared = AddMCPServerPresetSupport.applyingCredential("  ", for: .exaHTTP, to: withKey)
+        XCTAssertEqual(cleared.httpAuthentication, .none)
     }
 
     func testExaLocalPresetReplacesIdentityAndKeepsExistingAPIKey() {

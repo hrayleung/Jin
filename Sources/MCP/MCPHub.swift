@@ -155,13 +155,16 @@ actor MCPHub {
             return existing
         }
 
-        if let existing = clients[server.id] {
-            await existing.stop()
-        }
+        let stale = clients.removeValue(forKey: server.id)
 
         let client = MCPClient(config: server)
         clients[server.id] = client
         clientConfigs[server.id] = server
+
+        if let stale {
+            await stale.stop()
+        }
+
         return client
     }
 

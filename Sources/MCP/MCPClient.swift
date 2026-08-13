@@ -125,6 +125,9 @@ actor MCPClient {
         let args = try decodeArguments(arguments)
 
         do {
+            // The SDK's async convenience drops `structuredContent` from the
+            // result (MCP Spec 2025-11-25). A future change can switch to the
+            // `send()` / `RequestContext` path to surface structured JSON.
             let (content, isError): ([MCP.Tool.Content], Bool?) = try await withTimeout(
                 method: "tools/call",
                 seconds: toolCallTimeoutSeconds
@@ -209,6 +212,11 @@ actor MCPClient {
             requestModifier: { request in
                 var modified = request
                 for (key, value) in headers {
+                    // When an OAuth authorizer is active, let the SDK manage
+                    // the Authorization header so refreshed tokens take effect.
+                    if key.lowercased() == "authorization" && authorizer != nil {
+                        continue
+                    }
                     modified.setValue(value, forHTTPHeaderField: key)
                 }
                 return modified

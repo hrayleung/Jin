@@ -231,6 +231,7 @@ struct AddMCPServerView: View {
         }
 
         modelContext.insert(server)
+        try? modelContext.save()
         dismiss()
     }
 

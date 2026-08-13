@@ -42,7 +42,11 @@ enum AddMCPServerPresetSupport {
             applyHTTP(endpoint: "https://agent.tinyfish.ai/mcp", authentication: .oauth, to: &draft)
         case .exaHTTP:
             applyIdentity(id: "exa", name: "Exa", iconID: "exa", to: &draft)
-            applyHTTP(endpoint: "https://mcp.exa.ai/mcp", authentication: .none, to: &draft)
+            applyHTTP(
+                endpoint: "https://mcp.exa.ai/mcp",
+                authentication: .none,
+                to: &draft
+            )
             appendPairIfMissingKey("X-Client", value: "jin", to: &draft.headerPairs, caseInsensitive: true)
         case .tavily:
             applyIdentity(id: "tavily", name: "Tavily", iconID: "tavily", to: &draft)

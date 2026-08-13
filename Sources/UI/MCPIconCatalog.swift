@@ -90,7 +90,7 @@ enum MCPIconCatalog {
     }
 
     private static func loadBundledIcons() -> [MCPIcon] {
-        guard let urls = JinResourceBundle.bundle?.urls(forResourcesWithExtension: "png", subdirectory: nil),
+        guard let urls = JinResourceBundle.bundle?.urls(forResourcesWithExtension: "png", subdirectory: "mcpIcons"),
               !urls.isEmpty else {
             return fallbackIcons()
         }

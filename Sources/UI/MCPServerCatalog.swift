@@ -101,6 +101,11 @@ enum MCPServerCatalog {
             category: .search,
             iconID: "exa",
             badge: "HTTP",
+            credential: .header(
+                name: "x-api-key",
+                title: "API key",
+                help: "Sent as the x-api-key header. Get a key at dashboard.exa.ai."
+            ),
             docs: "https://docs.exa.ai",
             terms: ["exa", "search", "web"]
         ),
