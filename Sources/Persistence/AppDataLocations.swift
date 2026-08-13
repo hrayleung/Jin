@@ -9,7 +9,9 @@ enum AppDataLocations {
     static let storeFileName = "default.store"
 
     static func applicationSupportDirectory(fileManager: FileManager = .default) throws -> URL {
-        if let override = ProcessInfo.processInfo.environment[appSupportOverrideEnvironmentKey]?.trimmedNonEmpty {
+        // Read via getenv so `setenv` in tests is visible. ProcessInfo.environment
+        // can cache a snapshot from an earlier access and miss the override.
+        if let override = environmentValue(appSupportOverrideEnvironmentKey)?.trimmedNonEmpty {
             let overrideURL = URL(fileURLWithPath: override, isDirectory: true)
             if !fileManager.fileExists(atPath: overrideURL.path) {
                 try fileManager.createDirectory(at: overrideURL, withIntermediateDirectories: true)
@@ -242,5 +244,10 @@ enum AppDataLocations {
         }
 
         try? fileManager.removeItem(at: sourceURL)
+    }
+
+    private static func environmentValue(_ key: String) -> String? {
+        guard let value = getenv(key) else { return nil }
+        return String(cString: value)
     }
 }

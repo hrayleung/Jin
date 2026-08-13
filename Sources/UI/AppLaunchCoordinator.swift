@@ -18,7 +18,17 @@ final class AppLaunchCoordinator: ObservableObject {
     private var startupTask: Task<Void, Never>?
     private var currentContainerCandidate: ModelContainer?
 
+    init() {
+        // Finish store evaluation before anyone observes `phase`. A healthy
+        // launch then paints ContentView first — not a loading spinner.
+        // Recovery / failed still win when the store actually needs a decision.
+        applyStartupResult(Self.evaluateStartup())
+    }
+
     func startIfNeeded() {
+        // `init` already resolved the first launch. This is only a safety net
+        // if phase is still `.starting` (should not happen after init).
+        guard case .starting = phase else { return }
         guard startupTask == nil else { return }
         startupTask = Task { [weak self] in
             guard let self else { return }
@@ -77,7 +87,10 @@ final class AppLaunchCoordinator: ObservableObject {
         let startupResult = await Self.runInBackground {
             try AppSnapshotManager.evaluateCurrentStoreForStartup()
         }
+        applyStartupResult(startupResult)
+    }
 
+    private func applyStartupResult(_ startupResult: Result<StartupStoreEvaluation, Error>) {
         switch startupResult {
         case .success(let evaluation):
             switch evaluation {
@@ -93,6 +106,10 @@ final class AppLaunchCoordinator: ObservableObject {
         case .failure(let error):
             phase = .failed(error.localizedDescription)
         }
+    }
+
+    private static func evaluateStartup() -> Result<StartupStoreEvaluation, Error> {
+        Result { try AppSnapshotManager.evaluateCurrentStoreForStartup() }
     }
 
     private func captureStartupSnapshotInBackground() {
@@ -230,13 +247,12 @@ struct AppRootContentView<Content: View>: View {
         Group {
             switch launchCoordinator.phase {
             case .starting:
-                VStack(spacing: JinSpacing.medium) {
-                    ProgressView()
-                    Text("Preparing Jin data…")
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(JinSemanticColor.detailSurface.ignoresSafeArea())
+                // Match the real chat surface and say nothing. A ProgressView
+                // here advertised slowness on every launch; recovery/failed
+                // already have their own screens when the user must act.
+                JinSemanticColor.detailSurface
+                    .ignoresSafeArea()
+                    .accessibilityHidden(true)
 
             case .recovery(let recoveryState):
                 AppRecoveryView(launchCoordinator: launchCoordinator, recoveryState: recoveryState)
