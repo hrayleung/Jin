@@ -442,7 +442,7 @@ extension ChatView {
             draftQuotes = draft.quotes
         }
         if !wasCancellation {
-            presentError(error.localizedDescription)
+            presentError(error)
         }
     }
 }

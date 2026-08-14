@@ -104,8 +104,7 @@ extension ChatView {
         googleMapsLongitudeDraft = ""
         googleMapsLanguageCodeDraft = ""
         googleMapsDraftError = nil
-        showingError = false
-        errorMessage = nil
+        presentedActionError = nil
     }
 
     private func resetPendingInteractionStateForConversationSwitch() {

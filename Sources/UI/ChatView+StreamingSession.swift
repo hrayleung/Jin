@@ -313,8 +313,8 @@ extension ChatView {
                     finalAssistantMessage: assistantMessage
                 )
             },
-            showError: { [self] message in
-                presentError(message)
+            showError: { [self] presentation in
+                presentError(presentation)
             },
             endStreamingSession: { [self] in
                 streamingStore.endSession(conversationID: conversationID)

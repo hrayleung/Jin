@@ -69,7 +69,7 @@ extension ChatStreamingOrchestrator {
         ) async -> Void
 
         /// Display an error to the user.
-        let showError: @MainActor (String) -> Void
+        let showError: @MainActor (ChatActionErrorPresentation) -> Void
 
         /// End the streaming session (called when tool calls are empty after persisting assistant message).
         let endStreamingSession: @MainActor () -> Void
@@ -85,6 +85,7 @@ extension ChatStreamingOrchestrator {
         let requestControls: GenerationControls
         let allTools: [ToolDefinition]
         let mcpRoutes: ToolRouteSnapshot
+        let mcpFailures: [MCPServerToolLoadFailure]
         let builtinRoutes: BuiltinToolRouteSnapshot
         let maxToolIterations: Int
     }

@@ -72,9 +72,7 @@ extension MCPClient {
         command: String,
         environment: inout [String: String]
     ) throws {
-        let base = (command as NSString).lastPathComponent.lowercased()
-        let isNodeLauncher = ["npx", "npm", "pnpm", "yarn", "bunx", "bun"].contains(base)
-        guard isNodeLauncher else { return }
+        guard Self.isNodeLauncher(command) else { return }
 
         let root = try nodeIsolationRoot()
         let home = root.appendingPathComponent("home", isDirectory: true)
@@ -103,9 +101,13 @@ extension MCPClient {
             environment["npm_config_cache"] = npmCache.path
         }
 
+        // Never export prefix via the environment. npm refuses to let an env
+        // prefix override a "project" .npmrc, and a cwd under $HOME makes
+        // ~/.npmrc look like project config ("prefix cannot be changed from
+        // project config"). The isolated userconfig already sets prefix=.
         if stdio.env["NPM_CONFIG_PREFIX"] == nil && stdio.env["npm_config_prefix"] == nil {
-            environment["NPM_CONFIG_PREFIX"] = npmPrefix.path
-            environment["npm_config_prefix"] = npmPrefix.path
+            environment.removeValue(forKey: "NPM_CONFIG_PREFIX")
+            environment.removeValue(forKey: "npm_config_prefix")
         }
     }
 
@@ -255,12 +257,29 @@ extension MCPClient {
     }
 
     func workingDirectoryForProcess(command: String) throws -> URL {
-        let base = (command as NSString).lastPathComponent.lowercased()
-        let isNodeLauncher = ["npx", "npm", "pnpm", "yarn", "bunx", "bun"].contains(base)
-        guard isNodeLauncher else { return defaultWorkingDirectory() }
+        guard Self.isNodeLauncher(command) else { return defaultWorkingDirectory() }
 
-        // Avoid treating the user's ~/.npmrc as a project-level .npmrc by running in a clean directory.
-        return try nodeIsolationRoot()
+        // npm walks from cwd toward / looking for .npmrc. A cwd under $HOME
+        // (including Application Support) makes ~/.npmrc look like a *project*
+        // config. Launch from a temp folder that is not inside the home tree.
+        return try nodeLauncherWorkingDirectory()
+    }
+
+    func nodeLauncherWorkingDirectory() throws -> URL {
+        let safeID = sanitizePathComponent(config.id)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("com.jin.app", isDirectory: true)
+            .appendingPathComponent("mcp-cwd", isDirectory: true)
+            .appendingPathComponent(safeID, isDirectory: true)
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+
+    static func isNodeLauncher(_ command: String) -> Bool {
+        let parsed = (try? CommandLineTokenizer.tokenize(command))?.first ?? command
+        let base = (parsed as NSString).lastPathComponent.lowercased()
+        return ["npx", "npm", "pnpm", "yarn", "bunx", "bun"].contains(base)
     }
 
     func additionalPathEntries() -> [String] {

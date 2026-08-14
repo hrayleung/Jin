@@ -28,6 +28,7 @@ struct MCPServerConfigFormView: View {
 
     @State private var verifying = false
     @State private var verifyError: String?
+    @State private var verifyErrorDetails: String?
     @State private var tools: [MCPToolInfo] = []
     @State private var schemaPresentedTool: MCPToolInfo?
 
@@ -72,6 +73,7 @@ struct MCPServerConfigFormView: View {
                         verifying: verifying,
                         hasTransportValidationError: hasTransportValidationError,
                         verifyError: verifyError,
+                        verifyErrorDetails: verifyErrorDetails,
                         tools: tools,
                         isToolEnabled: { tool in
                             !disabledTools.contains(tool.name)
@@ -80,6 +82,7 @@ struct MCPServerConfigFormView: View {
                         onHide: {
                             tools = []
                             verifyError = nil
+                            verifyErrorDetails = nil
                         },
                         onSetToolEnabled: setToolEnabled,
                         onViewSchema: { tool in
@@ -220,9 +223,14 @@ struct MCPServerConfigFormView: View {
                     }
 
                     if MCPServerFormSupport.shouldShowNodeIsolationNote(command: command) {
-                        Text("Node launchers run with an isolated HOME/cache to avoid ~/.npmrc conflicts.")
+                        Text("Node launchers run with an isolated HOME/cache, and start in a temporary folder so ~/.npmrc is not treated as a project config.")
                             .font(.caption)
                             .foregroundStyle(JinSemanticColor.textSecondary)
+                    }
+
+                    MCPRemoteProxyHintView(command: command, argsText: argsText) { transport in
+                        applyTransportDraft(MCPServerTransportDraftSupport.draft(from: .http(transport)))
+                        persistTransport()
                     }
 
                     if isFirecrawlMCP && !hasFirecrawlAPIKey {
@@ -384,15 +392,18 @@ struct MCPServerConfigFormView: View {
         persistTransport()
         if configError != nil {
             verifyError = configError
+            verifyErrorDetails = nil
             return
         }
         if hasTransportValidationError {
             verifyError = "Fix transport validation errors before verification."
+            verifyErrorDetails = nil
             return
         }
 
         verifying = true
         verifyError = nil
+        verifyErrorDetails = nil
 
         let config: MCPServerConfig
         do {
@@ -412,7 +423,9 @@ struct MCPServerConfigFormView: View {
                 }
             } catch {
                 await MainActor.run {
-                    self.verifyError = error.localizedDescription
+                    let presentation = MCPErrorPresentation.make(from: error)
+                    self.verifyError = presentation.summaryAndHint
+                    self.verifyErrorDetails = presentation.details
                     self.verifying = false
                 }
             }

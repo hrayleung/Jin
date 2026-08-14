@@ -4,6 +4,7 @@ struct MCPServerToolsSection: View {
     let verifying: Bool
     let hasTransportValidationError: Bool
     let verifyError: String?
+    var verifyErrorDetails: String? = nil
     let tools: [MCPToolInfo]
     let isToolEnabled: (MCPToolInfo) -> Bool
     let onVerify: () -> Void
@@ -59,11 +60,28 @@ struct MCPServerToolsSection: View {
     @ViewBuilder
     private var verificationError: some View {
         if let verifyError {
-            Text(verifyError)
-                .font(.system(.caption, design: .monospaced))
-                .textSelection(.enabled)
-                .jinInlineErrorText()
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: JinSpacing.small) {
+                Text(verifyError)
+                    .textSelection(.enabled)
+                    .jinInlineErrorText()
+
+                if let verifyErrorDetails, !verifyErrorDetails.isEmpty {
+                    Text(verifyErrorDetails)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(JinSpacing.small)
+                        .jinSurface(.outlined, cornerRadius: JinRadius.small)
+
+                    Button("Copy Details") {
+                        PasteboardSupport.writeString(
+                            [verifyError, verifyErrorDetails].joined(separator: "\n\n")
+                        )
+                    }
+                    .font(.caption)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

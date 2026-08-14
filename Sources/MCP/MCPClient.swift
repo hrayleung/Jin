@@ -37,8 +37,12 @@ actor MCPClient {
     private var stderrPipe: Pipe?
     private var stderrReadTask: Task<Void, Never>?
     var stderrTail = Data()
+    private let stderrCollector: MCPStderrCollector
     var launchDiagnostics: LaunchDiagnostics?
     private var lastProcessExit: MCPClientError?
+    /// Set when `stop()` asked to tear the child down. The termination handler
+    /// must not report that SIGTERM as the original handshake failure.
+    private var stopRequested = false
 
     // shared MCP SDK state
     private var client: MCP.Client?
@@ -48,6 +52,7 @@ actor MCPClient {
 
     init(config: MCPServerConfig) {
         self.config = config
+        self.stderrCollector = MCPStderrCollector(limitBytes: logTailLimitBytes)
     }
 
     func stop() async {
@@ -55,9 +60,12 @@ actor MCPClient {
         // saturated when its receive loop is spinning on a half-open stream; with the
         // old disconnect-first order that could strand the process we were trying to
         // reap.
+        stopRequested = true
         process?.terminate()
         process = nil
 
+        await finishStderrCollection(timeoutNanoseconds: 400_000_000)
+        syncStderrSnapshot()
         stderrReadTask?.cancel()
         stderrReadTask = nil
 
@@ -79,7 +87,8 @@ actor MCPClient {
         stdinPipe = nil
         stdoutPipe?.fileHandleForReading.closeFile()
         stdoutPipe = nil
-        stderrPipe?.fileHandleForReading.closeFile()
+        // stderr read end is closed in `finishStderrCollection` so the reader
+        // cannot block `stop()`. Do not close it again.
         stderrPipe = nil
     }
 
@@ -168,11 +177,15 @@ actor MCPClient {
             }
         } catch {
             let mapped = MCPOAuthCoordinator.mapError(error)
+            // Snapshot the real handshake error before `stop()` sends SIGTERM.
+            // Otherwise the termination handler races in and the user only sees
+            // "process exited (status: 15)".
+            let preserved = enrich(mapped, method: "initialize")
             await stop()
             if mapped is MCPOAuthError {
                 throw mapped
             }
-            throw enrich(mapped, method: "initialize")
+            throw preserved
         }
     }
 
@@ -240,8 +253,10 @@ actor MCPClient {
         guard process == nil else { return }
 
         stderrTail.removeAll(keepingCapacity: true)
+        stderrCollector.reset()
         launchDiagnostics = nil
         lastProcessExit = nil
+        stopRequested = false
 
         let (command, args) = try parseCommandAndArgs(stdio: stdio)
         let workingDirectory = try workingDirectoryForProcess(command: command)
@@ -274,9 +289,10 @@ actor MCPClient {
         process.terminationHandler = { [weak self] proc in
             MCPProcessRegistry.shared.unregister(proc)
             let status = proc.terminationStatus
+            let reason = MCPProcessExitReason(proc.terminationReason)
             Task { [weak self] in
                 guard let self else { return }
-                await self.handleProcessExit(status: status)
+                await self.handleProcessExit(status: status, reason: reason)
             }
         }
 
@@ -296,11 +312,11 @@ actor MCPClient {
 
         let stderrHandle = stderrPipe.fileHandleForReading
         stderrReadTask?.cancel()
-        stderrReadTask = Task.detached(priority: .utility) { [weak self] in
+        let collector = stderrCollector
+        stderrReadTask = Task.detached(priority: .utility) {
             do {
                 while !Task.isCancelled, let chunk = try stderrHandle.read(upToCount: 16 * 1024), !chunk.isEmpty {
-                    guard let self else { return }
-                    await self.handleStderrData(chunk)
+                    collector.append(chunk)
                 }
             } catch is CancellationError {
             } catch {
@@ -309,7 +325,10 @@ actor MCPClient {
         }
     }
 
-    private func handleProcessExit(status: Int32) async {
+    private func handleProcessExit(status: Int32, reason: MCPProcessExitReason) async {
+        let shouldRecordExit = !stopRequested
+        await finishStderrCollection(timeoutNanoseconds: 400_000_000)
+        stderrTail = stderrCollector.snapshot()
         let stderr = diagnosticsTailString(from: stderrTail)
 
         stderrReadTask?.cancel()
@@ -325,14 +344,32 @@ actor MCPClient {
         stdioTransport = nil
         httpTransport = nil
 
-        lastProcessExit = .processExited(status: status, stderr: stderr, diagnostics: launchDiagnostics)
+        guard shouldRecordExit else { return }
+        lastProcessExit = .processExited(
+            status: status,
+            reason: reason,
+            stderr: stderr,
+            diagnostics: launchDiagnostics
+        )
     }
 
-    private func handleStderrData(_ data: Data) async {
-        stderrTail.append(data)
-        if stderrTail.count > logTailLimitBytes {
-            stderrTail.removeSubrange(0..<(stderrTail.count - logTailLimitBytes))
+    /// Harvest remaining stderr after the child dies or `stop()` is asked.
+    ///
+    /// Closing the read end unblocks `FileHandle.read` if the child ignored
+    /// SIGTERM or a grandchild still holds the write end. The wait itself must
+    /// not join `task.value` inside a task group: leaving the group waits for
+    /// every child, and `task.value` is not aborted by `cancelAll()`.
+    private func finishStderrCollection(timeoutNanoseconds: UInt64) async {
+        stderrPipe?.fileHandleForReading.closeFile()
+
+        guard let task = stderrReadTask else { return }
+        await MCPTaskWait.firstCompletion(timeoutNanoseconds: timeoutNanoseconds) {
+            await task.value
         }
+    }
+
+    private func syncStderrSnapshot() {
+        stderrTail = stderrCollector.snapshot()
     }
 
     // MARK: - Tool result content
@@ -401,7 +438,8 @@ actor MCPClient {
     }
 
     private func currentDiagnosticsSnapshot() -> DiagnosticsSnapshot {
-        DiagnosticsSnapshot(
+        syncStderrSnapshot()
+        return DiagnosticsSnapshot(
             stderr: diagnosticsTailString(from: stderrTail),
             launch: launchDiagnostics,
             http: httpDiagnostics
@@ -452,5 +490,59 @@ actor MCPClient {
             group.cancelAll()
             return result
         }
+    }
+}
+
+/// Completes when `operation` finishes or `timeoutNanoseconds` elapses,
+/// whichever comes first. The timeout path does not join `operation`, so a
+/// stuck `FileHandle.read` cannot hang `stop()`.
+enum MCPTaskWait {
+    static func firstCompletion(
+        timeoutNanoseconds: UInt64,
+        operation: @escaping @Sendable () async -> Void
+    ) async {
+        let timeout = Task {
+            try await Task.sleep(nanoseconds: timeoutNanoseconds)
+        }
+        let done = Task {
+            await operation()
+            timeout.cancel()
+        }
+        _ = await timeout.result
+        done.cancel()
+    }
+}
+
+/// Lock-backed stderr tail so the reader never hops onto `MCPClient`.
+/// Awaiting the reader from the actor would otherwise deadlock.
+final class MCPStderrCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    private let limitBytes: Int
+
+    init(limitBytes: Int) {
+        self.limitBytes = limitBytes
+    }
+
+    func reset() {
+        lock.lock()
+        data.removeAll(keepingCapacity: true)
+        lock.unlock()
+    }
+
+    func append(_ chunk: Data) {
+        guard !chunk.isEmpty else { return }
+        lock.lock()
+        data.append(chunk)
+        if data.count > limitBytes {
+            data.removeSubrange(0..<(data.count - limitBytes))
+        }
+        lock.unlock()
+    }
+
+    func snapshot() -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+        return data
     }
 }

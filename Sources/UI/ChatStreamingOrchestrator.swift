@@ -15,6 +15,13 @@ enum ChatStreamingOrchestrator {
 
             do {
                 let preparedSession = try await prepareSession(from: ctx)
+                if !preparedSession.mcpFailures.isEmpty {
+                    await MainActor.run {
+                        callbacks.showError(
+                            .mcpLoadFailures(preparedSession.mcpFailures, messageStillSent: ctx.triggeredByUserSend)
+                        )
+                    }
+                }
                 let providerConfig = preparedSession.providerConfig
                 let adapter = preparedSession.adapter
                 let allTools = preparedSession.allTools
@@ -169,7 +176,7 @@ enum ChatStreamingOrchestrator {
             } catch is CancellationError {
             } catch {
                 await MainActor.run {
-                    callbacks.showError(error.localizedDescription)
+                    callbacks.showError(.from(error: error))
                 }
             }
             let shouldNotifyNow = completionNotification.shouldNotify
