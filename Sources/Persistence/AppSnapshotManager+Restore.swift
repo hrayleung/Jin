@@ -40,19 +40,21 @@ extension AppSnapshotManager {
             throw SnapshotError.invalidSnapshot("Snapshot database is missing.")
         }
 
-        let container = try PersistenceContainerFactory.makeContainer(storeURL: storeURL)
-        let context = ModelContext(container)
-        let servers = try context.fetch(FetchDescriptor<MCPServerConfigEntity>())
-        var changed = false
+        do {
+            let container = try PersistenceContainerFactory.makeContainer(storeURL: storeURL)
+            let context = ModelContext(container)
+            let servers = try context.fetch(FetchDescriptor<MCPServerConfigEntity>())
+            var changed = false
 
-        for server in servers where server.isEnabled || server.runToolsAutomatically {
-            server.isEnabled = false
-            server.runToolsAutomatically = false
-            changed = true
-        }
+            for server in servers where server.isEnabled || server.runToolsAutomatically {
+                server.isEnabled = false
+                server.runToolsAutomatically = false
+                changed = true
+            }
 
-        if changed {
-            try context.save()
+            if changed {
+                try context.save()
+            }
         }
     }
 
