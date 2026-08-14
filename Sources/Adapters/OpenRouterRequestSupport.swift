@@ -10,7 +10,10 @@ extension OpenRouterAdapter {
     ) throws -> URLRequest {
         let imageGenerationModel = isImageGenerationModel(modelID)
         let lowerModelID = modelID.lowercased()
+        // Gemini models that ignore/deprecate sampling keep doing so behind OpenRouter, so
+        // honour the same exact-ID list the native Gemini/Vertex builders use.
         let omitsSamplingParameters = lowerModelID == "openai/gpt-5.4-image-2"
+            || !GeminiModelConstants.supportsCustomSamplingParameters(lowerModelID)
         let unsupportedSamplingParameterKeys: Set<String> = [
             "temperature",
             "top_p",

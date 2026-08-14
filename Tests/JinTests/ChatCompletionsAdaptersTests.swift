@@ -2816,6 +2816,51 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(isValid)
     }
 
+    func testOpenRouterAdapterOmitsSamplingForGemini37Flash() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(root["model"] as? String, "google/gemini-3.7-flash")
+            // Google's 3.7 migration guide says to strip temperature/top_p/top_k; the proxied
+            // path has to honour that too, not just the native Gemini/Vertex builders.
+            XCTAssertNil(root["temperature"])
+            XCTAssertNil(root["top_p"])
+            XCTAssertEqual(root["max_tokens"] as? Int, 1024)
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_gemini",
+                "choices": [
+                    ["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "google/gemini-3.7-flash",
+            controls: GenerationControls(temperature: 0.1, maxTokens: 1024, topP: 0.9),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenRouterAdapterOmitsWebPluginWhenModelWebSearchOverrideIsDisabled() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

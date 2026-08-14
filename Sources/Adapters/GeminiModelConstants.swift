@@ -22,6 +22,7 @@ enum GeminiModelConstants {
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
+        "gemini-3.7-flash",
         "gemini-2.5",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
@@ -50,11 +51,14 @@ enum GeminiModelConstants {
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
+        "gemini-3.7-flash",
     ]
 
     /// Exact IDs where custom temperature / topP / topK are ignored or deprecated.
-    /// Docs (Vertex 3.6 Flash / 3.5 Flash-Lite model pages + Gemini API 2026-07-21 changelog).
+    /// Docs (Vertex 3.6 Flash / 3.5 Flash-Lite model pages + Gemini API 2026-07-21 changelog;
+    /// 3.7 Flash "What's new" migration guide, 2026-08-13: "Strip temperature, top_p, and top_k").
     static let customSamplingUnsupportedModelIDs: Set<String> = [
+        "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash-lite",
     ]
@@ -112,6 +116,7 @@ enum GeminiModelConstants {
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
+        "gemini-3.7-flash",
     ]
 
     /// Extended native PDF set for Vertex AI, which also supports Gemini 2.5 family.
@@ -159,7 +164,9 @@ enum GeminiModelConstants {
 
     /// Whether the model accepts custom sampling (`temperature` / `topP` / `topK`).
     /// When false, omit those fields so defaults apply (custom values are ignored or deprecated).
-    /// Path-qualified IDs (`models/...`, `publishers/google/models/...`) are canonicalized first.
+    /// Path-qualified IDs (`models/...`, `publishers/google/models/...`) are canonicalized first,
+    /// which also covers the gateway prefixes (`google/...`, `google-ai-studio/...`,
+    /// `google-vertex-ai/google/...`) so proxied requests suppress the same fields.
     static func supportsCustomSamplingParameters(_ modelID: String) -> Bool {
         !customSamplingUnsupportedModelIDs.contains(canonicalTerminalModelID(modelID))
     }

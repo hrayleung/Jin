@@ -4,9 +4,14 @@ enum OpenAICompatibleRequestSupport {
     static func applySamplingControls(
         to body: inout [String: Any],
         controls: GenerationControls,
+        modelID: String,
         shouldOmitSamplingControls: Bool
     ) {
         guard !shouldOmitSamplingControls else { return }
+        // Gemini models that ignore/deprecate sampling keep doing so when they are reached
+        // through an OpenAI-compatible gateway (Cloudflare, Vercel, a bare compatible host),
+        // so honour the same exact-ID list the native Gemini/Vertex builders use.
+        guard GeminiModelConstants.supportsCustomSamplingParameters(modelID) else { return }
         if let temperature = controls.temperature {
             body["temperature"] = temperature
         }

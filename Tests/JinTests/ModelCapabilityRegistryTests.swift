@@ -366,7 +366,39 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         )
     }
 
+    func testGemini37FlashDropsMinimalOnEveryGoogleSurface() {
+        // 3.7 Flash rejects thinking_level="MINIMAL"; the narrower band has to survive the
+        // gateway ID prefixes too, or a proxied request silently ships an invalid level.
+        let cases: [(ProviderType, String)] = [
+            (.gemini, "gemini-3.7-flash"),
+            (.vertexai, "gemini-3.7-flash"),
+            (.openrouter, "google/gemini-3.7-flash"),
+            (.vercelAIGateway, "google/gemini-3.7-flash"),
+            (.cloudflareAIGateway, "google-ai-studio/gemini-3.7-flash"),
+            (.cloudflareAIGateway, "google-vertex-ai/google/gemini-3.7-flash"),
+        ]
+
+        for (provider, modelID) in cases {
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: provider, modelID: modelID),
+                [.low, .medium, .high],
+                "\(provider) \(modelID)"
+            )
+            XCTAssertEqual(
+                ModelCapabilityRegistry.normalizedReasoningEffort(
+                    .minimal,
+                    for: provider,
+                    modelID: modelID
+                ),
+                .low,
+                "\(provider) \(modelID)"
+            )
+        }
+    }
+
     func testGoogleMapsSupportUsesExactDocumentedModelIDs() {
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.7-flash"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.7-flash"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.6-flash"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.5-flash"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .gemini, modelID: "gemini-3.5-flash-lite"))
