@@ -164,7 +164,9 @@ enum GeminiModelConstants {
 
     /// Whether the model accepts custom sampling (`temperature` / `topP` / `topK`).
     /// When false, omit those fields so defaults apply (custom values are ignored or deprecated).
-    /// Path-qualified IDs (`models/...`, `publishers/google/models/...`) are canonicalized first.
+    /// Path-qualified IDs (`models/...`, `publishers/google/models/...`) are canonicalized first,
+    /// which also covers the gateway prefixes (`google/...`, `google-ai-studio/...`,
+    /// `google-vertex-ai/google/...`) so proxied requests suppress the same fields.
     static func supportsCustomSamplingParameters(_ modelID: String) -> Bool {
         !customSamplingUnsupportedModelIDs.contains(canonicalTerminalModelID(modelID))
     }

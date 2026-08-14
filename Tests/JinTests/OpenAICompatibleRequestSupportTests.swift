@@ -13,6 +13,7 @@ final class OpenAICompatibleRequestSupportTests: XCTestCase {
         OpenAICompatibleRequestSupport.applySamplingControls(
             to: &body,
             controls: controls,
+            modelID: "some-model",
             shouldOmitSamplingControls: false
         )
         OpenAICompatibleRequestSupport.applyMaxTokens(
@@ -38,6 +39,7 @@ final class OpenAICompatibleRequestSupportTests: XCTestCase {
         OpenAICompatibleRequestSupport.applySamplingControls(
             to: &body,
             controls: controls,
+            modelID: "some-model",
             shouldOmitSamplingControls: true
         )
         OpenAICompatibleRequestSupport.applyMaxTokens(
@@ -50,6 +52,46 @@ final class OpenAICompatibleRequestSupportTests: XCTestCase {
         XCTAssertNil(body["top_p"])
         XCTAssertNil(body["max_tokens"])
         XCTAssertEqual(body["max_completion_tokens"] as? Int, 2048)
+    }
+
+    func testOmitsSamplingForGatewayGeminiIDsThatIgnoreIt() {
+        // The gateway ID shapes all canonicalize to the same terminal model ID, so a proxied
+        // Gemini 3.7/3.6/3.5-Lite request suppresses sampling exactly like the native path.
+        let suppressed = [
+            "gemini-3.7-flash",
+            "google/gemini-3.7-flash",
+            "google-ai-studio/gemini-3.7-flash",
+            "google-vertex-ai/google/gemini-3.7-flash",
+            "google/gemini-3.6-flash",
+            "google-ai-studio/gemini-3.5-flash-lite",
+        ]
+
+        for modelID in suppressed {
+            var body: [String: Any] = [:]
+            OpenAICompatibleRequestSupport.applySamplingControls(
+                to: &body,
+                controls: GenerationControls(temperature: 0.1, topP: 0.9),
+                modelID: modelID,
+                shouldOmitSamplingControls: false
+            )
+
+            XCTAssertNil(body["temperature"], modelID)
+            XCTAssertNil(body["top_p"], modelID)
+        }
+
+        // Gemini models that do accept sampling keep it, and so does everything non-Google.
+        for modelID in ["google/gemini-3.5-flash", "openai/gpt-5.6", "gpt-5.6"] {
+            var body: [String: Any] = [:]
+            OpenAICompatibleRequestSupport.applySamplingControls(
+                to: &body,
+                controls: GenerationControls(temperature: 0.1, topP: 0.9),
+                modelID: modelID,
+                shouldOmitSamplingControls: false
+            )
+
+            XCTAssertEqual(body["temperature"] as? Double, 0.1, modelID)
+            XCTAssertEqual(body["top_p"] as? Double, 0.9, modelID)
+        }
     }
 
     func testMiMoToolObjectsBuildWebSearchBeforeFunctionTools() throws {

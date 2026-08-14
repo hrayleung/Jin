@@ -33,6 +33,7 @@ extension OpenAICompatibleAdapter {
         OpenAICompatibleRequestSupport.applySamplingControls(
             to: &body,
             controls: controls,
+            modelID: modelID,
             shouldOmitSamplingControls: shouldOmitSamplingControls
         )
 
