@@ -10,9 +10,15 @@ final class AppLaunchCoordinatorTests: PreferencesSandboxedTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
 
-        previousAppSupportRoot = ProcessInfo.processInfo.environment["JIN_APP_SUPPORT_ROOT"]
+        // Read through `getenv` for the same reason AppDataLocations does:
+        // `ProcessInfo.environment` can hand back a stale snapshot and make
+        // teardown restore a root that no longer exists.
+        previousAppSupportRoot = getenv("JIN_APP_SUPPORT_ROOT").map { String(cString: $0) }
         previousSnapshotsSuspended = AppRuntimeProtection.automaticSnapshotsSuspended
-        AppRuntimeProtection.automaticSnapshotsSuspended = false
+        // A healthy launch schedules a detached snapshot capture. Suspending it
+        // keeps that write from racing teardown and landing in the real
+        // Application Support directory after the override is removed.
+        AppRuntimeProtection.automaticSnapshotsSuspended = true
 
         temporaryRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
