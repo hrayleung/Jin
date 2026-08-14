@@ -1084,6 +1084,12 @@ final class AnthropicAdapterTests: XCTestCase {
         try await assertUsesNativePDFDocumentBlock(modelID: "claude-opus-5", pdfByteSuffix: 0x4F)
     }
 
+    func testAnthropicAdapterUsesNativePDFForUnsuffixedClaude4IDs() async throws {
+        try await assertUsesNativePDFDocumentBlock(modelID: "claude-opus-4", pdfByteSuffix: 0x41)
+        try await assertUsesNativePDFDocumentBlock(modelID: "claude-sonnet-4", pdfByteSuffix: 0x42)
+        try await assertUsesNativePDFDocumentBlock(modelID: "claude-haiku-4", pdfByteSuffix: 0x43)
+    }
+
 
     func testAnthropicPrefixWindowUsesTopLevelCacheControl() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()

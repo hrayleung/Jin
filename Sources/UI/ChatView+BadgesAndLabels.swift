@@ -166,6 +166,18 @@ extension ChatView {
             }
         }
 
+        if ChatModelCapabilitySupport.supportsPagesAsImages(
+            supportsNativePDF: supportsNativePDF,
+            supportsVision: supportsVision
+        ) {
+            Button { setPDFProcessingMode(.pagesAsImages) } label: {
+                menuItemLabel(
+                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .pagesAsImages),
+                    isSelected: resolvedPDFProcessingMode == .pagesAsImages
+                )
+            }
+        }
+
         if mistralOCRPluginEnabled {
             Button { setPDFProcessingMode(.mistralOCR) } label: {
                 menuItemLabel(

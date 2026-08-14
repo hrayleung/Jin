@@ -169,6 +169,7 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
 
     func testPDFProcessingMenuTitleUsesProviderNames() {
         XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .native), "Native")
+        XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .pagesAsImages), "Pages")
         XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .mistralOCR), "Mistral")
         XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .mineruOCR), "MinerU")
         XCTAssertEqual(ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .deepSeekOCR), "DeepSeek")
@@ -189,6 +190,18 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
                 firecrawlOCRConfigured: false
             ),
             "PDF handling: Native"
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.pdfProcessingHelpText(
+                mode: .pagesAsImages,
+                firecrawlParserMode: .ocr,
+                mistralOCRConfigured: false,
+                mineruOCRConfigured: false,
+                deepSeekOCRConfigured: false,
+                openRouterOCRConfigured: false,
+                firecrawlOCRConfigured: false
+            ),
+            "PDF handling: Pages as images"
         )
         XCTAssertEqual(
             ChatModelCapabilitySupport.pdfProcessingHelpText(
@@ -289,6 +302,12 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
             controls: GenerationControls()
         )
         XCTAssertEqual(ocrControls.pdfProcessingMode, .firecrawlOCR)
+
+        let pagesControls = ChatModelCapabilitySupport.setPDFProcessingMode(
+            .pagesAsImages,
+            controls: GenerationControls()
+        )
+        XCTAssertEqual(pagesControls.pdfProcessingMode, .pagesAsImages)
     }
 
     func testSetFirecrawlPDFParserModeStoresOnlyNonOCROverrides() {

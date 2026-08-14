@@ -47,22 +47,32 @@ extension ChatModelCapabilitySupport {
     ) -> Bool {
         guard !supportsMediaGenerationControl else { return false }
         guard let providerType else { return false }
+        guard providerType.supportsNativePDFUpload else { return false }
 
+        let catalogAllows = resolvedModelSettings?.capabilities.contains(.nativePDF) == true
+            || JinModelSupport.supportsNativePDF(providerType: providerType, modelID: lowerModelID)
+        guard catalogAllows else { return false }
+
+        return adapterCanSendNativePDF(providerType: providerType, modelID: lowerModelID)
+    }
+
+    /// Adapter-side send check. Catalog `.nativePDF` is not enough when the
+    /// translator cannot emit `application/pdf` (Gemini AI Studio 2.5).
+    static func adapterCanSendNativePDF(providerType: ProviderType, modelID: String) -> Bool {
         switch providerType {
-        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .perplexity, .xai, .gemini, .vertexai, .meta:
-            break
-        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo,
-             .zyphra, .kimiForCoding:
+        case .gemini:
+            return GeminiModelConstants.supportsNativePDF(modelID)
+        case .vertexai:
+            return GeminiModelConstants.supportsVertexNativePDF(modelID)
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .meta:
+            return true
+        default:
             return false
         }
+    }
 
-        if resolvedModelSettings?.capabilities.contains(.nativePDF) == true {
-            return true
-        }
-
-        return JinModelSupport.supportsNativePDF(providerType: providerType, modelID: lowerModelID)
+    static func supportsPagesAsImages(supportsNativePDF: Bool, supportsVision: Bool) -> Bool {
+        supportsVision && !supportsNativePDF
     }
 
     static func supportsVision(

@@ -42,6 +42,14 @@ extension ChatMessagePreparationSupport {
         }
 
         switch requestedMode {
+        case .pagesAsImages:
+            return try await preparedPagesAsImagesPDF(
+                attachment,
+                profile: profile,
+                totalPDFCount: totalPDFCount,
+                pdfOrdinal: pdfOrdinal,
+                onStatusUpdate: onStatusUpdate
+            )
         case .macOSExtract:
             return try await preparedMacOSExtractedPDF(
                 attachment,

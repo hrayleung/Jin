@@ -1162,6 +1162,62 @@ final class GeminiAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testGeminiAdapterDoesNotInlinePDFForAIStudio25WhenNativeRequested() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g25",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/models/gemini-2.5-pro:generateContent")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let contents = try XCTUnwrap(root["contents"] as? [[String: Any]])
+            let parts = try XCTUnwrap(contents.first?["parts"] as? [[String: Any]])
+
+            XCTAssertFalse(parts.contains { part in
+                guard let inline = part["inlineData"] as? [String: Any] else { return false }
+                return (inline["mimeType"] as? String) == "application/pdf"
+            })
+            XCTAssertFalse(parts.contains { $0["fileData"] != nil })
+            let text = try XCTUnwrap(parts.first?["text"] as? String)
+            XCTAssertTrue(text.contains("a.pdf"))
+
+            let response: [String: Any] = [
+                "candidates": [
+                    ["content": ["parts": [["text": "OK"]]]]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = GeminiAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let pdf = FileContent(
+            mimeType: "application/pdf",
+            filename: "a.pdf",
+            data: Data([0x25, 0x50, 0x44, 0x46]),
+            url: nil,
+            extractedText: nil
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.file(pdf)])],
+            modelID: "gemini-2.5-pro",
+            controls: GenerationControls(pdfProcessingMode: .native),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
     func testGeminiAdapterUsesSpreadsheetFallbackPromptForXLSX() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

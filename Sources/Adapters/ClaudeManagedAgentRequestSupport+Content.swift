@@ -54,8 +54,12 @@ extension ClaudeManagedAgentRequestSupport {
 
     private static func fileBlock(_ file: FileContent) throws -> [String: Any]? {
         let normalizedFileMIMEType = normalizedMIMEType(file.mimeType)
+        // Native PDF is only the empty-extract path. Extract / OCR / pages leave
+        // `extractedText` set so we must not re-attach the raw PDF bytes.
+        let shouldSendNativePDF = normalizedFileMIMEType == "application/pdf"
+            && file.extractedText == nil
 
-        if normalizedFileMIMEType == "application/pdf",
+        if shouldSendNativePDF,
            let data = try attachmentData(existing: file.data, url: file.url) {
             return [
                 "type": "document",

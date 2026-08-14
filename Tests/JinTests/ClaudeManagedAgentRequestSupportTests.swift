@@ -164,6 +164,34 @@ final class ClaudeManagedAgentRequestSupportTests: XCTestCase {
         XCTAssertEqual(source["data"] as? String, pdfData.base64EncodedString())
     }
 
+    func testEventBodiesDoesNotAttachRawPDFWhenExtractedTextIsPresent() throws {
+        let pdfData = Data("%PDF-1.7-extracted".utf8)
+        let message = Message(
+            role: .user,
+            content: [
+                .file(FileContent(
+                    mimeType: "application/pdf",
+                    filename: "report.pdf",
+                    data: pdfData,
+                    extractedText: "Pages as images: report.pdf\n\nThe PDF pages are attached as images."
+                )),
+                .image(ImageContent(mimeType: "image/jpeg", data: Data([0xFF, 0xD8])))
+            ]
+        )
+
+        let events = try ClaudeManagedAgentRequestSupport.eventBodies(
+            messages: [message],
+            controls: GenerationControls(pdfProcessingMode: .pagesAsImages)
+        )
+
+        let event = try XCTUnwrap(events.single)
+        let content = try XCTUnwrap(event["content"] as? [[String: Any]])
+        XCTAssertFalse(content.contains { ($0["type"] as? String) == "document" })
+        let text = try XCTUnwrap(content.first(where: { ($0["type"] as? String) == "text" })?["text"] as? String)
+        XCTAssertTrue(text.contains("report.pdf"))
+        XCTAssertTrue(content.contains { ($0["type"] as? String) == "image" })
+    }
+
     func testEventBodiesFallsBackToContinueWhenNoUserContentCanBeSent() throws {
         let events = try ClaudeManagedAgentRequestSupport.eventBodies(
             messages: [

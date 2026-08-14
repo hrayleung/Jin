@@ -52,6 +52,7 @@ extension ChatModelCapabilitySupport {
     static func isPDFProcessingModeAvailable(
         _ mode: PDFProcessingMode,
         supportsNativePDF: Bool,
+        supportsVision: Bool = false,
         mistralOCRPluginEnabled: Bool,
         mineruOCRPluginEnabled: Bool,
         deepSeekOCRPluginEnabled: Bool,
@@ -61,6 +62,11 @@ extension ChatModelCapabilitySupport {
         switch mode {
         case .native:
             return supportsNativePDF
+        case .pagesAsImages:
+            return ChatModelCapabilitySupport.supportsPagesAsImages(
+                supportsNativePDF: supportsNativePDF,
+                supportsVision: supportsVision
+            )
         case .macOSExtract:
             return true
         case .mistralOCR:
@@ -79,6 +85,7 @@ extension ChatModelCapabilitySupport {
     static func resolvedPDFProcessingMode(
         controls: GenerationControls,
         supportsNativePDF: Bool,
+        supportsVision: Bool = false,
         defaultPDFProcessingFallbackMode: PDFProcessingMode,
         mistralOCRPluginEnabled: Bool,
         mineruOCRPluginEnabled: Bool,
@@ -90,6 +97,7 @@ extension ChatModelCapabilitySupport {
         if isPDFProcessingModeAvailable(
             requested,
             supportsNativePDF: supportsNativePDF,
+            supportsVision: supportsVision,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
@@ -100,6 +108,18 @@ extension ChatModelCapabilitySupport {
         }
         if supportsNativePDF {
             return .native
+        }
+        if isPDFProcessingModeAvailable(
+            .pagesAsImages,
+            supportsNativePDF: supportsNativePDF,
+            supportsVision: supportsVision,
+            mistralOCRPluginEnabled: mistralOCRPluginEnabled,
+            mineruOCRPluginEnabled: mineruOCRPluginEnabled,
+            deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
+            openRouterOCRPluginEnabled: openRouterOCRPluginEnabled,
+            firecrawlOCRPluginEnabled: firecrawlOCRPluginEnabled
+        ) {
+            return .pagesAsImages
         }
         return defaultPDFProcessingFallbackMode
     }

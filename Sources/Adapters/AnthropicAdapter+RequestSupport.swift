@@ -176,16 +176,10 @@ extension AnthropicAdapter {
     }
 
     private func supportsNativePDF(_ modelID: String) -> Bool {
-        // Claude 4.x families match via the "-4-"/"-4." substrings. The Fable/Mythos 5
-        // generation, Opus 5 and Sonnet 5 have no such substring but are fully PDF-capable
-        // ("all active models support PDF processing"), and their catalog records declare
-        // `.nativePDF` — so they must be matched here too, or PDFs would silently fall back
-        // to a filename-only stub (the same regression Fable 5 originally hit).
-        let lower = modelID.lowercased()
-        return lower.contains("-4-") || lower.contains("-4.")
-            || AnthropicModelLimits.isFableMythos5(lower)
-            || AnthropicModelLimits.isOpus5(lower)
-            || AnthropicModelLimits.isSonnet5(lower)
+        // Catalog `.nativePDF` is the source of truth (exact ID). The old
+        // "-4-"/"-4." substring missed unsuffixed `claude-opus-4` / `claude-sonnet-4`
+        // / `claude-haiku-4` even though those records declare `.nativePDF`.
+        JinModelSupport.supportsNativePDF(providerType: providerConfig.type, modelID: modelID)
     }
 
     private func supportsWebSearch(_ modelID: String) -> Bool {
