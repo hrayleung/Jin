@@ -87,7 +87,8 @@ actor MCPClient {
         stdinPipe = nil
         stdoutPipe?.fileHandleForReading.closeFile()
         stdoutPipe = nil
-        stderrPipe?.fileHandleForReading.closeFile()
+        // stderr read end is closed in `finishStderrCollection` so the reader
+        // cannot block `stop()`. Do not close it again.
         stderrPipe = nil
     }
 
@@ -352,20 +353,18 @@ actor MCPClient {
         )
     }
 
-    /// Wait for the stderr reader to consume EOF after the child dies. Canceling
-    /// the task immediately used to drop the last initialize response lines.
+    /// Harvest remaining stderr after the child dies or `stop()` is asked.
+    ///
+    /// Closing the read end unblocks `FileHandle.read` if the child ignored
+    /// SIGTERM or a grandchild still holds the write end. The wait itself must
+    /// not join `task.value` inside a task group: leaving the group waits for
+    /// every child, and `task.value` is not aborted by `cancelAll()`.
     private func finishStderrCollection(timeoutNanoseconds: UInt64) async {
-        guard let task = stderrReadTask else { return }
+        stderrPipe?.fileHandleForReading.closeFile()
 
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask {
-                await task.value
-            }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
-            }
-            _ = await group.next()
-            group.cancelAll()
+        guard let task = stderrReadTask else { return }
+        await MCPTaskWait.firstCompletion(timeoutNanoseconds: timeoutNanoseconds) {
+            await task.value
         }
     }
 
@@ -491,6 +490,26 @@ actor MCPClient {
             group.cancelAll()
             return result
         }
+    }
+}
+
+/// Completes when `operation` finishes or `timeoutNanoseconds` elapses,
+/// whichever comes first. The timeout path does not join `operation`, so a
+/// stuck `FileHandle.read` cannot hang `stop()`.
+enum MCPTaskWait {
+    static func firstCompletion(
+        timeoutNanoseconds: UInt64,
+        operation: @escaping @Sendable () async -> Void
+    ) async {
+        let timeout = Task {
+            try await Task.sleep(nanoseconds: timeoutNanoseconds)
+        }
+        let done = Task {
+            await operation()
+            timeout.cancel()
+        }
+        _ = await timeout.result
+        done.cancel()
     }
 }
 
