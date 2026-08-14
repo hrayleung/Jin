@@ -57,7 +57,6 @@ extension ChatMessagePreparationSupport {
 
         var imageParts: [ContentPart] = []
         var attachedImageIDs = Set<String>()
-        var totalAttachedImageBytes = 0
 
         if includeImageBase64 {
             var base64ByID: OrderedDictionary<String, String> = [:]
@@ -84,14 +83,9 @@ extension ChatMessagePreparationSupport {
             }
 
             for id in orderedIDs {
-                guard imageParts.count < AttachmentConstants.maxMistralOCRImagesToAttach else { break }
                 guard let base64 = base64ByID[id] else { continue }
                 guard let decoded = PDFProcessingUtilities.decodeMistralOCRImageBase64(base64, imageID: id) else { continue }
-                guard let decodedData = decoded.data else { continue }
-
-                let nextTotal = totalAttachedImageBytes + decodedData.count
-                guard nextTotal <= AttachmentConstants.maxMistralOCRTotalImageBytes else { break }
-                totalAttachedImageBytes = nextTotal
+                guard decoded.data != nil else { continue }
 
                 attachedImageIDs.insert(id)
                 imageParts.append(.image(decoded))
@@ -117,12 +111,6 @@ extension ChatMessagePreparationSupport {
         var output = extractedText
         if !hasText, !imageParts.isEmpty {
             output = "Mistral OCR extracted images (no text) from this PDF. See attached images."
-        }
-
-        let extractedImageCount = pages.reduce(0) { $0 + (($1.images ?? []).count) }
-        let omittedCount = max(0, extractedImageCount - attachedImageIDs.count)
-        if includeImageBase64, omittedCount > 0 {
-            output += "\n\n[Note: \(omittedCount) extracted image(s) omitted due to size limits.]"
         }
 
         output = output.trimmingCharacters(in: .whitespacesAndNewlines)

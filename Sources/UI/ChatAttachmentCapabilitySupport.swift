@@ -58,13 +58,18 @@ extension ChatModelCapabilitySupport {
 
     /// Adapter-side send check. Catalog `.nativePDF` is not enough when the
     /// translator cannot emit `application/pdf` (Gemini AI Studio 2.5).
+    /// Anthropic / Claude Managed persist `.nativePDF` on custom models, but
+    /// `AnthropicAdapter` only emits document blocks for catalog IDs — keep
+    /// the UI on that same predicate so Native is not offered as a stub.
     static func adapterCanSendNativePDF(providerType: ProviderType, modelID: String) -> Bool {
         switch providerType {
         case .gemini:
             return GeminiModelConstants.supportsNativePDF(modelID)
         case .vertexai:
             return GeminiModelConstants.supportsVertexNativePDF(modelID)
-        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .meta:
+        case .anthropic, .claudeManagedAgents:
+            return JinModelSupport.supportsNativePDF(providerType: providerType, modelID: modelID)
+        case .openai, .openaiWebSocket, .xai, .meta:
             return true
         default:
             return false

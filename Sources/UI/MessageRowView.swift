@@ -276,16 +276,12 @@ struct MessageRow: View, Equatable {
         let partition = MessageRowPresentationSupport.UserBlockPartition(blocks: blocks)
 
         if !partition.imageParts.isEmpty {
-            HStack(spacing: JinSpacing.small) {
-                ForEach(Array(partition.imageParts.enumerated()), id: \.offset) { _, part in
-                    ContentPartView(
-                        part: part,
-                        isUser: true,
-                        deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
-                        payloadResolver: payloadResolver
-                    )
-                }
-            }
+            UserMessageImageStackView(
+                imageParts: partition.imageParts,
+                deferCodeHighlightUpgrade: deferCodeHighlightUpgrade,
+                payloadResolver: payloadResolver,
+                onExpansionChanged: { layoutEpoch &+= 1 }
+            )
         }
 
         ForEach(Array(partition.remainingBlocks.enumerated()), id: \.offset) { _, block in

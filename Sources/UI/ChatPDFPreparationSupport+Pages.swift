@@ -24,7 +24,7 @@ extension ChatMessagePreparationSupport {
         let totalPages = max(1, pageCount)
 
         var imageParts: [ContentPart] = []
-        var totalAttachedBytes = 0
+        imageParts.reserveCapacity(pageCount)
 
         for pageIndex in 0..<pageCount {
             try Task.checkCancellation()
@@ -36,15 +36,6 @@ extension ChatMessagePreparationSupport {
                 from: attachment.fileURL,
                 pageIndex: pageIndex
             )
-
-            guard imageParts.count < AttachmentConstants.maxMistralOCRImagesToAttach else {
-                continue
-            }
-            let nextTotal = totalAttachedBytes + rendered.data.count
-            guard nextTotal <= AttachmentConstants.maxMistralOCRTotalImageBytes else {
-                continue
-            }
-            totalAttachedBytes = nextTotal
             imageParts.append(.image(ImageContent(mimeType: rendered.mimeType, data: rendered.data, url: nil)))
         }
 
@@ -55,11 +46,7 @@ extension ChatMessagePreparationSupport {
             )
         }
 
-        let omitted = max(0, pageCount - imageParts.count)
-        var body = "The PDF pages are attached as images for visual reading. Treat the images as the document's contents.\n\n[Note: Attached \(imageParts.count) page image(s).]"
-        if omitted > 0 {
-            body += "\n[Note: \(omitted) page image(s) omitted due to size limits.]"
-        }
+        let body = "The PDF pages are attached as images for visual reading. Treat the images as the document's contents.\n\n[Note: Attached \(imageParts.count) page image(s).]"
 
         return finalizedPDFOutput(
             body,

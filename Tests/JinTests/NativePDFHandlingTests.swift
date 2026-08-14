@@ -227,6 +227,110 @@ final class NativePDFHandlingTests: XCTestCase {
         }
         XCTAssertEqual(image.mimeType, "image/jpeg")
         XCTAssertFalse(image.data?.isEmpty ?? true)
+        XCTAssertFalse(extracted.contains("omitted"))
+    }
+
+    func testPreparedPagesAsImagesAttachesEveryPagePastFormerEightImageCap() async throws {
+        let pageCount = 9
+        let pdfURL = try writeFixturePDF(pageCount: pageCount)
+        defer { try? FileManager.default.removeItem(at: pdfURL) }
+
+        let attachment = DraftAttachment(
+            id: UUID(),
+            filename: "nine.pdf",
+            mimeType: "application/pdf",
+            fileURL: pdfURL,
+            extractedText: nil
+        )
+        let profile = ChatMessagePreparationSupport.MessagePreparationProfile(
+            modelName: "Kimi K3",
+            supportsVideoGenerationControl: false,
+            supportsVideoInput: false,
+            supportsMediaGenerationControl: false,
+            supportsNativePDF: false,
+            supportsVision: true,
+            pdfProcessingMode: .pagesAsImages,
+            firecrawlPDFParserMode: .ocr
+        )
+
+        let prepared = try await ChatMessagePreparationSupport.preparedContentForPDF(
+            attachment,
+            profile: profile,
+            requestedMode: .pagesAsImages,
+            totalPDFCount: 1,
+            pdfOrdinal: 1,
+            mistralClient: nil,
+            mineruClient: nil,
+            deepSeekClient: nil,
+            openRouterClient: nil,
+            firecrawlClient: nil,
+            r2Uploader: nil,
+            onStatusUpdate: { _ in }
+        )
+
+        XCTAssertEqual(prepared.additionalParts.count, pageCount)
+        XCTAssertTrue(prepared.additionalParts.allSatisfy { part in
+            if case .image(let image) = part {
+                return image.mimeType == "image/jpeg" && !(image.data?.isEmpty ?? true)
+            }
+            return false
+        })
+        let extracted = try XCTUnwrap(prepared.extractedText)
+        XCTAssertTrue(extracted.contains("Attached \(pageCount) page image(s)."))
+        XCTAssertFalse(extracted.contains("omitted"))
+    }
+
+    func testRenderedPageOCRAttachesEveryPagePastFormerEightImageCap() async throws {
+        let pageCount = 9
+        let pdfURL = try writeFixturePDF(pageCount: pageCount)
+        defer { try? FileManager.default.removeItem(at: pdfURL) }
+
+        let attachment = DraftAttachment(
+            id: UUID(),
+            filename: "nine.pdf",
+            mimeType: "application/pdf",
+            fileURL: pdfURL,
+            extractedText: nil
+        )
+        let profile = ChatMessagePreparationSupport.MessagePreparationProfile(
+            modelName: "Kimi K3",
+            supportsVideoGenerationControl: false,
+            supportsVideoInput: false,
+            supportsMediaGenerationControl: false,
+            supportsNativePDF: false,
+            supportsVision: true,
+            pdfProcessingMode: .deepSeekOCR,
+            firecrawlPDFParserMode: .ocr
+        )
+
+        var ocrCalls = 0
+        let prepared = try await ChatMessagePreparationSupport.preparedRenderedPageOCRPDF(
+            attachment,
+            profile: profile,
+            totalPDFCount: 1,
+            pdfOrdinal: 1,
+            statusLabel: { page, total in "\(page)/\(total)" },
+            ocr: { _, _ in
+                ocrCalls += 1
+                return "page \(ocrCalls)"
+            },
+            normalize: { $0 },
+            noTextMethod: "DeepSeek OCR (DeepInfra)",
+            header: "DeepSeek OCR (Markdown)",
+            onStatusUpdate: { _ in }
+        )
+
+        XCTAssertEqual(ocrCalls, pageCount)
+        XCTAssertEqual(prepared.additionalParts.count, pageCount)
+        XCTAssertTrue(prepared.additionalParts.allSatisfy { part in
+            if case .image(let image) = part {
+                return image.mimeType == "image/jpeg" && !(image.data?.isEmpty ?? true)
+            }
+            return false
+        })
+        let extracted = try XCTUnwrap(prepared.extractedText)
+        XCTAssertTrue(extracted.contains("Attached \(pageCount) page image(s) for vision context."))
+        XCTAssertFalse(extracted.contains("omitted"))
     }
 
     func testBuildUserMessagePartsForPagesKeepsExtractNoteAndImages() async throws {
@@ -338,16 +442,50 @@ final class NativePDFHandlingTests: XCTestCase {
 
     func testAnthropicCatalogHonorsUnsuffixedClaude4NativePDF() {
         for id in ["claude-opus-4", "claude-sonnet-4", "claude-haiku-4"] {
-            XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .anthropic, modelID: id), id)
-            XCTAssertTrue(
-                ChatModelCapabilitySupport.supportsNativePDF(
-                    supportsMediaGenerationControl: false,
-                    providerType: .anthropic,
-                    resolvedModelSettings: nil,
-                    lowerModelID: id
-                ),
-                id
-            )
+            for provider in [ProviderType.anthropic, .claudeManagedAgents] {
+                XCTAssertTrue(
+                    JinModelSupport.supportsNativePDF(providerType: provider, modelID: id),
+                    "\(provider.rawValue) \(id)"
+                )
+                XCTAssertTrue(
+                    ChatModelCapabilitySupport.adapterCanSendNativePDF(providerType: provider, modelID: id),
+                    "\(provider.rawValue) \(id)"
+                )
+                XCTAssertTrue(
+                    ChatModelCapabilitySupport.supportsNativePDF(
+                        supportsMediaGenerationControl: false,
+                        providerType: provider,
+                        resolvedModelSettings: nil,
+                        lowerModelID: id
+                    ),
+                    "\(provider.rawValue) \(id)"
+                )
+            }
+        }
+    }
+
+    func testCustomAnthropicModelsDoNotOfferNativePDFEvenIfSettingsClaimIt() {
+        let customIDs = ["custom-claude", "claude-opus-4-custom", "my-managed-claude"]
+        for id in customIDs {
+            for provider in [ProviderType.anthropic, .claudeManagedAgents] {
+                XCTAssertFalse(
+                    JinModelSupport.supportsNativePDF(providerType: provider, modelID: id),
+                    "\(provider.rawValue) \(id)"
+                )
+                XCTAssertFalse(
+                    ChatModelCapabilitySupport.adapterCanSendNativePDF(providerType: provider, modelID: id),
+                    "\(provider.rawValue) \(id)"
+                )
+                XCTAssertFalse(
+                    ChatModelCapabilitySupport.supportsNativePDF(
+                        supportsMediaGenerationControl: false,
+                        providerType: provider,
+                        resolvedModelSettings: resolvedSettings(capabilities: [.vision, .nativePDF]),
+                        lowerModelID: id
+                    ),
+                    "\(provider.rawValue) \(id) must not offer Native when the adapter will not send it"
+                )
+            }
         }
     }
 
@@ -366,10 +504,11 @@ final class NativePDFHandlingTests: XCTestCase {
         )
     }
 
-    private func writeFixturePDF() throws -> URL {
+    private func writeFixturePDF(pageCount: Int = 1) throws -> URL {
         let document = PDFDocument()
-        let page = PDFPage()
-        document.insert(page, at: 0)
+        for index in 0..<max(1, pageCount) {
+            document.insert(PDFPage(), at: index)
+        }
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("jin-pages-\(UUID().uuidString).pdf")
         XCTAssertTrue(document.write(to: url))
