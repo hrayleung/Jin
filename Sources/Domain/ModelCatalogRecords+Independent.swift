@@ -1587,7 +1587,7 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 384_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.2", displayName: "GLM 5.2",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],

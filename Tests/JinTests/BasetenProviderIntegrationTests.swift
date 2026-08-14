@@ -440,7 +440,7 @@ final class BasetenProviderIntegrationTests: XCTestCase {
             for: .baseten,
             modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"
         )
-        XCTAssertEqual(efforts, [.none, .minimal, .low, .medium, .high, .xhigh, .max])
+        XCTAssertEqual(efforts, [.none, .low, .high, .max])
     }
 
     func testDeepSeekV4FlashCatalogAndEffort() {
@@ -452,14 +452,14 @@ final class BasetenProviderIntegrationTests: XCTestCase {
         XCTAssertTrue(info.capabilities.contains(.reasoning))
         XCTAssertFalse(info.capabilities.contains(.vision))
         XCTAssertEqual(info.reasoningConfig?.type, .effort)
-        XCTAssertEqual(info.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertEqual(info.reasoningConfig?.defaultEffort, .high)
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "deepseek-ai/DeepSeek-V4-Flash-0731", provider: .baseten))
 
         let efforts = ModelCapabilityRegistry.supportedReasoningEfforts(
             for: .baseten,
             modelID: "deepseek-ai/DeepSeek-V4-Flash-0731"
         )
-        XCTAssertEqual(efforts, [.low, .high, .max])
+        XCTAssertEqual(efforts, [.none, .minimal, .low, .medium, .high, .xhigh, .max])
     }
 
     func testInklingSmallCatalogAndEffort() {

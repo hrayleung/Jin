@@ -471,12 +471,12 @@ enum ModelCapabilityRegistry {
     /// Baseten DeepSeek V4 Pro + GPT-OSS: wide effort band including none.
     private static let basetenWideEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
-        "deepseek-ai/deepseek-v4-pro-0813",
+        "deepseek-ai/deepseek-v4-flash-0731",
         "openai/gpt-oss-120b",
     ]
-    /// Baseten DeepSeek V4 Flash: narrower effort band (low/high/max).
-    private static let basetenDeepSeekV4FlashReasoningEffortModelIDs: Set<String> = [
-        "deepseek-ai/deepseek-v4-flash-0731",
+    /// Baseten DeepSeek V4 Pro 0813: narrow effort band (none/low/high/max).
+    private static let basetenDeepSeekV4Pro0813ReasoningEffortModelIDs: Set<String> = [
+        "deepseek-ai/deepseek-v4-pro-0813",
     ]
     /// Baseten GLM 5.2 family: none/high/max only.
     private static let basetenGLM52EffortModelIDs: Set<String> = [
@@ -629,7 +629,7 @@ enum ModelCapabilityRegistry {
             if basetenKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
                 || basetenInklingReasoningEffortModelIDs.contains(lowerModelID)
                 || basetenWideEffortModelIDs.contains(lowerModelID)
-                || basetenDeepSeekV4FlashReasoningEffortModelIDs.contains(lowerModelID)
+                || basetenDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
                 || basetenGLM52EffortModelIDs.contains(lowerModelID) {
                 return true
             }
@@ -751,8 +751,8 @@ enum ModelCapabilityRegistry {
             return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
         case .baseten where basetenWideEffortModelIDs.contains(lowerModelID):
             return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
-        case .baseten where basetenDeepSeekV4FlashReasoningEffortModelIDs.contains(lowerModelID):
-            return [.low, .high, .max]
+        case .baseten where basetenDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.none, .low, .high, .max]
         case .baseten where basetenGLM52EffortModelIDs.contains(lowerModelID):
             return [.none, .high, .max]
         case .baseten where basetenMercury2ReasoningEffortModelIDs.contains(lowerModelID):
