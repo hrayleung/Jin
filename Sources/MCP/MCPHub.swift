@@ -13,6 +13,18 @@ struct ToolRouteSnapshot: Sendable {
     }
 }
 
+struct MCPServerToolLoadFailure: Sendable, Equatable {
+    let serverID: String
+    let serverName: String
+    let presentation: MCPErrorPresentation
+}
+
+struct MCPToolLoadResult: Sendable {
+    let definitions: [ToolDefinition]
+    let routes: ToolRouteSnapshot
+    let failures: [MCPServerToolLoadFailure]
+}
+
 actor MCPHub {
     static let shared = MCPHub()
     static let functionNameSeparator = "__"
@@ -32,37 +44,55 @@ actor MCPHub {
         }
     }
 
-    func toolDefinitions(for servers: [MCPServerConfig]) async throws -> (definitions: [ToolDefinition], routes: ToolRouteSnapshot) {
+    func toolDefinitions(for servers: [MCPServerConfig]) async -> MCPToolLoadResult {
         let enabledServers = servers.filter(\.isEnabled)
         // These come straight from the live configuration, so any of them that were
         // tombstoned by a previous delete clearly exist again.
         for server in enabledServers { noteServerIsConfigured(server.id) }
 
-        let serverTools = try await withThrowingTaskGroup(
-            of: (server: MCPServerConfig, tools: [MCPToolInfo]).self,
-            returning: [(server: MCPServerConfig, tools: [MCPToolInfo])].self
+        let loaded = await withTaskGroup(
+            of: ServerToolLoad.self,
+            returning: (tools: [(server: MCPServerConfig, tools: [MCPToolInfo])], failures: [MCPServerToolLoadFailure]).self
         ) { group in
             for server in enabledServers {
                 group.addTask {
-                    let tools = try await self.withClient(for: server) { client in
-                        try await client.listTools()
+                    do {
+                        let tools = try await self.withClient(for: server) { client in
+                            try await client.listTools()
+                        }
+                        return .success(server: server, tools: tools)
+                    } catch {
+                        return .failure(
+                            MCPServerToolLoadFailure(
+                                serverID: server.id,
+                                serverName: server.name,
+                                presentation: MCPErrorPresentation.make(from: error)
+                            )
+                        )
                     }
-                    return (server, tools)
                 }
             }
 
-            var results: [(server: MCPServerConfig, tools: [MCPToolInfo])] = []
-            for try await result in group {
-                results.append(result)
+            var tools: [(server: MCPServerConfig, tools: [MCPToolInfo])] = []
+            var failures: [MCPServerToolLoadFailure] = []
+            for await result in group {
+                switch result {
+                case .success(let server, let serverTools):
+                    tools.append((server, serverTools))
+                case .failure(let failure):
+                    failures.append(failure)
+                }
             }
-            return results
+            return (tools, failures)
         }
 
         // Preserve original server ordering for deterministic function name disambiguation
         let serverOrder = Dictionary(uniqueKeysWithValues: enabledServers.enumerated().map { ($1.id, $0) })
-        let sorted = serverTools.sorted { (serverOrder[$0.server.id] ?? 0) < (serverOrder[$1.server.id] ?? 0) }
+        let sorted = loaded.tools.sorted { (serverOrder[$0.server.id] ?? 0) < (serverOrder[$1.server.id] ?? 0) }
+        let built = Self.buildToolDefinitionsAndRoutes(from: sorted)
+        let sortedFailures = loaded.failures.sorted { (serverOrder[$0.serverID] ?? 0) < (serverOrder[$1.serverID] ?? 0) }
 
-        return Self.buildToolDefinitionsAndRoutes(from: sorted)
+        return MCPToolLoadResult(definitions: built.definitions, routes: built.routes, failures: sortedFailures)
     }
 
     static func buildToolDefinitionsAndRoutes(
@@ -220,6 +250,11 @@ actor MCPHub {
     struct ToolRoute: Sendable {
         let server: MCPServerConfig
         let toolName: String
+    }
+
+    private enum ServerToolLoad: Sendable {
+        case success(server: MCPServerConfig, tools: [MCPToolInfo])
+        case failure(MCPServerToolLoadFailure)
     }
 }
 

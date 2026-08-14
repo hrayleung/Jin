@@ -2,6 +2,34 @@ import XCTest
 @testable import Jin
 
 final class MCPServerImportParserTests: XCTestCase {
+    func testParseMCPRemoteStdioProxyAsNativeHTTP() throws {
+        let json = """
+        {
+          "mcpServers": {
+            "anysearch": {
+              "command": "npx",
+              "args": [
+                "-y",
+                "mcp-remote",
+                "https://api.anysearch.com/mcp",
+                "--header",
+                "Authorization: Bearer test-token"
+              ]
+            }
+          }
+        }
+        """
+
+        let imported = try MCPServerImportParser.parse(json: json)
+
+        XCTAssertEqual(imported.id, "anysearch")
+        guard case .http(let http) = imported.transport else {
+            return XCTFail("Expected mcp-remote stdio configs to import as HTTP")
+        }
+        XCTAssertEqual(http.endpoint.absoluteString, "https://api.anysearch.com/mcp")
+        XCTAssertEqual(http.authentication, .bearerToken("test-token"))
+    }
+
     func testParseClaudeStyleStdioServer() throws {
         let json = """
         {

@@ -109,13 +109,22 @@ enum MCPServerImportParser {
             throw MCPServerImportError.missingCommand
         }
 
+        let args = try server.argsTokenized()
+        if let proxy = MCPRemoteProxyCommand.parse(command: command, args: args) {
+            return MCPImportedServer(
+                id: id,
+                name: name,
+                transport: .http(proxy.httpTransport)
+            )
+        }
+
         return MCPImportedServer(
             id: id,
             name: name,
             transport: .stdio(
                 MCPStdioTransportConfig(
                     command: command,
-                    args: try server.argsTokenized(),
+                    args: args,
                     env: server.envStringDict()
                 )
             )

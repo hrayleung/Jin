@@ -151,8 +151,7 @@ struct ChatView: View {
     @State var selectedArtifactVersion: Int?
     @ObservedObject var favoriteModelsStore = FavoriteModelsStore.shared
 
-    @State var errorMessage: String?
-    @State var showingError = false
+    @State var presentedActionError: ChatActionErrorPresentation?
     @State var showingThinkingBudgetSheet = false
     @State var thinkingBudgetDraft = ""
     @State var maxTokensDraft = ""

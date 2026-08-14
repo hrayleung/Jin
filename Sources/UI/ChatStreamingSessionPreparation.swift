@@ -29,7 +29,9 @@ extension ChatStreamingOrchestrator {
 
         let providerManager = ProviderManager()
         let adapter = try await providerManager.createAdapter(for: providerConfig)
-        let (mcpTools, mcpRoutes) = try await MCPHub.shared.toolDefinitions(for: ctx.mcpServerConfigs)
+        let mcpLoad = await MCPHub.shared.toolDefinitions(for: ctx.mcpServerConfigs)
+        let mcpTools = mcpLoad.definitions
+        let mcpRoutes = mcpLoad.routes
         let (builtinTools, builtinRoutes) = await BuiltinSearchToolHub.shared.toolDefinitions(
             for: ctx.controlsToUse,
             useBuiltinSearch: ctx.shouldOfferBuiltinSearch
@@ -59,6 +61,7 @@ extension ChatStreamingOrchestrator {
             requestControls: requestControls,
             allTools: allTools,
             mcpRoutes: mcpRoutes,
+            mcpFailures: mcpLoad.failures,
             builtinRoutes: builtinRoutes,
             maxToolIterations: 8
         )

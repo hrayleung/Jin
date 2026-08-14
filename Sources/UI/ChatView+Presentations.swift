@@ -4,16 +4,25 @@ extension ChatView {
 
     @MainActor
     func presentError(_ message: String) {
-        errorMessage = message
-        showingError = true
+        presentedActionError = .from(message: message)
+    }
+
+    @MainActor
+    func presentError(_ error: Error) {
+        presentedActionError = .from(error: error)
+    }
+
+    @MainActor
+    func presentError(_ presentation: ChatActionErrorPresentation) {
+        presentedActionError = presentation
     }
 
     func chatPresentations<Content: View>(_ content: Content) -> some View {
         content
-            .alert("Couldn't complete chat action", isPresented: $showingError) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage ?? "Please try again.")
+            .sheet(item: $presentedActionError) { presentation in
+                ChatActionErrorSheet(presentation: presentation) {
+                    presentedActionError = nil
+                }
             }
             .fileImporter(
                 isPresented: $isFileImporterPresented,

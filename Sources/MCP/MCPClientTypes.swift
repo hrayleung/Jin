@@ -60,7 +60,7 @@ struct LaunchDiagnostics: Sendable {
     func formatted() -> String {
         var lines: [String] = []
         lines.append("Command:")
-        lines.append("\(executablePath) \(CommandLineTokenizer.render(args))")
+        lines.append("\(executablePath) \(CommandLineTokenizer.render(MCPDiagnosticRedaction.redactTokens(args)))")
         lines.append("Working directory:")
         lines.append(workingDirectory)
 
@@ -107,7 +107,12 @@ enum MCPClientError: Error, LocalizedError {
     case invalidCommand
     case environmentSetupFailed(message: String)
     case processLaunchFailed(command: String, underlying: Error)
-    case processExited(status: Int32, stderr: String?, diagnostics: LaunchDiagnostics?)
+    case processExited(
+        status: Int32,
+        reason: MCPProcessExitReason,
+        stderr: String?,
+        diagnostics: LaunchDiagnostics?
+    )
     case requestTimedOut(
         method: String,
         seconds: Double,
@@ -126,68 +131,12 @@ enum MCPClientError: Error, LocalizedError {
     )
 
     var errorDescription: String? {
-        switch self {
-        case .notRunning:
-            return "MCP server is not running."
-        case .executableNotFound(let command):
-            return "MCP server executable not found: \(command). If you installed it via Homebrew, make sure /opt/homebrew/bin is in PATH, or set a full path in Command."
-        case .invalidCommand:
-            return "Invalid MCP server command. Use the Command + Arguments fields (or paste a full command line into Command)."
-        case .environmentSetupFailed(let message):
-            return "Failed to set up MCP server environment.\n\n\(message)"
-        case .processLaunchFailed(let command, let underlying):
-            return "Failed to start MCP server (\(command)): \(underlying.localizedDescription)"
-        case .processExited(let status, let stderr, let diagnostics):
-            var message = "MCP server process exited (status: \(status))."
-            if let diagnostics {
-                message += "\n\n\(diagnostics.formatted())"
-            }
-            if let stderr, !stderr.isEmpty {
-                message += "\n\nstderr:\n\(stderr)"
-            }
-            return message
-        case .requestTimedOut(let method, let seconds, let transport, let stderr, let diagnostics, let httpDiagnostics):
-            var message = "MCP request timed out (\(method), \(transport.rawValue)) after \(Int(seconds))s."
+        MCPErrorPresentation.make(from: self).summaryAndHint
+    }
 
-            if let diagnostics {
-                message += "\n\n\(diagnostics.formatted())"
-            }
-
-            if let httpDiagnostics {
-                message += "\n\n\(httpDiagnostics.formatted())"
-            }
-
-            if let stderr, !stderr.isEmpty {
-                message += "\n\nstderr:\n\(stderr)"
-            }
-
-            if method == "initialize" {
-                switch transport {
-                case .stdio:
-                    message += "\n\nTip: If this server works in another client, compare the exact command line + env. Jin runs the command directly (no login shell), so tools installed via nvm/asdf/fnm may require using a wrapper script or running via /bin/zsh -lc."
-                    message += "\n\nIf you're using npx and it hangs without output, check your ~/.npmrc (e.g. custom prefix=) and consider setting HOME or NPM_CONFIG_USERCONFIG in the server env vars to isolate npm state."
-                case .http:
-                    message += "\n\nTip: Verify the endpoint URL and sign-in method. Hosted servers usually want Sign in with browser, or a Bearer token / API header."
-                }
-            }
-
-            return message
-        case .requestFailed(let method, let transport, let underlying, let stderr, let diagnostics, let httpDiagnostics):
-            var message = "MCP request failed (\(method), \(transport.rawValue)): \(underlying.localizedDescription)"
-
-            if let diagnostics {
-                message += "\n\n\(diagnostics.formatted())"
-            }
-
-            if let httpDiagnostics {
-                message += "\n\n\(httpDiagnostics.formatted())"
-            }
-
-            if let stderr, !stderr.isEmpty {
-                message += "\n\nstderr:\n\(stderr)"
-            }
-
-            return message
-        }
+    /// Redacted diagnostics for copy/paste. `errorDescription` stays short so
+    /// system alerts cannot dump API keys or a multi-page log.
+    var detailedDescription: String {
+        MCPErrorPresentation.make(from: self).fullText
     }
 }

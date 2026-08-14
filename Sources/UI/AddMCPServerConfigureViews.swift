@@ -330,9 +330,13 @@ struct AddMCPServerConfigureSection: View {
             labeledField("Arguments", prompt: "-y package-name", text: $args, monospaced: true)
 
             if MCPServerFormSupport.shouldShowNodeIsolationNote(command: command) {
-                Text("Node launchers run with an isolated HOME/cache to avoid ~/.npmrc conflicts.")
+                Text("Node launchers run with an isolated HOME/cache, and start in a temporary folder so ~/.npmrc is not treated as a project config.")
                     .font(.caption)
                     .foregroundStyle(JinSemanticColor.textSecondary)
+            }
+
+            MCPRemoteProxyHintView(command: command, argsText: args) { transport in
+                applyConvertedHTTP(transport)
             }
 
             EnvironmentVariablesEditor(pairs: $envPairs)
@@ -355,6 +359,22 @@ struct AddMCPServerConfigureSection: View {
                 EnvironmentVariablesEditor(pairs: $headerPairs)
             }
         }
+    }
+
+    private func applyConvertedHTTP(_ transport: MCPHTTPTransportConfig) {
+        let draft = MCPServerTransportDraftSupport.draft(from: .http(transport))
+        transportKind = draft.transportKind
+        command = draft.command
+        args = draft.argsText
+        envPairs = draft.envPairs
+        endpoint = draft.endpoint
+        headerPairs = draft.headerPairs
+        httpStreaming = draft.httpStreaming
+        let fields = draft.httpAuthentication.formFields
+        httpAuthKind = MCPHTTPAuthentication.FormKind.coerced(fields.kind, forEndpoint: draft.endpoint)
+        bearerToken = fields.bearerToken
+        authHeaderName = fields.headerName
+        authHeaderValue = fields.headerValue
     }
 
     private func labeledField(

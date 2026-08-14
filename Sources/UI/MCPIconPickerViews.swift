@@ -30,12 +30,9 @@ struct MCPIconPickerField: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, JinSpacing.medium - 2)
-            .padding(.vertical, JinSpacing.xSmall + 2)
-            .jinSurface(.neutral, cornerRadius: JinRadius.small)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("MCP server icon"))
         .accessibilityValue(Text(iconLabel))
