@@ -144,7 +144,7 @@ final class XAIResponsesRequestSupportTests: XCTestCase {
             input: [["role": "user", "content": []]],
             streaming: false,
             controls: GenerationControls(
-                reasoning: ReasoningControls(enabled: true, effort: .none)
+                reasoning: ReasoningControls(enabled: true, effort: ReasoningEffort.none)
             ),
             functionTools: [],
             supportsWebSearch: false,

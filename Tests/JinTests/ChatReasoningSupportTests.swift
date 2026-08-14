@@ -78,7 +78,7 @@ final class ChatReasoningSupportTests: XCTestCase {
                 selectedReasoningConfig: ModelReasoningConfig(type: .budget),
                 controls: GenerationControls(reasoning: ReasoningControls(enabled: true, budgetTokens: 1024))
             ),
-            "L"
+            "1024"
         )
         XCTAssertEqual(
             ChatReasoningSupport.reasoningBadgeText(
@@ -87,7 +87,7 @@ final class ChatReasoningSupportTests: XCTestCase {
                 selectedReasoningConfig: ModelReasoningConfig(type: .budget),
                 controls: GenerationControls(reasoning: ReasoningControls(enabled: true, budgetTokens: 4096))
             ),
-            "H"
+            "4096"
         )
         XCTAssertEqual(
             ChatReasoningSupport.reasoningBadgeText(
@@ -96,7 +96,16 @@ final class ChatReasoningSupportTests: XCTestCase {
                 selectedReasoningConfig: ModelReasoningConfig(type: .budget),
                 controls: GenerationControls(reasoning: ReasoningControls(enabled: true, budgetTokens: 10_000))
             ),
-            "On"
+            "10K"
+        )
+        XCTAssertEqual(
+            ChatReasoningSupport.reasoningBadgeText(
+                supportsReasoningControl: true,
+                isReasoningEnabled: true,
+                selectedReasoningConfig: ModelReasoningConfig(type: .budget),
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, budgetTokens: 8000))
+            ),
+            "8K"
         )
 
         XCTAssertEqual(
@@ -113,9 +122,45 @@ final class ChatReasoningSupportTests: XCTestCase {
                 supportsReasoningControl: true,
                 isReasoningEnabled: true,
                 selectedReasoningConfig: ModelReasoningConfig(type: .effort),
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .low))
+            ),
+            "Low"
+        )
+        XCTAssertEqual(
+            ChatReasoningSupport.reasoningBadgeText(
+                supportsReasoningControl: true,
+                isReasoningEnabled: true,
+                selectedReasoningConfig: ModelReasoningConfig(type: .effort),
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .medium))
+            ),
+            "Med"
+        )
+        XCTAssertEqual(
+            ChatReasoningSupport.reasoningBadgeText(
+                supportsReasoningControl: true,
+                isReasoningEnabled: true,
+                selectedReasoningConfig: ModelReasoningConfig(type: .effort),
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high))
+            ),
+            "High"
+        )
+        XCTAssertEqual(
+            ChatReasoningSupport.reasoningBadgeText(
+                supportsReasoningControl: true,
+                isReasoningEnabled: true,
+                selectedReasoningConfig: ModelReasoningConfig(type: .effort),
                 controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh))
             ),
-            "X"
+            "Ext"
+        )
+        XCTAssertEqual(
+            ChatReasoningSupport.reasoningBadgeText(
+                supportsReasoningControl: true,
+                isReasoningEnabled: true,
+                selectedReasoningConfig: ModelReasoningConfig(type: .effort),
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max))
+            ),
+            "Max"
         )
         XCTAssertNil(
             ChatReasoningSupport.reasoningBadgeText(

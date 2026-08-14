@@ -270,6 +270,7 @@ final class CodeBlockWheelTargetTests: XCTestCase {
         )
         let host = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 40))
         view.frame = host.bounds
+        view.autoresizingMask = [.width, .height]
         host.addSubview(view)
         // Off-window `NSTextView.hitTest` / `convert` is not reliable on the
         // GitHub-hosted AppKit (returns nil). The product path always has a
@@ -281,6 +282,7 @@ final class CodeBlockWheelTargetTests: XCTestCase {
             defer: false
         )
         window.contentView = host
+        view.frame = host.bounds
         host.layoutSubtreeIfNeeded()
         let hit = view.hitTest(NSPoint(x: 3, y: 20))
         XCTAssertTrue(

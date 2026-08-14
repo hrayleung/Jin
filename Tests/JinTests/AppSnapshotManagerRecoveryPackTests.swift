@@ -66,11 +66,13 @@ final class AppSnapshotManagerRecoveryPackTests: PreferencesSandboxedTestCase {
         let archiveURL = temporaryRoot.appendingPathComponent("roundtrip.jinbackup", isDirectory: false)
         try AppSnapshotManager.exportRecoveryArchive(to: archiveURL)
 
-        let mutatedContainer = try PersistenceContainerFactory.makeContainer()
-        let mutatedContext = ModelContext(mutatedContainer)
-        try mutatedContext.delete(model: ProviderConfigEntity.self)
-        try mutatedContext.delete(model: MCPServerConfigEntity.self)
-        try mutatedContext.save()
+        do {
+            let mutatedContainer = try PersistenceContainerFactory.makeContainer()
+            let mutatedContext = ModelContext(mutatedContainer)
+            try mutatedContext.delete(model: ProviderConfigEntity.self)
+            try mutatedContext.delete(model: MCPServerConfigEntity.self)
+            try mutatedContext.save()
+        }
         AppPreferencesSnapshotStore.applyPreferenceDictionary([
             AppPreferenceKeys.pluginWebSearchEnabled: false,
             AppPreferenceKeys.pluginWebSearchExaAPIKey: "different-key",
@@ -104,10 +106,12 @@ final class AppSnapshotManagerRecoveryPackTests: PreferencesSandboxedTestCase {
         let archiveURL = temporaryRoot.appendingPathComponent("autorun-mcp.jinbackup", isDirectory: false)
         try AppSnapshotManager.exportRecoveryArchive(to: archiveURL)
 
-        let mutatedContainer = try PersistenceContainerFactory.makeContainer()
-        let mutatedContext = ModelContext(mutatedContainer)
-        try mutatedContext.delete(model: MCPServerConfigEntity.self)
-        try mutatedContext.save()
+        do {
+            let mutatedContainer = try PersistenceContainerFactory.makeContainer()
+            let mutatedContext = ModelContext(mutatedContainer)
+            try mutatedContext.delete(model: MCPServerConfigEntity.self)
+            try mutatedContext.save()
+        }
 
         try AppSnapshotManager.queueImportArchiveForRestore(from: archiveURL)
         let restoredContainer = try readyContainerAfterStartupEvaluation()
