@@ -143,7 +143,7 @@ final class VertexAIModelSupportTests: XCTestCase {
     func testGemini36FlashAnd35FlashLiteAreKnownAndFullySupportedOnVertex() {
         let support = VertexAIModelSupport()
 
-        for id in ["gemini-3.6-flash", "gemini-3.5-flash-lite"] {
+        for id in ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"] {
             XCTAssertTrue(support.knownModels.contains { $0.id == id }, id)
             XCTAssertFalse(support.supportsImageGeneration(id), id)
             XCTAssertTrue(support.supportsFunctionCalling(id), id)
@@ -173,6 +173,23 @@ final class VertexAIModelSupportTests: XCTestCase {
         XCTAssertEqual(flashLite35.reasoningConfig?.defaultEffort, .minimal)
         XCTAssertTrue(flashLite35.capabilities.contains(.codeExecution))
         XCTAssertTrue(flashLite35.capabilities.contains(.nativePDF))
+
+        let flash37 = support.makeModelInfo(
+            id: "gemini-3.7-flash",
+            displayName: "Gemini 3.7 Flash",
+            contextWindow: 1_048_576
+        )
+        XCTAssertEqual(flash37.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertTrue(flash37.capabilities.contains(.audio))
+        XCTAssertTrue(flash37.capabilities.contains(.codeExecution))
+        XCTAssertTrue(flash37.capabilities.contains(.nativePDF))
+        XCTAssertFalse(flash37.capabilities.contains(.imageGeneration))
+
+        // MINIMAL is rejected by 3.7 Flash, so the Vertex effort mapper must never emit it.
+        XCTAssertEqual(support.mapEffortToVertexLevel(.minimal, modelID: "gemini-3.7-flash"), "LOW")
+        XCTAssertEqual(support.mapEffortToVertexLevel(.medium, modelID: "gemini-3.7-flash"), "MEDIUM")
+        XCTAssertEqual(support.mapEffortToVertexLevel(.high, modelID: "gemini-3.7-flash"), "HIGH")
+        XCTAssertFalse(GeminiModelConstants.supportsCustomSamplingParameters("gemini-3.7-flash"))
     }
 
     func testStableGemini31FlashLiteIsExposedForVertexAI() {

@@ -40,7 +40,7 @@ final class GeminiRequestSupportTests: XCTestCase {
     }
 
     func testGenerationConfigOmitsCustomSamplingForGemini36FlashAnd35FlashLite() {
-        for modelID in ["gemini-3.6-flash", "gemini-3.5-flash-lite"] {
+        for modelID in ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"] {
             let config = GeminiRequestSupport.generationConfig(
                 controls: GenerationControls(
                     temperature: 0.2,
@@ -77,6 +77,43 @@ final class GeminiRequestSupportTests: XCTestCase {
         )
         XCTAssertNil(config["temperature"])
         XCTAssertNil(config["topP"])
+    }
+
+    func testGenerationConfigNeverSendsMinimalThinkingLevelForGemini37Flash() throws {
+        // Docs (2026-08-13): thinking_level="MINIMAL" is an API validation error on 3.7 Flash,
+        // so a carried-over `.minimal`/`.none` selection must fold down to LOW on the wire.
+        for effort in [ReasoningEffort.minimal, .none] {
+            let config = GeminiRequestSupport.generationConfig(
+                controls: GenerationControls(
+                    reasoning: ReasoningControls(enabled: true, effort: effort)
+                ),
+                modelID: "gemini-3.7-flash"
+            )
+
+            let thinkingConfig = try XCTUnwrap(config["thinkingConfig"] as? [String: Any])
+            XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "LOW", "\(effort)")
+        }
+
+        // Reasoning switched off still has to pick a level the model accepts.
+        let disabled = GeminiRequestSupport.generationConfig(
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            modelID: "gemini-3.7-flash"
+        )
+        let disabledThinking = try XCTUnwrap(disabled["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(disabledThinking["thinkingLevel"] as? String, "LOW")
+    }
+
+    func testGenerationConfigSetsMediumThinkingLevelForGemini37Flash() throws {
+        let config = GeminiRequestSupport.generationConfig(
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .medium)
+            ),
+            modelID: "gemini-3.7-flash"
+        )
+
+        let thinkingConfig = try XCTUnwrap(config["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(thinkingConfig["includeThoughts"] as? Bool, true)
+        XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "MEDIUM")
     }
 
     func testGenerationConfigSetsMediumThinkingLevelForGemini36Flash() throws {

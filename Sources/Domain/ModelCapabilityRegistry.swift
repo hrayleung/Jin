@@ -128,6 +128,12 @@ enum ModelCapabilityRegistry {
         "gemini-3.6-flash",
     ]
 
+    /// Gemini 3.7 Flash supports LOW/MEDIUM/HIGH only — the model page states that
+    /// `thinking_level="MINIMAL"` returns an API validation error (verified 2026-08-13).
+    private static let gemini37FlashEffortModelIDs: Set<String> = [
+        "gemini-3.7-flash",
+    ]
+
     /// Gemini 3.1 Flash Image supports MINIMAL/HIGH.
     private static let gemini31FlashImageEffortModelIDs: Set<String> = [
         "gemini-3.1-flash-image",
@@ -164,6 +170,7 @@ enum ModelCapabilityRegistry {
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
+        "gemini-3.7-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -188,6 +195,7 @@ enum ModelCapabilityRegistry {
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
+        "gemini-3.7-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -211,6 +219,7 @@ enum ModelCapabilityRegistry {
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
+        "gemini-3.7-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -226,6 +235,7 @@ enum ModelCapabilityRegistry {
 
     /// Models documented by Google as supporting grounding with Google Maps in Gemini API.
     private static let geminiGoogleMapsSupportedModelIDs: Set<String> = [
+        "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
@@ -249,6 +259,7 @@ enum ModelCapabilityRegistry {
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
         "gemini-3-flash-preview",
+        "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
@@ -280,6 +291,7 @@ enum ModelCapabilityRegistry {
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
+        "gemini-3.7-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -300,6 +312,7 @@ enum ModelCapabilityRegistry {
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
+        "gemini-3.7-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -832,6 +845,7 @@ enum ModelCapabilityRegistry {
     private static func isKnownGeminiEffortPolicyModel(_ lowerModelID: String) -> Bool {
         gemini31FlashImageEffortModelIDs.contains(lowerModelID)
             || gemini3FlashEffortModelIDs.contains(lowerModelID)
+            || gemini37FlashEffortModelIDs.contains(lowerModelID)
             || gemini31ProEffortModelIDs.contains(lowerModelID)
             || gemini3ProLowHighEffortModelIDs.contains(lowerModelID)
     }
@@ -843,6 +857,9 @@ enum ModelCapabilityRegistry {
         }
         if gemini3FlashEffortModelIDs.contains(id) {
             return defaultGeminiReasoningEfforts
+        }
+        if gemini37FlashEffortModelIDs.contains(id) {
+            return defaultReasoningEfforts
         }
         if gemini31ProEffortModelIDs.contains(id) {
             return defaultReasoningEfforts

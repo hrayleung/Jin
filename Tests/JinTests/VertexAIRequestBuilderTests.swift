@@ -164,6 +164,31 @@ final class VertexAIRequestBuilderTests: XCTestCase {
         XCTAssertEqual(config["maxOutputTokens"] as? Int, 512)
     }
 
+    func testGenerationConfigForGemini37FlashOmitsSamplingAndNeverEmitsMinimal() throws {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let config = builder.makeGenerationConfig(
+            GenerationControls(
+                temperature: 0.1,
+                maxTokens: 512,
+                topP: 0.2,
+                reasoning: ReasoningControls(enabled: true, effort: .minimal)
+            ),
+            modelID: "gemini-3.7-flash"
+        )
+
+        XCTAssertNil(config["temperature"])
+        XCTAssertNil(config["topP"])
+        XCTAssertEqual(config["maxOutputTokens"] as? Int, 512)
+
+        let thinkingConfig = try XCTUnwrap(config["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "LOW")
+    }
+
     func testGenerationConfigOmitsCustomSamplingForPathQualifiedGemini36Flash() {
         let builder = VertexAIRequestBuilder(
             providerConfig: makeVertexProviderConfig(),
