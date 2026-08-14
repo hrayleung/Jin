@@ -124,30 +124,32 @@ extension ModelCatalog {
     // MARK: Perplexity
 
     static let perplexityRecords: [Record] = [
-        // Seeded (capabilities match DefaultProviderSeeds; nativePDF added per JinModelSupport)
+        // Seeded. `.nativePDF` is deliberately not claimed: the Perplexity adapter
+        // only speaks Chat Completions and text-fallbacks `.file` parts, so Native
+        // would send a filename stub.
         Record(id: "sonar", displayName: "Sonar",
-               capabilities: [.streaming, .vision, .nativePDF],
+               capabilities: [.streaming, .vision],
                contextWindow: 128_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
         Record(id: "sonar-pro", displayName: "Sonar Pro",
-               capabilities: [.streaming, .toolCalling, .vision, .nativePDF],
+               capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
         Record(id: "sonar-reasoning-pro", displayName: "Sonar Reasoning Pro",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         Record(id: "sonar-deep-research", displayName: "Sonar Deep Research",
-               capabilities: [.streaming, .toolCalling, .reasoning, .nativePDF],
+               capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         // Catalog-only
         Record(id: "sonar-reasoning", displayName: "Sonar Reasoning",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .nativePDF],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),

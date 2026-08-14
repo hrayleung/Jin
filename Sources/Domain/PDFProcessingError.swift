@@ -7,6 +7,7 @@ enum PDFProcessingError: Error, LocalizedError {
     case openRouterOCRAPIKeyMissing
     case firecrawlAPIKeyMissing
     case nativePDFNotSupported(modelName: String)
+    case pagesAsImagesNotSupported(modelName: String)
     case fileReadFailed(filename: String)
     case noTextExtracted(filename: String, method: String)
 
@@ -23,7 +24,9 @@ enum PDFProcessingError: Error, LocalizedError {
         case .firecrawlAPIKeyMissing:
             return "Firecrawl OCR API key is not configured. Set it in Settings → Plugins → Firecrawl OCR."
         case .nativePDFNotSupported(let modelName):
-            return "“\(modelName)” does not support native PDF reading. Choose Mistral OCR, MinerU OCR, DeepSeek OCR (DeepInfra), OpenRouter OCR, Firecrawl OCR, or macOS Extract in the PDF menu."
+            return "“\(modelName)” does not support native PDF reading. Choose Pages as images, Mistral OCR, MinerU OCR, DeepSeek OCR (DeepInfra), OpenRouter OCR, Firecrawl OCR, or macOS Extract in the PDF menu."
+        case .pagesAsImagesNotSupported(let modelName):
+            return "“\(modelName)” cannot receive PDF pages as images. Choose an OCR plugin or macOS Extract in the PDF menu."
         case .fileReadFailed(let filename):
             return "Failed to read “\(filename)”."
         case .noTextExtracted(let filename, let method):

@@ -129,6 +129,33 @@ extension ModelCatalog {
                maxOutputTokens: 32_768,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        // Gemini 2.5 text on AI Studio: vision yes, `.nativePDF` no. The Gemini
+        // adapter's nativePDFModelIDs is Gemini 3-only, so offering Native here
+        // would send a filename stub. Vertex keeps `.nativePDF` for the same IDs
+        // because that adapter can inline application/pdf.
+        Record(id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .codeExecution],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_535,
+               reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "gemini-2.5", displayName: "Gemini 2.5",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .codeExecution],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_535,
+               reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "gemini-2.5-flash-lite", displayName: "Gemini 2.5 Flash Lite",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .codeExecution],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_535,
+               reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
+               isFullySupported: true, isSeeded: false),
         // Catalog-only — shut-down previews (still resolve for persisted model IDs)
         Record(id: "gemini-3-pro-preview", displayName: "Gemini 3 Pro (Preview, Retired)",
                capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],

@@ -9,6 +9,8 @@ extension ChatModelCapabilitySupport {
         switch mode {
         case .native:
             return "Native"
+        case .pagesAsImages:
+            return "Pages"
         case .mistralOCR:
             return "Mistral"
         case .mineruOCR:
@@ -31,6 +33,8 @@ extension ChatModelCapabilitySupport {
         switch mode {
         case .native:
             return nil
+        case .pagesAsImages:
+            return "pgs"
         case .mistralOCR:
             return "Mist"
         case .mineruOCR:
@@ -59,6 +63,8 @@ extension ChatModelCapabilitySupport {
         switch mode {
         case .native:
             return "PDF handling: Native"
+        case .pagesAsImages:
+            return "PDF handling: Pages as images"
         case .mistralOCR:
             let detail = "Mistral \u{00B7} \(mistralOCRModelDisplayName)"
             return mistralOCRConfigured

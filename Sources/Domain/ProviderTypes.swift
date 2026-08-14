@@ -148,10 +148,11 @@ enum ProviderType: String, Codable, CaseIterable {
         }
     }
 
-    /// Providers that support native PDF file uploads (as opposed to OCR extraction).
+    /// Providers whose adapters can put `application/pdf` on the wire.
+    /// Perplexity is excluded: its Chat Completions path text-fallbacks files.
     var supportsNativePDFUpload: Bool {
         switch self {
-        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .perplexity, .xai, .gemini, .vertexai, .meta:
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .gemini, .vertexai, .meta:
             return true
         default:
             return false

@@ -108,7 +108,7 @@ final class ChatComposerSupportTests: XCTestCase {
         )
         XCTAssertEqual(
             ChatComposerSupport.fileAttachmentHelpText(supportsAudioInput: false, supportsNativePDF: false),
-            "Attach images / videos / documents (PDFs may use extraction/OCR)"
+            "Attach images / videos / documents (PDFs may use page images, extraction, or OCR)"
         )
         XCTAssertEqual(ChatComposerSupport.artifactsHelpText(isEnabled: true), "Artifacts enabled for new replies")
         XCTAssertEqual(ChatComposerSupport.artifactsHelpText(isEnabled: false), "Enable artifact generation for new replies")

@@ -36,6 +36,8 @@ extension ChatComposerSupport {
         let base = supportsAudioInput
             ? "Attach images / videos / audio / documents"
             : "Attach images / videos / documents"
-        return supportsNativePDF ? "\(base) (native PDF available)" : "\(base) (PDFs may use extraction/OCR)"
+        return supportsNativePDF
+            ? "\(base) (native PDF available)"
+            : "\(base) (PDFs may use page images, extraction, or OCR)"
     }
 }

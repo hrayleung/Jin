@@ -33,8 +33,7 @@ extension ChatMessagePreparationSupport {
         let includePageImages = profile.supportsVision
         // Render lazily, one page per OCR round-trip: rendering every page up
         // front held the whole document's JPEGs (up to 3 MB each) in memory
-        // for the full multi-minute run of sequential network calls. Only the
-        // (byte-capped) vision attachments below survive the loop. Re-opening
+        // for the full multi-minute run of sequential network calls. Re-opening
         // the document per page costs a few ms against a 120 s OCR call.
         let pageCount: Int = try {
             guard let document = PDFDocument(url: attachment.fileURL) else {
@@ -48,7 +47,9 @@ extension ChatMessagePreparationSupport {
         pageMarkdown.reserveCapacity(pageCount)
 
         var imageParts: [ContentPart] = []
-        var totalAttachedBytes = 0
+        if includePageImages {
+            imageParts.reserveCapacity(pageCount)
+        }
 
         for pageIndex in 0..<pageCount {
             try Task.checkCancellation()
@@ -67,13 +68,8 @@ extension ChatMessagePreparationSupport {
                 pageMarkdown.append(normalized)
             }
 
-            if includePageImages,
-               imageParts.count < AttachmentConstants.maxMistralOCRImagesToAttach {
-                let nextTotal = totalAttachedBytes + rendered.data.count
-                if nextTotal <= AttachmentConstants.maxMistralOCRTotalImageBytes {
-                    totalAttachedBytes = nextTotal
-                    imageParts.append(.image(ImageContent(mimeType: rendered.mimeType, data: rendered.data, url: nil)))
-                }
+            if includePageImages {
+                imageParts.append(.image(ImageContent(mimeType: rendered.mimeType, data: rendered.data, url: nil)))
             }
         }
 
@@ -87,11 +83,7 @@ extension ChatMessagePreparationSupport {
 
         var output = combined
         if includePageImages, !imageParts.isEmpty {
-            let omitted = max(0, pageCount - imageParts.count)
             output += "\n\n[Note: Attached \(imageParts.count) page image(s) for vision context.]"
-            if omitted > 0 {
-                output += "\n[Note: \(omitted) page image(s) omitted due to size limits.]"
-            }
         }
 
         output = output.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -33,6 +33,7 @@ extension ChatView {
         ChatModelCapabilitySupport.isPDFProcessingModeAvailable(
             mode,
             supportsNativePDF: supportsNativePDF,
+            supportsVision: supportsVision,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,
             deepSeekOCRPluginEnabled: deepSeekOCRPluginEnabled,
@@ -45,6 +46,7 @@ extension ChatView {
         ChatModelCapabilitySupport.resolvedPDFProcessingMode(
             controls: controls,
             supportsNativePDF: supportsNativePDF,
+            supportsVision: supportsVision,
             defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,

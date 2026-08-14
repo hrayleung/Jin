@@ -34,24 +34,12 @@ extension ChatMessagePreparationSupport {
         supportsMediaGenerationControl: Bool,
         resolvedModelSettings: ResolvedModelSettings?
     ) -> Bool {
-        guard !supportsMediaGenerationControl else { return false }
-        guard let providerType else { return false }
-
-        switch providerType {
-        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .perplexity, .xai, .gemini, .vertexai, .meta:
-            break
-        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
-             .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo,
-             .zyphra, .kimiForCoding:
-            return false
-        }
-
-        if resolvedModelSettings?.capabilities.contains(.nativePDF) == true {
-            return true
-        }
-
-        return JinModelSupport.supportsNativePDF(providerType: providerType, modelID: lowerModelID)
+        ChatModelCapabilitySupport.supportsNativePDF(
+            supportsMediaGenerationControl: supportsMediaGenerationControl,
+            providerType: providerType,
+            resolvedModelSettings: resolvedModelSettings,
+            lowerModelID: lowerModelID
+        )
     }
 
     static func messagePreparationProfile(
@@ -132,6 +120,7 @@ extension ChatMessagePreparationSupport {
         let pdfMode = ChatModelCapabilitySupport.resolvedPDFProcessingMode(
             controls: resolvedManagedControls,
             supportsNativePDF: nativePDFSupported,
+            supportsVision: supportsVision,
             defaultPDFProcessingFallbackMode: defaultPDFProcessingFallbackMode,
             mistralOCRPluginEnabled: mistralOCRPluginEnabled,
             mineruOCRPluginEnabled: mineruOCRPluginEnabled,

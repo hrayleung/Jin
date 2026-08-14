@@ -381,6 +381,7 @@ enum FirecrawlPDFParserMode: String, Codable, CaseIterable, Sendable {
 /// How to process PDF attachments before sending to the model.
 enum PDFProcessingMode: String, Codable, CaseIterable {
     case native
+    case pagesAsImages
     case mistralOCR
     case mineruOCR
     case deepSeekOCR
@@ -391,6 +392,7 @@ enum PDFProcessingMode: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .native: return "Native"
+        case .pagesAsImages: return "Pages as images"
         case .mistralOCR: return "Mistral OCR"
         case .mineruOCR: return "MinerU OCR"
         case .deepSeekOCR: return "DeepSeek OCR (DeepInfra)"
