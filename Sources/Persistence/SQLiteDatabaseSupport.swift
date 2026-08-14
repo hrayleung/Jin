@@ -63,12 +63,23 @@ enum SQLiteDatabaseSupport {
         }
     }
 
+    static func checkpointWAL(at databaseURL: URL) {
+        var database: OpaquePointer?
+        defer { sqlite3_close(database) }
+        guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else { return }
+        sqlite3_exec(database, "PRAGMA wal_checkpoint(TRUNCATE);", nil, nil, nil)
+    }
+
     static func quickCheck(at databaseURL: URL) -> SQLiteIntegrityResult {
         var database: OpaquePointer?
         defer { sqlite3_close(database) }
 
-        guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            return SQLiteIntegrityResult(passed: false, detail: message(for: database))
+        if sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) != SQLITE_OK {
+            sqlite3_close(database)
+            database = nil
+            guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+                return SQLiteIntegrityResult(passed: false, detail: message(for: database))
+            }
         }
 
         var statement: OpaquePointer?

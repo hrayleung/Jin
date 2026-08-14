@@ -40,11 +40,11 @@ extension AppSnapshotManager {
             throw SnapshotError.invalidSnapshot("Snapshot database is missing.")
         }
 
+        var changed = false
         do {
             let container = try PersistenceContainerFactory.makeContainer(storeURL: storeURL)
             let context = ModelContext(container)
             let servers = try context.fetch(FetchDescriptor<MCPServerConfigEntity>())
-            var changed = false
 
             for server in servers where server.isEnabled || server.runToolsAutomatically {
                 server.isEnabled = false
@@ -55,6 +55,10 @@ extension AppSnapshotManager {
             if changed {
                 try context.save()
             }
+        }
+
+        if changed {
+            SQLiteDatabaseSupport.checkpointWAL(at: storeURL)
         }
     }
 
