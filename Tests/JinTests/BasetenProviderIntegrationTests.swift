@@ -11,7 +11,7 @@ final class BasetenProviderIntegrationTests: XCTestCase {
 
     func testSeededModelsMatchOfficialCatalog() {
         let seeded = ModelCatalog.seededModels(for: .baseten)
-        XCTAssertEqual(seeded.count, 10)
+        XCTAssertEqual(seeded.count, 13)
         XCTAssertEqual(seeded.first?.id, "moonshotai/Kimi-K3")
 
         let expectedIDs = [
@@ -19,7 +19,10 @@ final class BasetenProviderIntegrationTests: XCTestCase {
             "moonshotai/Kimi-K2.7-Code",
             "moonshotai/Kimi-K2.6",
             "thinkingmachines/inkling",
+            "thinkingmachines/inkling-small",
             "deepseek-ai/DeepSeek-V4-Pro",
+            "deepseek-ai/DeepSeek-V4-Pro-0813",
+            "deepseek-ai/DeepSeek-V4-Flash-0731",
             "zai-org/GLM-5.2",
             "zai-org/GLM-5.2-Fast",
             "zai-org/GLM-4.7",
@@ -112,7 +115,7 @@ final class BasetenProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(config.type, .baseten)
         XCTAssertEqual(config.baseURL, "https://inference.baseten.co/v1")
         XCTAssertEqual(config.models.first?.id, "moonshotai/Kimi-K3")
-        XCTAssertEqual(config.models.count, 10)
+        XCTAssertEqual(config.models.count, 13)
 
         let adapter = BasetenAdapter(providerConfig: config, apiKey: "test-key")
         let baseURL = await adapter.baseURL
@@ -417,6 +420,105 @@ final class BasetenProviderIntegrationTests: XCTestCase {
             streaming: false
         )
         for try await _ in stream {}
+    }
+
+    // MARK: - DeepSeek V4 Pro 0813 / V4 Flash 0731 / Inkling Small / GLM 5.2 Fast fix
+
+    func testDeepSeekV4Pro0813CatalogAndEffort() {
+        let info = ModelCatalog.modelInfo(for: "deepseek-ai/DeepSeek-V4-Pro-0813", provider: .baseten)
+        XCTAssertEqual(info.name, "DeepSeek V4 Pro 0813")
+        XCTAssertEqual(info.contextWindow, 1_048_576)
+        XCTAssertEqual(info.maxOutputTokens, 262_144)
+        XCTAssertTrue(info.capabilities.contains(.toolCalling))
+        XCTAssertTrue(info.capabilities.contains(.reasoning))
+        XCTAssertFalse(info.capabilities.contains(.vision))
+        XCTAssertEqual(info.reasoningConfig?.type, .effort)
+        XCTAssertEqual(info.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "deepseek-ai/DeepSeek-V4-Pro-0813", provider: .baseten))
+
+        let efforts = ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: .baseten,
+            modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"
+        )
+        XCTAssertEqual(efforts, [.none, .low, .high, .max])
+    }
+
+    func testDeepSeekV4FlashCatalogAndEffort() {
+        let info = ModelCatalog.modelInfo(for: "deepseek-ai/DeepSeek-V4-Flash-0731", provider: .baseten)
+        XCTAssertEqual(info.name, "DeepSeek V4 Flash")
+        XCTAssertEqual(info.contextWindow, 1_048_576)
+        XCTAssertEqual(info.maxOutputTokens, 384_000)
+        XCTAssertTrue(info.capabilities.contains(.toolCalling))
+        XCTAssertTrue(info.capabilities.contains(.reasoning))
+        XCTAssertFalse(info.capabilities.contains(.vision))
+        XCTAssertEqual(info.reasoningConfig?.type, .effort)
+        XCTAssertEqual(info.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "deepseek-ai/DeepSeek-V4-Flash-0731", provider: .baseten))
+
+        let efforts = ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: .baseten,
+            modelID: "deepseek-ai/DeepSeek-V4-Flash-0731"
+        )
+        XCTAssertEqual(efforts, [.none, .minimal, .low, .medium, .high, .xhigh, .max])
+    }
+
+    func testInklingSmallCatalogAndEffort() {
+        let info = ModelCatalog.modelInfo(for: "thinkingmachines/inkling-small", provider: .baseten)
+        XCTAssertEqual(info.name, "Inkling Small")
+        XCTAssertEqual(info.contextWindow, 1_048_576)
+        XCTAssertEqual(info.maxOutputTokens, 32_768)
+        XCTAssertTrue(info.capabilities.contains(.vision))
+        XCTAssertTrue(info.capabilities.contains(.audio))
+        XCTAssertTrue(info.capabilities.contains(.reasoning))
+        XCTAssertEqual(info.reasoningConfig?.type, .effort)
+        XCTAssertEqual(info.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "thinkingmachines/inkling-small", provider: .baseten))
+
+        let efforts = ModelCapabilityRegistry.supportedReasoningEfforts(
+            for: .baseten,
+            modelID: "thinkingmachines/inkling-small"
+        )
+        XCTAssertEqual(efforts, [.none, .minimal, .low, .medium, .high, .xhigh, .max])
+    }
+
+    func testGLM52FastContextWindowCorrected() {
+        let info = ModelCatalog.modelInfo(for: "zai-org/GLM-5.2-Fast", provider: .baseten)
+        XCTAssertEqual(info.contextWindow, 1_048_576)
+    }
+
+    func testNewModelsMaxEffortProviderScoped() {
+        // V4 Pro 0813 and V4 Flash should support max effort on Baseten.
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .baseten,
+                modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"
+            )
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .baseten,
+                modelID: "deepseek-ai/DeepSeek-V4-Flash-0731"
+            )
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .baseten,
+                modelID: "thinkingmachines/inkling-small"
+            )
+        )
+        // Must not bleed to other providers.
+        XCTAssertFalse(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .together,
+                modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"
+            )
+        )
+        XCTAssertFalse(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .together,
+                modelID: "thinkingmachines/inkling-small"
+            )
+        )
     }
 }
 
