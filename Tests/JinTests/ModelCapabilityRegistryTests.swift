@@ -294,6 +294,24 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "glm-5.2"),
             [.high, .max]
         )
+        // GLM-5.3 official band is low/high/max (default max); not the 5.2 high/max pair.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "glm-5.3"),
+            [.low, .high, .max]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .zhipuCodingPlan, modelID: "glm-5.3"),
+            [.low, .high, .max]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .zhipuCodingPlan, modelID: "glm-5.3[1m]"),
+            [.low, .high, .max]
+        )
+        // Near-miss IDs must not inherit the 5.3 band.
+        XCTAssertNotEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "glm-5.3-custom"),
+            [.low, .high, .max]
+        )
     }
 
     func testResponsesOnlyReasoningControlsAreLimitedToNativeOpenAI() {

@@ -80,6 +80,12 @@ extension ContentView {
         if providerID == "deepseek", let deepseekChat = models.first(where: { $0.id == "deepseek-chat" }) {
             return deepseekChat.id
         }
+        if providerID == "zhipu-coding-plan", let glm53max = models.first(where: { $0.id.lowercased() == "glm-5.3[1m]" }) {
+            return glm53max.id
+        }
+        if providerID == "zhipu-coding-plan", let glm53 = models.first(where: { $0.id.lowercased() == "glm-5.3" }) {
+            return glm53.id
+        }
         if providerID == "zhipu-coding-plan", let glm52max = models.first(where: { $0.id.lowercased() == "glm-5.2[1m]" }) {
             return glm52max.id
         }
@@ -193,7 +199,7 @@ extension ContentView {
         "anthropic": "claude-opus-5",
         "xai": "grok-4.6",
         "deepseek": "deepseek-v4-pro",
-        "zhipu-coding-plan": "glm-5.2[1m]",
+        "zhipu-coding-plan": "glm-5.3[1m]",
         "kimi-for-coding": "k3",
         "minimax": "MiniMax-M2.7",
         "minimax-coding-plan": "MiniMax-M2.7",
@@ -202,7 +208,7 @@ extension ContentView {
         "together": "moonshotai/Kimi-K3",
         "baseten": "moonshotai/Kimi-K3",
         "modal": "moonshotai/Kimi-K3",
-        "opencode-go": "glm-5.2",
+        "opencode-go": "glm-5.3",
         "cerebras": "qwen-3-235b-a22b-instruct-2507",
         "sambanova": "MiniMax-M2.5",
         "databricks": "databricks-claude-sonnet-4-6",

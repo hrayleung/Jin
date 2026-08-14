@@ -90,10 +90,12 @@ enum OpenAICompatibleReasoningSupport {
             || providerConfig.type == .minimax
             || providerConfig.type == .minimaxCodingPlan
             || providerConfig.type == .mimoTokenPlanOpenAI {
-            let isDisabled = !reasoning.enabled || reasoning.effort == ReasoningEffort.none
-            body["thinking"] = [
-                "type": isDisabled ? "disabled" : "enabled"
-            ]
+            applyZhipuFamilyThinking(
+                to: &body,
+                reasoning: reasoning,
+                providerConfig: providerConfig,
+                modelID: modelID
+            )
             return false
         }
 
@@ -237,6 +239,74 @@ enum OpenAICompatibleReasoningSupport {
             var generationConfig = body["generationConfig"] as? [String: Any] ?? [:]
             generationConfig["thinkingConfig"] = thinkingConfig
             body["generationConfig"] = generationConfig
+        }
+    }
+
+    // MARK: - Zhipu / MiniMax / MiMo thinking
+
+    /// Zhipu Coding Plan, MiniMax, and MiMo Token Plan share the `thinking.type`
+    /// enabled/disabled envelope. GLM-5.3 additionally requires `reasoning_effort`
+    /// and rejects `thinking.type: disabled` (z.ai/blog/glm-5.3). GLM-5.2 takes
+    /// `reasoning_effort` high/max when thinking is on (docs.z.ai/devpack/latest-model).
+    private static func applyZhipuFamilyThinking(
+        to body: inout [String: Any],
+        reasoning: ReasoningControls,
+        providerConfig: ProviderConfig,
+        modelID: String
+    ) {
+        let lowerModelID = modelID.lowercased()
+        let isGLM53 = isZhipuGLM53ModelID(lowerModelID)
+        let isDisabled = !isGLM53 && (!reasoning.enabled || reasoning.effort == ReasoningEffort.none)
+
+        body["thinking"] = [
+            "type": isDisabled ? "disabled" : "enabled"
+        ]
+
+        guard providerConfig.type == .zhipuCodingPlan, !isDisabled else { return }
+
+        if isGLM53 {
+            let effort = glm53ReasoningEffortWireValue(from: reasoning)
+            body["reasoning_effort"] = effort
+            return
+        }
+
+        if isZhipuGLM52ModelID(lowerModelID) {
+            let effort = reasoning.effort ?? .high
+            body["reasoning_effort"] = (effort == .max || effort == .xhigh) ? "max" : "high"
+        }
+    }
+
+    private static func isZhipuGLM53ModelID(_ lowerModelID: String) -> Bool {
+        switch lowerModelID {
+        case "glm-5.3", "glm-5.3[1m]":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func isZhipuGLM52ModelID(_ lowerModelID: String) -> Bool {
+        switch lowerModelID {
+        case "glm-5.2", "glm-5.2[1m]":
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Official GLM-5.3 band is low/high/max. Disabled thinking is no longer
+    /// accepted and must be sent as `low` (z.ai/blog/glm-5.3).
+    private static func glm53ReasoningEffortWireValue(from reasoning: ReasoningControls) -> String {
+        if !reasoning.enabled || reasoning.effort == ReasoningEffort.none {
+            return "low"
+        }
+        switch reasoning.effort ?? .max {
+        case .none, .minimal, .low:
+            return "low"
+        case .medium, .high:
+            return "high"
+        case .xhigh, .max:
+            return "max"
         }
     }
 

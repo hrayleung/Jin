@@ -106,6 +106,9 @@ enum ModelSettingsResolver {
         if providerType == .opencodeGo {
             return !opencodeGoAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType == .zhipuCodingPlan {
+            return !zhipuAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
         if providerType == .meta {
             // Muse Spark's reasoning cannot be disabled (Meta docs: thinking
             // {type:"disabled"} / reasoning_effort "none" both return HTTP 400).
@@ -219,12 +222,22 @@ enum ModelSettingsResolver {
     /// reason: official DeepSeek thinking is on by default and only turns off with
     /// `thinking: {"type": "disabled"}`, but the Go gateway is a strict chat/completions
     /// proxy that rejects that extra field. Omitting `reasoning_effort` therefore leaves
-    /// thinking on, so the UI must not offer Off. GLM / Kimi / MiMo stay on the
-    /// provider-wide omit-to-disable convention.
+    /// thinking on, so the UI must not offer Off. GLM-5.3 rejects `thinking.type:
+    /// disabled` (z.ai/blog/glm-5.3); disable is converted to `low`. Other GLM / Kimi /
+    /// MiMo stay on the provider-wide omit-to-disable convention.
     private static let opencodeGoAlwaysOnReasoningModelIDs: Set<String> = [
         "grok-4.5",
         "deepseek-v4-pro",
         "deepseek-v4-flash",
+        "glm-5.3",
+    ]
+
+    /// Zhipu / Z.AI Coding Plan IDs whose thinking cannot be turned off. GLM-5.3
+    /// rejects `thinking.type: "disabled"` (z.ai/blog/glm-5.3); the coding-plan
+    /// endpoint converts that to `low`. Exact IDs only.
+    private static let zhipuAlwaysOnReasoningModelIDs: Set<String> = [
+        "glm-5.3",
+        "glm-5.3[1m]",
     ]
 
     /// OpenRouter models whose live /models metadata reports reasoning.mandatory=true

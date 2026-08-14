@@ -590,6 +590,23 @@ extension ModelCatalog {
     // MARK: Zhipu Coding Plan
 
     static let zhipuCodingPlanRecords: [Record] = [
+        // GLM-5.3 is live on the Coding Plan for all tiers (docs.z.ai/devpack/latest-model,
+        // 2026-08-14; docs.bigmodel.cn/cn/guide/models/text/glm-5.3). Same two-ID scheme as
+        // 5.2: plain `glm-5.3` is the standard 200K window, `glm-5.3[1m]` opts into the
+        // full 1,000,000-token context. Official max output is 128K (131,072). Thinking
+        // cannot be disabled; `reasoning_effort` is low/high/max (default max).
+        Record(id: "glm-5.3[1m]", displayName: "GLM-5.3 (1M)",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "glm-5.3", displayName: "GLM-5.3",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 200_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
         // Z.ai exposes GLM-5.2 via a two-ID scheme: plain `glm-5.2` runs the standard
         // 200K window, and `glm-5.2[1m]` opts into the full 1,000,000-token context.
         // Both take `reasoning_effort` (high/max). https://docs.z.ai/devpack/latest-model
@@ -1186,10 +1203,19 @@ extension ModelCatalog {
     // MARK: OpenCode Go
 
     static let opencodeGoRecords: [Record] = [
-        // GLM-5.2 leads OpenCode Go's GLM line (verified on models.dev `opencode-go` and
-        // opencode.ai/docs/go): 1M context, 131K output, reasoning via OpenAI-style
-        // reasoning_effort on the OpenAI-compatible /chat/completions endpoint. Seeded
-        // first so it is OpenCode Go's first-launch default (preferredModelID = models.first).
+        // GLM-5.3 leads OpenCode Go's GLM line (verified on models.dev `opencode-go` and
+        // opencode.ai/docs/go, 2026-08-14): 1M context, 131K output, reasoning via
+        // OpenAI-style reasoning_effort on /chat/completions. Official Z.ai band is
+        // low/high/max (default max); thinking cannot be disabled. Seeded first so it
+        // is OpenCode Go's first-launch default (preferredModelID = models.first).
+        Record(id: "glm-5.3", displayName: "GLM-5.3",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
+        // GLM-5.2 stays on the Go line (1M / 131K, high/max effort). Seeded after 5.3
+        // so the first-launch default is the current flagship.
         Record(id: "glm-5.2", displayName: "GLM-5.2",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_000_000,
@@ -1355,7 +1381,7 @@ extension ModelCatalog {
         // `unsupportedVideoInputNotice` text block — the exact trap the qwen3.7-plus and
         // qwen3.5-plus records document. .promptCaching is not claimed either, matching every
         // other /messages-routed Qwen/MiniMax row (.opencodeGo supports neither explicit cache
-        // mode nor TTL in ChatAuxiliaryControlSupport). Seeded, but placed after glm-5.2 so
+        // mode nor TTL in ChatAuxiliaryControlSupport). Seeded, but placed after glm-5.3 so
         // OpenCode Go's first-launch default (preferredModelID = models.first) is unchanged.
         Record(id: "qwen3.8-max", displayName: "Qwen3.8 Max",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],

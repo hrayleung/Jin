@@ -393,9 +393,9 @@ final class ModelCatalogTests: XCTestCase {
         let hy3Preview = ModelCatalog.modelInfo(for: "hy3-preview", provider: .opencodeGo)
         XCTAssertEqual(hy3Preview.reasoningConfig?.defaultEffort, .high)
 
-        // All three are seeded, and glm-5.2 stays OpenCode Go's first-launch default.
+        // All three are seeded, and glm-5.3 is OpenCode Go's first-launch default.
         let seeded = ModelCatalog.seededModels(for: .opencodeGo)
-        XCTAssertEqual(seeded.first?.id, "glm-5.2")
+        XCTAssertEqual(seeded.first?.id, "glm-5.3")
         for id in ["gpt-5.6-luna", "grok-4.5", "hy3"] {
             XCTAssertTrue(seeded.contains(where: { $0.id == id }), "\(id) should be seeded")
             XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .opencodeGo), id)
@@ -445,9 +445,9 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "qwen3.8-max", provider: .opencodeGo))
         let seeded = ModelCatalog.seededModels(for: .opencodeGo)
         XCTAssertTrue(seeded.contains(where: { $0.id == "qwen3.8-max" }))
-        // Seeded, but not first: glm-5.2 stays OpenCode Go's first-launch default
+        // Seeded, but not first: glm-5.3 stays OpenCode Go's first-launch default
         // (preferredModelID = models.first).
-        XCTAssertEqual(seeded.first?.id, "glm-5.2")
+        XCTAssertEqual(seeded.first?.id, "glm-5.3")
 
         // Near-miss IDs must fall back to the conservative default entry, not prefix-match.
         for id in ["qwen3.8-max-preview", "qwen3.8-plus"] {
@@ -489,10 +489,10 @@ final class ModelCatalogTests: XCTestCase {
             [.high, .max]
         )
 
-        // GLM-5.2 is the seeded flagship and therefore OpenCode Go's first-launch default
+        // GLM-5.3 is the seeded flagship and therefore OpenCode Go's first-launch default
         // (ChatModelSelectionSupport.preferredModelID returns models.first for .opencodeGo).
         let seeded = ModelCatalog.seededModels(for: .opencodeGo)
-        XCTAssertEqual(seeded.first?.id, "glm-5.2")
+        XCTAssertEqual(seeded.first?.id, "glm-5.3")
 
         let unknown = ModelCatalog.modelInfo(
             for: "glm-5.2-custom",
@@ -814,6 +814,92 @@ final class ModelCatalogTests: XCTestCase {
 
         let vercelNano = ModelCatalog.modelInfo(for: "openai/gpt-5.4-nano", provider: .vercelAIGateway)
         XCTAssertEqual(vercelNano.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+    }
+
+    func testZhipuCodingPlanGLM53UsesOfficialTwoIDScheme() {
+        // Official Coding Plan docs (docs.z.ai/devpack/latest-model, 2026-08-14) keep the
+        // two-ID 200K / 1M scheme. BigModel lists 1M / 128K as the model ceiling.
+        let glm53max = ModelCatalog.modelInfo(for: "glm-5.3[1m]", provider: .zhipuCodingPlan)
+        XCTAssertEqual(glm53max.name, "GLM-5.3 (1M)")
+        XCTAssertEqual(glm53max.contextWindow, 1_000_000)
+        XCTAssertEqual(glm53max.maxOutputTokens, 131_072)
+        XCTAssertTrue(glm53max.capabilities.contains(.streaming))
+        XCTAssertTrue(glm53max.capabilities.contains(.toolCalling))
+        XCTAssertTrue(glm53max.capabilities.contains(.reasoning))
+        XCTAssertTrue(glm53max.capabilities.contains(.promptCaching))
+        XCTAssertFalse(glm53max.capabilities.contains(.vision))
+        XCTAssertEqual(glm53max.reasoningConfig?.type, .effort)
+        XCTAssertEqual(glm53max.reasoningConfig?.defaultEffort, .max)
+
+        let glm53 = ModelCatalog.modelInfo(for: "glm-5.3", provider: .zhipuCodingPlan)
+        XCTAssertEqual(glm53.name, "GLM-5.3")
+        XCTAssertEqual(glm53.contextWindow, 200_000)
+        XCTAssertEqual(glm53.maxOutputTokens, 131_072)
+        XCTAssertEqual(glm53.reasoningConfig?.defaultEffort, .max)
+
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .zhipuCodingPlan, modelID: "glm-5.3"),
+            [.low, .high, .max]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .zhipuCodingPlan, modelID: "glm-5.3[1m]"),
+            [.low, .high, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .zhipuCodingPlan, modelID: "glm-5.3"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .zhipuCodingPlan, modelID: "glm-5.3[1m]"))
+        // Older GLM IDs stay toggleable.
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .zhipuCodingPlan, modelID: "glm-5.2"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .zhipuCodingPlan, modelID: "glm-5"))
+
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "glm-5.3", provider: .zhipuCodingPlan))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "glm-5.3[1m]", provider: .zhipuCodingPlan))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "glm-5.3-custom", provider: .zhipuCodingPlan))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "glm-5.3-preview", provider: .zhipuCodingPlan))
+
+        let seeded = ModelCatalog.seededModels(for: .zhipuCodingPlan)
+        XCTAssertEqual(seeded.first?.id, "glm-5.3[1m]")
+        XCTAssertTrue(seeded.contains(where: { $0.id == "glm-5.3" }))
+
+        let unknown = ModelCatalog.modelInfo(for: "glm-5.3-custom", provider: .zhipuCodingPlan)
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testOpenCodeGoGLM53CatalogUsesExactProviderIDs() {
+        // models.dev `opencode-go` + opencode.ai/docs/go (2026-08-14): glm-5.3,
+        // 1M context / 131K output, /chat/completions, low/high/max effort.
+        let glm53 = ModelCatalog.modelInfo(for: "glm-5.3", provider: .opencodeGo)
+        XCTAssertEqual(glm53.name, "GLM-5.3")
+        XCTAssertEqual(glm53.contextWindow, 1_000_000)
+        XCTAssertEqual(glm53.maxOutputTokens, 131_072)
+        XCTAssertTrue(glm53.capabilities.contains(.streaming))
+        XCTAssertTrue(glm53.capabilities.contains(.toolCalling))
+        XCTAssertTrue(glm53.capabilities.contains(.reasoning))
+        XCTAssertFalse(glm53.capabilities.contains(.vision))
+        XCTAssertFalse(glm53.capabilities.contains(.promptCaching))
+        XCTAssertEqual(glm53.reasoningConfig?.type, .effort)
+        XCTAssertEqual(glm53.reasoningConfig?.defaultEffort, .max)
+
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "glm-5.3"),
+            [.low, .high, .max]
+        )
+        // GLM-5.2 keeps its high/max-only band.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "glm-5.2"),
+            [.high, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "glm-5.3"))
+
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "glm-5.3", provider: .opencodeGo))
+        XCTAssertEqual(ModelCatalog.seededModels(for: .opencodeGo).first?.id, "glm-5.3")
+
+        let unknown = ModelCatalog.modelInfo(for: "glm-5.3-custom", provider: .opencodeGo)
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "glm-5.3-custom", provider: .opencodeGo))
     }
 
     func testZhipuCodingPlanExactModelMetadataAndUnknownFallback() {
@@ -1795,8 +1881,8 @@ final class ModelCatalogTests: XCTestCase {
     }
 
     func testOpenCodeGoJune2026ModelsUseRegistryVerifiedMetadata() {
-        // Seed order stays load-bearing: GLM-5.2 remains the first-launch default.
-        XCTAssertEqual(ModelCatalog.seededModels(for: .opencodeGo).first?.id, "glm-5.2")
+        // Seed order stays load-bearing: GLM-5.3 remains the first-launch default.
+        XCTAssertEqual(ModelCatalog.seededModels(for: .opencodeGo).first?.id, "glm-5.3")
 
         let kimiK27Code = ModelCatalog.modelInfo(for: "kimi-k2.7-code", provider: .opencodeGo)
         XCTAssertEqual(kimiK27Code.name, "Kimi K2.7 Code")

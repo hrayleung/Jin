@@ -4,7 +4,7 @@ extension OpenCodeGoAdapter {
     func validateAPIKey(_ key: String) async throws -> Bool {
         let modelID = providerConfig.models.first?.id
             ?? ModelCatalog.seededModels(for: .opencodeGo).first?.id
-            ?? "glm-5"
+            ?? "glm-5.3"
 
         let body: [String: Any] = [
             "model": modelID,

@@ -561,6 +561,41 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
     }
 
+    func testZhipuCodingPlanGLM53LegacyPersistedModelUsesCatalogEffortAndAlwaysOn() {
+        let legacyModel = ModelInfo(
+            id: "glm-5.3",
+            name: "glm-5.3",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .zhipuCodingPlan)
+        XCTAssertEqual(resolved.contextWindow, 200_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolved.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .max)
+        XCTAssertFalse(resolved.reasoningCanDisable)
+        XCTAssertEqual(resolved.requestShape, .openAICompatible)
+
+        let oneMillion = ModelSettingsResolver.resolve(
+            model: ModelInfo(
+                id: "glm-5.3[1m]",
+                name: "glm-5.3[1m]",
+                capabilities: [.streaming],
+                contextWindow: 128_000,
+                isEnabled: true
+            ),
+            providerType: .zhipuCodingPlan
+        )
+        XCTAssertEqual(oneMillion.contextWindow, 1_000_000)
+        XCTAssertEqual(oneMillion.maxOutputTokens, 131_072)
+        XCTAssertFalse(oneMillion.reasoningCanDisable)
+    }
+
     func testZhipuCodingPlanUsesOpenAICompatibleRequestShapeAndCatalogReasoningFallback() {
         let legacyModel = ModelInfo(
             id: "glm-5",
@@ -1353,6 +1388,9 @@ final class ModelSettingsResolverTests: XCTestCase {
         // omit-to-disable convention.
         XCTAssertTrue(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "glm-5.2")
+        )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "glm-5.3")
         )
         XCTAssertTrue(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "hy3")

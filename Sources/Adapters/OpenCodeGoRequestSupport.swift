@@ -58,7 +58,19 @@ extension OpenCodeGoAdapter {
         // `reasoning_effort` STRING instead. These models (GLM, DeepSeek, Kimi, MiMo) reason
         // by default, so to disable we omit the field entirely rather than send an
         // unsupported value — `reasoning_content` still streams back in the response.
-        if let reasoning = controls.reasoning,
+        // GLM-5.3 is the exception: thinking cannot be disabled (z.ai/blog/glm-5.3), so
+        // a disabled/legacy Off control is sent as `low` rather than omitted.
+        if modelID.lowercased() == "glm-5.3" {
+            let effort: ReasoningEffort
+            if let reasoning = controls.reasoning, reasoning.enabled, let requested = reasoning.effort, requested != ReasoningEffort.none {
+                effort = requested
+            } else if let reasoning = controls.reasoning, !reasoning.enabled || reasoning.effort == ReasoningEffort.none {
+                effort = .low
+            } else {
+                effort = .max
+            }
+            body["reasoning_effort"] = mapReasoningEffort(effort, modelID: modelID)
+        } else if let reasoning = controls.reasoning,
            reasoning.enabled,
            let effort = reasoning.effort,
            effort != .none {
@@ -142,6 +154,18 @@ extension OpenCodeGoAdapter {
 
     private func mapReasoningEffort(_ effort: ReasoningEffort, modelID: String) -> String {
         switch modelID.lowercased() {
+        case "glm-5.3":
+            // Official GLM-5.3 band is low/high/max (default max). Disabled thinking is
+            // no longer supported and maps to `low` (z.ai/blog/glm-5.3). Medium is not a
+            // valid wire value — fold it to high.
+            switch effort {
+            case .none, .minimal, .low:
+                return "low"
+            case .medium, .high:
+                return "high"
+            case .xhigh, .max:
+                return "max"
+            }
         case "glm-5.2":
             // GLM-5.2 exposes only `high` and `max` (its native default). Honor `max` rather
             // than clamping it to `high` like the shared none/low/medium/high mapping does,

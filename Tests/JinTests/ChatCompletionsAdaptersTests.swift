@@ -2260,6 +2260,83 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenCodeGoAdapterSendsLowHighMaxReasoningEffortForGLM53() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        let cases: [(ReasoningEffort, String)] = [
+            (.low, "low"),
+            (.medium, "high"),
+            (.high, "high"),
+            (.max, "max"),
+        ]
+
+        for (effort, expected) in cases {
+            protocolType.requestHandler = { request in
+                XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(root["model"] as? String, "glm-5.3")
+                XCTAssertEqual(root["reasoning_effort"] as? String, expected)
+                XCTAssertNil(root["reasoning"])
+                XCTAssertNil(root["thinking"])
+
+                let response: [String: Any] = [
+                    "id": "cmpl_opencode_glm53",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    try JSONSerialization.data(withJSONObject: response)
+                )
+            }
+
+            let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: "glm-5.3",
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort)),
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+    }
+
+    func testOpenCodeGoAdapterMapsDisabledGLM53ThinkingToLowEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            // Official GLM-5.3 rejects thinking.type=disabled; Off must become low.
+            XCTAssertEqual(root["reasoning_effort"] as? String, "low")
+            XCTAssertNil(root["thinking"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_glm53_off",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "glm-5.3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
     func testOpenCodeGoAdapterDropsProviderSpecificReasoningObject() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -2463,7 +2540,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     func testOpenCodeGoEndpointRoutingMatrixMatchesPublishedDocsTable() {
         // opencode.ai/docs/go publishes a per-model endpoint table. Every model must land on
         // exactly one of the three routes, matched by exact ID.
-        for id in ["grok-4.5", "hy3", "glm-5.2", "glm-5.1", "kimi-k3", "kimi-k2.7-code",
+        for id in ["grok-4.5", "hy3", "glm-5.3", "glm-5.2", "glm-5.1", "kimi-k3", "kimi-k2.7-code",
                    "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "mimo-v2.5", "mimo-v2.5-pro"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /chat/completions")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /chat/completions")
@@ -2733,6 +2810,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             )
         }
         XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("glm-5.2"))
+        XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("glm-5.3"))
         XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("grok-4.5"))
         // Unknown kimi-* IDs must not prefix-match into the fixed-temp set.
         XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("kimi-k4"))
@@ -6719,6 +6797,91 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             streaming: false
         )
 
+        for try await _ in stream {}
+    }
+
+    func testZhipuCodingPlanAdapterSendsThinkingAndReasoningEffortForGLM53() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "zhipu-coding-plan",
+            name: "Zhipu Coding Plan",
+            type: .zhipuCodingPlan,
+            apiKey: "ignored",
+            baseURL: "https://open.bigmodel.cn/api/coding/paas/v4",
+            models: ModelCatalog.seededModels(for: .zhipuCodingPlan)
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "glm-5.3")
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "max")
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_zhipu_glm53",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "glm-5.3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testZhipuCodingPlanAdapterNeverDisablesThinkingForGLM53() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "zhipu-coding-plan",
+            name: "Zhipu Coding Plan",
+            type: .zhipuCodingPlan,
+            apiKey: "ignored",
+            baseURL: "https://open.bigmodel.cn/api/coding/paas/v4"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "low")
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_zhipu_glm53_off",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "glm-5.3[1m]",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false, effort: ReasoningEffort.none)),
+            tools: [],
+            streaming: false
+        )
         for try await _ in stream {}
     }
 
