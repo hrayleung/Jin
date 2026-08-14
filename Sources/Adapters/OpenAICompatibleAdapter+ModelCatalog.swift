@@ -30,7 +30,8 @@ extension OpenAICompatibleAdapter {
             // MiniMax's GET /v1/models exists but a Token Plan key may be billing-scoped to a
             // subset of models (and the listing can fail transiently), so fall back to the
             // bundled catalog instead of leaving the user with an empty model list.
-            if providerConfig.type == .minimax || providerConfig.type == .minimaxCodingPlan {
+            if providerConfig.type == .minimax || providerConfig.type == .minimaxCodingPlan
+                || providerConfig.type == .zhipuCodingPlan {
                 let fallback = bundledCatalogModels()
                 if !fallback.isEmpty { return fallback }
             }

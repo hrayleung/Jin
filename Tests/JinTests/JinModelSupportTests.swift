@@ -113,8 +113,11 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testZhipuCodingPlanUsesExactMatchForFullySupportedTag() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5.3[1m]"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-4.7"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5.3-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-4.7-custom"))
     }
 
@@ -313,6 +316,13 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.2"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.2-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.2-preview"))
+    }
+
+    func testOpenCodeGoGLM53ModelUsesExactFullySupportedIDs() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.3"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.3-custom"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.3-preview"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.3[1m]"))
     }
 
     func testOpenCodeGoAugust2026ModelsUseExactFullySupportedIDs() {

@@ -397,6 +397,20 @@ enum ModelCapabilityRegistry {
     private static let opencodeGoGLMHighMaxReasoningEffortModelIDs: Set<String> = [
         "glm-5.2",
     ]
+    /// GLM-5.3 official band is `low`/`high`/`max` (default `max`). Thinking cannot
+    /// be disabled — `thinking.type: disabled` is rejected (z.ai/blog/glm-5.3).
+    /// Used on OpenCode Go (`glm-5.3`) and Zhipu / Z.AI Coding Plan (`glm-5.3`,
+    /// `glm-5.3[1m]`). Exact IDs only.
+    private static let glm53LowHighMaxReasoningEffortModelIDs: Set<String> = [
+        "glm-5.3",
+        "glm-5.3[1m]",
+    ]
+    /// Zhipu / Z.AI Coding Plan GLM-5.2 IDs: `reasoning_effort` is high/max only,
+    /// matching the OpenCode Go 5.2 band and docs.z.ai/devpack/latest-model.
+    private static let zhipuGLM52HighMaxReasoningEffortModelIDs: Set<String> = [
+        "glm-5.2",
+        "glm-5.2[1m]",
+    ]
     /// OpenCode Go's Tencent Hy3 line accepts only `low`/`high` — `medium` is not a valid
     /// value (models.dev `opencode-go` reasoning_options for `hy3`, and OpenRouter's live
     /// supported_efforts for `tencent/hy3`, agree). `none` is expressed by disabling
@@ -799,10 +813,16 @@ enum ModelCapabilityRegistry {
             return [.high, .max]
         case .opencodeGo where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
+        case .opencodeGo where glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
         case .opencodeGo where opencodeGoGLMHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
         case .opencodeGo where opencodeGoHy3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high]
+        case .zhipuCodingPlan where glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
+        case .zhipuCodingPlan where zhipuGLM52HighMaxReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high, .max]
         case .meta:
             // Muse Spark accepts minimal..xhigh ("none" returns HTTP 400 and is handled
             // by omitting the field; "max" is not accepted).
