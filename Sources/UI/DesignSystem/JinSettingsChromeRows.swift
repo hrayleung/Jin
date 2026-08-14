@@ -15,6 +15,7 @@ struct JinSettingsTextField: View {
     @Binding var text: String
     var usesMonospacedFont = false
 
+    @Environment(\.jinSettingsFieldChrome) private var fieldChrome
     @State private var draft = ""
     @State private var lastPushedValue: String?
 
@@ -66,7 +67,7 @@ struct JinSettingsTextField: View {
         TextField("", text: $draft, prompt: promptText)
             .labelsHidden()
             .multilineTextAlignment(.leading)
-            .textFieldStyle(.roundedBorder)
+            .jinSettingsTextFieldStyle(fieldChrome)
             .frame(maxWidth: .infinity, alignment: .leading)
             .lineLimit(1)
             .truncationMode(.tail)

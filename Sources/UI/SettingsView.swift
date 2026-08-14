@@ -241,9 +241,7 @@ struct SettingsView: View {
         .background {
             JinSemanticColor.detailSurface.ignoresSafeArea()
         }
-        // No `toolbarBackground` override: now that Settings keeps a real
-        // titlebar, tinting it would paint one opaque strip straight across the
-        // sidebar's material — the same mismatch this pass is removing.
+        .toolbar(.hidden, for: .automatic)
         .navigationSplitViewColumnWidth(min: 500, ideal: 620, max: 820)
     }
 
@@ -334,6 +332,10 @@ struct SettingsView: View {
     ) -> some View {
         content()
             .id(id)
+            // Applied after the child's `navigationTitle` so a ScrollView
+            // detail (MCP) cannot reopen the empty toolbar row that Form
+            // pages no longer show.
+            .toolbar(.hidden, for: .automatic)
     }
 
     @ViewBuilder
@@ -341,5 +343,6 @@ struct SettingsView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         content()
+            .toolbar(.hidden, for: .automatic)
     }
 }

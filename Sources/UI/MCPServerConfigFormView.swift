@@ -36,63 +36,70 @@ struct MCPServerConfigFormView: View {
     @State private var lastPersistedTransport: MCPTransportConfig?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: JinSpacing.large) {
-                if let configError {
-                    Text(configError)
-                        .jinInlineErrorText()
-                }
-
-                heroCard
-                identityCard
-                connectionCard
-
-                if transportKind == .http {
-                    JinSettingsCard {
-                        MCPHTTPAuthViews(
-                            serverID: server.id,
-                            endpoint: endpoint,
-                            httpAuthKind: $httpAuthKind,
-                            bearerToken: $bearerToken,
-                            authHeaderName: $authHeaderName,
-                            authHeaderValue: $authHeaderValue,
-                            isBearerTokenVisible: $isBearerTokenVisible,
-                            isHeaderValueVisible: $isHeaderValueVisible,
-                            authenticationError: httpAuthenticationValidationError
-                        )
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: JinSpacing.large) {
+                    if let configError {
+                        Text(configError)
+                            .jinInlineErrorText()
                     }
-                }
 
-                if transportKind == .stdio {
-                    environmentCard
-                }
+                    heroCard
+                    identityCard
+                    connectionCard
 
-                MCPServerToolsSection(
-                    verifying: verifying,
-                    hasTransportValidationError: hasTransportValidationError,
-                    verifyError: verifyError,
-                    tools: tools,
-                    isToolEnabled: { tool in
-                        !disabledTools.contains(tool.name)
-                    },
-                    onVerify: verifyTools,
-                    onHide: {
-                        tools = []
-                        verifyError = nil
-                    },
-                    onSetToolEnabled: setToolEnabled,
-                    onViewSchema: { tool in
-                        schemaPresentedTool = tool
+                    if transportKind == .http {
+                        JinSettingsCard {
+                            MCPHTTPAuthViews(
+                                serverID: server.id,
+                                endpoint: endpoint,
+                                httpAuthKind: $httpAuthKind,
+                                bearerToken: $bearerToken,
+                                authHeaderName: $authHeaderName,
+                                authHeaderValue: $authHeaderValue,
+                                isBearerTokenVisible: $isBearerTokenVisible,
+                                isHeaderValueVisible: $isHeaderValueVisible,
+                                authenticationError: httpAuthenticationValidationError
+                            )
+                        }
                     }
-                )
+
+                    if transportKind == .stdio {
+                        environmentCard
+                    }
+
+                    MCPServerToolsSection(
+                        verifying: verifying,
+                        hasTransportValidationError: hasTransportValidationError,
+                        verifyError: verifyError,
+                        tools: tools,
+                        isToolEnabled: { tool in
+                            !disabledTools.contains(tool.name)
+                        },
+                        onVerify: verifyTools,
+                        onHide: {
+                            tools = []
+                            verifyError = nil
+                        },
+                        onSetToolEnabled: setToolEnabled,
+                        onViewSchema: { tool in
+                            schemaPresentedTool = tool
+                        }
+                    )
+                }
+                .frame(maxWidth: 720, alignment: .leading)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
-            .padding(JinSpacing.xLarge)
-            .frame(maxWidth: 720, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .top)
         }
-        .disabled(loading)
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .padding(JinSpacing.xLarge)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(JinSemanticColor.detailSurface)
-        .navigationTitle(server.name)
+        .disabled(loading)
+        .toolbar(.hidden, for: .automatic)
         .task {
             hydrateFromServer()
             await Task.yield()

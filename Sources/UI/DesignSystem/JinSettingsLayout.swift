@@ -1,5 +1,39 @@
 import SwiftUI
 
+/// How text/secure fields should sit inside a settings surface.
+///
+/// Grouped `Form` already draws the section card. A second Aqua
+/// `.roundedBorder` well punches a near-black hole through that card in dark
+/// mode. Card-based forms (`JinSettingsCard`) have no such card, so they keep
+/// the rounded well.
+enum JinSettingsFieldChrome: Equatable {
+    case roundedBorder
+    case plain
+}
+
+private struct JinSettingsFieldChromeKey: EnvironmentKey {
+    static let defaultValue = JinSettingsFieldChrome.roundedBorder
+}
+
+extension EnvironmentValues {
+    var jinSettingsFieldChrome: JinSettingsFieldChrome {
+        get { self[JinSettingsFieldChromeKey.self] }
+        set { self[JinSettingsFieldChromeKey.self] = newValue }
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func jinSettingsTextFieldStyle(_ chrome: JinSettingsFieldChrome) -> some View {
+        switch chrome {
+        case .plain:
+            textFieldStyle(.plain)
+        case .roundedBorder:
+            textFieldStyle(.roundedBorder)
+        }
+    }
+}
+
 struct JinSettingsPage<Content: View>: View {
     var maxWidth: CGFloat = 680
     var horizontalPadding: CGFloat = 28
@@ -23,6 +57,8 @@ struct JinSettingsPage<Content: View>: View {
             content()
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .environment(\.jinSettingsFieldChrome, .plain)
         .frame(maxWidth: maxWidth)
         .padding(.horizontal, horizontalPadding)
         .padding(.vertical, verticalPadding)
