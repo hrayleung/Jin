@@ -250,6 +250,39 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "bytedance/seedance-2.5-preview"))
     }
 
+    func testOpenRouterDots3NotePreviewUsesExactFullySupportedIDs() {
+        XCTAssertTrue(
+            JinModelSupport.isFullySupported(
+                providerType: .openrouter,
+                modelID: "dots-studio/dots-3-note-preview:free"
+            )
+        )
+        XCTAssertFalse(
+            JinModelSupport.isFullySupported(
+                providerType: .openrouter,
+                modelID: "dots-studio/dots-3-note-preview"
+            )
+        )
+        XCTAssertFalse(
+            JinModelSupport.isFullySupported(
+                providerType: .openrouter,
+                modelID: "dots-studio/dots-3-note-preview:free-custom"
+            )
+        )
+        XCTAssertFalse(
+            JinModelSupport.isFullySupported(
+                providerType: .openrouter,
+                modelID: "dots-studio/dots-3-note-preview-20260813"
+            )
+        )
+        XCTAssertFalse(
+            JinModelSupport.isFullySupported(
+                providerType: .openaiCompatible,
+                modelID: "dots-studio/dots-3-note-preview:free"
+            )
+        )
+    }
+
     func testVerifiedKimiK26ProvidersUseExactFullySupportedIDs() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "kimi-k2.6"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "kimi-k2.6-custom"))

@@ -331,6 +331,25 @@ extension ModelCatalog {
     // MARK: OpenRouter
 
     static let openRouterRecords: [Record] = [
+        // Dots Studio dots3-note preview (Xiaohongshu; verified against live OpenRouter
+        // /models + /endpoints, 2026-08-15, plus HF `dots-studio/dots3-note-prev` and
+        // studio.dots.ai). Only the live `:free` slug (AtlasCloud fp8) is catalogued —
+        // OpenRouter also documents `dots-studio/dots-3-note-preview`, but that ID has
+        // no endpoints, so it stays unsupported until a provider comes up. 512,000
+        // context / 512,000 max output. Input is text+image only on OpenRouter (the
+        // open weights also understand audio/video; do not claim those modalities on
+        // this gateway). Tools + structured outputs. Reasoning is optional
+        // (mandatory=false) and toggle-only: supported_parameters list `reasoning` /
+        // `include_reasoning` but not `reasoning_effort`. No cached-input pricing /
+        // implicit cache. Official weights have no native-PDF contract on this
+        // gateway — adapter text-fallbacks files.
+        Record(id: "dots-studio/dots-3-note-preview:free", displayName: "Dots Studio: Dots3-Note Preview (Free)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 512_000,
+               maxOutputTokens: 512_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+
         // Meta Muse Spark (OpenRouter live /models, 2026-08-06): 1M context, always-on
         // reasoning (mandatory=true, minimal..xhigh). OpenRouter chat path still
         // text-fallbacks files — claim vision/reasoning/promptCaching only.

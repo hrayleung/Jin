@@ -1029,6 +1029,36 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolved.reasoningCanDisable)
     }
 
+    func testOpenRouterDots3NotePreviewLegacyPersistedModelUsesCatalogToggle() {
+        // Live OpenRouter metadata (2026-08-15): reasoning.mandatory=false, no
+        // effort band. A model fetched before the catalog landed would have been
+        // persisted with conservative 128k / no vision / inferred effort. The
+        // resolver must prefer the catalog so the composer shows a toggle and
+        // the adapter sends `{enabled: true}` instead of `{effort: "medium"}`.
+        let legacyModel = ModelInfo(
+            id: "dots-studio/dots-3-note-preview:free",
+            name: "Dots3-Note Preview",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .openrouter)
+        XCTAssertEqual(resolved.contextWindow, 512_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 512_000)
+        XCTAssertTrue(resolved.capabilities.contains(.vision))
+        XCTAssertTrue(resolved.capabilities.contains(.toolCalling))
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertFalse(resolved.capabilities.contains(.audio))
+        XCTAssertFalse(resolved.capabilities.contains(.promptCaching))
+        XCTAssertFalse(resolved.capabilities.contains(.nativePDF))
+        XCTAssertEqual(resolved.reasoningConfig?.type, .toggle)
+        XCTAssertNil(resolved.reasoningConfig?.defaultEffort)
+        XCTAssertTrue(resolved.reasoningCanDisable)
+        XCTAssertFalse(resolved.supportsWebSearch)
+    }
+
     func testOpenRouterInklingReasoningCanDisableByDefault() {
         // Inkling's reasoning is on by default but not mandatory (OpenRouter
         // reasoning.mandatory = false, verified 2026-07-18), so it stays disableable.

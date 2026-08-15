@@ -3127,6 +3127,104 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in disabledStream {}
     }
 
+    func testOpenRouterAdapterSendsToggleReasoningAndToolsForDots3NotePreview() async throws {
+        // OpenRouter's live dots3-note preview endpoint accepts reasoning / include_reasoning
+        // / tools / temperature / top_p, but not reasoning_effort (verified 2026-08-15).
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let stubResponse: [String: Any] = [
+            "id": "cmpl_or_dots3",
+            "choices": [
+                [
+                    "message": ["role": "assistant", "content": "OK"],
+                    "finish_reason": "stop"
+                ]
+            ]
+        ]
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/chat/completions")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "dots-studio/dots-3-note-preview:free")
+            XCTAssertEqual(root["include_reasoning"] as? Bool, true)
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["enabled"] as? Bool, true)
+            XCTAssertNil(reasoning["effort"])
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertEqual(root["temperature"] as? Double, 1.0)
+            XCTAssertEqual(root["top_p"] as? Double, 0.95)
+            XCTAssertEqual(root["max_tokens"] as? Int, 81_920)
+
+            let tools = try XCTUnwrap(root["tools"] as? [[String: Any]])
+            XCTAssertEqual(tools.count, 1)
+            let function = try XCTUnwrap(tools[0]["function"] as? [String: Any])
+            XCTAssertEqual(function["name"] as? String, "lookup_status")
+
+            let data = try JSONSerialization.data(withJSONObject: stubResponse)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let tool = ToolDefinition(
+            id: "tool_1",
+            name: "lookup_status",
+            description: "Lookup a project status.",
+            parameters: ParameterSchema(
+                properties: [
+                    "id": PropertySchema(type: "string", description: "Project ID")
+                ],
+                required: ["id"]
+            ),
+            source: .builtin
+        )
+
+        let enabledStream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "dots-studio/dots-3-note-preview:free",
+            controls: GenerationControls(
+                temperature: 1.0,
+                maxTokens: 81_920,
+                topP: 0.95,
+                reasoning: ReasoningControls(enabled: true)
+            ),
+            tools: [tool],
+            streaming: false
+        )
+        for try await _ in enabledStream {}
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "dots-studio/dots-3-note-preview:free")
+            XCTAssertEqual(root["include_reasoning"] as? Bool, false)
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["enabled"] as? Bool, false)
+            XCTAssertNil(reasoning["effort"])
+
+            let data = try JSONSerialization.data(withJSONObject: stubResponse)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let disabledStream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "dots-studio/dots-3-note-preview:free",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in disabledStream {}
+    }
+
     func testOpenRouterAdapterOmitsReasoningShapeForKimiK3() async throws {
         // Kimi K3 is reasoning-mandatory with a max-only effort, so its catalog
         // record keeps reasoningConfig nil: even when stale persisted controls carry
