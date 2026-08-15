@@ -118,6 +118,30 @@ final class AdapterRequestConstructionTests: XCTestCase {
                             ],
                         ],
                         [
+                            "id": "dots-studio/dots-3-note-preview:free",
+                            "name": "Dots Studio: Dots3-Note Preview (free)",
+                            "context_length": 512_000,
+                            "architecture": [
+                                "input_modalities": ["text", "image"],
+                                "output_modalities": ["text"],
+                            ],
+                            "supported_parameters": [
+                                "include_reasoning",
+                                "max_tokens",
+                                "reasoning",
+                                "response_format",
+                                "structured_outputs",
+                                "temperature",
+                                "tool_choice",
+                                "tools",
+                                "top_p",
+                            ],
+                            "top_provider": [
+                                "context_length": 512_000,
+                                "max_completion_tokens": 512_000,
+                            ],
+                        ],
+                        [
                             "id": "vendor/unknown-vision-reasoner",
                             "name": "Unknown Vision Reasoner",
                             "context_length": 321_000,
@@ -132,6 +156,16 @@ final class AdapterRequestConstructionTests: XCTestCase {
                             "pricing": [
                                 "input_cache_read": "0.00000001",
                             ],
+                        ],
+                        [
+                            "id": "vendor/unknown-effort-reasoner",
+                            "name": "Unknown Effort Reasoner",
+                            "context_length": 200_000,
+                            "architecture": [
+                                "input_modalities": ["text"],
+                                "output_modalities": ["text"],
+                            ],
+                            "supported_parameters": ["reasoning", "reasoning_effort", "tools"],
                         ],
                     ],
                 ]
@@ -174,6 +208,18 @@ final class AdapterRequestConstructionTests: XCTestCase {
         XCTAssertEqual(multiAgent.reasoningConfig?.type, .effort)
         XCTAssertEqual(multiAgent.reasoningConfig?.defaultEffort, .low)
 
+        let dots3 = try XCTUnwrap(byID["dots-studio/dots-3-note-preview:free"])
+        XCTAssertEqual(dots3.name, "Dots Studio: Dots3-Note Preview (Free)")
+        XCTAssertEqual(dots3.contextWindow, 512_000)
+        XCTAssertEqual(dots3.maxOutputTokens, 512_000)
+        XCTAssertTrue(dots3.capabilities.contains(.toolCalling))
+        XCTAssertTrue(dots3.capabilities.contains(.vision))
+        XCTAssertTrue(dots3.capabilities.contains(.reasoning))
+        XCTAssertFalse(dots3.capabilities.contains(.audio))
+        XCTAssertFalse(dots3.capabilities.contains(.promptCaching))
+        XCTAssertEqual(dots3.reasoningConfig?.type, .toggle)
+        XCTAssertNil(dots3.reasoningConfig?.defaultEffort)
+
         let unknown = try XCTUnwrap(byID["vendor/unknown-vision-reasoner"])
         XCTAssertEqual(unknown.name, "Unknown Vision Reasoner")
         XCTAssertEqual(unknown.contextWindow, 321_000)
@@ -182,7 +228,12 @@ final class AdapterRequestConstructionTests: XCTestCase {
         XCTAssertTrue(unknown.capabilities.contains(.vision))
         XCTAssertTrue(unknown.capabilities.contains(.reasoning))
         XCTAssertTrue(unknown.capabilities.contains(.promptCaching))
-        XCTAssertEqual(unknown.reasoningConfig?.type, .effort)
+        // `reasoning` without `reasoning_effort` is toggle-only on OpenRouter.
+        XCTAssertEqual(unknown.reasoningConfig?.type, .toggle)
+
+        let unknownEffort = try XCTUnwrap(byID["vendor/unknown-effort-reasoner"])
+        XCTAssertEqual(unknownEffort.reasoningConfig?.type, .effort)
+        XCTAssertEqual(unknownEffort.reasoningConfig?.defaultEffort, .medium)
     }
 
     func testOpenRouterAdapterFetchModelsMergesAsyncVideoModelsIntoSelectionResults() async throws {

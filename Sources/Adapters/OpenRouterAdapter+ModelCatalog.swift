@@ -86,9 +86,10 @@ extension OpenRouterAdapter {
             || outputModalities.contains(where: { $0.contains("image") || $0.contains("video") })
         let hasAudioLikeModalities = inputModalities.contains(where: { $0.contains("audio") })
             || outputModalities.contains(where: { $0.contains("audio") })
+        let supportsReasoningEffort = supportedParameters.contains("reasoning_effort")
         let supportsReasoning = supportedParameters.contains("reasoning")
             || supportedParameters.contains("include_reasoning")
-            || supportedParameters.contains("reasoning_effort")
+            || supportsReasoningEffort
         let outputsText = outputModalities.contains(where: { $0.contains("text") })
         let outputsImage = outputModalities.contains(where: { $0.contains("image") }) || lower.contains("image")
         let outputsVideo = outputModalities.contains(where: { $0.contains("video") }) || lower.contains("video")
@@ -124,9 +125,10 @@ extension OpenRouterAdapter {
             capabilities: caps,
             contextWindow: apiContextWindow ?? 128_000,
             maxOutputTokens: apiMaxOutputTokens,
-            reasoningConfig: (!isMediaOnlyModel && supportsReasoning)
-                ? ModelReasoningConfig(type: .effort, defaultEffort: .medium)
-                : nil
+            reasoningConfig: inferredOpenRouterReasoningConfig(
+                supportsReasoning: !isMediaOnlyModel && supportsReasoning,
+                supportsReasoningEffort: supportsReasoningEffort
+            )
         )
     }
 
@@ -157,6 +159,21 @@ extension OpenRouterAdapter {
     func positiveInt(_ value: Int?) -> Int? {
         guard let value, value > 0 else { return nil }
         return value
+    }
+
+    /// OpenRouter lists `reasoning` / `include_reasoning` for toggle-only models and
+    /// adds `reasoning_effort` only when an effort band exists. Guessing `.effort`
+    /// for the former sends `{ "reasoning": { "effort": "medium" } }`, which those
+    /// endpoints reject.
+    func inferredOpenRouterReasoningConfig(
+        supportsReasoning: Bool,
+        supportsReasoningEffort: Bool
+    ) -> ModelReasoningConfig? {
+        guard supportsReasoning else { return nil }
+        if supportsReasoningEffort {
+            return ModelReasoningConfig(type: .effort, defaultEffort: .medium)
+        }
+        return ModelReasoningConfig(type: .toggle)
     }
 }
 
