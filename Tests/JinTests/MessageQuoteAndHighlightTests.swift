@@ -80,6 +80,30 @@ final class MessageQuoteAndHighlightTests: XCTestCase {
         XCTAssertEqual(updatedText, "Updated body")
     }
 
+    func testUpdateUserMessageContentUsesExistingContentWithoutRequiringEntityDecode() throws {
+        let quote = QuoteContent(sourceMessageID: UUID(), sourceRole: .assistant, quotedText: "Kept")
+        let entity = try MessageEntity.fromDomain(
+            Message(role: .user, content: [.text("stale entity body")])
+        )
+        let existing: [ContentPart] = [.quote(quote), .text("in-memory body")]
+
+        let updated = try ChatMessageEditingSupport.updateUserMessageContent(
+            entity,
+            newText: "Edited",
+            existingContent: existing
+        )
+
+        XCTAssertEqual(updated.count, 2)
+        guard case .quote(let kept) = updated[0] else {
+            return XCTFail("Expected quote part from the in-memory content")
+        }
+        XCTAssertEqual(kept.quotedText, "Kept")
+        guard case .text(let text) = updated[1] else {
+            return XCTFail("Expected rewritten text part")
+        }
+        XCTAssertEqual(text, "Edited")
+    }
+
     func testNormalizedEditedUserTextTrimsAndRejectsBlankText() {
         XCTAssertEqual(
             ChatMessageEditingSupport.normalizedEditedUserText(" \n Updated body\t "),

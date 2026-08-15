@@ -11,8 +11,10 @@ extension ChatView {
             .onChange(of: conversationEntity.id) { _, _ in
                 handleConversationSwitch()
             }
-            .onChange(of: editingUserMessageText) { _, newValue in
-                updateSlashCommandState(for: newValue, target: .editMessage)
+            .background {
+                ChatComposerTextChangeObserver(composerTextStore: editingUserMessageTextStore) { newValue in
+                    updateSlashCommandState(for: newValue, target: .editMessage)
+                }
             }
             // `conversationEntity.messages.count` and `.updatedAt` are observed
             // inside `ChatConversationChangeObserverView` (a 0-sized child view) so

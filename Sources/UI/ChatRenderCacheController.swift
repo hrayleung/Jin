@@ -236,6 +236,70 @@ final class ChatRenderCacheController {
         return isExactIncrement
     }
 
+    /// Fast path for editing a persisted user turn: replace that row's
+    /// render item, drop everything after it (the regenerate truncate), and
+    /// paint immediately. Same bookkeeping contract as `appendUserTurn` —
+    /// returns `false` when a true-up rebuild is still required, but the
+    /// bubble already shows the new text.
+    func applyEditedUserTurn(
+        entity: MessageEntity,
+        historyMessage: Message,
+        renderItem: MessageRenderItem,
+        keepMessageIDs: Set<UUID>,
+        previousUpdatedAt: Date,
+        newUpdatedAt: Date,
+        previousTotalMessageCount: Int,
+        newTotalMessageCount: Int
+    ) -> Bool {
+        // A pending debounce was going to rebuild *this* mutation. Cancel
+        // it so we can take the exact path when the rest of the cache is
+        // already in sync; otherwise the debounce bit would force a full
+        // decode of a conversation we just painted.
+        updatedAtDebounceTask?.cancel()
+        updatedAtDebounceTask = nil
+
+        let isExact = renderContextBuildTask == nil
+            && renderContextDecodeTask == nil
+            && historyDecodeTask == nil
+            && isHistoryReady
+            && lastRebuildMessageCount == previousTotalMessageCount
+            && lastRebuildUpdatedAt == previousUpdatedAt
+
+        visibleMessages = visibleMessages.compactMap { item in
+            if item.id == entity.id { return renderItem }
+            return keepMessageIDs.contains(item.id) ? item : nil
+        }
+        activeThreadHistory = activeThreadHistory.compactMap { message in
+            if message.id == entity.id { return historyMessage }
+            return keepMessageIDs.contains(message.id) ? message : nil
+        }
+        messageEntitiesByID = messageEntitiesByID.filter { keepMessageIDs.contains($0.key) }
+        messageEntitiesByID[entity.id] = entity
+
+        var remainingToolResults: [String: ToolResult] = [:]
+        for message in activeThreadHistory {
+            guard let results = message.toolResults else { continue }
+            for result in results {
+                remainingToolResults[result.toolCallID] = result
+            }
+        }
+        persistedToolResultsByCallID = remainingToolResults
+        liveToolResultsByCallID = [:]
+        publishMergedToolResults()
+
+        artifactCatalog = artifactCatalog.filtering(toSourceMessageIDs: keepMessageIDs)
+        if cachedTotalMessageCount != newTotalMessageCount {
+            cachedTotalMessageCount = newTotalMessageCount
+        }
+        version &+= 1
+
+        if isExact {
+            lastRebuildMessageCount = newTotalMessageCount
+            lastRebuildUpdatedAt = newUpdatedAt
+        }
+        return isExact
+    }
+
     func scheduleDebouncedRebuild(
         after delay: Duration,
         action: @escaping @MainActor () -> Void

@@ -342,6 +342,7 @@ struct MessageRow: View, Equatable {
               // assistant reply lands) while everything above stays equal.
               lhs.item.canEditUserMessage == rhs.item.canEditUserMessage,
               lhs.item.canDeleteResponse == rhs.item.canDeleteResponse,
+              lhs.item.perMessageMCPServerNames == rhs.item.perMessageMCPServerNames,
               lhs.item.responseMetrics == rhs.item.responseMetrics,
               lhs.renderMode == rhs.renderMode,
               lhs.maxBubbleWidth == rhs.maxBubbleWidth,

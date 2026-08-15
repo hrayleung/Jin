@@ -28,8 +28,7 @@ extension ChatView {
             cancelEditingUserMessage()
         }
 
-        guard let message = try? messageEntity.toDomain() else { return }
-        guard let editableText = editableUserText(from: message), !editableText.isEmpty else { return }
+        guard let editableText = editableUserTextForEditing(messageEntity) else { return }
 
         editingUserMessageID = messageEntity.id
         editingUserMessageText = editableText
@@ -53,8 +52,19 @@ extension ChatView {
             return
         }
 
+        guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity) else {
+            cancelEditingUserMessage()
+            return
+        }
+
+        let existingHistory = renderCache.activeThreadHistory.first { $0.id == messageEntity.id }
+        let newContent: [ContentPart]
         do {
-            try updateUserMessageContent(messageEntity, newText: editedText)
+            newContent = try ChatMessageEditingSupport.updateUserMessageContent(
+                messageEntity,
+                newText: editedText,
+                existingContent: existingHistory?.content
+            )
         } catch {
             presentError(error.localizedDescription)
             return
@@ -65,22 +75,91 @@ extension ChatView {
         }
 
         let selectedServers = eligibleMCPServers.filter { perMessageMCPServerIDs.contains($0.id) }
+        let selectedNames = selectedServers.map(\.name).sorted()
         if !selectedServers.isEmpty {
-            messageEntity.perMessageMCPServerNamesData = try? JSONEncoder().encode(selectedServers.map(\.name).sorted())
+            messageEntity.perMessageMCPServerNamesData = try? JSONEncoder().encode(selectedNames)
             messageEntity.perMessageMCPServerIDsData = try? JSONEncoder().encode(selectedServers.map(\.id).sorted())
         } else {
             messageEntity.perMessageMCPServerNamesData = nil
             messageEntity.perMessageMCPServerIDsData = nil
         }
 
+        let perMessageMCPSnapshot = Set(selectedServers.map(\.id))
+        let askedAt = Date()
+        let previousUpdatedAt = conversationEntity.updatedAt
+        let previousTotalMessageCount = conversationEntity.resolvedMessageCount
+
+        // Truncate BEFORE bumping the edited timestamp. `orderedConversationMessages`
+        // sorts by timestamp — flipping it first would keep the wrong prefix.
+        defersObservedMessageCacheRebuild = true
+        truncateConversationEntities(keepingMessages: keepCount)
+        messageEntity.timestamp = askedAt
+        conversationEntity.updatedAt = askedAt
+
+        let historyMessage = ChatMessageEditingSupport.makeUpdatedUserMessage(
+            from: existingHistory,
+            id: messageEntity.id,
+            newContent: newContent,
+            timestamp: askedAt,
+            perMessageMCPServerNames: selectedNames.isEmpty ? nil : selectedNames
+        )
+        let keepMessageIDs = Set(orderedConversationMessages().map(\.id)).union([messageEntity.id])
+        applyEditedUserTurnToRenderCaches(
+            entity: messageEntity,
+            message: historyMessage,
+            keepMessageIDs: keepMessageIDs,
+            previousUpdatedAt: previousUpdatedAt,
+            previousTotalMessageCount: previousTotalMessageCount
+        )
+
+        perMessageMCPServerIDs = []
+        pendingRestoreScrollMessageID = nil
+        isPinnedToBottom = true
+        // Leave the submitted text in the isolated store. Clearing it here
+        // would blank a still-mounted editor if the table's identity mutation
+        // has not yet reconfigured this cell.
         endEditingUI()
-        regenerateFromUserMessage(messageEntity)
+
+        let diagnosticRunID = UUID().uuidString
+        let conversationID = conversationEntity.id
+        armStreamingPlaceholderSession(diagnosticRunID: diagnosticRunID)
+        DispatchQueue.main.async {
+            self.defersObservedMessageCacheRebuild = false
+        }
+
+        Task { @MainActor in
+            // First yield: let SwiftUI commit the rewritten bubble +
+            // Generating row before any disk / provider work.
+            await Task.yield()
+            // Always persist the edited turn before honoring Stop. The
+            // placeholder was armed with persist deferred; if cancel
+            // clears the session during this yield, skipping save would
+            // revert the rewrite and truncated reply on relaunch.
+            do {
+                try modelContext.save()
+            } catch {
+                streamingStore.cancel(conversationID: conversationID)
+                presentError("Failed to save chat: \(error.localizedDescription)")
+                return
+            }
+            guard conversationEntity.id == conversationID else { return }
+            guard isStreaming else { return }
+            // Second yield: save can be expensive; give layout another
+            // chance before startStreamingResponse resolves providers.
+            await Task.yield()
+            guard conversationEntity.id == conversationID else { return }
+            guard isStreaming else { return }
+            startStreamingResponse(
+                triggeredByUserSend: false,
+                diagnosticRunID: diagnosticRunID,
+                perMessageMCPServerIDs: perMessageMCPSnapshot
+            )
+        }
     }
 
     /// Clears editing UI state without resetting the composer-level per-message MCP selection.
     func endEditingUI() {
         editingUserMessageID = nil
-        editingUserMessageText = ""
         isEditingUserMessageFocused = false
         if slashCommandTarget == .editMessage {
             isSlashMCPPopoverVisible = false
@@ -173,6 +252,17 @@ extension ChatView {
     }
 
     func truncateConversation(keepingMessages keepCount: Int) {
+        truncateConversationEntities(keepingMessages: keepCount)
+        pendingRestoreScrollMessageID = nil
+        isPinnedToBottom = true
+        rebuildMessageCaches()
+    }
+
+    /// Deletes trailing messages without rebuilding the render cache. The
+    /// edit path paints the rewritten user turn first; regenerate still
+    /// follows this with `rebuildMessageCaches()`.
+    @discardableResult
+    func truncateConversationEntities(keepingMessages keepCount: Int) -> [MessageEntity] {
         let ordered = orderedConversationMessages()
         let normalizedKeepCount = max(0, min(keepCount, ordered.count))
         let keepIDs = Set(ordered.prefix(normalizedKeepCount).map(\.id))
@@ -186,9 +276,7 @@ extension ChatView {
         conversationEntity.messages.removeAll { !keepIDs.contains($0.id) }
         conversationEntity.refreshMessageCount()
         refreshConversationActivityTimestampFromLatestUserMessage()
-        pendingRestoreScrollMessageID = nil
-        isPinnedToBottom = true
-        rebuildMessageCaches()
+        return messagesToDelete
     }
 
     // MARK: - Helpers
@@ -205,8 +293,23 @@ extension ChatView {
         ChatMessageRenderPipeline.editableUserText(from: message)
     }
 
+    /// Prefer already-decoded render/history text so opening the editor
+    /// never JSON-decodes inline image payloads just to seed a string.
+    func editableUserTextForEditing(_ messageEntity: MessageEntity) -> String? {
+        if let item = renderCache.visibleMessages.first(where: { $0.id == messageEntity.id }),
+           let text = ChatMessageEditingSupport.editableUserText(fromRenderedBlocks: item.renderedBlocks) {
+            return text
+        }
+        if let message = renderCache.activeThreadHistory.first(where: { $0.id == messageEntity.id }),
+           let text = editableUserText(from: message) {
+            return text
+        }
+        guard let message = try? messageEntity.toDomain() else { return nil }
+        return editableUserText(from: message)
+    }
+
     func updateUserMessageContent(_ entity: MessageEntity, newText: String) throws {
-        try ChatMessageEditingSupport.updateUserMessageContent(entity, newText: newText)
+        _ = try ChatMessageEditingSupport.updateUserMessageContent(entity, newText: newText)
     }
 
     func refreshConversationActivityTimestampFromLatestUserMessage() {

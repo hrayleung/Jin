@@ -388,7 +388,7 @@ extension ChatView {
     /// call when a session already exists (beginSession reuses it). The real
     /// network task is attached later by `startStreamingResponse`.
     @MainActor
-    private func armStreamingPlaceholderSession(diagnosticRunID: String) {
+    func armStreamingPlaceholderSession(diagnosticRunID: String) {
         let conversationID = conversationEntity.id
         // Do not clobber an in-flight generation.
         guard !streamingStore.hasActiveStreamingTask(conversationID: conversationID) else { return }
@@ -413,7 +413,7 @@ extension ChatView {
     /// newest). That slide is `batchDiff` and is the intermittent full-stage
     /// white flash on long conversations. Recycling still bounds live cells.
     @MainActor
-    private func expandRenderWindowForPinnedSendIfNeeded(additionalMessages: Int) {
+    func expandRenderWindowForPinnedSendIfNeeded(additionalMessages: Int) {
         guard isPinnedToBottom else { return }
         // Projected domain message count after this send (user turn).
         let projected = max(
