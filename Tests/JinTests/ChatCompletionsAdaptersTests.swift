@@ -3205,7 +3205,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         protocolType.requestHandler = { request in
             let body = try XCTUnwrap(requestBodyData(request))
             let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
-            XCTAssertEqual(root["model"] as? String, "dots-studio/dots-3-note-preview")
+            XCTAssertEqual(root["model"] as? String, "dots-studio/dots-3-note-preview:free")
             XCTAssertEqual(root["include_reasoning"] as? Bool, false)
             let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
             XCTAssertEqual(reasoning["enabled"] as? Bool, false)
@@ -3217,7 +3217,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         let disabledStream = try await adapter.sendMessage(
             messages: [Message(role: .user, content: [.text("hello")])],
-            modelID: "dots-studio/dots-3-note-preview",
+            modelID: "dots-studio/dots-3-note-preview:free",
             controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
             tools: [],
             streaming: false

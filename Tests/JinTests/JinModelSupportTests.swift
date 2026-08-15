@@ -257,7 +257,7 @@ final class JinModelSupportTests: XCTestCase {
                 modelID: "dots-studio/dots-3-note-preview:free"
             )
         )
-        XCTAssertTrue(
+        XCTAssertFalse(
             JinModelSupport.isFullySupported(
                 providerType: .openrouter,
                 modelID: "dots-studio/dots-3-note-preview"

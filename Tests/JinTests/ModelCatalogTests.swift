@@ -2059,53 +2059,38 @@ final class ModelCatalogTests: XCTestCase {
         // text+image->text, tools, toggle-only reasoning (no reasoning_effort),
         // no cache pricing. Official weights also understand audio/video; the
         // AtlasCloud OpenRouter route does not advertise those modalities.
-        let ids = [
-            "dots-studio/dots-3-note-preview:free",
-            "dots-studio/dots-3-note-preview",
-        ]
+        let id = "dots-studio/dots-3-note-preview:free"
         let forbidden: ModelCapability = [
             .audio, .videoInput, .promptCaching, .nativePDF, .codeExecution, .videoGeneration, .imageGeneration,
         ]
 
-        for id in ids {
-            let model = ModelCatalog.modelInfo(for: id, provider: .openrouter)
-            XCTAssertEqual(model.contextWindow, 512_000, id)
-            XCTAssertEqual(model.maxOutputTokens, 512_000, id)
-            XCTAssertEqual(model.reasoningConfig?.type, .toggle, id)
-            XCTAssertNil(model.reasoningConfig?.defaultEffort, id)
-            XCTAssertTrue(model.capabilities.contains(.streaming), id)
-            XCTAssertTrue(model.capabilities.contains(.toolCalling), id)
-            XCTAssertTrue(model.capabilities.contains(.vision), id)
-            XCTAssertTrue(model.capabilities.contains(.reasoning), id)
-            XCTAssertTrue(model.capabilities.isDisjoint(with: forbidden), id)
-            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .openrouter), id)
+        let model = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+        XCTAssertEqual(model.name, "Dots Studio: Dots3-Note Preview (Free)")
+        XCTAssertEqual(model.contextWindow, 512_000)
+        XCTAssertEqual(model.maxOutputTokens, 512_000)
+        XCTAssertEqual(model.reasoningConfig?.type, .toggle)
+        XCTAssertNil(model.reasoningConfig?.defaultEffort)
+        XCTAssertTrue(model.capabilities.contains(.streaming))
+        XCTAssertTrue(model.capabilities.contains(.toolCalling))
+        XCTAssertTrue(model.capabilities.contains(.vision))
+        XCTAssertTrue(model.capabilities.contains(.reasoning))
+        XCTAssertTrue(model.capabilities.isDisjoint(with: forbidden))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .openrouter))
+
+        // Near-miss / dated / endpoint-less sibling slugs must stay conservative.
+        for unknownID in [
+            "dots-studio/dots-3-note-preview",
+            "dots-studio/dots-3-note-preview-20260813",
+            "dots-studio/dots-3-note-preview:free-custom",
+        ] {
+            let unknown = ModelCatalog.modelInfo(for: unknownID, provider: .openrouter)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], unknownID)
+            XCTAssertEqual(unknown.contextWindow, 128_000, unknownID)
+            XCTAssertNil(unknown.reasoningConfig, unknownID)
+            XCTAssertFalse(
+                ModelCatalog.isFullySupported(modelID: unknownID, provider: .openrouter),
+                unknownID
+            )
         }
-
-        let free = ModelCatalog.modelInfo(for: "dots-studio/dots-3-note-preview:free", provider: .openrouter)
-        XCTAssertEqual(free.name, "Dots Studio: Dots3-Note Preview (Free)")
-
-        let sibling = ModelCatalog.modelInfo(for: "dots-studio/dots-3-note-preview", provider: .openrouter)
-        XCTAssertEqual(sibling.name, "Dots Studio: Dots3-Note Preview")
-
-        // Near-miss / dated slugs must stay conservative.
-        let unknown = ModelCatalog.modelInfo(
-            for: "dots-studio/dots-3-note-preview-20260813",
-            provider: .openrouter
-        )
-        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
-        XCTAssertEqual(unknown.contextWindow, 128_000)
-        XCTAssertNil(unknown.reasoningConfig)
-        XCTAssertFalse(
-            ModelCatalog.isFullySupported(
-                modelID: "dots-studio/dots-3-note-preview-20260813",
-                provider: .openrouter
-            )
-        )
-        XCTAssertFalse(
-            ModelCatalog.isFullySupported(
-                modelID: "dots-studio/dots-3-note-preview:free-custom",
-                provider: .openrouter
-            )
-        )
     }
 }
