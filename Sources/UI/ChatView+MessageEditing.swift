@@ -128,9 +128,13 @@ extension ChatView {
         }
 
         Task { @MainActor in
+            // First yield: let SwiftUI commit the rewritten bubble +
+            // Generating row before any disk / provider work.
             await Task.yield()
-            guard conversationEntity.id == conversationID else { return }
-            guard isStreaming else { return }
+            // Always persist the edited turn before honoring Stop. The
+            // placeholder was armed with persist deferred; if cancel
+            // clears the session during this yield, skipping save would
+            // revert the rewrite and truncated reply on relaunch.
             do {
                 try modelContext.save()
             } catch {
@@ -138,6 +142,10 @@ extension ChatView {
                 presentError("Failed to save chat: \(error.localizedDescription)")
                 return
             }
+            guard conversationEntity.id == conversationID else { return }
+            guard isStreaming else { return }
+            // Second yield: save can be expensive; give layout another
+            // chance before startStreamingResponse resolves providers.
             await Task.yield()
             guard conversationEntity.id == conversationID else { return }
             guard isStreaming else { return }
