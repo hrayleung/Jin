@@ -188,6 +188,128 @@ final class ChatRenderCacheControllerAppendTests: XCTestCase {
         XCTAssertEqual(controller.cachedTotalMessageCount, messages.count)
     }
 
+    func testExactEditReplacesUserTurnAndDropsTheTail() throws {
+        let controller = ChatRenderCacheController()
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        let t1 = Date(timeIntervalSince1970: 1_001)
+        let seeded = try [
+            makeMessageEntity(role: .user, text: "Original question"),
+            makeMessageEntity(role: .assistant, text: "Original answer"),
+        ]
+        rebuildSynchronously(controller, messages: seeded, updatedAt: t0)
+        let versionAfterRebuild = controller.version
+        let user = seeded[0]
+        let updated = try ChatMessageEditingSupport.updateUserMessageContent(
+            user,
+            newText: "Edited question",
+            existingContent: [.text("Original question")]
+        )
+        let history = ChatMessageEditingSupport.makeUpdatedUserMessage(
+            from: nil,
+            id: user.id,
+            newContent: updated,
+            timestamp: t1,
+            perMessageMCPServerNames: nil
+        )
+        let renderItem = ChatMessageRenderPipeline.makeUserTurnRenderItem(
+            from: history,
+            artifactsEnabled: false
+        )
+
+        let applied = controller.applyEditedUserTurn(
+            entity: user,
+            historyMessage: history,
+            renderItem: renderItem,
+            keepMessageIDs: [user.id],
+            previousUpdatedAt: t0,
+            newUpdatedAt: t1,
+            previousTotalMessageCount: 2,
+            newTotalMessageCount: 1
+        )
+
+        XCTAssertTrue(applied)
+        XCTAssertEqual(controller.visibleMessages.count, 1)
+        XCTAssertEqual(controller.visibleMessages.first?.id, user.id)
+        XCTAssertEqual(controller.visibleMessages.first?.copyText, "Edited question")
+        XCTAssertEqual(controller.activeThreadHistory.count, 1)
+        guard case .text(let historyText) = controller.activeThreadHistory.first?.content.first else {
+            return XCTFail("Expected the edited history message to keep a text part")
+        }
+        XCTAssertEqual(historyText, "Edited question")
+        XCTAssertEqual(controller.cachedTotalMessageCount, 1)
+        XCTAssertEqual(controller.version, versionAfterRebuild &+ 1)
+        XCTAssertNil(controller.messageEntitiesByID[seeded[1].id])
+
+        let versionAfterEdit = controller.version
+        controller.rebuildIfNeeded(
+            request: makeRequest(messages: [user], updatedAt: t1),
+            assistantProviderIconID: { _ in nil },
+            isStillCurrent: { _, _ in true },
+            onContextApplied: {},
+            onHistoryReady: {}
+        )
+        XCTAssertEqual(controller.version, versionAfterEdit, "exact edit must suppress the follow-up rebuild")
+    }
+
+    func testStaleEditStillPaintsTheNewText() throws {
+        let controller = ChatRenderCacheController()
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        let seeded = try [
+            makeMessageEntity(role: .user, text: "Original"),
+            makeMessageEntity(role: .assistant, text: "Answer"),
+        ]
+        rebuildSynchronously(controller, messages: seeded, updatedAt: t0)
+        let user = seeded[0]
+        let history = Message(id: user.id, role: .user, content: [.text("Edited")], timestamp: t0)
+        let renderItem = ChatMessageRenderPipeline.makeUserTurnRenderItem(
+            from: history,
+            artifactsEnabled: false
+        )
+
+        let applied = controller.applyEditedUserTurn(
+            entity: user,
+            historyMessage: history,
+            renderItem: renderItem,
+            keepMessageIDs: [user.id],
+            previousUpdatedAt: Date(timeIntervalSince1970: 999),
+            newUpdatedAt: Date(timeIntervalSince1970: 1_001),
+            previousTotalMessageCount: 2,
+            newTotalMessageCount: 1
+        )
+
+        XCTAssertFalse(applied)
+        XCTAssertEqual(controller.visibleMessages.first?.copyText, "Edited")
+        XCTAssertEqual(controller.visibleMessages.count, 1)
+    }
+
+    func testEditCancelsPendingDebounceSoExactPathCanAdvance() throws {
+        let controller = ChatRenderCacheController()
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        let t1 = Date(timeIntervalSince1970: 1_001)
+        let seeded = try [makeMessageEntity(role: .user, text: "Original")]
+        rebuildSynchronously(controller, messages: seeded, updatedAt: t0)
+        controller.scheduleDebouncedRebuild(after: .seconds(30)) {}
+
+        let user = seeded[0]
+        let history = Message(id: user.id, role: .user, content: [.text("Edited")], timestamp: t1)
+        let renderItem = ChatMessageRenderPipeline.makeUserTurnRenderItem(
+            from: history,
+            artifactsEnabled: false
+        )
+        let applied = controller.applyEditedUserTurn(
+            entity: user,
+            historyMessage: history,
+            renderItem: renderItem,
+            keepMessageIDs: [user.id],
+            previousUpdatedAt: t0,
+            newUpdatedAt: t1,
+            previousTotalMessageCount: 1,
+            newTotalMessageCount: 1
+        )
+
+        XCTAssertTrue(applied, "a leftover debounce must not force a full rebuild after an in-place edit")
+    }
+
     // MARK: - Fixtures
 
     private func rebuildSynchronously(

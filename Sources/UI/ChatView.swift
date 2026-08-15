@@ -125,7 +125,10 @@ struct ChatView: View {
     @State var dropForwarderRef = DropForwarderRef()
     @State var isComposerFocused = false
     @State var editingUserMessageID: UUID?
-    @State var editingUserMessageText = ""
+    /// Isolated like `composerTextStore` so typing in the in-bubble editor
+    /// does not re-evaluate ChatView / rebuild the timeline every keystroke.
+    // swiftlint:disable:next private_swiftui_state
+    @State var editingUserMessageTextStore = ComposerTextStore()
     @State var isEditingUserMessageFocused = false
     @State var composerHeight: CGFloat = 0
     @State var composerTextContentHeight: CGFloat = 36

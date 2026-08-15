@@ -129,6 +129,26 @@ struct ArtifactCatalog: Sendable {
         versions(for: artifactID).last
     }
 
+    func filtering(toSourceMessageIDs ids: Set<UUID>) -> ArtifactCatalog {
+        guard !isEmpty else { return self }
+
+        var ordered: [String] = []
+        var versions: [String: [RenderedArtifactVersion]] = [:]
+        ordered.reserveCapacity(orderedArtifactIDs.count)
+
+        for artifactID in orderedArtifactIDs {
+            let kept = self.versions(for: artifactID).filter { ids.contains($0.sourceMessageID) }
+            guard !kept.isEmpty else { continue }
+            ordered.append(artifactID)
+            versions[artifactID] = kept
+        }
+
+        if ordered.isEmpty {
+            return .empty
+        }
+        return ArtifactCatalog(orderedArtifactIDs: ordered, versionsByArtifactID: versions)
+    }
+
     func version(artifactID: String, version: Int?) -> RenderedArtifactVersion? {
         let candidates = versions(for: artifactID)
         guard !candidates.isEmpty else { return nil }

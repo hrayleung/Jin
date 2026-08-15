@@ -6,16 +6,12 @@ enum ChatMessageEditingSupport {
         text.trimmedNonEmpty
     }
 
-    static func updateUserMessageContent(_ entity: MessageEntity, newText: String) throws {
-        let decoder = JSONDecoder()
-        let encoder = JSONEncoder()
-
-        let originalContent = try decoder.decode([ContentPart].self, from: entity.contentData)
+    static func replacingTextParts(in content: [ContentPart], with newText: String) -> [ContentPart] {
         var newContent: [ContentPart] = []
-        newContent.reserveCapacity(max(1, originalContent.count))
+        newContent.reserveCapacity(max(1, content.count))
 
         var didInsertText = false
-        for part in originalContent {
+        for part in content {
             switch part {
             case .text:
                 if !didInsertText {
@@ -31,7 +27,52 @@ enum ChatMessageEditingSupport {
             newContent.append(.text(newText))
         }
 
-        entity.contentData = try encoder.encode(newContent)
+        return newContent
+    }
+
+    /// Persists the edited text. Prefer passing `existingContent` from the
+    /// in-memory history cache so image/file parts are not JSON-decoded just
+    /// to rewrite one string.
+    @discardableResult
+    static func updateUserMessageContent(
+        _ entity: MessageEntity,
+        newText: String,
+        existingContent: [ContentPart]? = nil
+    ) throws -> [ContentPart] {
+        let originalContent = try existingContent ?? JSONDecoder().decode([ContentPart].self, from: entity.contentData)
+        let newContent = replacingTextParts(in: originalContent, with: newText)
+        entity.contentData = try JSONEncoder().encode(newContent)
+        return newContent
+    }
+
+    static func makeUpdatedUserMessage(
+        from existing: Message?,
+        id: UUID,
+        newContent: [ContentPart],
+        timestamp: Date,
+        perMessageMCPServerNames: [String]?
+    ) -> Message {
+        Message(
+            id: id,
+            role: .user,
+            content: newContent,
+            toolCalls: existing?.toolCalls,
+            toolResults: existing?.toolResults,
+            searchActivities: existing?.searchActivities,
+            codeExecutionActivities: existing?.codeExecutionActivities,
+            timestamp: timestamp,
+            perMessageMCPServerNames: perMessageMCPServerNames
+        )
+    }
+
+    static func editableUserText(fromRenderedBlocks blocks: [RenderedMessageBlock]) -> String? {
+        let parts = blocks.compactMap { block -> String? in
+            guard case .content(_, .text(let text)) = block else { return nil }
+            return text.trimmedNonEmpty
+        }
+
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: "\n\n")
     }
 
     static func keepCountForRegeneratingUserMessage(

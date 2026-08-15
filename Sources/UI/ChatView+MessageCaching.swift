@@ -74,6 +74,37 @@ extension ChatView {
         }
     }
 
+    /// Edit-path fast replace: paint the rewritten user bubble and drop the
+    /// truncated tail without a full-conversation decode. Same fallback as
+    /// `applyAppendedUserTurnToRenderCaches` when the cache was not in sync.
+    func applyEditedUserTurnToRenderCaches(
+        entity: MessageEntity,
+        message: Message,
+        keepMessageIDs: Set<UUID>,
+        previousUpdatedAt: Date,
+        previousTotalMessageCount: Int
+    ) {
+        let renderItem = ChatMessageRenderPipeline.makeUserTurnRenderItem(
+            from: message,
+            artifactsEnabled: conversationEntity.artifactsEnabled == true
+        )
+        let appliedExactly = renderCache.applyEditedUserTurn(
+            entity: entity,
+            historyMessage: message,
+            renderItem: renderItem,
+            keepMessageIDs: keepMessageIDs,
+            previousUpdatedAt: previousUpdatedAt,
+            newUpdatedAt: conversationEntity.updatedAt,
+            previousTotalMessageCount: previousTotalMessageCount,
+            newTotalMessageCount: conversationEntity.resolvedMessageCount
+        )
+        if appliedExactly {
+            refreshContextUsageEstimate(debounced: true)
+        } else {
+            scheduleUpdatedAtDrivenCacheRebuild()
+        }
+    }
+
     func syncArtifactSelection() {
         let catalog = renderCache.artifactCatalog
         guard !catalog.isEmpty else {

@@ -108,4 +108,24 @@ final class ChatMessagePreparationUtilitiesTests: XCTestCase {
 
         XCTAssertEqual(ChatMessageRenderPipeline.editableUserText(from: message), "First\n\nSecond")
     }
+
+    func testEditableUserTextFromRenderedBlocksIgnoresNonText() {
+        let blocks: [RenderedMessageBlock] = [
+            .content(anchorID: "q", part: .quote(QuoteContent(sourceRole: .assistant, quotedText: "Quoted"))),
+            .content(anchorID: "t0", part: .text("  First  ")),
+            .content(anchorID: "img", part: .image(RenderedImageContent(
+                mimeType: "image/png",
+                inlineData: nil,
+                url: nil,
+                assetDisposition: .managed,
+                deferredSource: nil
+            ))),
+            .content(anchorID: "t1", part: .text("Second")),
+        ]
+
+        XCTAssertEqual(
+            ChatMessageEditingSupport.editableUserText(fromRenderedBlocks: blocks),
+            "First\n\nSecond"
+        )
+    }
 }

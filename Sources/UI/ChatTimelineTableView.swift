@@ -855,6 +855,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         defer { scheduleMinimapSync() }
 
         let previousRows = rows
+        let previousEditingUserMessageID = lastAppliedContentEpoch?.editingUserMessageID
         let widthChanged = abs(currentColumnWidth - newModel.shared.columnWidth) > 0.5
         let conversationChanged = lastConversationID != newModel.conversationID
         let epochChanged = lastAppliedContentEpoch != newModel.contentEpoch
@@ -970,6 +971,15 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                     scrollToBottom(animated: false, force: false)
                 }
             }
+            // Identity mutations do not reconfigure surviving cells.
+            // An edit+truncate would otherwise leave the user bubble on the
+            // now-empty editor until a later epoch reload.
+            reloadSurvivingRowsIfNeeded(
+                old: previousRows,
+                new: newModel.rows,
+                previousEditingUserMessageID: previousEditingUserMessageID,
+                newEditingUserMessageID: newModel.contentEpoch.editingUserMessageID
+            )
         } else {
             reconcile(old: previousRows, new: rows, widthChanged: widthChanged, epochChanged: epochChanged)
         }
@@ -1503,6 +1513,42 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 "newCount": String(newCount),
             ]
         )
+    }
+
+    /// Reconfigures resident cells whose identity survived a row-list
+    /// mutation but whose content or editing state did not. `batchDiff`
+    /// only inserts/removes — without this, an edited user bubble stays
+    /// on the dismissed editor (often blank) until the next epoch apply.
+    private func reloadSurvivingRowsIfNeeded(
+        old: [ChatTimelineRow],
+        new: [ChatTimelineRow],
+        previousEditingUserMessageID: UUID?,
+        newEditingUserMessageID: UUID?
+    ) {
+        let identities = ChatTimelineSurvivingRowReloadSupport.identitiesNeedingReload(
+            old: old,
+            new: new,
+            previousEditingUserMessageID: previousEditingUserMessageID,
+            newEditingUserMessageID: newEditingUserMessageID
+        )
+        guard !identities.isEmpty else { return }
+
+        invalidateHeightCache(for: identities)
+        tableView.enumerateAvailableRowViews { [weak self] rowView, row in
+            guard let self, row >= 0, row < self.rows.count,
+                  identities.contains(self.rows[row].identity),
+                  let cell = rowView.view(atColumn: 0) as? ChatTimelineHostingCell else { return }
+            cell.resetHeightReportingBaseline()
+            cell.configure(identity: self.rows[row].identity, content: self.content(for: self.rows[row]))
+        }
+    }
+
+    private func invalidateHeightCache(for identities: Set<String>) {
+        for identity in identities {
+            let key = heightKey(identity)
+            heightCache[key] = nil
+            estimateCache[key] = nil
+        }
     }
 
     /// Re-pushes SwiftUI content into every RESIDENT cell (after a content

@@ -15,6 +15,14 @@ extension ChatView {
         nonmutating set { composerTextStore.text = newValue }
     }
 
+    /// Accessor for the in-bubble user-message editor. **Only safe to use
+    /// from action handlers**. Reading this from `ChatView.body` observes
+    /// the store and rebuilds the timeline on every keystroke.
+    var editingUserMessageText: String {
+        get { editingUserMessageTextStore.text }
+        nonmutating set { editingUserMessageTextStore.text = newValue }
+    }
+
     /// Accessor for generation controls. **Only safe to use from action
     /// handlers**. Reading this from `ChatView.body` observes the store and
     /// rebuilds the timeline for a thinking / search / MCP click.

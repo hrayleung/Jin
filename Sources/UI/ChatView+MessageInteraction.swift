@@ -7,7 +7,10 @@ extension ChatView {
             textToSpeechConfigured: textToSpeechConfigured,
             textToSpeechPlaybackState: ttsPlaybackManager.state,
             editingUserMessageID: editingUserMessageID,
-            editingUserMessageText: $editingUserMessageText,
+            editingUserMessageText: Binding(
+                get: { editingUserMessageTextStore.text },
+                set: { editingUserMessageTextStore.text = $0 }
+            ),
             editingUserMessageFocused: $isEditingUserMessageFocused,
             textToSpeechIsGenerating: { messageID in
                 ttsPlaybackManager.isGenerating(messageID: messageID)
