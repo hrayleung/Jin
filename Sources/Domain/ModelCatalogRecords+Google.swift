@@ -350,6 +350,58 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: false),
 
+        // Qwen3.8-27B (OpenRouter live /models, 2026-08-14): dense VLM, 262,144 /
+        // 131,072, text+image+video. Chat translation has no video part builder, so
+        // .videoInput is not claimed. Thinking default on and disableable;
+        // efforts xhigh/medium/low (default xhigh). Cached-input pricing.
+        Record(id: "qwen/qwen3.8-27b", displayName: "Qwen: Qwen3.8 27B",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
+        // Qwen3.8-2.4T-A95B open weights (OpenRouter live /models, 2026-08-12).
+        // Text-only. Reasoning mandatory; xhigh/medium/low; default xhigh.
+        Record(id: "qwen/qwen3.8-2.4t-a95b", displayName: "Qwen: Qwen3.8 2.4T A95B",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
+        // Alibaba Cloud Qwen3.8 Max (OpenRouter live /models, 2026-08-03). Not the
+        // open-weight 2.4T checkpoint: this slug is multimodal (text+image+video)
+        // with a wider effort band including high/minimal. .videoInput not claimed.
+        Record(id: "qwen/qwen3.8-max", displayName: "Qwen: Qwen3.8 Max",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
+        // DeepSeek V4 Pro 0813 GA (OpenRouter live /models, 2026-08-12). Distinct
+        // from the April preview `deepseek/deepseek-v4-pro` (high/xhigh). Efforts
+        // max/high/low, default high, not mandatory.
+        Record(id: "deepseek/deepseek-v4-pro-0813", displayName: "DeepSeek: DeepSeek V4 Pro 0813",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Nemotron 3.5 Lightning (OpenRouter live /models, 2026-08-11). 1M / 131k,
+        // text-only, tools, cached-input. `reasoning` + `include_reasoning` with no
+        // reasoning_effort → toggle only.
+        Record(id: "nvidia/nemotron-3.5-lightning", displayName: "NVIDIA: Nemotron 3.5 Lightning",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "nvidia/nemotron-3.5-lightning:free", displayName: "NVIDIA: Nemotron 3.5 Lightning (Free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+
         // Meta Muse Spark (OpenRouter live /models, 2026-08-06): 1M context, always-on
         // reasoning (mandatory=true, minimal..xhigh). OpenRouter chat path still
         // text-fallbacks files — claim vision/reasoning/promptCaching only.

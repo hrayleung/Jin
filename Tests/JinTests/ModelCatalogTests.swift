@@ -210,6 +210,68 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(flash.contextWindow, 128_000)
         XCTAssertNil(flash.maxOutputTokens)
         XCTAssertNil(flash.reasoningConfig)
+
+        XCTAssertFalse(ModelCatalog.seededModels(for: .together).contains(where: { $0.id == "deepseek-ai/DeepSeek-V4-Pro" }))
+    }
+
+    func testTogetherDeepSeekV4GAAndQwen38CatalogUsesExactProviderIDs() {
+        let pro = ModelCatalog.modelInfo(
+            for: "deepseek-ai/DeepSeek-V4-Pro-0813",
+            provider: .together
+        )
+        XCTAssertEqual(pro.name, "DeepSeek V4 Pro 0813")
+        XCTAssertEqual(pro.contextWindow, 1_048_576)
+        XCTAssertEqual(pro.maxOutputTokens, 384_000)
+        XCTAssertEqual(pro.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(pro.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .together,
+                modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"
+            ),
+            [.low, .high, .max]
+        )
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .together,
+            modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"
+        ))
+
+        let flash = ModelCatalog.modelInfo(
+            for: "deepseek-ai/DeepSeek-V4-Flash-0731",
+            provider: .together
+        )
+        XCTAssertEqual(flash.contextWindow, 1_000_000)
+        XCTAssertEqual(flash.maxOutputTokens, 384_000)
+        XCTAssertEqual(flash.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+
+        let qwen = ModelCatalog.modelInfo(
+            for: "Qwen/Qwen3.8-2.4T-A95B",
+            provider: .together
+        )
+        XCTAssertEqual(qwen.name, "Qwen3.8 Max")
+        XCTAssertEqual(qwen.contextWindow, 256_000)
+        XCTAssertEqual(qwen.maxOutputTokens, 131_072)
+        XCTAssertEqual(qwen.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertFalse(qwen.capabilities.contains(.vision))
+        XCTAssertEqual(qwen.reasoningConfig?.defaultEffort, .xhigh)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .together,
+                modelID: "Qwen/Qwen3.8-2.4T-A95B"
+            ),
+            [.low, .high, .xhigh]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .together,
+            modelID: "Qwen/Qwen3.8-2.4T-A95B"
+        ))
+
+        for id in ["deepseek-ai/DeepSeek-V4-Pro-0813-custom", "Qwen/Qwen3.8-2.4T-A95B-custom"] {
+            let unknown = ModelCatalog.modelInfo(for: id, provider: .together)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
+            XCTAssertEqual(unknown.contextWindow, 128_000, id)
+            XCTAssertNil(unknown.reasoningConfig, id)
+        }
     }
 
     func testOpenRouterSeedanceCatalogUsesExactVideoModelIDs() {
@@ -1301,6 +1363,9 @@ final class ModelCatalogTests: XCTestCase {
             seeded,
             [
                 "moonshotai/Kimi-K3",
+                "deepseek-ai/DeepSeek-V4-Pro-0813",
+                "Qwen/Qwen3.8-2.4T-A95B",
+                "nvidia/NVIDIA-Nemotron-3.5-Lightning",
                 "zai-org/GLM-5.2",
                 "zai-org/GLM-5.1",
                 "Qwen/Qwen3.6-35B-A3B",
@@ -1322,6 +1387,61 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(kimiK3.maxOutputTokens, 131_072)
         XCTAssertTrue(kimiK3.capabilities.contains(.vision))
         XCTAssertEqual(kimiK3.reasoningConfig?.defaultEffort, .max)
+    }
+
+    func testDeepInfraLastWeekOpenModelsUseExactProviderIDs() {
+        let pro = ModelCatalog.modelInfo(
+            for: "deepseek-ai/DeepSeek-V4-Pro-0813",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(pro.contextWindow, 1_048_576)
+        XCTAssertEqual(pro.maxOutputTokens, 384_000)
+        XCTAssertEqual(pro.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .deepinfra,
+                modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"
+            ),
+            [.low, .high, .max]
+        )
+
+        let qwen = ModelCatalog.modelInfo(
+            for: "Qwen/Qwen3.8-2.4T-A95B",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(qwen.contextWindow, 262_144)
+        XCTAssertEqual(qwen.maxOutputTokens, 262_144)
+        XCTAssertFalse(qwen.capabilities.contains(.vision))
+        XCTAssertEqual(qwen.reasoningConfig?.defaultEffort, .xhigh)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .deepinfra,
+                modelID: "Qwen/Qwen3.8-2.4T-A95B"
+            ),
+            [.low, .medium, .xhigh]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .deepinfra,
+            modelID: "Qwen/Qwen3.8-2.4T-A95B"
+        ))
+
+        let lightning = ModelCatalog.modelInfo(
+            for: "nvidia/NVIDIA-Nemotron-3.5-Lightning",
+            provider: .deepinfra
+        )
+        XCTAssertEqual(lightning.contextWindow, 262_144)
+        XCTAssertEqual(lightning.capabilities, [.streaming, .toolCalling, .promptCaching])
+        XCTAssertNil(lightning.reasoningConfig)
+
+        for id in [
+            "deepseek-ai/DeepSeek-V4-Pro-0813-custom",
+            "Qwen/Qwen3.8-2.4T-A95B-custom",
+            "nvidia/NVIDIA-Nemotron-3.5-Lightning-custom"
+        ] {
+            let unknown = ModelCatalog.modelInfo(for: id, provider: .deepinfra)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
+            XCTAssertEqual(unknown.contextWindow, 128_000, id)
+        }
     }
 
     func testUnknownTogetherModelUsesConservativeFallback() {
@@ -1482,7 +1602,9 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(seeded.first, "accounts/fireworks/models/kimi-k3")
         XCTAssertTrue(seeded.contains("fireworks/kimi-k2p6"))
         XCTAssertTrue(seeded.contains("fireworks/qwen3p6-plus"))
-        XCTAssertTrue(seeded.contains("accounts/fireworks/models/deepseek-v4-pro"))
+        XCTAssertTrue(seeded.contains("accounts/fireworks/models/deepseek-v4-pro-0813"))
+        XCTAssertTrue(seeded.contains("accounts/fireworks/models/qwen3p8-2p4t-a95b"))
+        XCTAssertFalse(seeded.contains("accounts/fireworks/models/deepseek-v4-pro"))
         XCTAssertTrue(seeded.contains("fireworks/deepseek-v3p2"))
         XCTAssertTrue(seeded.contains("fireworks/kimi-k2-instruct-0905"))
         XCTAssertTrue(seeded.contains("fireworks/glm-5"))
@@ -1492,7 +1614,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertFalse(seeded.contains("fireworks/kimi-k3"))
         XCTAssertFalse(seeded.contains("accounts/fireworks/routers/kimi-k3-fast"))
 
-        let v4ProIndex = try XCTUnwrap(seeded.firstIndex(of: "accounts/fireworks/models/deepseek-v4-pro"))
+        let v4ProIndex = try XCTUnwrap(seeded.firstIndex(of: "accounts/fireworks/models/deepseek-v4-pro-0813"))
         let v32Index = try XCTUnwrap(seeded.firstIndex(of: "fireworks/deepseek-v3p2"))
         XCTAssertLessThan(v4ProIndex, v32Index)
 
@@ -1501,6 +1623,121 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(kimiK3.maxOutputTokens, 131_072)
         XCTAssertTrue(kimiK3.capabilities.contains(.vision))
         XCTAssertEqual(kimiK3.reasoningConfig?.defaultEffort, .max)
+    }
+
+    func testFireworksLastWeekOpenModelsUseExactProviderIDs() {
+        let pro = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/deepseek-v4-pro-0813",
+            provider: .fireworks
+        )
+        XCTAssertEqual(pro.contextWindow, 1_040_000)
+        XCTAssertEqual(pro.maxOutputTokens, 384_000)
+        XCTAssertEqual(pro.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .fireworks,
+                modelID: "accounts/fireworks/models/deepseek-v4-pro-0813"
+            ),
+            [.low, .high, .max]
+        )
+
+        let qwen = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/qwen3p8-2p4t-a95b",
+            provider: .fireworks
+        )
+        XCTAssertEqual(qwen.contextWindow, 262_144)
+        XCTAssertFalse(qwen.capabilities.contains(.vision))
+        XCTAssertEqual(qwen.reasoningConfig?.defaultEffort, .xhigh)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .fireworks,
+                modelID: "fireworks/qwen3p8-max"
+            ),
+            [.low, .medium, .xhigh]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .fireworks,
+            modelID: "accounts/fireworks/models/qwen3p8-2p4t-a95b"
+        ))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .fireworks,
+            modelID: "accounts/fireworks/models/deepseek-v4-pro-0813"
+        ))
+    }
+
+    func testOpenRouterLastWeekOpenModelsUseExactProviderIDs() {
+        let qwen27 = ModelCatalog.modelInfo(for: "qwen/qwen3.8-27b", provider: .openrouter)
+        XCTAssertEqual(qwen27.contextWindow, 262_144)
+        XCTAssertEqual(qwen27.maxOutputTokens, 131_072)
+        XCTAssertTrue(qwen27.capabilities.contains(.vision))
+        XCTAssertFalse(qwen27.capabilities.contains(.videoInput))
+        XCTAssertEqual(qwen27.reasoningConfig?.defaultEffort, .xhigh)
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "qwen/qwen3.8-27b"))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "qwen/qwen3.8-27b"),
+            [.low, .medium, .xhigh]
+        )
+
+        let qwen24t = ModelCatalog.modelInfo(for: "qwen/qwen3.8-2.4t-a95b", provider: .openrouter)
+        XCTAssertEqual(qwen24t.contextWindow, 1_048_576)
+        XCTAssertEqual(qwen24t.maxOutputTokens, 262_144)
+        XCTAssertFalse(qwen24t.capabilities.contains(.vision))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .openrouter,
+            modelID: "qwen/qwen3.8-2.4t-a95b"
+        ))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "qwen/qwen3.8-2.4t-a95b"),
+            [.low, .medium, .xhigh]
+        )
+
+        let cloudMax = ModelCatalog.modelInfo(for: "qwen/qwen3.8-max", provider: .openrouter)
+        XCTAssertEqual(cloudMax.contextWindow, 1_000_000)
+        XCTAssertEqual(cloudMax.maxOutputTokens, 131_072)
+        XCTAssertTrue(cloudMax.capabilities.contains(.vision))
+        XCTAssertFalse(cloudMax.capabilities.contains(.videoInput))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .openrouter,
+            modelID: "qwen/qwen3.8-max"
+        ))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "qwen/qwen3.8-max"),
+            [.minimal, .low, .medium, .high, .xhigh]
+        )
+
+        let pro = ModelCatalog.modelInfo(for: "deepseek/deepseek-v4-pro-0813", provider: .openrouter)
+        XCTAssertEqual(pro.contextWindow, 1_048_576)
+        XCTAssertEqual(pro.maxOutputTokens, 384_000)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .openrouter,
+                modelID: "deepseek/deepseek-v4-pro-0813"
+            ),
+            [.low, .high, .max]
+        )
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .openrouter,
+            modelID: "deepseek/deepseek-v4-pro-0813"
+        ))
+
+        let lightning = ModelCatalog.modelInfo(for: "nvidia/nemotron-3.5-lightning", provider: .openrouter)
+        XCTAssertEqual(lightning.contextWindow, 1_000_000)
+        XCTAssertEqual(lightning.maxOutputTokens, 131_072)
+        XCTAssertEqual(lightning.reasoningConfig?.type, .toggle)
+        XCTAssertTrue(lightning.capabilities.contains(.promptCaching))
+
+        let lightningFree = ModelCatalog.modelInfo(
+            for: "nvidia/nemotron-3.5-lightning:free",
+            provider: .openrouter
+        )
+        XCTAssertEqual(lightningFree.maxOutputTokens, 65_536)
+        XCTAssertFalse(lightningFree.capabilities.contains(.promptCaching))
+
+        for id in ["qwen/qwen3.8-27b-preview", "qwen/qwen3.8-max-preview", "deepseek/deepseek-v4-pro-0813-custom"] {
+            let unknown = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
+            XCTAssertEqual(unknown.contextWindow, 128_000, id)
+        }
     }
 
     func testFireworksCatalogMetadataUsesExactIDsAndConservativeFallback() {

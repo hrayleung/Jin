@@ -172,6 +172,11 @@ let fireworksDeepSeekV4ProPreferredModelIDs = [
     fireworksDeepSeekV4ProCatalogModelID,
 ]
 let fireworksDeepSeekV4ProModelIDs = Set(fireworksDeepSeekV4ProPreferredModelIDs)
+let fireworksDeepSeekV4Pro0813PreferredModelIDs = [
+    "accounts/fireworks/models/deepseek-v4-pro-0813",
+    "fireworks/deepseek-v4-pro-0813",
+    "deepseek-ai/deepseek-v4-pro-0813",
+]
 
 /// Extracts the canonical (lowercased, prefix-stripped) Fireworks model ID.
 /// Returns nil if the model ID contains an unrecognized namespace prefix.

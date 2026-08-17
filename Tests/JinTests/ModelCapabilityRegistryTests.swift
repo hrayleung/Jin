@@ -611,6 +611,31 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "sakana/fugu-ultra-custom"),
             [.low, .medium, .high]
         )
+
+        // Official DeepSeek V4 GA: low/high/max (api-docs.deepseek.com thinking mode).
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .deepseek, modelID: "deepseek-v4-pro"),
+            [.low, .high, .max]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .deepseek, modelID: "deepseek-v4-flash"),
+            [.low, .high, .max]
+        )
+        // OpenRouter 0813 is not the April preview high/xhigh band.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .openrouter,
+                modelID: "deepseek/deepseek-v4-pro-0813"
+            ),
+            [.low, .high, .max]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .openrouter,
+                modelID: "deepseek/deepseek-v4-pro"
+            ),
+            [.high, .xhigh]
+        )
     }
 
     func testNewOpenRouterEffortBandsReachTheWireFormat() {

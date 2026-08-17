@@ -107,6 +107,32 @@ final class ChatModelSelectionSupportTests: XCTestCase {
         )
     }
 
+    func testPreferredFireworksModelIDPrefersDeepSeekV4Pro0813OverPreview() {
+        let models = [
+            ModelInfo(
+                id: "accounts/fireworks/models/deepseek-v4-pro",
+                name: "DeepSeek V4 Pro",
+                capabilities: [.streaming],
+                contextWindow: 1_048_600,
+                reasoningConfig: nil,
+                isEnabled: true
+            ),
+            ModelInfo(
+                id: "accounts/fireworks/models/deepseek-v4-pro-0813",
+                name: "DeepSeek V4 Pro 0813",
+                capabilities: [.streaming],
+                contextWindow: 1_040_000,
+                reasoningConfig: nil,
+                isEnabled: true
+            )
+        ]
+
+        XCTAssertEqual(
+            ChatModelSelectionSupport.preferredFireworksModelID(in: models),
+            "accounts/fireworks/models/deepseek-v4-pro-0813"
+        )
+    }
+
     func testPreferredModelIDPrefersLatestDeepInfraExactModels() {
         let models = [
             ModelInfo(

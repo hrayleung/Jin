@@ -6,8 +6,8 @@ import Foundation
 /// - Base URL: https://api.fireworks.ai/inference/v1
 /// - Endpoint: POST /chat/completions
 /// - Model listing: GET /v1/accounts/fireworks/models?filter=supports_serverless=true
-/// - Models: `fireworks/qwen3p6-plus`, `accounts/fireworks/models/deepseek-v4-pro`,
-///   `fireworks/deepseek-v3p2`, ...
+/// - Models: `fireworks/qwen3p6-plus`, `accounts/fireworks/models/deepseek-v4-pro-0813`,
+///   `accounts/fireworks/models/qwen3p8-2p4t-a95b`, `fireworks/deepseek-v3p2`, ...
 actor FireworksAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .vision, .audio, .reasoning]

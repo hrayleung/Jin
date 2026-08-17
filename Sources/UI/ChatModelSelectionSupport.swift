@@ -14,7 +14,9 @@ enum ChatModelSelectionSupport {
     static let preferredFireworksModelOrder: [String] = [
         "kimi-k3",
         "kimi-k2p6",
+        "qwen3p8-2p4t-a95b",
         "qwen3p6-plus",
+        "deepseek-v4-pro-0813",
         "deepseek-v4-pro",
         "deepseek-v3p2",
         "kimi-k2-instruct-0905",
@@ -26,6 +28,9 @@ enum ChatModelSelectionSupport {
     ]
     static let preferredDeepInfraModelOrder: [String] = [
         "moonshotai/Kimi-K3",
+        "deepseek-ai/DeepSeek-V4-Pro-0813",
+        "Qwen/Qwen3.8-2.4T-A95B",
+        "nvidia/NVIDIA-Nemotron-3.5-Lightning",
         "zai-org/GLM-5.2",
         "zai-org/GLM-5.1",
         "Qwen/Qwen3.6-35B-A3B",
@@ -42,8 +47,11 @@ enum ChatModelSelectionSupport {
         "moonshotai/Kimi-K2.5",
         "zai-org/GLM-5.2",
         "zai-org/GLM-5",
+        "deepseek-ai/DeepSeek-V4-Pro-0813",
+        "deepseek-ai/DeepSeek-V4-Flash-0731",
         "deepseek-ai/DeepSeek-V3.1",
         "openai/gpt-oss-120b",
+        "Qwen/Qwen3.8-2.4T-A95B",
         "Qwen/Qwen3.5-397B-A17B",
         "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
         "Qwen/Qwen3-Coder-Next-FP8",
@@ -54,9 +62,9 @@ enum ChatModelSelectionSupport {
         "moonshotai/Kimi-K2.6",
         "thinkingmachines/inkling",
         "thinkingmachines/inkling-small",
-        "deepseek-ai/DeepSeek-V4-Pro",
         "deepseek-ai/DeepSeek-V4-Pro-0813",
         "deepseek-ai/DeepSeek-V4-Flash-0731",
+        "deepseek-ai/DeepSeek-V4-Pro",
         "zai-org/GLM-5.2",
         "zai-org/GLM-5.2-Fast",
         "zai-org/GLM-4.7",
@@ -81,6 +89,14 @@ enum ChatModelSelectionSupport {
 
     static func preferredFireworksModelID(in models: [ModelInfo]) -> String? {
         for canonicalID in preferredFireworksModelOrder {
+            if canonicalID == "deepseek-v4-pro-0813" {
+                for preferredID in fireworksDeepSeekV4Pro0813PreferredModelIDs {
+                    if let modelID = models.first(where: { $0.id.lowercased() == preferredID })?.id {
+                        return modelID
+                    }
+                }
+                continue
+            }
             if canonicalID == "deepseek-v4-pro" {
                 for preferredID in fireworksDeepSeekV4ProPreferredModelIDs {
                     if let modelID = models.first(where: { $0.id.lowercased() == preferredID })?.id {

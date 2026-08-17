@@ -154,7 +154,7 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertFalse(resolvedPro.supportsOpenAIStyleExtremeEffort)
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .deepseek, modelID: "deepseek-v4-pro"),
-            [.high, .max]
+            [.low, .high, .max]
         )
     }
 
@@ -2177,10 +2177,11 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.6"))
 
         // OpenRouter reasoning.mandatory=true models (live metadata, 2026-07-11 / 2026-08-12).
-        for id in ["x-ai/grok-4.6", "x-ai/grok-4.5", "anthropic/claude-fable-5", "sakana/fugu-ultra"] {
+        for id in ["x-ai/grok-4.6", "x-ai/grok-4.5", "anthropic/claude-fable-5", "sakana/fugu-ultra", "qwen/qwen3.8-2.4t-a95b", "qwen/qwen3.8-max"] {
             XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: id), id)
         }
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "anthropic/claude-sonnet-5"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "qwen/qwen3.8-27b"))
 
         // Vercel AI Gateway twins of always-on upstream models.
         for id in ["xai/grok-4.6", "xai/grok-4.5", "meta/muse-spark-1.1", "meta/muse-spark-1.2", "meta/muse-spark-1.2-contributor"] {
