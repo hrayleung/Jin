@@ -683,5 +683,70 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             OpenAICompatibleReasoningSupport.mapReasoningEffort(.max, providerConfig: openRouterConfig, modelID: "openai/gpt-5.6-sol"),
             "max"
         )
+
+        // DeepSeek V4 Pro 0813 on OpenRouter is low/high/max — Max must not fold to xhigh.
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .openrouter,
+                modelID: "deepseek/deepseek-v4-pro-0813"
+            )
+        )
+        XCTAssertEqual(
+            OpenAICompatibleReasoningSupport.mapReasoningEffort(
+                .max,
+                providerConfig: openRouterConfig,
+                modelID: "deepseek/deepseek-v4-pro-0813"
+            ),
+            "max"
+        )
+        XCTAssertEqual(
+            OpenAICompatibleReasoningSupport.mapReasoningEffort(
+                .low,
+                providerConfig: openRouterConfig,
+                modelID: "deepseek/deepseek-v4-pro-0813"
+            ),
+            "low"
+        )
+    }
+
+    func testHostedDeepSeekV4Pro0813MaxEffortStaysProviderScoped() {
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .deepinfra,
+                modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"
+            )
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .together,
+                modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"
+            )
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .fireworks,
+                modelID: "accounts/fireworks/models/deepseek-v4-pro-0813"
+            )
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .fireworks,
+                modelID: "fireworks/deepseek-v4-pro-0813"
+            )
+        )
+        // Preview DeepSeek V4 Pro on Together stays high-only.
+        XCTAssertFalse(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .together,
+                modelID: "deepseek-ai/DeepSeek-V4-Pro"
+            )
+        )
+        // Same ID string must not grant max on a provider that does not list it.
+        XCTAssertFalse(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .openrouter,
+                modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"
+            )
+        )
     }
 }

@@ -168,31 +168,14 @@ extension FireworksAdapter {
     }
 
     private func mapReasoningEffort(_ effort: ReasoningEffort, modelID: String) -> String {
-        // Kimi K3 (and K3 Fast) accept low/medium/high/max on Fireworks; preserve `max`
-        // instead of collapsing it to `high` via the shared none-disabled mapper.
-        if isFireworksModelID(modelID, canonicalID: "kimi-k3")
-            || isFireworksKimiK3FastModel(modelID) {
-            switch effort {
-            case .none:
-                return "none"
-            case .minimal, .low:
-                return "low"
-            case .medium:
-                return "medium"
-            case .high, .xhigh:
-                return "high"
-            case .max:
-                return "max"
-            }
-        }
-        return mapReasoningEffortNoneDisabled(effort)
-    }
-
-    private func isFireworksKimiK3FastModel(_ modelID: String) -> Bool {
-        // Exact IDs only — no suffix expansion for undocumented namespaces.
-        let lower = modelID.lowercased()
-        return lower == "accounts/fireworks/routers/kimi-k3-fast"
-            || lower == "fireworks/kimi-k3-fast"
+        // Registry bands already encode per-model wire values (Kimi K3 max,
+        // DeepSeek V4 Pro 0813 low/high/max, Qwen3.8 xhigh). Normalize first
+        // so unsupported labels fold, then send the surviving raw value.
+        ModelCapabilityRegistry.normalizedReasoningEffort(
+            effort,
+            for: .fireworks,
+            modelID: modelID
+        ).rawValue
     }
 
     private func mapDeepSeekV4ProReasoningEffort(_ effort: ReasoningEffort) -> String {

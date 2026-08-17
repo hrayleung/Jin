@@ -91,11 +91,16 @@ extension DeepSeekAdapter {
         lowerModelID == "deepseek-v4-flash" || lowerModelID == "deepseek-v4-pro"
     }
 
+    /// Official Chat Completions `reasoning_effort` is `low`/`high`/`max`
+    /// (api-docs.deepseek.com thinking mode). Compatibility mapping from the
+    /// same page: `medium` and `xhigh` fold to `high`; `max` stays `max`.
     private func mapDeepSeekReasoningEffort(_ effort: ReasoningEffort) -> String {
         switch effort {
-        case .xhigh, .max:
+        case .low:
+            return "low"
+        case .max:
             return "max"
-        default:
+        case .none, .minimal, .medium, .high, .xhigh:
             return "high"
         }
     }

@@ -338,6 +338,91 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testFireworksAdapterSendsDeepSeekV4Pro0813LowHighMaxEfforts() async throws {
+        for (effort, expected) in [
+            (ReasoningEffort.low, "low"),
+            (.high, "high"),
+            (.max, "max"),
+        ] {
+            let (configuration, protocolType) = makeMockedSessionConfiguration()
+            let networkManager = NetworkManager(configuration: configuration)
+
+            let providerConfig = ProviderConfig(
+                id: "fw",
+                name: "Fireworks",
+                type: .fireworks,
+                apiKey: "ignored",
+                baseURL: "https://example.com"
+            )
+
+            protocolType.requestHandler = { request in
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
+                XCTAssertEqual(root["model"] as? String, "accounts/fireworks/models/deepseek-v4-pro-0813")
+                XCTAssertEqual(root["reasoning_effort"] as? String, expected)
+                XCTAssertNil(root["thinking"])
+
+                let response: [String: Any] = [
+                    "id": "cmpl_v4_pro_0813",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+
+            let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: "accounts/fireworks/models/deepseek-v4-pro-0813",
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort)),
+                tools: [],
+                streaming: false
+            )
+
+            for try await _ in stream {}
+        }
+    }
+
+    func testFireworksAdapterSendsQwen38XHighReasoningEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "accounts/fireworks/models/qwen3p8-2p4t-a95b")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "xhigh")
+
+            let response: [String: Any] = [
+                "id": "cmpl_qwen38",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "accounts/fireworks/models/qwen3p8-2p4t-a95b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testFireworksAdapterSanitizesMiniMaxProviderSpecificReasoningOverrides() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -1323,6 +1408,85 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                         "finish_reason": "stop"
                     ]
                 ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = DeepSeekAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "deepseek-v4-pro",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testDeepSeekAdapterSendsLowReasoningEffortForV4() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "ds",
+            name: "DeepSeek",
+            type: .deepseek,
+            apiKey: "ignored",
+            baseURL: "https://api.deepseek.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "low")
+
+            let response: [String: Any] = [
+                "id": "cmpl_ds_v4_low",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = DeepSeekAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "deepseek-v4-flash",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .low)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testDeepSeekAdapterMapsXHighReasoningEffortToHighForV4() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "ds",
+            name: "DeepSeek",
+            type: .deepseek,
+            apiKey: "ignored",
+            baseURL: "https://api.deepseek.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            // Official thinking-mode table maps requested xhigh → high, not max.
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+
+            let response: [String: Any] = [
+                "id": "cmpl_ds_v4_xhigh",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
             ]
             let data = try JSONSerialization.data(withJSONObject: response)
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
@@ -3335,6 +3499,47 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenRouterAdapterSendsMaxEffortForDeepSeekV4Pro0813() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "deepseek/deepseek-v4-pro-0813")
+            XCTAssertNil(root["reasoning_effort"])
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "max")
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_deepseek_v4_0813",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "deepseek/deepseek-v4-pro-0813",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenRouterAdapterClampsUnsupportedXHighEffortToHigh() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -4957,6 +5162,47 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
     }
 
+    func testOpenAICompatibleAdapterSendsMaxEffortForDeepInfraDeepSeekV4Pro0813() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "deepinfra",
+            name: "DeepInfra",
+            type: .deepinfra,
+            apiKey: "ignored",
+            baseURL: "https://api.deepinfra.com/v1/openai"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "deepseek-ai/DeepSeek-V4-Pro-0813")
+            XCTAssertNil(root["reasoning_effort"])
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "max")
+
+            let response: [String: Any] = [
+                "id": "cmpl_deepinfra_deepseek_v4_0813",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "deepseek-ai/DeepSeek-V4-Pro-0813",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenAICompatibleAdapterFetchModelsForVercelDerivesConservativeMetadataWhenUnknown() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -5307,6 +5553,91 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             messages: [Message(role: .user, content: [.text("hello")])],
             modelID: "deepseek-ai/DeepSeek-V4-Pro",
             controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testTogetherAdapterSendsDeepSeekV4GALowAndMaxReasoningEffort() async throws {
+        for (modelID, effort, expected) in [
+            ("deepseek-ai/DeepSeek-V4-Pro-0813", ReasoningEffort.low, "low"),
+            ("deepseek-ai/DeepSeek-V4-Pro-0813", .max, "max"),
+            ("deepseek-ai/DeepSeek-V4-Flash-0731", .max, "max"),
+        ] {
+            let (configuration, protocolType) = makeMockedSessionConfiguration()
+            let networkManager = NetworkManager(configuration: configuration)
+
+            let providerConfig = ProviderConfig(
+                id: "together",
+                name: "Together AI",
+                type: .together,
+                apiKey: "ignored",
+                baseURL: "https://api.together.xyz/v1"
+            )
+
+            protocolType.requestHandler = { request in
+                let body = try XCTUnwrap(requestBodyData(request))
+                let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+                let root = try XCTUnwrap(json)
+                XCTAssertEqual(root["model"] as? String, modelID)
+                XCTAssertEqual(root["reasoning_effort"] as? String, expected)
+                XCTAssertNil(root["reasoning"])
+
+                let response: [String: Any] = [
+                    "id": "cmpl_together_deepseek_v4_ga",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+
+            let adapter = TogetherAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hello")])],
+                modelID: modelID,
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort)),
+                tools: [],
+                streaming: false
+            )
+
+            for try await _ in stream {}
+        }
+    }
+
+    func testTogetherAdapterSendsQwen38XHighReasoningEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "together",
+            name: "Together AI",
+            type: .together,
+            apiKey: "ignored",
+            baseURL: "https://api.together.xyz/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "Qwen/Qwen3.8-2.4T-A95B")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "xhigh")
+
+            let response: [String: Any] = [
+                "id": "cmpl_together_qwen38",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = TogetherAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "Qwen/Qwen3.8-2.4T-A95B",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
             tools: [],
             streaming: false
         )

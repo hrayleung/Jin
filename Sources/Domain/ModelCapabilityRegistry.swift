@@ -675,7 +675,8 @@ enum ModelCapabilityRegistry {
         if providerType == .openrouter,
            openRouterHighBandEffortModelIDs.contains(lowerModelID)
             || openRouterMinimalMaxEffortModelIDs.contains(lowerModelID)
-            || openRouterFullLadderEffortModelIDs.contains(lowerModelID) {
+            || openRouterFullLadderEffortModelIDs.contains(lowerModelID)
+            || openRouterDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID) {
             return true
         }
 
@@ -686,17 +687,23 @@ enum ModelCapabilityRegistry {
         // Do not call supportedReasoningEfforts here (recursion).
         switch providerType {
         case .together:
-            if togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID) {
+            if togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+                || togetherDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
             }
         case .deepinfra:
-            if deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID) {
+            if deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+                || deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
             }
         case .fireworks:
             if fireworksKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+                || fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
                 || fireworksCanonicalModelID(lowerModelID)
-                    .map({ fireworksKimiK3ReasoningEffortModelIDs.contains($0) }) == true {
+                    .map({
+                        fireworksKimiK3ReasoningEffortModelIDs.contains($0)
+                            || fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains($0)
+                    }) == true {
                 return true
             }
         case .vercelAIGateway:
