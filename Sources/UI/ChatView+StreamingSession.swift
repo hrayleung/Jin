@@ -233,6 +233,11 @@ extension ChatView {
                     conversationEntity.messages.append(entity)
                     conversationEntity.refreshMessageCount()
                     conversationEntity.updatedAt = Date()
+                    // One more visible row joins the suffix window. Without
+                    // this the window slides at stream end (head drops, tail
+                    // appends) — the same batchDiff churn the send path grows
+                    // the window to avoid, just moved one turn later.
+                    expandRenderWindowForPinnedSendIfNeeded(additionalMessages: 1)
                     persistCompletedAssistantMessage()
 
                     // Keep the already-rendered streaming row alive until the

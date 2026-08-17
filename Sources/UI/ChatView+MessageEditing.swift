@@ -52,7 +52,15 @@ extension ChatView {
             return
         }
 
-        guard let keepCount = keepCountForRegeneratingUserMessage(messageEntity) else {
+        // One ordered walk for the whole commit. This used to be sorted three
+        // separate times on the Enter turn (keep-count, truncate, keep-ID set),
+        // each re-faulting the relationship — the edit path's share of the
+        // "resend feels laggy" report.
+        let orderedMessages = orderedConversationMessages()
+        guard let keepCount = ChatMessageEditingSupport.keepCountForRegeneratingUserMessage(
+            messageEntity,
+            orderedMessages: orderedMessages
+        ) else {
             cancelEditingUserMessage()
             return
         }
@@ -92,8 +100,11 @@ extension ChatView {
         // Truncate BEFORE bumping the edited timestamp. `orderedConversationMessages`
         // sorts by timestamp — flipping it first would keep the wrong prefix.
         defersObservedMessageCacheRebuild = true
-        truncateConversationEntities(keepingMessages: keepCount)
+        truncateConversationEntities(keepingMessages: keepCount, orderedMessages: orderedMessages)
         messageEntity.timestamp = askedAt
+        // The truncate derived the activity date from the pre-edit timestamp;
+        // re-derive now that the edited turn carries its resend time.
+        conversationEntity.refreshMessageCount()
         conversationEntity.updatedAt = askedAt
 
         let historyMessage = ChatMessageEditingSupport.makeUpdatedUserMessage(
@@ -103,7 +114,11 @@ extension ChatView {
             timestamp: askedAt,
             perMessageMCPServerNames: selectedNames.isEmpty ? nil : selectedNames
         )
-        let keepMessageIDs = Set(orderedConversationMessages().map(\.id)).union([messageEntity.id])
+        // Same prefix `truncateConversationEntities` just kept — reuse the one
+        // ordered walk instead of re-sorting the (now truncated) relationship.
+        let keepMessageIDs = Set(
+            orderedMessages.prefix(max(0, min(keepCount, orderedMessages.count))).map(\.id)
+        ).union([messageEntity.id])
         applyEditedUserTurnToRenderCaches(
             entity: messageEntity,
             message: historyMessage,
@@ -261,9 +276,15 @@ extension ChatView {
     /// Deletes trailing messages without rebuilding the render cache. The
     /// edit path paints the rewritten user turn first; regenerate still
     /// follows this with `rebuildMessageCaches()`.
+    /// - Parameter orderedMessages: pass the caller's already-sorted list to
+    ///   skip a redundant relationship fault + sort. The edit-commit path runs
+    ///   on the Enter keypress turn, where that walk is not free.
     @discardableResult
-    func truncateConversationEntities(keepingMessages keepCount: Int) -> [MessageEntity] {
-        let ordered = orderedConversationMessages()
+    func truncateConversationEntities(
+        keepingMessages keepCount: Int,
+        orderedMessages: [MessageEntity]? = nil
+    ) -> [MessageEntity] {
+        let ordered = orderedMessages ?? orderedConversationMessages()
         let normalizedKeepCount = max(0, min(keepCount, ordered.count))
         let keepIDs = Set(ordered.prefix(normalizedKeepCount).map(\.id))
         let messagesToDelete = Array(ordered.suffix(from: normalizedKeepCount))

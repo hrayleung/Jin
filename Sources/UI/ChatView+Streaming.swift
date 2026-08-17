@@ -415,13 +415,22 @@ extension ChatView {
     @MainActor
     func expandRenderWindowForPinnedSendIfNeeded(additionalMessages: Int) {
         guard isPinnedToBottom else { return }
-        // Projected domain message count after this send (user turn).
-        let projected = max(
+        // The streaming placeholder is its own table row, not a windowed
+        // message, so it needs no spare — only real appends grow the window.
+        let added = max(0, additionalMessages)
+        guard added > 0 else { return }
+        // Denormalized counter only. `messages.count` re-faults the whole
+        // relationship on the keypress — the stall this file warns about at
+        // the top and then used to cause here.
+        let projectedTotal = max(
             renderCache.cachedTotalMessageCount,
-            conversationEntity.messages.count
-        ) + max(0, additionalMessages)
-        // +1 spare for the streaming placeholder row identity in the table.
-        let needed = projected + 1
+            conversationEntity.resolvedMessageCount
+        ) + added
+        let needed = ChatMessageStagePresentationSupport.renderLimitAfterAppend(
+            currentLimit: messageRenderLimit,
+            projectedTotal: projectedTotal,
+            appended: added
+        )
         if needed > messageRenderLimit {
             messageRenderLimit = needed
         }

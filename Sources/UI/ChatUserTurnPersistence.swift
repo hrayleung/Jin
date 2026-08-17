@@ -52,7 +52,10 @@ enum ChatUserTurnPersistence {
         makeConversationTitle: (String) -> String,
         applyRenderCaches: (_ entity: MessageEntity, _ message: Message, _ previousUpdatedAt: Date) -> Void
     ) {
-        if conversationEntity.messages.isEmpty {
+        // Denormalized counter: `messages.isEmpty` faults the whole relationship
+        // on the send keypress, which is exactly the stall the send path warns
+        // about (see the note at the top of `sendMessageInternal`).
+        if conversationEntity.resolvedMessageCount == 0 {
             persistConversationIfNeeded()
         }
 

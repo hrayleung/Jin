@@ -28,11 +28,12 @@ final class AppPostLaunchMaintenance {
         updateProviderModelsIfNeeded(container: container)
     }
 
-    /// Fills `ConversationEntity.messageCount` for rows created before the
-    /// attribute existed (`nil`). Self-limiting: the predicate matches nothing
-    /// once every row is backfilled, so steady-state launches fetch zero rows.
-    /// Until a row is backfilled the sidebar falls back to the relationship,
-    /// so this is a performance backfill, not a correctness gate.
+    /// Fills `ConversationEntity.messageCount` and `lastActivityAt` for rows
+    /// created before those attributes existed (`nil`). Self-limiting: the
+    /// predicate matches nothing once every row is backfilled, so steady-state
+    /// launches fetch zero rows. Until a row is backfilled the sidebar falls
+    /// back to the relationship, so this is a performance backfill, not a
+    /// correctness gate.
     ///
     /// Batched: each pass fetches a bounded slice (the predicate excludes
     /// already-backfilled rows, so re-fetching pages naturally) and saves it
@@ -41,7 +42,7 @@ final class AppPostLaunchMaintenance {
     func backfillConversationMessageCountsIfNeeded(container: ModelContainer) {
         let context = ModelContext(container)
         var descriptor = FetchDescriptor<ConversationEntity>(
-            predicate: #Predicate { $0.messageCount == nil }
+            predicate: #Predicate { $0.messageCount == nil || $0.lastActivityAt == nil }
         )
         descriptor.fetchLimit = 200
 
