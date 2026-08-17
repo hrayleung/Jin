@@ -169,6 +169,38 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: true),
+        // DeepSeek-V4-Pro-0813 (DeepInfra serverless, 2026-08-15): official GA of
+        // V4 Pro. Exact ID from deepinfra.com/deepseek-ai/DeepSeek-V4-Pro-0813.
+        // 1,048,576 context, cached-input pricing, tools. reasoning_effort
+        // low/high/max (HF + DeepSeek thinking docs). Preview
+        // `deepseek-ai/DeepSeek-V4-Pro` stays catalog-only.
+        Record(id: "deepseek-ai/DeepSeek-V4-Pro-0813", displayName: "DeepSeek V4 Pro 0813",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        // Qwen3.8-2.4T-A95B (DeepInfra serverless, 2026-08-13): open-weight Max-class
+        // MoE. Page lists 262,144 / JSON / function / cached-input. Text-only —
+        // HF, Fireworks, and OpenRouter all withhold vision on these weights
+        // (cloud `qwen3.8-max` is the multimodal product). Thinking always on;
+        // HF `reasoning_effort` is low/medium/xhigh (xhigh default).
+        Record(id: "Qwen/Qwen3.8-2.4T-A95B", displayName: "Qwen3.8 Max",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: true),
+        // Nemotron 3.5 Lightning (DeepInfra serverless, 2026-08-11). Live page
+        // shows 262,144 / JSON / function / cached-input. Tweet claimed 1M —
+        // use the page window, not the tweet. No DeepInfra reasoning field is
+        // documented, so reasoning is not claimed here (OpenRouter toggle is a
+        // different gateway).
+        Record(id: "nvidia/NVIDIA-Nemotron-3.5-Lightning", displayName: "Nemotron 3.5 Lightning",
+               capabilities: [.streaming, .toolCalling, .promptCaching],
+               contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.2", displayName: "GLM-5.2",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,
@@ -346,15 +378,39 @@ extension ModelCatalog {
                contextWindow: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: true),
-        Record(id: "deepseek-ai/DeepSeek-V4-Pro", displayName: "DeepSeek V4 Pro",
-               capabilities: [.streaming, .toolCalling, .reasoning],
-               contextWindow: 524_288,
+        // DeepSeek-V4-Pro-0813 (Together serverless, 2026-08-16): official GA.
+        // Endpoint + 1.05M window + cached-input + low/high/max effort from
+        // together.ai/models/deepseek-v4-pro-0813. Thinking default on; non-thinking
+        // is available, so this ID is not on the always-on list.
+        Record(id: "deepseek-ai/DeepSeek-V4-Pro-0813", displayName: "DeepSeek V4 Pro 0813",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        // DeepSeek-V4-Flash-0731 (Together serverless): official Flash GA.
+        // together.ai/models/deepseek-v4-flash-0731 + serverless table.
+        Record(id: "deepseek-ai/DeepSeek-V4-Flash-0731", displayName: "DeepSeek V4 Flash 0731",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
         Record(id: "openai/gpt-oss-120b", displayName: "GPT-OSS 120B",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        // Qwen3.8-2.4T-A95B (Together serverless, 2026-08-14). Endpoint from
+        // together.ai/models/qwen3-8-max. Together's own spec is 256K / 128K
+        // (not OpenRouter's 1M). Text-only on these weights. Thinking is
+        // always-on; Together documents low/high/xhigh (xhigh default) — not
+        // the HF/Modal low/medium/xhigh band.
+        Record(id: "Qwen/Qwen3.8-2.4T-A95B", displayName: "Qwen3.8 Max",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 256_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
                isFullySupported: true, isSeeded: true),
         Record(id: "Qwen/Qwen3.5-397B-A17B", displayName: "Qwen3.5 397B A17B",
                capabilities: [.streaming, .toolCalling],
@@ -372,6 +428,13 @@ extension ModelCatalog {
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
         // Catalog-only
+        // Preview V4 Pro ID kept so persisted chats still resolve. Together's
+        // 0813 GA is the seeded replacement.
+        Record(id: "deepseek-ai/DeepSeek-V4-Pro", displayName: "DeepSeek V4 Pro",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "MiniMaxAI/MiniMax-M2.5", displayName: "MiniMax M2.5",
                capabilities: [.streaming, .toolCalling],
                contextWindow: 228_700,
@@ -553,7 +616,9 @@ extension ModelCatalog {
 
     // MARK: DeepSeek
 
-    // Official Models & Pricing (2026-07): primary IDs are deepseek-v4-flash / deepseek-v4-pro.
+    // Official Models & Pricing (2026-08-16): primary IDs stay deepseek-v4-flash /
+    // deepseek-v4-pro (names unchanged). Current versions are V4-Flash-0731 /
+    // V4-Pro-0813. reasoning_effort is low/high/max (default high).
     // deepseek-chat / deepseek-reasoner are aliases of V4 Flash non/thinking modes and are
     // deprecated 2026-07-24 15:59 UTC — keep catalog-only for persisted chats.
     static let deepSeekRecords: [Record] = [
@@ -777,11 +842,31 @@ extension ModelCatalog {
                contextWindow: 128_000,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: true),
+        // DeepSeek-V4-Pro-0813 (Fireworks serverless, 2026-08-13). Canonical path
+        // from fireworks.ai/models/deepseek-ai/deepseek-v4-pro-0813: 1040k context,
+        // tools, cached-input. Preview `deepseek-v4-pro` stays catalog-only.
+        Record(id: "accounts/fireworks/models/deepseek-v4-pro-0813", displayName: "DeepSeek V4 Pro 0813",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        // Qwen3.8-2.4T-A95B (Fireworks serverless, 2026-08-12). Path
+        // accounts/fireworks/models/qwen3p8-2p4t-a95b; tweet URL alias is
+        // fireworks/qwen3p8-max. 262k, tools, no image, cached-input. Effort
+        // band inherited from the same HF weights (low/medium/xhigh) — Fireworks
+        // page does not list effort values.
+        Record(id: "accounts/fireworks/models/qwen3p8-2p4t-a95b", displayName: "Qwen3.8 Max",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: true),
         Record(id: "accounts/fireworks/models/deepseek-v4-pro", displayName: "DeepSeek V4 Pro",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_600,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
-               isFullySupported: true, isSeeded: true),
+               isFullySupported: true, isSeeded: false),
         Record(id: "fireworks/deepseek-v3p2", displayName: "DeepSeek V3.2",
                capabilities: [.streaming, .toolCalling],
                contextWindow: 163_800,
@@ -839,6 +924,30 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_600,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "fireworks/deepseek-v4-pro-0813", displayName: "DeepSeek V4 Pro 0813",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "deepseek-ai/deepseek-v4-pro-0813", displayName: "DeepSeek V4 Pro 0813",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "fireworks/qwen3p8-2p4t-a95b", displayName: "Qwen3.8 Max",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "fireworks/qwen3p8-max", displayName: "Qwen3.8 Max",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
                isFullySupported: true, isSeeded: false),
         Record(id: "fireworks/kimi-k2-thinking", displayName: "Kimi K2 Thinking",
                capabilities: [.streaming, .toolCalling, .reasoning],

@@ -424,6 +424,21 @@ enum ModelCapabilityRegistry {
         "deepseek/deepseek-v4-flash",
         "deepseek/deepseek-v4-pro",
     ]
+    /// DeepSeek V4 Pro 0813 GA on OpenRouter: live `/models` supported_efforts
+    /// are max/high/low (default high). Distinct from the April preview slug.
+    private static let openRouterDeepSeekV4Pro0813ReasoningEffortModelIDs: Set<String> = [
+        "deepseek/deepseek-v4-pro-0813",
+    ]
+    /// Open-weight Qwen3.8-2.4T-A95B + 27B on OpenRouter: xhigh/medium/low
+    /// (default xhigh). Cloud Max is a different product (see below).
+    private static let openRouterQwen38OpenWeightReasoningEffortModelIDs: Set<String> = [
+        "qwen/qwen3.8-2.4t-a95b",
+        "qwen/qwen3.8-27b",
+    ]
+    /// Alibaba Cloud Qwen3.8 Max on OpenRouter: xhigh/high/medium/low/minimal.
+    private static let openRouterQwen38CloudMaxReasoningEffortModelIDs: Set<String> = [
+        "qwen/qwen3.8-max",
+    ]
     /// Sakana Fugu Ultra only accepts the high/xhigh/max band (OpenRouter
     /// supported_efforts, verified 2026-07-11).
     private static let openRouterHighBandEffortModelIDs: Set<String> = [
@@ -462,6 +477,17 @@ enum ModelCapabilityRegistry {
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
     ]
+    /// Together GA DeepSeek V4 snapshots: low/high/max (Together model pages,
+    /// 2026-08-16 / 2026-07-30). Preview `DeepSeek-V4-Pro` stays on the older
+    /// high-only band above.
+    private static let togetherDeepSeekV4GAReasoningEffortModelIDs: Set<String> = [
+        "deepseek-ai/deepseek-v4-pro-0813",
+        "deepseek-ai/deepseek-v4-flash-0731",
+    ]
+    /// Together Qwen3.8-2.4T-A95B: always-on low/high/xhigh (Together model page).
+    private static let togetherQwen38TextReasoningEffortModelIDs: Set<String> = [
+        "qwen/qwen3.8-2.4t-a95b",
+    ]
     /// Kimi K3 on Together: low/high/max (models.dev togetherai, 2026-07-29).
     private static let togetherKimiK3ReasoningEffortModelIDs: Set<String> = [
         "moonshotai/kimi-k3",
@@ -469,6 +495,14 @@ enum ModelCapabilityRegistry {
     private static let deepInfraDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-flash",
         "deepseek-ai/deepseek-v4-pro",
+    ]
+    /// DeepInfra DeepSeek-V4-Pro-0813: low/high/max (HF + DeepSeek thinking docs).
+    private static let deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs: Set<String> = [
+        "deepseek-ai/deepseek-v4-pro-0813",
+    ]
+    /// DeepInfra Qwen3.8-2.4T-A95B: HF low/medium/xhigh, thinking always on.
+    private static let deepInfraQwen38TextReasoningEffortModelIDs: Set<String> = [
+        "qwen/qwen3.8-2.4t-a95b",
     ]
     /// Kimi K3 on DeepInfra: low/high/max (models.dev deepinfra, 2026-07-29).
     private static let deepInfraKimiK3ReasoningEffortModelIDs: Set<String> = [
@@ -481,6 +515,23 @@ enum ModelCapabilityRegistry {
         "accounts/fireworks/models/kimi-k3",
         "accounts/fireworks/routers/kimi-k3-fast",
         "fireworks/kimi-k3-fast",
+    ]
+    /// Fireworks DeepSeek-V4-Pro-0813: low/high/max (same GA band as Together /
+    /// DeepInfra / official docs). Preview `deepseek-v4-pro` stays high/max.
+    private static let fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs: Set<String> = [
+        "deepseek-v4-pro-0813",
+        "fireworks/deepseek-v4-pro-0813",
+        "accounts/fireworks/models/deepseek-v4-pro-0813",
+        "deepseek-ai/deepseek-v4-pro-0813",
+    ]
+    /// Fireworks Qwen3.8-2.4T-A95B aliases. Fireworks page does not list effort
+    /// values; inherit the HF/Modal same-weights band (low/medium/xhigh).
+    private static let fireworksQwen38TextReasoningEffortModelIDs: Set<String> = [
+        "qwen3p8-2p4t-a95b",
+        "fireworks/qwen3p8-2p4t-a95b",
+        "accounts/fireworks/models/qwen3p8-2p4t-a95b",
+        "qwen3p8-max",
+        "fireworks/qwen3p8-max",
     ]
     /// Vercel Kimi K3 Fast: low/high/max (models.dev vercel, 2026-07-29).
     private static let vercelKimiK3FastReasoningEffortModelIDs: Set<String> = [
@@ -624,7 +675,8 @@ enum ModelCapabilityRegistry {
         if providerType == .openrouter,
            openRouterHighBandEffortModelIDs.contains(lowerModelID)
             || openRouterMinimalMaxEffortModelIDs.contains(lowerModelID)
-            || openRouterFullLadderEffortModelIDs.contains(lowerModelID) {
+            || openRouterFullLadderEffortModelIDs.contains(lowerModelID)
+            || openRouterDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID) {
             return true
         }
 
@@ -635,17 +687,23 @@ enum ModelCapabilityRegistry {
         // Do not call supportedReasoningEfforts here (recursion).
         switch providerType {
         case .together:
-            if togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID) {
+            if togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+                || togetherDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
             }
         case .deepinfra:
-            if deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID) {
+            if deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+                || deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
             }
         case .fireworks:
             if fireworksKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+                || fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
                 || fireworksCanonicalModelID(lowerModelID)
-                    .map({ fireworksKimiK3ReasoningEffortModelIDs.contains($0) }) == true {
+                    .map({
+                        fireworksKimiK3ReasoningEffortModelIDs.contains($0)
+                            || fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains($0)
+                    }) == true {
                 return true
             }
         case .vercelAIGateway:
@@ -738,7 +796,13 @@ enum ModelCapabilityRegistry {
         case .anthropic, .claudeManagedAgents:
             return supportedAnthropicEfforts(lowerModelID: lowerModelID)
         case .deepseek where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
-            return [.high, .max]
+            return [.low, .high, .max]
+        case .openrouter where openRouterDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
+        case .openrouter where openRouterQwen38OpenWeightReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .xhigh]
+        case .openrouter where openRouterQwen38CloudMaxReasoningEffortModelIDs.contains(lowerModelID):
+            return [.minimal, .low, .medium, .high, .xhigh]
         case .openrouter where openRouterDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .xhigh]
         case .openrouter where xAIMultiAgentReasoningEffortModelIDs.contains(lowerModelID):
@@ -759,14 +823,28 @@ enum ModelCapabilityRegistry {
             return [.none, .minimal, .low, .medium, .high, .max]
         case .openrouter where openRouterLowHighEffortModelIDs.contains(lowerModelID):
             return [.low, .high]
+        case .together where togetherDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
         case .together where togetherDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
+        case .together where togetherQwen38TextReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .xhigh]
         case .together where togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
+        case .deepinfra where deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
+        case .deepinfra where deepInfraQwen38TextReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .xhigh]
         case .deepinfra where deepInfraDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .deepinfra where deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
+        case .fireworks where fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
+            || fireworksCanonicalModelID(lowerModelID).map({ fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains($0) }) == true:
+            return [.low, .high, .max]
+        case .fireworks where fireworksQwen38TextReasoningEffortModelIDs.contains(lowerModelID)
+            || fireworksCanonicalModelID(lowerModelID).map({ fireworksQwen38TextReasoningEffortModelIDs.contains($0) }) == true:
+            return [.low, .medium, .xhigh]
         case .fireworks where fireworksKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
             || fireworksCanonicalModelID(lowerModelID).map({ fireworksKimiK3ReasoningEffortModelIDs.contains($0) }) == true:
             return [.none, .low, .medium, .high, .max]

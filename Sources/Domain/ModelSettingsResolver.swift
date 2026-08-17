@@ -86,10 +86,13 @@ enum ModelSettingsResolver {
     static func defaultReasoningCanDisable(for providerType: ProviderType?, modelID: String) -> Bool {
         guard let providerType else { return true }
         if providerType == .fireworks {
-            return !isFireworksMiniMaxM2FamilyModel(modelID)
+            return !isFireworksAlwaysOnReasoningModel(modelID)
         }
         if providerType == .together {
             return !isTogetherAlwaysOnReasoningModel(modelID)
+        }
+        if providerType == .deepinfra {
+            return !deepInfraAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
         if providerType == .sambanova {
             return !isSambaNovaAlwaysOnReasoningModel(modelID)
@@ -207,6 +210,13 @@ enum ModelSettingsResolver {
         "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
         "thinkingmachines/inkling",
+        "qwen/qwen3.8-2.4t-a95b",
+    ]
+
+    /// DeepInfra IDs whose thinking cannot be turned off. Exact-ID only.
+    /// Qwen3.8-2.4T-A95B: HF card — thinking is always enabled.
+    private static let deepInfraAlwaysOnReasoningModelIDs: Set<String> = [
+        "qwen/qwen3.8-2.4t-a95b",
     ]
 
     /// xAI models where reasoning is always-on ("Reasoning cannot be disabled" per
@@ -251,6 +261,8 @@ enum ModelSettingsResolver {
         "sakana/fugu-ultra",
         "meta/muse-spark-1.1",
         "meta/muse-spark-1.2",
+        "qwen/qwen3.8-2.4t-a95b",
+        "qwen/qwen3.8-max",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /
@@ -286,5 +298,22 @@ enum ModelSettingsResolver {
 
     private static func isTogetherAlwaysOnReasoningModel(_ modelID: String) -> Bool {
         togetherAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+    }
+
+    /// Fireworks MiniMax M2 family plus Qwen3.8-2.4T (thinking cannot be disabled
+    /// on the HF weights). Preview DeepSeek V4 Pro stays disableable.
+    private static func isFireworksAlwaysOnReasoningModel(_ modelID: String) -> Bool {
+        if isFireworksMiniMaxM2FamilyModel(modelID) {
+            return true
+        }
+        let lower = modelID.lowercased()
+        if lower == "accounts/fireworks/models/qwen3p8-2p4t-a95b"
+            || lower == "fireworks/qwen3p8-2p4t-a95b"
+            || lower == "fireworks/qwen3p8-max"
+            || fireworksCanonicalModelID(lower) == "qwen3p8-2p4t-a95b"
+            || fireworksCanonicalModelID(lower) == "qwen3p8-max" {
+            return true
+        }
+        return false
     }
 }

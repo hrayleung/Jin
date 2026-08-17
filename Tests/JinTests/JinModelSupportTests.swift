@@ -223,11 +223,17 @@ final class JinModelSupportTests: XCTestCase {
     func testDeepSeekV4SupportUsesOnlyVerifiedExactProviderIDs() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-flash"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-pro"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-pro-0813"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-pro-custom"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-pro-0813-custom"))
 
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Flash"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Pro"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Flash-0731"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3.8-2.4T-A95B"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Pro-custom"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4-Pro-0813-custom"))
 
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Flash"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4-Pro"))
@@ -235,6 +241,8 @@ final class JinModelSupportTests: XCTestCase {
 
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v4-pro"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "deepseek-ai/deepseek-v4-pro"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v4-pro-0813"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/qwen3p8-2p4t-a95b"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/deepseek-v4-pro"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "fireworks/deepseek-v4-flash"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/deepseek-v4-flash"))

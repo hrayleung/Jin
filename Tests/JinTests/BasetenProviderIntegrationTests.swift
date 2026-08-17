@@ -506,8 +506,8 @@ final class BasetenProviderIntegrationTests: XCTestCase {
                 modelID: "thinkingmachines/inkling-small"
             )
         )
-        // Must not bleed to other providers.
-        XCTAssertFalse(
+        // Together independently documents max for 0813; Inkling Small must not bleed.
+        XCTAssertTrue(
             ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
                 for: .together,
                 modelID: "deepseek-ai/DeepSeek-V4-Pro-0813"

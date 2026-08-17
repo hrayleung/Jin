@@ -85,7 +85,9 @@ extension FireworksAdapter {
 
         if lower.hasPrefix(prefix) {
             let suffix = String(lower.dropFirst(prefix.count))
-            if suffix == "deepseek-v4-pro" {
+            if suffix == "deepseek-v4-pro"
+                || suffix == "deepseek-v4-pro-0813"
+                || suffix == "qwen3p8-2p4t-a95b" {
                 return "accounts/fireworks/models/\(suffix)"
             }
             return "fireworks/\(suffix)"
