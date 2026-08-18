@@ -117,6 +117,30 @@ final class ConversationActivityDenormalizationTests: XCTestCase {
         XCTAssertEqual(ConversationActivitySupport.activityDate(for: conversation), userTurn)
     }
 
+    /// Edit-resend and regenerate both truncate first and *then* restamp the
+    /// user turn. Refreshing only during the truncate caches the pre-edit
+    /// timestamp — non-nil, so the post-launch backfill would never repair it
+    /// and the conversation would stay grouped under its old date.
+    func testRestampingAUserTurnAfterTruncationUpdatesTheStoredDate() throws {
+        let conversation = try makeConversation(createdAt: reference)
+        let userTurn = try makeMessage(role: .user, at: reference.addingTimeInterval(60))
+        conversation.messages = [
+            userTurn,
+            try makeMessage(role: .assistant, at: reference.addingTimeInterval(120))
+        ]
+        conversation.refreshMessageCount()
+
+        // Truncate back to the user turn, then restamp it as the resend does.
+        conversation.messages = [userTurn]
+        conversation.refreshMessageCount()
+        let resentAt = reference.addingTimeInterval(9_000)
+        userTurn.timestamp = resentAt
+        conversation.refreshMessageCount()
+
+        XCTAssertEqual(conversation.lastActivityAt, resentAt)
+        XCTAssertEqual(ConversationActivitySupport.activityDate(for: conversation), resentAt)
+    }
+
     func testSortingByActivityUsesTheStoredValue() throws {
         let older = try makeConversation(createdAt: reference)
         older.lastActivityAt = reference

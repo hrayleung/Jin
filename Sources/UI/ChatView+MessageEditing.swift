@@ -201,6 +201,11 @@ extension ChatView {
         let askedAt = Date()
         truncateConversation(keepingMessages: keepCount)
         messageEntity.timestamp = askedAt
+        // The truncate derived the activity date from the pre-regenerate
+        // timestamp. Without this the stale value is non-nil, so the backfill
+        // will never repair it and the conversation stays sorted under its old
+        // date until some later message mutation. Mirrors the edit path.
+        conversationEntity.refreshMessageCount()
         conversationEntity.updatedAt = askedAt
         startStreamingResponse(
             triggeredByUserSend: false,
