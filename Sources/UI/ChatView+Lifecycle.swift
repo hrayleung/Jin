@@ -15,6 +15,9 @@ extension ChatView {
         rebuildMessageCaches()
         syncArtifactSelection()
         refreshContextUsageEstimate(debounced: false)
+        Task.detached(priority: .utility) {
+            JinActivityOrbEngine.prewarmInlinePresets()
+        }
     }
 
     func handleConversationSwitch() {

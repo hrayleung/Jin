@@ -1,7 +1,19 @@
 import SwiftUI
 
 private enum SearchActivityWebTimelinePanelConfig {
-    static let maxVisibleAvatars = 10
+    static let maxVisibleAvatars = 4
+}
+
+enum SearchActivityCollapsedSourceSupport {
+    static func distinctPresentations(
+        _ presentations: [SearchSource.RenderPresentation]
+    ) -> [SearchSource.RenderPresentation] {
+        var seenKeys = Set<String>()
+        return presentations.filter { presentation in
+            let key = "\(presentation.kind.rawValue)|\(presentation.hostDisplay.lowercased())"
+            return seenKeys.insert(key).inserted
+        }
+    }
 }
 
 struct SearchActivityWebTimelineCollapsedSummaryRow: View {
@@ -30,8 +42,6 @@ struct SearchActivityWebTimelineCollapsedSummaryRow: View {
             summaryIcon
             summaryTitleContent
 
-            streamingIndicator
-
             Spacer(minLength: 0)
         }
         .padding(.vertical, 6)
@@ -41,29 +51,23 @@ struct SearchActivityWebTimelineCollapsedSummaryRow: View {
     private var summaryIcon: some View {
         Image(systemName: content.presentation.summarySystemImage)
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(JinSemanticColor.textSecondary)
+            .frame(width: 16, height: 16)
     }
 
-    @ViewBuilder
     private var summaryTitleContent: some View {
-        if content.presentation.sources.isEmpty {
+        HStack(spacing: JinSpacing.small - 2) {
             Text(content.presentation.sectionTitle)
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(JinSemanticColor.textSecondary)
                 .lineLimit(1)
-        } else {
-            SearchActivityWebTimelineSourceAvatarStrip(
-                sources: content.presentation.sources,
-                sourceEnrichmentState: sourceEnrichmentState
-            )
-        }
-    }
 
-    @ViewBuilder
-    private var streamingIndicator: some View {
-        if isStreaming && content.hasRunningActivity {
-            ProgressView()
-                .scaleEffect(0.5)
+            if !content.presentation.sources.isEmpty {
+                SearchActivityWebTimelineSourceAvatarStrip(
+                    sources: content.presentation.sources,
+                    sourceEnrichmentState: sourceEnrichmentState
+                )
+            }
         }
     }
 
@@ -148,22 +152,28 @@ private struct SearchActivityWebTimelineSourceAvatarStrip: View {
     let sourceEnrichmentState: SearchSourceEnrichmentState
 
     var body: some View {
-        HStack(spacing: -4) {
-            ForEach(Array(sources.prefix(SearchActivityWebTimelinePanelConfig.maxVisibleAvatars)), id: \.id) { source in
-                let sourcePresentation = sourceEnrichmentState.renderPresentation(for: source)
+        let presentations = SearchActivityCollapsedSourceSupport.distinctPresentations(
+            sources.map(sourceEnrichmentState.renderPresentation(for:))
+        )
+
+        HStack(spacing: -3) {
+            ForEach(
+                Array(presentations.prefix(SearchActivityWebTimelinePanelConfig.maxVisibleAvatars)),
+                id: \.self
+            ) { sourcePresentation in
                 SearchSourceAvatarView(
                     host: sourcePresentation.host,
                     fallbackText: sourcePresentation.hostDisplayInitial,
                     kind: sourcePresentation.kind,
-                    size: 24
+                    size: 20
                 )
             }
 
-            if sources.count > SearchActivityWebTimelinePanelConfig.maxVisibleAvatars {
-                Text("+\(sources.count - SearchActivityWebTimelinePanelConfig.maxVisibleAvatars)")
+            if presentations.count > SearchActivityWebTimelinePanelConfig.maxVisibleAvatars {
+                Text("+\(presentations.count - SearchActivityWebTimelinePanelConfig.maxVisibleAvatars)")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
+                    .frame(width: 20, height: 20)
                     .background(Circle().fill(JinSemanticColor.subtleSurface))
                     .overlay(
                         Circle()

@@ -60,21 +60,6 @@ extension ToolTimelinePresentationSupport {
         tone.timelineTone.emphasizedColor
     }
 
-    struct RunningIndicator: View {
-        var body: some View {
-            // Time-based wave — never freezes mid-bounce when the hosting
-            // cell reconfigures mid-stream.
-            JinWaveDots(
-                dotSize: 3.5,
-                spacing: 2.5,
-                amplitude: 2.5,
-                color: Color.secondary.opacity(0.6),
-                staggerFraction: 0.13
-            )
-            .frame(height: 10)
-        }
-    }
-
     struct StatusPill: View {
         let status: ToolCallExecutionStatus
         let label: String

@@ -23,7 +23,6 @@ struct ThinkingBlockView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ThinkingBlockHeaderButton(
-                style: .completed,
                 isExpanded: isExpanded,
                 copyText: thinking.text
             ) {
@@ -56,9 +55,9 @@ struct ThinkingBlockView: View {
 
 /// Collapsible thinking block for actively streaming messages.
 ///
-/// In "Always Collapsed" mode, shows a compact header with an elegant
-/// wave-dot animation to indicate active thinking. Users can click to
-/// expand and see the streaming content at any time.
+/// In "Always Collapsed" mode, shows a compact header. Live motion stays on
+/// the streaming bubble's header orb; this row remains a stable semantic
+/// label. Users can click to expand and see the streaming content at any time.
 struct StreamingThinkingBlockView: View {
     let chunks: [String]
     let codeFont: Font
@@ -93,7 +92,6 @@ struct StreamingThinkingBlockView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ThinkingBlockHeaderButton(
-                style: isThinkingComplete ? .completed : .streaming,
                 isExpanded: isExpanded,
                 copyText: chunks.joined()
             ) {

@@ -140,6 +140,37 @@ final class ChatTimelineStreamingPresentationSupportTests: XCTestCase {
         )
     }
 
+    func testPersistedActivityOwnerExistsOnlyDuringUnresolvedToolHandoff() {
+        let assistant = makeItem(
+            role: .assistant,
+            toolCalls: [ToolCall(id: "fetch_1", name: "tinyfish__fetch_content", arguments: [:])]
+        )
+        XCTAssertEqual(
+            ChatTimelineStreamingPresentationSupport.persistedActivityOwnerMessageID(
+                isConversationStreaming: true,
+                lastMessage: assistant,
+                toolResultsByCallID: [:]
+            ),
+            assistant.id
+        )
+        XCTAssertNil(
+            ChatTimelineStreamingPresentationSupport.persistedActivityOwnerMessageID(
+                isConversationStreaming: false,
+                lastMessage: assistant,
+                toolResultsByCallID: [:]
+            )
+        )
+        XCTAssertNil(
+            ChatTimelineStreamingPresentationSupport.persistedActivityOwnerMessageID(
+                isConversationStreaming: true,
+                lastMessage: assistant,
+                toolResultsByCallID: [
+                    "fetch_1": ToolResult(toolCallID: "fetch_1", content: "ok"),
+                ]
+            )
+        )
+    }
+
     private func makeItem(
         role: MessageRole,
         toolCalls: [ToolCall]

@@ -290,6 +290,7 @@ extension ChatView {
             layoutCenterOffset: layoutCenterOffset,
             allMessages: renderContext.visibleMessages,
             toolResultsByCallID: renderContext.toolResultsByCallID,
+            liveToolResults: renderCache.liveToolResultStore,
             messageEntitiesByID: renderContext.messageEntitiesByID,
             assistantDisplayName: assistantDisplayName,
             providerType: providerType,

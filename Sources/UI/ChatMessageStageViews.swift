@@ -9,6 +9,7 @@ struct ChatSingleThreadMessagesView: View {
     let layoutCenterOffset: CGFloat
     let allMessages: [MessageRenderItem]
     let toolResultsByCallID: [String: ToolResult]
+    let liveToolResults: ChatLiveToolResultStore
     let messageEntitiesByID: [UUID: MessageEntity]
     let assistantDisplayName: String
     let providerType: ProviderType?
@@ -101,6 +102,7 @@ struct ChatSingleThreadMessagesView: View {
             providerType: providerType,
             providerIconID: providerIconID,
             toolResultsByCallID: toolResultsByCallID,
+            liveToolResults: liveToolResults,
             messageEntitiesByID: messageEntitiesByID,
             pinnedBottomRefreshDelays: pinnedBottomRefreshDelays,
             interaction: interaction,

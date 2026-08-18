@@ -162,8 +162,10 @@ struct ComposerStatusSummaryView: View {
     var body: some View {
         if isPreparingToSend, let prepareToSendStatus {
             HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
+                Image(systemName: "paperplane.circle")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
                 Text(prepareToSendStatus)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -175,9 +177,10 @@ struct ComposerStatusSummaryView: View {
             .accessibilityElement(children: .combine)
         } else if isRecording {
             HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 8, height: 8)
+                Image(systemName: "record.circle.fill")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.red)
+                    .frame(width: 20, height: 20)
                 Text("Recording\u{2026} \(recordingDurationText)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -189,8 +192,10 @@ struct ComposerStatusSummaryView: View {
             .accessibilityElement(children: .combine)
         } else if isTranscribing {
             HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
+                Image(systemName: "waveform")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
                 Text(transcribingStatusText)
                     .font(.caption)
                     .foregroundStyle(.secondary)

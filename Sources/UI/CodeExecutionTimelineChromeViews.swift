@@ -25,7 +25,6 @@ struct CodeExecutionTimelineHeaderRow: View {
             timelineIcon
             titleText
 
-            streamingIndicator
             compactStatusBadge
 
             Spacer(minLength: 0)
@@ -38,7 +37,8 @@ struct CodeExecutionTimelineHeaderRow: View {
     private var timelineIcon: some View {
         Image(systemName: "chevron.left.forwardslash.chevron.right")
             .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(JinSemanticColor.textSecondary)
+            .frame(width: 16, height: 16)
     }
 
     private var titleText: some View {
@@ -46,14 +46,6 @@ struct CodeExecutionTimelineHeaderRow: View {
             .font(.subheadline.weight(.medium))
             .foregroundStyle(.primary)
             .lineLimit(1)
-    }
-
-    @ViewBuilder
-    private var streamingIndicator: some View {
-        if isStreaming, hasActiveExecution {
-            ProgressView()
-                .scaleEffect(0.5)
-        }
     }
 
     @ViewBuilder

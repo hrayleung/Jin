@@ -2,12 +2,6 @@ import SwiftUI
 import AppKit
 
 struct ThinkingBlockHeaderButton: View {
-    enum Style {
-        case completed
-        case streaming
-    }
-
-    let style: Style
     let isExpanded: Bool
     let copyText: String
     let action: () -> Void
@@ -15,13 +9,8 @@ struct ThinkingBlockHeaderButton: View {
     @State private var isHovering = false
 
     var body: some View {
-        // Resolved merge: keep this branch's flat-no-surface design and
-        // hover-revealed copy button next to the title (the left-cluster
-        // UX the user explicitly asked for), while adopting master's
-        // `titleDisclosureButton` / `chevronDisclosureButton` helper split
-        // for readability. streaming indicator stays outside the title
-        // button so the hover-reveal-copy and streaming dots sit adjacent
-        // to the title rather than wrapped inside the disclosure tap area.
+        // Flat header: chevron + semantic icon + title + hover-revealed copy.
+        // The streaming bubble header owns the turn's only animated orb.
         HStack(spacing: JinSpacing.small) {
             // Disclosure chevron leftmost, hugging the title cluster —
             // matches macOS native DisclosureGroup / Finder folder pattern.
@@ -35,8 +24,6 @@ struct ThinkingBlockHeaderButton: View {
                 .opacity(isHovering ? 1 : 0)
                 .allowsHitTesting(isHovering)
                 .animation(.easeOut(duration: 0.12), value: isHovering)
-
-            streamingIndicator
 
             Spacer(minLength: 0)
         }
@@ -78,33 +65,16 @@ struct ThinkingBlockHeaderButton: View {
 
     @ViewBuilder
     private var headerIcon: some View {
-        switch style {
-        case .completed:
-            Image(systemName: "brain")
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-        case .streaming:
-            JinPulseChrome {
-                Image(systemName: "brain")
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
-            }
-        }
+        Image(systemName: "brain")
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(JinSemanticColor.textSecondary)
+            .frame(width: 16, height: 16)
     }
 
     private var titleText: some View {
         Text("Thinking")
             .font(.subheadline.weight(.medium))
             .foregroundStyle(.primary)
-    }
-
-    @ViewBuilder
-    private var streamingIndicator: some View {
-        if style == .streaming, !isExpanded {
-            JinWaveDots(dotSize: 4, spacing: 3, amplitude: 2.5)
-                .padding(.leading, 2)
-                .transition(.opacity)
-        }
     }
 
     private var disclosureIndicator: some View {

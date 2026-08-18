@@ -275,6 +275,11 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
             RoundedRectangle(cornerRadius: panelCornerRadius, style: .continuous)
                 .stroke(panelStrokeColor, lineWidth: isComposerDropTargeted ? JinStrokeWidth.emphasized : JinStrokeWidth.hairline)
         }
+        .jinBorderBeam(
+            isActive: isBusy || isRecording || isPreparingToSend,
+            style: isRecording ? .pulseInner : .line,
+            cornerRadius: panelCornerRadius
+        )
     }
 
     @ViewBuilder

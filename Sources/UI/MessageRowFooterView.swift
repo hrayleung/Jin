@@ -191,8 +191,9 @@ struct MessageRowFooterView: View {
             onToggleSpeakAssistantMessage(itemID, copyText)
         } label: {
             if textToSpeechIsGenerating {
-                ProgressView()
-                    .controlSize(.small)
+                Image(systemName: "waveform")
+                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+                    .foregroundStyle(.secondary)
                     .frame(width: 20, height: 20)
             } else {
                 Image(systemName: speechPresentation.primarySystemName)

@@ -8,7 +8,8 @@ extension GoogleMapsResultsView {
             HStack(spacing: JinSpacing.small) {
                 Image(systemName: "mappin.and.ellipse")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(JinSemanticColor.textSecondary)
+                    .frame(width: 16, height: 16)
 
                 if content.places.isEmpty {
                     Text("Places")
@@ -20,11 +21,6 @@ extension GoogleMapsResultsView {
                 }
 
                 Spacer(minLength: 0)
-
-                if isStreaming && content.hasRunningActivity {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                }
 
                 // Maps previously used up/down chevrons on the trailing edge;
                 // rotate the shared right-chevron so expand motion matches

@@ -161,6 +161,40 @@ final class StreamingMessageState: ObservableObject {
         appendDeltas(textDelta: "", thinkingDelta: delta)
     }
 
+    func applyPresentationFlush(
+        textDelta: String,
+        thinkingDelta: String,
+        toolCalls: [ToolCall]?,
+        searchActivities: [SearchActivity],
+        codeExecutionActivities: [CodeExecutionActivity]
+    ) {
+        let hasTextOrThinking = !textDelta.isEmpty || !thinkingDelta.isEmpty
+        let hasActivities = toolCalls != nil
+            || !searchActivities.isEmpty
+            || !codeExecutionActivities.isEmpty
+        guard hasTextOrThinking || hasActivities else { return }
+
+        if hasTextOrThinking {
+            appendDeltas(textDelta: textDelta, thinkingDelta: thinkingDelta)
+        } else {
+            objectWillChange.send()
+        }
+
+        if let toolCalls {
+            replaceStreamingToolCalls(toolCalls)
+        }
+        for activity in searchActivities {
+            mergeSearchActivity(activity)
+        }
+        for activity in codeExecutionActivities {
+            mergeCodeExecutionActivity(activity)
+        }
+
+        if !hasTextOrThinking {
+            renderTick &+= 1
+        }
+    }
+
     func markThinkingComplete() {
         guard !isThinkingComplete, !thinkingChunks.isEmpty else { return }
         objectWillChange.send()
@@ -170,31 +204,43 @@ final class StreamingMessageState: ObservableObject {
 
     func upsertSearchActivity(_ activity: SearchActivity) {
         objectWillChange.send()
+        mergeSearchActivity(activity)
+        renderTick &+= 1
+    }
+
+    func upsertCodeExecutionActivity(_ activity: CodeExecutionActivity) {
+        objectWillChange.send()
+        mergeCodeExecutionActivity(activity)
+        renderTick &+= 1
+    }
+
+    func setToolCalls(_ toolCalls: [ToolCall]) {
+        objectWillChange.send()
+        replaceStreamingToolCalls(toolCalls)
+        renderTick &+= 1
+    }
+
+    private func replaceStreamingToolCalls(_ toolCalls: [ToolCall]) {
+        streamingToolCalls = toolCalls
+        toolResultsByCallID = [:]
+    }
+
+    private func mergeSearchActivity(_ activity: SearchActivity) {
         if let existing = searchActivitiesByID[activity.id] {
             searchActivitiesByID[activity.id] = existing.merged(with: activity)
         } else {
             searchActivitiesByID[activity.id] = activity
         }
         searchActivities = Array(searchActivitiesByID.values)
-        renderTick &+= 1
     }
 
-    func upsertCodeExecutionActivity(_ activity: CodeExecutionActivity) {
-        objectWillChange.send()
+    private func mergeCodeExecutionActivity(_ activity: CodeExecutionActivity) {
         if let existing = codeExecutionActivitiesByID[activity.id] {
             codeExecutionActivitiesByID[activity.id] = existing.merged(with: activity)
         } else {
             codeExecutionActivitiesByID[activity.id] = activity
         }
         codeExecutionActivities = Array(codeExecutionActivitiesByID.values)
-        renderTick &+= 1
-    }
-
-    func setToolCalls(_ toolCalls: [ToolCall]) {
-        objectWillChange.send()
-        streamingToolCalls = toolCalls
-        toolResultsByCallID = [:]
-        renderTick &+= 1
     }
 
     func upsertToolResult(_ result: ToolResult) {

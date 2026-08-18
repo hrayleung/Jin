@@ -151,10 +151,6 @@ struct CodeExecutionEntryView: View {
     private var statusPlaceholder: some View {
         if executionStatus == .running {
             HStack(spacing: JinSpacing.small) {
-                ProgressView()
-                    .scaleEffect(0.5)
-                    .frame(width: 14, height: 14)
-
                 Text(CodeExecutionEntrySupport.statusPlaceholderText(for: activity.status))
                     .font(.caption)
                     .foregroundStyle(.secondary)

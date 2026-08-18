@@ -17,6 +17,7 @@ struct ChatTimelineSharedInputs {
     let eagerCodeHighlightStartIndex: Int
     let payloadResolver: RenderedMessagePayloadResolver
     let toolResultsByCallID: [String: ToolResult]
+    let liveToolResults: ChatLiveToolResultStore
     let messageEntitiesByID: [UUID: MessageEntity]
     let interaction: ChatMessageInteractionContext
     let onOpenArtifact: (RenderedArtifactVersion) -> Void
@@ -25,6 +26,9 @@ struct ChatTimelineSharedInputs {
     let colorScheme: ColorScheme
     let isConversationStreaming: Bool
     let streamingSuppressesIdlePlaceholder: Bool
+    /// The persisted assistant row that temporarily owns the turn's single
+    /// activity orb while its empty streaming row is suppressed.
+    let streamingActivityOwnerMessageID: UUID?
 }
 
 // MARK: - Row model
@@ -62,10 +66,27 @@ struct ChatTimelineMessageContent: View {
     let item: MessageRenderItem
     let index: Int
     let shared: ChatTimelineSharedInputs
+    @ObservedObject private var liveToolResults: ChatLiveToolResultStore
+
+    init(item: MessageRenderItem, index: Int, shared: ChatTimelineSharedInputs) {
+        self.item = item
+        self.index = index
+        self.shared = shared
+        _liveToolResults = ObservedObject(wrappedValue: shared.liveToolResults)
+    }
 
     var body: some View {
         let interaction = shared.interaction
         let messageEntitiesByID = shared.messageEntitiesByID
+        let resolvedToolResults = shared.toolResultsByCallID.merging(liveToolResults.resultsByCallID) { _, live in
+            live
+        }
+        let ownsStreamingActivity = shared.streamingActivityOwnerMessageID == item.id
+            && ChatTimelineStreamingPresentationSupport.isLiveToolTimeline(
+                isConversationStreaming: shared.isConversationStreaming,
+                visibleToolCalls: item.visibleToolCalls,
+                toolResultsByCallID: resolvedToolResults
+            )
         MessageRow(
             item: item,
             maxBubbleWidth: shared.maxBubbleWidth,
@@ -74,8 +95,9 @@ struct ChatTimelineMessageContent: View {
             providerIconID: shared.providerIconID,
             deferCodeHighlightUpgrade: index < shared.eagerCodeHighlightStartIndex,
             payloadResolver: shared.payloadResolver,
-            toolResultsByCallID: shared.toolResultsByCallID,
+            toolResultsByCallID: resolvedToolResults,
             isConversationStreaming: shared.isConversationStreaming,
+            showsStreamingActivity: ownsStreamingActivity,
             textToSpeechEnabled: interaction.textToSpeechEnabled,
             textToSpeechConfigured: interaction.textToSpeechConfigured,
             textToSpeechIsGenerating: interaction.textToSpeechIsGenerating(item.id),
@@ -344,6 +366,9 @@ final class ChatTimelineHostingCell: NSTableCellView {
     /// ±1000px scroll-anchor fights, and wrote bad heights through to the
     /// warm-start store.
     private var hostHasPendingRootSwap = false
+    /// Streaming's first `layoutSubtreeIfNeeded` is deferred off the Enter
+    /// turn so user-row measure and the Generating host do not share a frame.
+    private var streamingHostCommitScheduled = false
 
     /// True for the first height report after a rootView swap — published
     /// synchronously so `noteHeightOfRows` lands the same turn as first paint
@@ -526,13 +551,16 @@ final class ChatTimelineHostingCell: NSTableCellView {
         needsLayout = true
     }
 
-    func configure(identity: String, content: AnyView) {
+    func configure(identity: String, content: AnyView, commitHostImmediately: Bool = true) {
         JinLayoutCostCounters.cellConfigures += 1
         currentIdentity = identity
         lastReportedHeight = -1
         pendingMeasuredHeight = nil
         heightFlushScheduled = false
-        flushFirstMeasureImmediately = true
+        // Streaming Generating is a tight estimate. Sync first-measure
+        // `noteHeightOfRows` on Enter was a full-table re-layout on the
+        // same turn as the user-row host commit — the send hitch.
+        flushFirstMeasureImmediately = commitHostImmediately && identity != "streaming"
         lastSwiftUIReportedHeight = 0
         host.rootView = content
         hostHasPendingRootSwap = true
@@ -540,14 +568,18 @@ final class ChatTimelineHostingCell: NSTableCellView {
         // Windowed cells: commit the root swap NOW so the first display pass
         // already has SwiftUI content (not EmptyView / stale predecessor).
         // Windowless dequeues still defer to layout().
+        // Streaming skips the forced subtree layout so Enter does not pay
+        // two NSHostingView first measures on one turn.
         if window != nil {
             host.needsLayout = true
-            host.layoutSubtreeIfNeeded()
-            hostHasPendingRootSwap = false
-            let measured = measuredContentHeight()
-            if measured > 0 {
-                pendingMeasuredHeight = measured
-                scheduleHeightFlush(for: identity)
+            if commitHostImmediately {
+                host.layoutSubtreeIfNeeded()
+                hostHasPendingRootSwap = false
+                let measured = measuredContentHeight()
+                if measured > 0 {
+                    pendingMeasuredHeight = measured
+                    scheduleHeightFlush(for: identity)
+                }
             }
         }
         needsLayout = true
@@ -563,12 +595,20 @@ final class ChatTimelineHostingCell: NSTableCellView {
         guard let identity = currentIdentity else { return }
         if hostHasPendingRootSwap {
             hostHasPendingRootSwap = false
+            host.needsLayout = true
+            if currentIdentity == "streaming" {
+                // Enter path: the Generating host just swapped. A sync
+                // `layoutSubtreeIfNeeded` here is the remaining send hitch —
+                // first SwiftUI measure of a new NSHostingView on the same
+                // turn as the user bubble. Commit on the next run-loop pass.
+                scheduleDeferredStreamingHostCommit()
+                return
+            }
             // NSHostingView commits a pending rootView swap during ITS OWN
             // layout(), which (top-down) runs AFTER ours in this pass — flush
             // it now so `fittingSize` reflects the new content, not the
             // recycled predecessor's. Done here rather than only in
             // `configure()` because a dequeued cell may still be windowless.
-            host.needsLayout = true
             host.layoutSubtreeIfNeeded()
         }
         let measured = measuredContentHeight()
@@ -599,6 +639,18 @@ final class ChatTimelineHostingCell: NSTableCellView {
 
     /// Later invalidations (streaming, disclosure, in-tree reports):
     /// coalesce to one publish per runloop turn.
+    private func scheduleDeferredStreamingHostCommit() {
+        guard !streamingHostCommitScheduled else { return }
+        streamingHostCommitScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.streamingHostCommitScheduled = false
+            guard self.currentIdentity == "streaming" else { return }
+            self.host.needsLayout = true
+            self.needsLayout = true
+        }
+    }
+
     private func scheduleCoalescedHeightFlush(for identity: String) {
         guard !heightFlushScheduled else { return }
         heightFlushScheduled = true
@@ -699,6 +751,11 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// into a single pin. Without this, each call snaps the viewport and the
     /// history appears to "jump / push up" on send.
     private var coalescedBottomPinScheduled = false
+    /// Stream flushes used to call `layoutSubtreeIfNeeded()` synchronously.
+    /// That blocked the activity-orb display link on the same turn as
+    /// markdown/tool updates, so the orb froze every token and tool step.
+    /// Coalesce to one AppKit layout pass after the current turn drains.
+    private var streamingLayoutFlushScheduled = false
 
     /// Row identities that should play the soft entrance animation. Populated
     /// on insert (appendTail / batchDiff insertions) and cleared after the
@@ -864,6 +921,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             || abs(scrollView.contentInsets.bottom - newModel.bottomInset) > 0.5
 
         model = newModel
+        newModel.shared.liveToolResults.setSuppressIdleStreamingPlaceholder(
+            newModel.shared.streamingSuppressesIdlePlaceholder
+        )
         // Visibility (rendersRow) inputs all live in the content epoch;
         // rebuild the set whenever they can have changed — BEFORE any table
         // mutation so `heightOfRow` never classifies against a stale set.
@@ -1285,23 +1345,22 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
                 tableView.endUpdates()
             }
-            // Force a true fittingSize for every newly inserted visible row
-            // before we pin. Long pastes used to keep the pre-seeded estimate
-            // for a frame (or permanently if the first host measure was 0),
-            // leaving a multi-viewport clear band under a short user bubble.
-            view.layoutSubtreeIfNeeded()
-            remeasureRows(at: IndexSet(integersIn: inserted))
-            // SYNCHRONOUS pin after insert. The coalesced `maintainBottomIfNeeded`
-            // defers to the next runloop turn — one frame where the new bubble
-            // is already in the document but still below the viewport, which
-            // reads as "blank after send". Layout + pin now; trailing pin
-            // still absorbs first real fittingSize corrections.
-            // Guard live scroll like maintainBottomIfNeeded — scrollToBottom
-            // has no isUserLiveScrolling check and would override an in-flight
-            // user gesture if an insert arrives mid-scroll.
+            // Remeasure only user/message rows. A full-table
+            // `layoutSubtreeIfNeeded` here (plus another inside pin) was the
+            // Enter hitch: the Generating orb painted, then the main thread
+            // laid out every resident host before the display link could tick.
+            // Streaming uses the pre-seeded estimate; deferred remesure
+            // corrects fittingSize on the next turn.
+            let remesureIndexes = IndexSet(inserted.filter { index in
+                guard index >= 0, index < new.count else { return false }
+                if case .streaming = new[index] { return false }
+                return true
+            })
+            if !remesureIndexes.isEmpty {
+                remeasureRows(at: remesureIndexes)
+            }
             if shouldMaintainBottom, !isUserLiveScrolling {
-                view.layoutSubtreeIfNeeded()
-                scrollToBottom(animated: false, force: false)
+                scrollToBottom(animated: false, force: false, skipForcedLayout: true)
                 scheduleTrailingBottomPin(delayNanoseconds: 160_000_000)
             }
             // Late text layout (long plain-text pastes) can revise intrinsic
@@ -1402,8 +1461,14 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         // Same long-paste remeasure as appendTail — batchDiff is the long-chat
         // send path (window slide + tail insert) and used to keep tall seeds.
         if !insertions.isEmpty {
-            view.layoutSubtreeIfNeeded()
-            remeasureRows(at: insertions)
+            let remesureIndexes = IndexSet(insertions.filter { index in
+                guard index >= 0, index < new.count else { return false }
+                if case .streaming = new[index] { return false }
+                return true
+            })
+            if !remesureIndexes.isEmpty {
+                remeasureRows(at: remesureIndexes)
+            }
             let insertedIdentities = insertions.compactMap { index -> String? in
                 guard index >= 0, index < new.count else { return nil }
                 return new[index].identity
@@ -1412,11 +1477,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         }
 
         if shouldMaintainBottom, !isUserLiveScrolling {
-            // Sync pin (same rationale as appendTail): async coalesce left a
-            // frame with the new tail below the viewport on long-chat sends.
-            // Live-scroll guard mirrors maintainBottomIfNeeded.
-            view.layoutSubtreeIfNeeded()
-            scrollToBottom(animated: false, force: false)
+            scrollToBottom(animated: false, force: false, skipForcedLayout: true)
             if !insertions.isEmpty {
                 scheduleTrailingBottomPin(delayNanoseconds: 160_000_000)
             }
@@ -1561,6 +1622,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         tableView.enumerateAvailableRowViews { [weak self] rowView, row in
             guard let self, row >= 0, row < self.rows.count,
                   let cell = rowView.view(atColumn: 0) as? ChatTimelineHostingCell else { return }
+            // Token/tool deltas still flow through ObservedObject without an
+            // apply. This path is for real content-epoch changes (width,
+            // appearance, model metadata, or a new state object), so the
+            // streaming root must be refreshed too.
             cell.configure(identity: self.rows[row].identity, content: self.content(for: self.rows[row]))
         }
     }
@@ -1592,7 +1657,12 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         cell.onMeasuredHeight = { [weak self] identity, height in
             self?.cellDidMeasureHeight(identity: identity, height: height)
         }
-        cell.configure(identity: rows[row].identity, content: content(for: rows[row]))
+        let identity = rows[row].identity
+        cell.configure(
+            identity: identity,
+            content: content(for: rows[row]),
+            commitHostImmediately: identity != "streaming"
+        )
         return cell
     }
 
@@ -1958,7 +2028,8 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                         // band or clipping the first tokens.
                         self?.invalidateStreamingRowLayout()
                     },
-                    suppressIdlePlaceholder: shared.streamingSuppressesIdlePlaceholder
+                    suppressIdlePlaceholder: shared.streamingSuppressesIdlePlaceholder,
+                    liveToolResults: shared.liveToolResults
                 )
                 // Streaming placeholder only — never user bubbles.
                 .jinMessageAppear(enabled: animateAppear),
@@ -1996,19 +2067,33 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         streamingModelID = id
     }
 
-    /// Forces the realized streaming cell to remeasure after a content flush.
+    /// Marks the realized streaming cell dirty after a content flush.
     /// Safe no-op when the streaming row is off-screen (not realized).
+    ///
+    /// Must not layout synchronously: `appendDeltas` / tool upserts already
+    /// rebuild the hosted SwiftUI tree on this turn. A nested
+    /// `layoutSubtreeIfNeeded()` here compounds the same main-thread flush and
+    /// causes visible text/scroll hitches. The activity orb is compositor
+    /// driven, but the rest of the hosted row still benefits from coalescing.
     private func invalidateStreamingRowLayout() {
+        guard !streamingLayoutFlushScheduled else { return }
+        streamingLayoutFlushScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            self?.flushStreamingRowLayout()
+        }
+    }
+
+    private func flushStreamingRowLayout() {
+        streamingLayoutFlushScheduled = false
         guard let index = rows.firstIndex(where: {
             if case .streaming = $0 { return true }
             return false
         }) else { return }
-        if let cell = tableView.view(atColumn: 0, row: index, makeIfNecessary: false) as? ChatTimelineHostingCell {
-            cell.host.invalidateIntrinsicContentSize()
-            cell.host.needsLayout = true
-            cell.needsLayout = true
-            cell.layoutSubtreeIfNeeded()
-        }
+        guard let cell = tableView.view(atColumn: 0, row: index, makeIfNecessary: false)
+                as? ChatTimelineHostingCell else { return }
+        cell.host.invalidateIntrinsicContentSize()
+        cell.host.needsLayout = true
+        cell.needsLayout = true
     }
 
     /// Remeasure only already-realized or currently-visible rows so pre-seeded
@@ -2240,7 +2325,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         }
     }
 
-    func scrollToBottom(animated: Bool, force: Bool) {
+    func scrollToBottom(animated: Bool, force: Bool, skipForcedLayout: Bool = false) {
         if force {
             // Chevron / conversation-open beats an unlanded minimap jump.
             minimapModel?.cancelPendingJump()
@@ -2253,7 +2338,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         }
         guard force || shouldMaintainBottom else { return }
         guard !rows.isEmpty else { return }
-        view.layoutSubtreeIfNeeded()
+        if !skipForcedLayout {
+            view.layoutSubtreeIfNeeded()
+        }
 
         let clip = scrollView.contentView
         let docHeight = tableView.frame.height

@@ -208,6 +208,8 @@ extension ChatView {
             networkLogContext: networkLogContext
         )
 
+        let toolTurnHandoff = ToolTurnPersistHandoff()
+
         let sessionCallbacks = ChatStreamingOrchestrator.SessionCallbacks(
             persistAssistantMessage: { [self] message, providerID, modelID, modelName, metrics in
                 do {
@@ -223,11 +225,15 @@ extension ChatView {
                     // Markdown parse must never leave the only copy in the
                     // transient streaming row if the app exits mid-prewarm.
                     let shouldPrepareDisplay = message.toolCalls?.isEmpty != false
-                    if shouldPrepareDisplay {
-                        defersObservedMessageCacheRebuild = true
-                    }
+                    let isToolRequestingTurn = message.toolCalls?.isEmpty == false
+                    // Always defer observers for this persist. Tool-requesting
+                    // turns keep the defer armed past return so the queued
+                    // count/updatedAt onChange cannot start a second decode.
+                    defersObservedMessageCacheRebuild = true
                     defer {
-                        defersObservedMessageCacheRebuild = false
+                        if !isToolRequestingTurn {
+                            defersObservedMessageCacheRebuild = false
+                        }
                     }
 
                     conversationEntity.messages.append(entity)
@@ -258,14 +264,16 @@ extension ChatView {
                         }
                     }
 
-                    defersObservedMessageCacheRebuild = false
                     // Handoff BEFORE the cache rebuild so the timeline never
                     // paints the same tool turn twice: the persisted row
                     // appears in the same MainActor turn the live bubble
                     // is cleared. Do not re-attach the calls on the live
                     // state — that is the duplicate Running card.
-                    if message.toolCalls?.isEmpty == false {
+                    if isToolRequestingTurn {
                         streamingStore.streamingState(conversationID: conversationID)?.reset()
+                        toolTurnHandoff.skipDebouncedRebuild = true
+                    } else {
+                        defersObservedMessageCacheRebuild = false
                     }
                     rebuildMessageCaches()
                     autoOpenLatestArtifactIfNeeded(from: message)
@@ -276,19 +284,11 @@ extension ChatView {
                 }
             },
             persistToolMessage: { [self] message in
-                do {
-                    let entity = try MessageEntity.fromDomain(message)
-                    entity.conversation = conversationEntity
-                    conversationEntity.messages.append(entity)
-                    conversationEntity.refreshMessageCount()
-                    conversationEntity.updatedAt = Date()
-                    renderCache.scheduleDebouncedRebuild(after: .milliseconds(120)) {
-                        rebuildMessageCachesIfNeeded()
-                    }
-                    schedulePersistenceSave()
-                } catch {
-                    presentError(error.localizedDescription)
-                }
+                persistStreamingToolMessage(
+                    message,
+                    scheduleCacheRebuild: !toolTurnHandoff.skipDebouncedRebuild
+                )
+                toolTurnHandoff.skipDebouncedRebuild = false
             },
             persistClaudeManagedSessionState: { [self] state in
                 persistClaudeManagedAgentSessionState(state)
@@ -320,6 +320,8 @@ extension ChatView {
                 streamingStore.endSession(conversationID: conversationID)
             },
             onSessionEnd: { [self] shouldNotify, preview in
+                defersObservedMessageCacheRebuild = false
+                toolTurnHandoff.skipDebouncedRebuild = false
                 if shouldNotify {
                     responseCompletionNotifier.notifyCompletionIfNeeded(
                         conversationID: conversationID,
@@ -366,6 +368,40 @@ extension ChatView {
         }
     }
 
+    /// Persists a hidden `.tool` follow-up. After a tool-requesting assistant
+    /// persist the timeline already rebuilt once; skip the 120ms decode so
+    /// observers cannot start a second full apply for the same handoff.
+    @MainActor
+    func persistStreamingToolMessage(
+        _ message: Message,
+        scheduleCacheRebuild: Bool
+    ) {
+        do {
+            let entity = try MessageEntity.fromDomain(message)
+            entity.conversation = conversationEntity
+            if !scheduleCacheRebuild {
+                defersObservedMessageCacheRebuild = true
+            }
+            conversationEntity.messages.append(entity)
+            conversationEntity.refreshMessageCount()
+            conversationEntity.updatedAt = Date()
+            if scheduleCacheRebuild {
+                renderCache.scheduleDebouncedRebuild(after: .milliseconds(120)) {
+                    rebuildMessageCachesIfNeeded()
+                }
+            } else {
+                // onChange is queued for this mutation. Keep the defer armed
+                // until the next main-queue pass so it still no-ops.
+                DispatchQueue.main.async {
+                    self.defersObservedMessageCacheRebuild = false
+                }
+            }
+            schedulePersistenceSave()
+        } catch {
+            presentError(error.localizedDescription)
+        }
+    }
+
     /// Saves completed assistant content immediately, before any optional UI
     /// prewarm can suspend. It also retires an older debounced save because the
     /// synchronous commit covers every pending change in this model context.
@@ -405,4 +441,11 @@ extension ChatView {
             )
         }
     }
+}
+
+/// Session-scoped flag so `persistToolMessage` can skip a second decode after
+/// the tool-requesting assistant persist already rebuilt the timeline.
+@MainActor
+private final class ToolTurnPersistHandoff {
+    var skipDebouncedRebuild = false
 }

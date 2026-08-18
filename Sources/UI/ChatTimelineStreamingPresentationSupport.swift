@@ -65,9 +65,25 @@ enum ChatTimelineStreamingPresentationSupport {
         !hasVisiblePresentation && suppressesIdlePlaceholder(lastVisibleTurn: lastVisibleTurn)
     }
 
-    /// Persisted MCP cards keep a live spinner only while this conversation
-    /// is still streaming and the call has no result yet. Historical
-    /// unresolved calls stay as a static Running label.
+    /// During a tool handoff the empty live row is hidden, so the last
+    /// persisted assistant header temporarily owns the turn's one live orb.
+    static func persistedActivityOwnerMessageID(
+        isConversationStreaming: Bool,
+        lastMessage: MessageRenderItem?,
+        toolResultsByCallID: [String: ToolResult]
+    ) -> UUID? {
+        guard isConversationStreaming, let lastMessage else { return nil }
+        let turn = lastVisibleTurn(
+            lastMessage: lastMessage,
+            toolResultsByCallID: toolResultsByCallID
+        )
+        guard suppressesIdlePlaceholder(lastVisibleTurn: turn) else { return nil }
+        return lastMessage.id
+    }
+
+    /// Persisted MCP cards are live only while this conversation is still
+    /// streaming and the call has no result yet. Historical unresolved calls
+    /// stay as a static Running label.
     static func isLiveToolTimeline(
         isConversationStreaming: Bool,
         visibleToolCalls: [ToolCall],

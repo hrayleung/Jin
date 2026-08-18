@@ -14,6 +14,7 @@ struct MessageRow: View, Equatable {
     let payloadResolver: RenderedMessagePayloadResolver
     let toolResultsByCallID: [String: ToolResult]
     let isConversationStreaming: Bool
+    let showsStreamingActivity: Bool
     let textToSpeechEnabled: Bool
     let textToSpeechConfigured: Bool
     let textToSpeechIsGenerating: Bool
@@ -88,7 +89,8 @@ struct MessageRow: View, Equatable {
                                     isTool: presentation.isTool,
                                     assistantDisplayName: assistantDisplayName,
                                     assistantModelLabel: presentation.assistantModelLabel,
-                                    providerIconID: item.assistantProviderIconID ?? providerIconID
+                                    providerIconID: item.assistantProviderIconID ?? providerIconID,
+                                    activityKind: showsStreamingActivity ? .connecting : nil
                                 )
 
                                 if presentation.isEditingUserMessage {
@@ -356,7 +358,8 @@ struct MessageRow: View, Equatable {
               lhs.textToSpeechIsPlaying == rhs.textToSpeechIsPlaying,
               lhs.textToSpeechIsPaused == rhs.textToSpeechIsPaused,
               lhs.toolResultsByCallID == rhs.toolResultsByCallID,
-              lhs.isConversationStreaming == rhs.isConversationStreaming
+              lhs.isConversationStreaming == rhs.isConversationStreaming,
+              lhs.showsStreamingActivity == rhs.showsStreamingActivity
         else { return false }
         return true
     }

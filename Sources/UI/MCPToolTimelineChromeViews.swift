@@ -38,11 +38,6 @@ struct MCPToolTimelineCollapsedSummaryRow: View {
                         .lineLimit(1)
                 }
 
-                if isStreaming, runningCount > 0 {
-                    ProgressView()
-                        .controlSize(.mini)
-                }
-
                 Spacer(minLength: 0)
 
                 JinDisclosureChevron(
@@ -146,11 +141,6 @@ struct MCPSingleToolTimelineRow: View {
 
                 quietStatus
 
-                if isStreaming, status == .running {
-                    ProgressView()
-                        .controlSize(.mini)
-                }
-
                 Spacer(minLength: 0)
 
                 JinDisclosureChevron(
@@ -178,9 +168,11 @@ struct MCPSingleToolTimelineRow: View {
     @ViewBuilder
     private var quietStatus: some View {
         HStack(spacing: 4) {
-            Image(systemName: statusGlyph)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(statusStyle.accent)
+            if status != .running {
+                Image(systemName: statusGlyph)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(statusStyle.accent)
+            }
 
             if status == .error {
                 Text("Failed")

@@ -106,9 +106,11 @@ struct ConversationRowView: View {
                 }
                 Spacer()
                 if isStreaming {
-                    ProgressView()
-                        .controlSize(.mini)
+                    Circle()
+                        .fill(Color.accentColor)
+                        .frame(width: 6, height: 6)
                         .help("Generating…")
+                        .accessibilityLabel("Generating")
                 }
                 Text(activityDate, format: .relative(presentation: .named))
             }

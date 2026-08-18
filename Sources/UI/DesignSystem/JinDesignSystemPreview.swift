@@ -17,6 +17,7 @@ struct JinDesignSystemPreview: View {
                 selectedSection
                 variantSection
                 modifierSection
+                activitySection
             }
             .padding(JinSpacing.xLarge)
             .frame(maxWidth: 760, alignment: .leading)
@@ -92,6 +93,22 @@ struct JinDesignSystemPreview: View {
                 surfaceVariantRow(.subtleStrong, label: ".subtleStrong")
                 surfaceVariantRow(.accent, label: ".accent")
                 surfaceVariantRow(.outlined, label: ".outlined")
+            }
+        }
+    }
+
+    private var activitySection: some View {
+        section(title: "Activity orbs") {
+            HStack(alignment: .center, spacing: JinSpacing.large) {
+                ForEach(JinActivityKind.allCases, id: \.self) { kind in
+                    VStack(spacing: JinSpacing.xSmall) {
+                        JinActivityOrb(kind: kind, size: .inline)
+                        Text(kind.rawValue)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
             }
         }
     }

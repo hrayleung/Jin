@@ -125,6 +125,7 @@ enum TimelineRowFixtures {
             eagerCodeHighlightStartIndex: 0,
             payloadResolver: .noop,
             toolResultsByCallID: [:],
+            liveToolResults: ChatLiveToolResultStore(),
             messageEntitiesByID: [:],
             interaction: interaction(),
             onOpenArtifact: { _ in },
@@ -136,7 +137,8 @@ enum TimelineRowFixtures {
             onExpandCollapsedContent: { _ in },
             colorScheme: .dark,
             isConversationStreaming: false,
-            streamingSuppressesIdlePlaceholder: false
+            streamingSuppressesIdlePlaceholder: false,
+            streamingActivityOwnerMessageID: nil
         )
     }
 

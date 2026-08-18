@@ -9,11 +9,10 @@ final class TTSMiniPlayerNativeView: NSView {
     private let trailingButtonsStackView = NSStackView()
     private let primaryContainer = NSView()
     private let primaryButton = NSButton()
-    private let primarySpinner = NSProgressIndicator()
+    private let primaryOrb = JinActivityOrbNSView()
     private let timeLabel = NSTextField(labelWithString: "00:00")
     private let waveformContainer = NSView()
     private let waveformView = TTSWaveformLayerView()
-    private let waveformSpinner = NSProgressIndicator()
     private let navigateButton = NSButton()
     private let closeButton = NSButton()
 
@@ -46,12 +45,22 @@ final class TTSMiniPlayerNativeView: NSView {
         let primaryActionLabel = snapshot.isPlaying ? "Pause playback" : "Resume playback"
 
         if snapshot.showsPrimarySpinner {
-            primarySpinner.isHidden = false
-            primarySpinner.startAnimation(nil)
+            primaryOrb.isHidden = false
+            primaryOrb.apply(
+                kind: .composing,
+                size: .inline,
+                paused: false,
+                isDark: drawsAsDark
+            )
             primaryButton.isHidden = true
         } else {
-            primarySpinner.stopAnimation(nil)
-            primarySpinner.isHidden = true
+            primaryOrb.apply(
+                kind: .composing,
+                size: .inline,
+                paused: true,
+                isDark: drawsAsDark
+            )
+            primaryOrb.isHidden = true
             primaryButton.isHidden = false
             primaryButton.image = symbolImage(
                 name: snapshot.isPlaying ? "pause.fill" : "play.fill",
@@ -63,20 +72,12 @@ final class TTSMiniPlayerNativeView: NSView {
             primaryButton.setAccessibilityLabel(primaryActionLabel)
         }
 
-        if snapshot.showsWaveformSpinner {
-            waveformSpinner.isHidden = false
-            waveformSpinner.startAnimation(nil)
-            waveformView.isHidden = true
-        } else {
-            waveformSpinner.stopAnimation(nil)
-            waveformSpinner.isHidden = true
-            waveformView.isHidden = false
-            waveformView.apply(
-                levels: snapshot.waveformPeaks,
-                progress: snapshot.progress,
-                isActive: snapshot.isPlaying || snapshot.isPaused || snapshot.isGenerating
-            )
-        }
+        waveformView.isHidden = false
+        waveformView.apply(
+            levels: snapshot.waveformPeaks,
+            progress: snapshot.progress,
+            isActive: snapshot.isPlaying || snapshot.isPaused || snapshot.isGenerating
+        )
 
         updateNavigateButtonVisibility(canNavigate: snapshot.canNavigate)
         navigateButton.toolTip = snapshot.navigateToolTip
@@ -143,7 +144,7 @@ final class TTSMiniPlayerNativeView: NSView {
     private func setupPrimaryContainer() {
         primaryContainer.translatesAutoresizingMaskIntoConstraints = false
         primaryContainer.addSubview(primaryButton)
-        primaryContainer.addSubview(primarySpinner)
+        primaryContainer.addSubview(primaryOrb)
 
         primaryButton.translatesAutoresizingMaskIntoConstraints = false
         primaryButton.isBordered = false
@@ -153,10 +154,8 @@ final class TTSMiniPlayerNativeView: NSView {
         primaryButton.action = #selector(handlePrimaryAction)
         primaryButton.contentTintColor = .labelColor
 
-        primarySpinner.translatesAutoresizingMaskIntoConstraints = false
-        primarySpinner.controlSize = .mini
-        primarySpinner.style = .spinning
-        primarySpinner.isDisplayedWhenStopped = false
+        primaryOrb.translatesAutoresizingMaskIntoConstraints = false
+        primaryOrb.isHidden = true
 
         NSLayoutConstraint.activate([
             primaryContainer.widthAnchor.constraint(equalToConstant: 22),
@@ -167,8 +166,10 @@ final class TTSMiniPlayerNativeView: NSView {
             primaryButton.topAnchor.constraint(equalTo: primaryContainer.topAnchor),
             primaryButton.bottomAnchor.constraint(equalTo: primaryContainer.bottomAnchor),
 
-            primarySpinner.centerXAnchor.constraint(equalTo: primaryContainer.centerXAnchor),
-            primarySpinner.centerYAnchor.constraint(equalTo: primaryContainer.centerYAnchor)
+            primaryOrb.centerXAnchor.constraint(equalTo: primaryContainer.centerXAnchor),
+            primaryOrb.centerYAnchor.constraint(equalTo: primaryContainer.centerYAnchor),
+            primaryOrb.widthAnchor.constraint(equalToConstant: 20),
+            primaryOrb.heightAnchor.constraint(equalToConstant: 20)
         ])
     }
 
@@ -183,13 +184,8 @@ final class TTSMiniPlayerNativeView: NSView {
     private func setupWaveformContainer() {
         waveformContainer.translatesAutoresizingMaskIntoConstraints = false
         waveformView.translatesAutoresizingMaskIntoConstraints = false
-        waveformSpinner.translatesAutoresizingMaskIntoConstraints = false
-        waveformSpinner.controlSize = .mini
-        waveformSpinner.style = .spinning
-        waveformSpinner.isDisplayedWhenStopped = false
 
         waveformContainer.addSubview(waveformView)
-        waveformContainer.addSubview(waveformSpinner)
 
         NSLayoutConstraint.activate([
             waveformContainer.widthAnchor.constraint(equalToConstant: TTSMiniPlayerMetrics.waveformWidth),
@@ -198,10 +194,7 @@ final class TTSMiniPlayerNativeView: NSView {
             waveformView.leadingAnchor.constraint(equalTo: waveformContainer.leadingAnchor),
             waveformView.trailingAnchor.constraint(equalTo: waveformContainer.trailingAnchor),
             waveformView.topAnchor.constraint(equalTo: waveformContainer.topAnchor),
-            waveformView.bottomAnchor.constraint(equalTo: waveformContainer.bottomAnchor),
-
-            waveformSpinner.centerXAnchor.constraint(equalTo: waveformContainer.centerXAnchor),
-            waveformSpinner.centerYAnchor.constraint(equalTo: waveformContainer.centerYAnchor)
+            waveformView.bottomAnchor.constraint(equalTo: waveformContainer.bottomAnchor)
         ])
     }
 
@@ -262,6 +255,18 @@ final class TTSMiniPlayerNativeView: NSView {
         layer?.shadowOpacity = 1
         layer?.shadowRadius = 16
         layer?.shadowOffset = CGSize(width: 0, height: -6)
+        if !primaryOrb.isHidden {
+            primaryOrb.apply(
+                kind: .composing,
+                size: .inline,
+                paused: false,
+                isDark: drawsAsDark
+            )
+        }
+    }
+
+    private var drawsAsDark: Bool {
+        effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
 
     private func symbolImage(
