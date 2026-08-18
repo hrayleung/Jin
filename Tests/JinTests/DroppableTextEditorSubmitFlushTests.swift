@@ -21,6 +21,11 @@ final class DroppableTextEditorSubmitFlushTests: XCTestCase {
     private struct Harness {
         let textView: DroppableNSTextView
         let box: TextBox
+        /// Retained so the text view keeps a window (and therefore an input
+        /// context): without one, `super.keyDown` never reaches
+        /// `insertNewline:`, and the newline assertions below would be
+        /// vacuously true.
+        let window: NSWindow
         /// Binding value observed at the moment `onSubmit` fired.
         let submittedText: () -> String?
         let submitCount: () -> Int
@@ -60,9 +65,20 @@ final class DroppableTextEditorSubmitFlushTests: XCTestCase {
         // view's delegate reference is weak.
         objc_setAssociatedObject(textView, "coordinator", coordinator, .OBJC_ASSOCIATION_RETAIN)
 
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 300, height: 80),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = NSView(frame: window.contentRect(forFrameRect: window.frame))
+        window.contentView?.addSubview(textView)
+        window.makeFirstResponder(textView)
+
         return Harness(
             textView: textView,
             box: box,
+            window: window,
             submittedText: { submitted },
             submitCount: { submitCount }
         )
@@ -72,6 +88,9 @@ final class DroppableTextEditorSubmitFlushTests: XCTestCase {
     /// binding write is only *scheduled*, exactly as during real keystrokes.
     private func type(_ text: String, into harness: Harness) {
         harness.textView.string = text
+        // Leave the caret where typing would: at the end, so a Return that is
+        // *meant* to insert a newline appends rather than prepending.
+        harness.textView.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
         harness.textView.didChangeText()
     }
 
@@ -130,6 +149,9 @@ final class DroppableTextEditorSubmitFlushTests: XCTestCase {
         harness.textView.keyDown(with: returnKeyEvent(modifiers: .shift))
 
         XCTAssertEqual(harness.submitCount(), 0)
+        // Asserting the newline too: "did not submit" alone would still pass if
+        // the event were swallowed instead of forwarded to the text system.
+        XCTAssertEqual(harness.textView.string, "hello\n")
     }
 
     func testCommandEnterModeOnlySubmitsWithCommand() {
@@ -138,10 +160,13 @@ final class DroppableTextEditorSubmitFlushTests: XCTestCase {
 
         harness.textView.keyDown(with: returnKeyEvent())
         XCTAssertEqual(harness.submitCount(), 0)
+        XCTAssertEqual(harness.textView.string, "hello\n")
 
         harness.textView.keyDown(with: returnKeyEvent(modifiers: .command))
         XCTAssertEqual(harness.submitCount(), 1)
-        XCTAssertEqual(harness.submittedText(), "hello")
+        // The draft legitimately carries the newline the plain Return inserted;
+        // the send path trims it.
+        XCTAssertEqual(harness.submittedText(), "hello\n")
     }
 
     /// IME safety: while a candidate is still being composed, Return belongs to
