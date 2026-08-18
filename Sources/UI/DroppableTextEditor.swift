@@ -88,6 +88,10 @@ struct DroppableTextEditor: NSViewRepresentable {
         textView.onPerformPasteboard = { pasteboard in
             context.coordinator.performPaste(pasteboard)
         }
+        textView.onFlushPendingText = { [weak textView] in
+            guard let textView else { return }
+            context.coordinator.flushPendingBinding(for: textView)
+        }
         textView.onSubmit = {
             context.coordinator.submit()
         }

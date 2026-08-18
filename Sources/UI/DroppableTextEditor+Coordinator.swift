@@ -14,6 +14,12 @@ extension DroppableTextEditor {
         private var onInterceptKeyDown: ((UInt16) -> Bool)?
         private var lastReportedContentHeight: CGFloat?
         private var hasPendingBindingFlush = false
+        /// Invalidates an already-queued flush. Bumped both when a new flush is
+        /// scheduled and when `flushPendingBinding` drains one synchronously, so
+        /// a stale block can never clear the pending flag out from under a
+        /// newer one (which would let `updateNSView` push a stale binding value
+        /// back into the text view mid-typing).
+        private var bindingFlushGeneration: UInt = 0
 
         init(
             text: Binding<String>,
@@ -61,6 +67,8 @@ extension DroppableTextEditor {
         private func scheduleBindingFlush(for textView: NSTextView) {
             if hasPendingBindingFlush { return }
             hasPendingBindingFlush = true
+            bindingFlushGeneration &+= 1
+            let generation = bindingFlushGeneration
             // Capture the binding value at schedule time. If app code mutates
             // it before our async block runs (e.g. clear-on-submit), the
             // baseline check below makes the programmatic change win — we
@@ -68,6 +76,7 @@ extension DroppableTextEditor {
             let baseline = textBinding.wrappedValue
             DispatchQueue.main.async { [weak self, weak textView] in
                 guard let self = self else { return }
+                guard self.bindingFlushGeneration == generation else { return }
                 defer { self.hasPendingBindingFlush = false }
                 guard let textView = textView else { return }
                 guard self.textBinding.wrappedValue == baseline else { return }
@@ -75,6 +84,26 @@ extension DroppableTextEditor {
                 if latest != baseline {
                     self.textBinding.wrappedValue = latest
                 }
+            }
+        }
+
+        /// Drains the deferred NSTextView→binding write immediately.
+        ///
+        /// Typing intentionally defers that write by one runloop turn so the
+        /// character display is not gated on the SwiftUI update cascade. Submit
+        /// used to inherit that deferral wholesale (`DispatchQueue.main.async`
+        /// around the whole send) purely so it would not read a draft that is
+        /// one keystroke stale. Flushing here lets Enter run in the same event
+        /// turn instead — the send no longer costs a runloop hop before
+        /// anything is painted.
+        func flushPendingBinding(for textView: NSTextView) {
+            // Invalidate the queued block: it must not re-run after we have
+            // taken its work, and must not clear the pending flag later.
+            bindingFlushGeneration &+= 1
+            hasPendingBindingFlush = false
+            let latest = textView.string
+            if textBinding.wrappedValue != latest {
+                textBinding.wrappedValue = latest
             }
         }
 

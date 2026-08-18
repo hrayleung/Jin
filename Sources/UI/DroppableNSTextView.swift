@@ -6,6 +6,10 @@ final class DroppableNSTextView: NSTextView {
     var onFocusChanged: ((Bool) -> Void)?
     var onPerformPasteboard: ((NSPasteboard) -> Bool)?
     var onSubmit: (() -> Void)?
+    /// Drains the coordinator's deferred text→binding write. Called
+    /// immediately before `onSubmit` so the send sees the last typed
+    /// character without waiting a runloop turn. See `submitNow()`.
+    var onFlushPendingText: (() -> Void)?
     var onCancel: (() -> Bool)?
     var onInterceptKeyDown: ((UInt16) -> Bool)?
     var useCommandEnterToSubmit = false
@@ -135,11 +139,20 @@ final class DroppableNSTextView: NSTextView {
         onPerformPasteboard?(pasteboard) == true
     }
 
-    private func submitAfterCurrentEvent() {
-        // Let IME/text-system updates settle before sending so stale text does not reappear.
-        DispatchQueue.main.async { [weak self] in
-            self?.onSubmit?()
-        }
+    /// Sends inside the same event turn the key arrived in.
+    ///
+    /// This used to be a `DispatchQueue.main.async` hop so the coordinator's
+    /// deferred text→binding write would land before the send read the draft.
+    /// That cost a full runloop turn in which *nothing* happened — no bubble,
+    /// no busy chrome — on every Enter, in both the composer and the in-bubble
+    /// message editor. Draining that write up front (`onFlushPendingText`)
+    /// gives the same guarantee synchronously.
+    ///
+    /// IME is unaffected: `keyDown` returns early while marked text is active,
+    /// so this only runs once the candidate has been committed.
+    private func submitNow() {
+        onFlushPendingText?()
+        onSubmit?()
     }
 
     override func keyDown(with event: NSEvent) {
@@ -163,7 +176,7 @@ final class DroppableNSTextView: NSTextView {
             if useCommandEnterToSubmit {
                 // In expanded mode: Cmd+Enter sends, plain Enter inserts newline.
                 if event.modifierFlags.contains(.command) {
-                    submitAfterCurrentEvent()
+                    submitNow()
                     return
                 }
                 super.keyDown(with: event)
@@ -176,7 +189,7 @@ final class DroppableNSTextView: NSTextView {
                 return
             }
 
-            submitAfterCurrentEvent()
+            submitNow()
             return
         }
 

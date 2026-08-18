@@ -24,26 +24,33 @@ final class AppPostLaunchMaintenance {
         resetMCPServersForTransportV2IfNeeded(container: container)
         renameMiniMaxCodingPlanToTokenPlanIfNeeded(container: container)
         migrateMiniMaxTokenPlanToUnifiedEndpointIfNeeded(container: container)
-        backfillConversationMessageCountsIfNeeded(container: container)
+        Task { await backfillConversationMessageCountsIfNeeded(container: container) }
         updateProviderModelsIfNeeded(container: container)
     }
 
-    /// Fills `ConversationEntity.messageCount` for rows created before the
-    /// attribute existed (`nil`). Self-limiting: the predicate matches nothing
-    /// once every row is backfilled, so steady-state launches fetch zero rows.
-    /// Until a row is backfilled the sidebar falls back to the relationship,
-    /// so this is a performance backfill, not a correctness gate.
+    /// Fills `ConversationEntity.messageCount` and `lastActivityAt` for rows
+    /// created before those attributes existed (`nil`). Self-limiting: the
+    /// predicate matches nothing once every row is backfilled, so steady-state
+    /// launches fetch zero rows. Until a row is backfilled the sidebar falls
+    /// back to the relationship, so this is a performance backfill, not a
+    /// correctness gate.
     ///
     /// Batched: each pass fetches a bounded slice (the predicate excludes
     /// already-backfilled rows, so re-fetching pages naturally) and saves it
     /// before continuing — a huge store neither faults every message row in
     /// one main-actor stint nor loses all progress if the app exits mid-way.
-    func backfillConversationMessageCountsIfNeeded(container: ModelContainer) {
+    ///
+    /// Refreshing a row faults its messages, which is precisely the cost the
+    /// denormalized fields exist to avoid, so the pass yields between batches.
+    /// Adding `lastActivityAt` makes this select the *whole* table once on the
+    /// first launch after that attribute ships; without the yield that is a
+    /// multi-second freeze at startup on a large history.
+    func backfillConversationMessageCountsIfNeeded(container: ModelContainer) async {
         let context = ModelContext(container)
         var descriptor = FetchDescriptor<ConversationEntity>(
-            predicate: #Predicate { $0.messageCount == nil }
+            predicate: #Predicate { $0.messageCount == nil || $0.lastActivityAt == nil }
         )
-        descriptor.fetchLimit = 200
+        descriptor.fetchLimit = Self.conversationBackfillBatchSize
 
         while true {
             guard let batch = try? context.fetch(descriptor), !batch.isEmpty else { return }
@@ -59,9 +66,15 @@ final class AppPostLaunchMaintenance {
                 return
             }
 
-            if batch.count < 200 { return }
+            if batch.count < Self.conversationBackfillBatchSize { return }
+            // Hand the main actor back so the UI paints between batches.
+            await Task.yield()
         }
     }
+
+    /// Small enough that one batch is a hitch rather than a freeze; the whole
+    /// migration is one-time, so total throughput does not matter.
+    private static let conversationBackfillBatchSize = 50
 
     /// One-time migration of the MiniMax Token Plan provider from MiniMax's Anthropic-compatible
     /// endpoint (`…/anthropic/v1`) to its unified OpenAI-compatible endpoint (`…/v1`). The Token

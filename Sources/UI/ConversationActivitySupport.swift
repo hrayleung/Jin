@@ -1,10 +1,12 @@
 import Foundation
 
 enum ConversationActivitySupport {
+    /// Reads the denormalized `lastActivityAt`. The fallback recomputes from
+    /// the relationship and is reached only by rows created before that
+    /// attribute existed, until post-launch maintenance backfills them —
+    /// deriving this per conversation is what used to freeze the sidebar.
     static func activityDate(for conversation: ConversationEntity) -> Date {
-        latestUserMessageDate(for: conversation)
-            ?? latestMessageDate(for: conversation)
-            ?? conversation.createdAt
+        conversation.lastActivityAt ?? conversation.computedActivityDate()
     }
 
     static func sortedByActivityDescending(_ conversations: [ConversationEntity]) -> [ConversationEntity] {
@@ -17,18 +19,5 @@ enum ConversationActivitySupport {
                 return lhs.conversation.createdAt > rhs.conversation.createdAt
             }
             .map(\.conversation)
-    }
-
-    private static func latestUserMessageDate(for conversation: ConversationEntity) -> Date? {
-        conversation.messages
-            .filter { $0.role == MessageRole.user.rawValue }
-            .map(\.timestamp)
-            .max()
-    }
-
-    private static func latestMessageDate(for conversation: ConversationEntity) -> Date? {
-        conversation.messages
-            .map(\.timestamp)
-            .max()
     }
 }

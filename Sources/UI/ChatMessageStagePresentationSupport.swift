@@ -7,6 +7,28 @@ enum ChatMessageStagePresentationSupport {
         let nextRenderLimit: Int
     }
 
+    /// Render limit that keeps the current window head in place while `appended`
+    /// new messages land at the tail.
+    ///
+    /// The window is `messages.suffix(renderLimit)`, so appending without
+    /// growing the limit *slides* it: the oldest visible identity drops while a
+    /// new one appears, which reconciles as a removal+insertion instead of a
+    /// pure `appendTail`. Growing by exactly `appended` keeps every existing
+    /// row identity and makes the send a clean tail insert.
+    ///
+    /// Growing all the way to `projectedTotal` (what the send path used to do)
+    /// also avoids the slide, but by inserting the entire backlog at the head in
+    /// one apply — past `ChatTimelineReconcilePlanner.maxBatchMutations` that
+    /// degrades into a full `reloadData`, and it permanently unbounds the window.
+    static func renderLimitAfterAppend(
+        currentLimit: Int,
+        projectedTotal: Int,
+        appended: Int
+    ) -> Int {
+        guard appended > 0 else { return currentLimit }
+        return max(currentLimit, min(projectedTotal, currentLimit + appended))
+    }
+
     struct TimelineWindow {
         let visibleMessages: [MessageRenderItem]
         let hiddenCount: Int

@@ -21,6 +21,13 @@ final class ConversationEntity {
     /// `nil` (rows from before this attribute existed) falls back to the
     /// relationship until post-launch maintenance backfills it.
     var messageCount: Int?
+    /// Denormalized `computedActivityDate()`. The sidebar sorts and groups every
+    /// conversation by activity on every body evaluation; deriving it from the
+    /// to-many relationship issued one SQL fetch *per conversation* and blocked
+    /// the main thread for hundreds of milliseconds on every SwiftData save.
+    /// `nil` (rows from before this attribute existed) falls back to the
+    /// relationship until post-launch maintenance backfills it.
+    var lastActivityAt: Date?
 
     @Relationship var assistant: AssistantEntity?
 
@@ -57,6 +64,11 @@ final class ConversationEntity {
         self.modelConfigData = modelConfigData
         self.assistant = assistant
         self.messageCount = 0
+        // Deliberately left nil: seeding it here would make a stale stored
+        // value authoritative for any conversation whose `messages` were
+        // assigned without going through `refreshMessageCount()`. Nil reads
+        // fall back to the relationship (empty and cheap for a new row) until
+        // the first message append refreshes it.
     }
 
     var resolvedMessageCount: Int {
@@ -66,8 +78,38 @@ final class ConversationEntity {
     /// Call after any mutation of `messages`. Recomputing from the
     /// relationship at mutation time is cheap (the messages are already
     /// resident there) and cannot drift.
+    ///
+    /// Both derived fields refresh together on purpose: they are backed by the
+    /// same relationship, and a site that updates only one is exactly how a
+    /// stale sidebar ordering would creep back in.
     func refreshMessageCount() {
         messageCount = messages.count
+        lastActivityAt = computedActivityDate()
+    }
+
+    /// Sort/group key for the sidebar: when the user last *said* something,
+    /// falling back to the last message of any role, then to creation.
+    ///
+    /// Faults `messages`. Only call it where they are already resident (a
+    /// mutation site) or as the un-backfilled fallback — never in a loop over
+    /// every conversation.
+    func computedActivityDate() -> Date {
+        latestMessageTimestamp(userOnly: true)
+            ?? latestMessageTimestamp(userOnly: false)
+            ?? createdAt
+    }
+
+    private func latestMessageTimestamp(userOnly: Bool) -> Date? {
+        var latest: Date?
+        for message in messages {
+            if userOnly, message.role != MessageRole.user.rawValue { continue }
+            if let current = latest {
+                if message.timestamp > current { latest = message.timestamp }
+            } else {
+                latest = message.timestamp
+            }
+        }
+        return latest
     }
 
     /// Convert to domain model
