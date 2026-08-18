@@ -44,7 +44,6 @@ extension ChatView {
                 }
             },
             openModelPicker: { isModelPickerPresented.toggle() },
-            openAddModelPicker: { isAddModelPickerPresented.toggle() },
             attach: { isFileImporterPresented = true },
             stopStreaming: {
                 guard isBusy else { return }

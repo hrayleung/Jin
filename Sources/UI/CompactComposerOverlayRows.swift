@@ -136,6 +136,8 @@ extension CompactComposerOverlayView {
             onInterceptKeyDown: onInterceptKeyDown
         )
         .frame(height: composerTextContentHeight)
+        .help(shortcutsStore.helpText("Message composer", for: .focusComposer))
+        .shortcutHint(.focusComposer, placement: .above)
     }
 
     @ViewBuilder

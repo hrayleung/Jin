@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ShortcutEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var shortcutHintController: ShortcutHintController
+    @EnvironmentObject private var shortcutsStore: AppShortcutsStore
 
     let action: AppShortcutAction
     let currentBinding: AppShortcutBinding?
@@ -81,9 +83,23 @@ struct ShortcutEditorSheet: View {
         }
         .padding(20)
         .frame(width: 460, height: 250)
+        .onAppear {
+            shortcutHintController.isCaptureActive = true
+            validateDraftBinding()
+        }
+        .onDisappear {
+            shortcutHintController.isCaptureActive = false
+        }
+        .onChange(of: draftBinding) { _, _ in
+            validateDraftBinding()
+        }
     }
 
     private var canSave: Bool {
-        draftBinding != currentBinding
+        draftBinding != currentBinding && validationMessage == nil
+    }
+
+    private func validateDraftBinding() {
+        validationMessage = shortcutsStore.fixedShortcutConflictMessage(for: draftBinding)
     }
 }

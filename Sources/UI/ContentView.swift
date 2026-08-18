@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(\.modelContext) var modelContext
     @EnvironmentObject var streamingStore: ConversationStreamingStore
     @EnvironmentObject var shortcutsStore: AppShortcutsStore
+    @EnvironmentObject var shortcutHintController: ShortcutHintController
     @EnvironmentObject var updateManager: SparkleUpdateManager
     @Query(sort: \AssistantEntity.sortOrder, order: .forward) var assistants: [AssistantEntity]
     @Query var providers: [ProviderConfigEntity]
@@ -42,6 +43,7 @@ struct ContentView: View {
     @AppStorage("assistantSidebarShowIcon") var assistantSidebarShowIcon = true
     @AppStorage("assistantSidebarGridColumns") var assistantSidebarGridColumns = 3
     @AppStorage(AppPreferenceKeys.mainSidebarWidth) private var persistedSidebarWidth = Double(SidebarWidthPersistence.defaultWidth)
+    @AppStorage(AppPreferenceKeys.showShortcutHints) private var showShortcutHints = true
     @AppStorage(AppPreferenceKeys.newChatModelMode) var newChatModelMode: NewChatModelMode = .lastUsed
     @AppStorage(AppPreferenceKeys.newChatFixedProviderID) var newChatFixedProviderID = "openai"
     @AppStorage(AppPreferenceKeys.newChatFixedModelID) var newChatFixedModelID = "gpt-5.2"
@@ -55,6 +57,17 @@ struct ContentView: View {
 
     var body: some View {
         contentPresentations(rootSplitView)
+            .background {
+                ShortcutHintHostWindowReader { window in
+                    shortcutHintController.registerHostWindow(window)
+                }
+            }
+            .onAppear {
+                shortcutHintController.isEnabled = showShortcutHints
+            }
+            .onChange(of: showShortcutHints) { _, enabled in
+                shortcutHintController.isEnabled = enabled
+            }
     }
 
     /// macOS 26 (Tahoe) renders this as a floating Liquid Glass sidebar

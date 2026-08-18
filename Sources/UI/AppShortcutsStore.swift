@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AppShortcutAssignmentResult {
     let reassignedFrom: AppShortcutAction?
+    let rejectedByFixedShortcut: String?
 }
 
 @MainActor
@@ -10,6 +11,11 @@ final class AppShortcutsStore: ObservableObject {
 
     @Published private(set) var customBindings: [AppShortcutAction: AppShortcutBinding] = [:]
     @Published private(set) var disabledActions: Set<AppShortcutAction> = []
+
+    private static let fixedShortcutReservations: [AppShortcutBinding: String] = [
+        .command(","): "Settings",
+        AppShortcutBinding(key: .returnKey, modifiers: [.command]): "Send Message"
+    ]
 
     private let defaults: UserDefaults
 
@@ -32,6 +38,18 @@ final class AppShortcutsStore: ObservableObject {
         binding(for: action)?.displayLabel ?? "None"
     }
 
+    func helpText(_ title: String, for action: AppShortcutAction) -> String {
+        ShortcutHintLabelSupport.helpText(title, binding: binding(for: action))
+    }
+
+    func fixedShortcutConflictMessage(for binding: AppShortcutBinding?) -> String? {
+        guard let binding,
+              let title = Self.fixedShortcutReservations[binding] else {
+            return nil
+        }
+        return "\(binding.displayLabel) is reserved for \(title)."
+    }
+
     func isCustomized(_ action: AppShortcutAction) -> Bool {
         customBindings[action] != nil || disabledActions.contains(action)
     }
@@ -50,6 +68,13 @@ final class AppShortcutsStore: ObservableObject {
 
     @discardableResult
     func setBinding(_ binding: AppShortcutBinding?, for action: AppShortcutAction) -> AppShortcutAssignmentResult {
+        if let conflict = fixedShortcutConflictMessage(for: binding) {
+            return AppShortcutAssignmentResult(
+                reassignedFrom: nil,
+                rejectedByFixedShortcut: conflict
+            )
+        }
+
         var reassigned: AppShortcutAction?
 
         if let binding {
@@ -73,7 +98,10 @@ final class AppShortcutsStore: ObservableObject {
         }
 
         persist()
-        return AppShortcutAssignmentResult(reassignedFrom: reassigned)
+        return AppShortcutAssignmentResult(
+            reassignedFrom: reassigned,
+            rejectedByFixedShortcut: nil
+        )
     }
 
     private func load() {
@@ -109,6 +137,13 @@ final class AppShortcutsStore: ObservableObject {
 
         var used: [AppShortcutBinding: ResolvedBinding] = [:]
         var needsPersist = false
+
+        for (action, binding) in Array(customBindings)
+            where Self.fixedShortcutReservations[binding] != nil {
+            customBindings.removeValue(forKey: action)
+            disabledActions.remove(action)
+            needsPersist = true
+        }
 
         for action in AppShortcutAction.allCases {
             guard let binding = binding(for: action) else { continue }

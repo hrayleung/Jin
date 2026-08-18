@@ -198,8 +198,9 @@ extension ContentView {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
-        .help("New Assistant")
+        .help(shortcutsStore.helpText("New Assistant", for: .newAssistant))
         .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .newAssistant))
+        .shortcutHint(.newAssistant, placement: .trailing)
     }
 
     // The conversations List moved into `ChatsSidebarSectionView.swift`. That

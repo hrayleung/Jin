@@ -29,6 +29,7 @@ final class AppShortcutsStoreTests: XCTestCase {
         XCTAssertEqual(store.binding(for: .newChat), .command("n"))
         XCTAssertEqual(store.binding(for: .openModelPicker), .command("m", modifiers: [.shift, .command]))
         XCTAssertEqual(store.binding(for: .deleteChat), AppShortcutBinding(key: .delete, modifiers: [.command]))
+        XCTAssertEqual(store.helpText("New Chat", for: .newChat), "New Chat (⌘N)")
     }
 
     func testConflictingAssignmentDisablesPreviousAction() {
@@ -40,6 +41,27 @@ final class AppShortcutsStoreTests: XCTestCase {
         XCTAssertEqual(store.binding(for: .toggleChatList), .command("n"))
         XCTAssertNil(store.binding(for: .newChat))
         XCTAssertTrue(store.disabledActions.contains(.newChat))
+    }
+
+    func testFixedSettingsShortcutCannotBeAssigned() {
+        let store = AppShortcutsStore(defaults: defaults)
+
+        let result = store.setBinding(.command(","), for: .newChat)
+
+        XCTAssertEqual(result.rejectedByFixedShortcut, "⌘, is reserved for Settings.")
+        XCTAssertNil(result.reassignedFrom)
+        XCTAssertEqual(store.binding(for: .newChat), .command("n"))
+        XCTAssertFalse(store.isCustomized(.newChat))
+    }
+
+    func testFixedCommandReturnShortcutCannotBeAssigned() {
+        let store = AppShortcutsStore(defaults: defaults)
+        let commandReturn = AppShortcutBinding(key: .returnKey, modifiers: [.command])
+
+        let result = store.setBinding(commandReturn, for: .toggleChatList)
+
+        XCTAssertEqual(result.rejectedByFixedShortcut, "⌘↩ is reserved for Send Message.")
+        XCTAssertEqual(store.binding(for: .toggleChatList), .command("b"))
     }
 
     func testCustomBindingPersistsAcrossStoreReload() {
@@ -64,7 +86,7 @@ final class AppShortcutsStoreTests: XCTestCase {
     func testLoadPreservesPersistedCustomBindingWhenItConflictsWithNewDefault() throws {
         let state = PersistedShortcutState(
             customBindings: [
-                AppShortcutAction.attachFiles.rawValue: .command("p", modifiers: [.shift, .command])
+                AppShortcutAction.attachFiles.rawValue: .command("m", modifiers: [.shift, .command])
             ],
             disabledActionIDs: []
         )
@@ -73,9 +95,24 @@ final class AppShortcutsStoreTests: XCTestCase {
 
         let store = AppShortcutsStore(defaults: defaults)
 
-        XCTAssertEqual(store.binding(for: .attachFiles), .command("p", modifiers: [.shift, .command]))
-        XCTAssertNil(store.binding(for: .addModelToChat))
-        XCTAssertTrue(store.disabledActions.contains(.addModelToChat))
+        XCTAssertEqual(store.binding(for: .attachFiles), .command("m", modifiers: [.shift, .command]))
+        XCTAssertNil(store.binding(for: .openModelPicker))
+        XCTAssertTrue(store.disabledActions.contains(.openModelPicker))
+    }
+
+    func testLoadRestoresDefaultWhenPersistedCustomBindingIsNowReserved() throws {
+        let state = PersistedShortcutState(
+            customBindings: [
+                AppShortcutAction.toggleChatList.rawValue: .command(",")
+            ],
+            disabledActionIDs: []
+        )
+        defaults.set(try JSONEncoder().encode(state), forKey: AppPreferenceKeys.keyboardShortcuts)
+
+        let store = AppShortcutsStore(defaults: defaults)
+
+        XCTAssertEqual(store.binding(for: .toggleChatList), .command("b"))
+        XCTAssertFalse(store.isCustomized(.toggleChatList))
     }
 }
 

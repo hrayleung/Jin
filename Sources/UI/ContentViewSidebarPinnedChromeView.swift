@@ -50,7 +50,9 @@ struct ContentViewSidebarPinnedChromeView: View {
             .font(.system(size: 15))
             .focused(searchFieldFocus)
             .accessibilityLabel("Search chats")
+            .help(shortcutsStore.helpText("Search chats", for: .searchChats))
         }
+        .shortcutHint(.searchChats, placement: .trailing)
         .padding(.horizontal, JinSpacing.medium)
         .padding(.vertical, JinSpacing.small + 2)
         // Soft tinted surface (no pure-white pill). A bright white pill inside

@@ -205,6 +205,8 @@ struct ComposerStatusSummaryView: View {
 }
 
 struct CollapsedComposerBar: View {
+    @EnvironmentObject private var shortcutsStore: AppShortcutsStore
+
     let hasContent: Bool
     let onExpand: () -> Void
 
@@ -237,5 +239,7 @@ struct CollapsedComposerBar: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Show message composer")
         .accessibilityHint("Double-click to expand the message input area")
+        .help(shortcutsStore.helpText("Show composer", for: .toggleComposerVisibility))
+        .shortcutHint(.toggleComposerVisibility)
     }
 }

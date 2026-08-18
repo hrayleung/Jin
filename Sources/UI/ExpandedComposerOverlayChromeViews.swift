@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ExpandedComposerHeader: View {
+    @EnvironmentObject private var shortcutsStore: AppShortcutsStore
+
     let onCollapse: () -> Void
     let onHide: () -> Void
 
@@ -11,16 +13,18 @@ struct ExpandedComposerHeader: View {
             HStack(spacing: JinSpacing.small) {
                 ExpandedComposerHeaderActionButton(
                     systemName: "arrow.down.right.and.arrow.up.left",
-                    help: "Compact composer",
+                    help: shortcutsStore.helpText("Compact composer", for: .expandComposer),
                     action: onCollapse
                 )
                 .keyboardShortcut(.escape, modifiers: [])
+                .shortcutHint(.expandComposer)
 
                 ExpandedComposerHeaderActionButton(
                     systemName: "chevron.down",
-                    help: "Hide composer",
+                    help: shortcutsStore.helpText("Hide composer", for: .toggleComposerVisibility),
                     action: onHide
                 )
+                .shortcutHint(.toggleComposerVisibility)
             }
         }
     }
@@ -201,6 +205,13 @@ struct ExpandedComposerFooter: View {
             .animation(JinMotion.sendGlyph, value: isBusy)
             .keyboardShortcut(.return, modifiers: sendWithCommandEnter ? [.command] : [])
             .disabled(sendButtonPresentation.isDisabled)
+            .shortcutHint(.stopGenerating, available: isBusy)
+            .fixedShortcutHint(
+                sendWithCommandEnter
+                    ? AppShortcutBinding(key: .returnKey, modifiers: [.command])
+                    : nil,
+                available: !isBusy && !sendButtonPresentation.isDisabled
+            )
         }
     }
 }

@@ -39,6 +39,7 @@ struct JinApp: App {
     @StateObject private var extensionCredentialStore = ChatExtensionCredentialStore()
     @StateObject private var responseCompletionNotifier = ResponseCompletionNotifier()
     @StateObject private var shortcutsStore = AppShortcutsStore.shared
+    @StateObject private var shortcutHintController = ShortcutHintController.shared
     @StateObject private var updateManager: SparkleUpdateManager
 
     @AppStorage(AppPreferenceKeys.appAppearanceMode) private var appAppearanceMode: AppAppearanceMode = .system
@@ -55,7 +56,8 @@ struct JinApp: App {
             AppPreferenceKeys.updateAutoCheckOnLaunch: true,
             AppPreferenceKeys.updateAllowPreRelease: false,
             AppPreferenceKeys.useOverlayScrollbars: true,
-            AppPreferenceKeys.showConversationMinimap: true
+            AppPreferenceKeys.showConversationMinimap: true,
+            AppPreferenceKeys.showShortcutHints: true
         ])
         ImageCache.default.memoryStorage.config.expiration = .seconds(3600)
         ImageCache.default.diskStorage.config.expiration = .days(30)
@@ -83,6 +85,7 @@ struct JinApp: App {
                     .environmentObject(extensionCredentialStore)
                     .environmentObject(responseCompletionNotifier)
                     .environmentObject(shortcutsStore)
+                    .environmentObject(shortcutHintController)
                     .environmentObject(updateManager)
                     .font(JinTypography.appFont(familyPreference: appFontFamily))
                     .preferredColorScheme(preferredColorScheme)
@@ -123,6 +126,7 @@ struct JinApp: App {
                     .environmentObject(extensionCredentialStore)
                     .environmentObject(responseCompletionNotifier)
                     .environmentObject(shortcutsStore)
+                    .environmentObject(shortcutHintController)
                     .environmentObject(updateManager)
                     .font(JinTypography.appFont(familyPreference: appFontFamily))
                     .preferredColorScheme(preferredColorScheme)
