@@ -90,7 +90,6 @@ extension ChatView {
 
     private func resetPresentationStateForConversationSwitch() {
         isModelPickerPresented = false
-        isAddModelPickerPresented = false
         showingThinkingBudgetSheet = false
         showingCodeExecutionSheet = false
         showingContextCacheSheet = false

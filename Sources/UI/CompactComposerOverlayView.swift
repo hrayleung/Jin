@@ -5,6 +5,7 @@ import AppKit
 
 struct CompactComposerOverlayView<ControlsRow: View>: View {
     @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @EnvironmentObject var shortcutsStore: AppShortcutsStore
 
     @Binding var messageText: String
     @Binding var remoteVideoURLText: String

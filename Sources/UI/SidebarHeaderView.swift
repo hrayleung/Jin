@@ -40,7 +40,8 @@ struct SidebarHeaderView: View {
             }
             .buttonStyle(JinIconButtonStyle(showBackground: false))
             .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .newChat))
-            .help("New Chat")
+            .help(shortcutsStore.helpText("New Chat", for: .newChat))
+            .shortcutHint(.newChat, placement: .overlayBottom)
 
             Button(action: { openSettings() }) {
                 Image(systemName: "gearshape")
@@ -48,7 +49,8 @@ struct SidebarHeaderView: View {
             }
             .buttonStyle(JinIconButtonStyle(showBackground: false))
             .keyboardShortcut(",", modifiers: [.command])
-            .help("Settings")
+            .help("Settings (⌘,)")
+            .fixedShortcutHint(.command(","), placement: .overlayBottom)
         }
         .padding(.leading, leadingPadding)
         .padding(.trailing, JinSpacing.medium)

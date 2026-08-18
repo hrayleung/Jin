@@ -26,7 +26,9 @@ extension ChatView {
                 isActive: !draftAttachments.isEmpty,
                 badgeText: draftAttachments.isEmpty ? nil : "\(draftAttachments.count)",
                 help: fileAttachmentHelpText,
-                disabled: isBusy
+                disabled: isBusy,
+                shortcut: .attachFiles,
+                shortcutPlacement: .overlayBottom
             ) {
                 isFileImporterPresented = true
             }
@@ -208,6 +210,8 @@ extension ChatView {
         help: String,
         activeColor: Color = .accentColor,
         disabled: Bool = false,
+        shortcut: AppShortcutAction? = nil,
+        shortcutPlacement: ShortcutHintPlacement = .above,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -230,8 +234,9 @@ extension ChatView {
                 .offset(x: 3, y: -2)
             }
         }
-        .help(help)
+        .help(shortcut.map { shortcutsStore.helpText(help, for: $0) } ?? help)
         .accessibilityValue(badgeText ?? "")
+        .shortcutHint(shortcut, available: !disabled, placement: shortcutPlacement)
     }
 
     func composerMenuControl<MenuContent: View>(

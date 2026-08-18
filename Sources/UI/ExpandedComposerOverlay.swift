@@ -320,6 +320,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
                     onInterceptKeyDown: onInterceptKeyDown
                 )
                 .frame(minHeight: 320, maxHeight: .infinity, alignment: .topLeading)
+                .shortcutHint(.focusComposer, placement: .trailing)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

@@ -133,7 +133,6 @@ struct ChatView: View {
     @State var composerHeight: CGFloat = 0
     @State var composerTextContentHeight: CGFloat = 36
     @State var isModelPickerPresented = false
-    @State var isAddModelPickerPresented = false
     @State var messageRenderLimit: Int = Self.initialMessageRenderLimit
     @State var pendingRestoreScrollMessageID: UUID?
     @State var isPinnedToBottom = true
@@ -387,6 +386,8 @@ struct ChatView: View {
                 }
             }
             .buttonStyle(.bordered)
+            .help(shortcutsStore.helpText("Choose model", for: .openModelPicker))
+            .shortcutHint(.openModelPicker, placement: .overlayBottom)
             .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
                 modelPickerPopoverContent(includeManagedAgentSelection: true) { providerID, modelID in
                     setProviderAndModel(providerID: providerID, modelID: modelID)
@@ -402,19 +403,22 @@ struct ChatView: View {
                 Image(systemName: isStarred ? "star.fill" : "star")
                     .foregroundStyle(isStarred ? Color.orange : Color.primary)
             }
-            .help(isStarred ? "Unstar chat" : "Star chat")
+            .help(shortcutsStore.helpText(isStarred ? "Unstar chat" : "Star chat", for: .toggleStarChat))
+            .shortcutHint(.toggleStarChat, placement: .overlayBottom)
 
             Button {
                 isAssistantInspectorPresented = true
             } label: {
                 Image(systemName: "slider.horizontal.3")
             }
-            .help("Assistant Settings")
+            .help(shortcutsStore.helpText("Assistant Settings", for: .openAssistantSettings))
+            .shortcutHint(.openAssistantSettings, placement: .overlayBottom)
 
             Button(role: .destructive, action: onRequestDeleteConversation) {
                 Image(systemName: "trash")
             }
-            .help("Delete chat")
+            .help(shortcutsStore.helpText("Delete chat", for: .deleteChat))
+            .shortcutHint(.deleteChat, placement: .overlayBottom)
         }
     }
 }

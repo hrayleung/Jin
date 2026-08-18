@@ -6,6 +6,8 @@ import SwiftUI
 /// Attach this once, on the sidebar column. The item migrates into the
 /// remaining title bar when the sidebar collapses — do not add a second copy.
 struct MainSidebarToggleButton: View {
+    @EnvironmentObject private var shortcutsStore: AppShortcutsStore
+
     let isSidebarVisible: Bool
     let action: () -> Void
 
@@ -13,8 +15,9 @@ struct MainSidebarToggleButton: View {
         Button(action: action) {
             Image(systemName: "sidebar.leading")
         }
-        .help(helpText)
+        .help(shortcutsStore.helpText(helpText, for: .toggleChatList))
         .accessibilityLabel(helpText)
+        .shortcutHint(.toggleChatList, placement: .overlayBottom)
     }
 
     private var helpText: String {

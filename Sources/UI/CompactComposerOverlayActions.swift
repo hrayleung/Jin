@@ -11,7 +11,8 @@ extension CompactComposerOverlayView {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Hide composer")
+        .help(shortcutsStore.helpText("Hide composer", for: .toggleComposerVisibility))
+        .shortcutHint(.toggleComposerVisibility)
     }
 
     var expandButton: some View {
@@ -24,8 +25,8 @@ extension CompactComposerOverlayView {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Expand composer")
-        .disabled(isBusy)
+        .help(shortcutsStore.helpText("Expand composer", for: .expandComposer))
+        .shortcutHint(.expandComposer)
     }
 
     var sendButton: some View {
@@ -44,5 +45,17 @@ extension CompactComposerOverlayView {
         .disabled(sendButtonPresentation.isDisabled)
         .padding(.bottom, 2)
         .accessibilityLabel(sendButtonPresentation.isBusy ? "Stop" : "Send")
+        .help(
+            isBusy
+                ? shortcutsStore.helpText("Stop", for: .stopGenerating)
+                : (sendWithCommandEnter ? "Send (⌘↩)" : "Send")
+        )
+        .shortcutHint(.stopGenerating, available: isBusy)
+        .fixedShortcutHint(
+            sendWithCommandEnter
+                ? AppShortcutBinding(key: .returnKey, modifiers: [.command])
+                : nil,
+            available: !isBusy && !sendButtonPresentation.isDisabled
+        )
     }
 }

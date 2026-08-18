@@ -194,6 +194,16 @@ struct AppShortcutModifiers: OptionSet, Codable, Hashable {
             if eventFlags.contains(pair.1) { result.insert(pair.0) }
         }
     }
+
+    private static let cgEventMapping: [(AppShortcutModifiers, CGEventFlags)] = [
+        (.command, .maskCommand), (.shift, .maskShift), (.option, .maskAlternate), (.control, .maskControl)
+    ]
+
+    init(cgFlags: CGEventFlags) {
+        self = Self.cgEventMapping.reduce(into: []) { result, pair in
+            if cgFlags.contains(pair.1) { result.insert(pair.0) }
+        }
+    }
     #endif
 
     var eventModifiers: EventModifiers {

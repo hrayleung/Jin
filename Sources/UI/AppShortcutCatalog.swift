@@ -28,7 +28,6 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
 
     case focusComposer
     case openModelPicker
-    case addModelToChat
     case attachFiles
     case expandComposer
     case toggleComposerVisibility
@@ -44,7 +43,7 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
         switch self {
         case .toggleChatList, .searchChats, .newChat, .newAssistant, .openAssistantSettings:
             return .workspace
-        case .focusComposer, .openModelPicker, .addModelToChat, .attachFiles, .expandComposer, .toggleComposerVisibility, .stopGenerating:
+        case .focusComposer, .openModelPicker, .attachFiles, .expandComposer, .toggleComposerVisibility, .stopGenerating:
             return .composer
         case .renameChat, .toggleStarChat, .deleteChat:
             return .conversation
@@ -67,8 +66,6 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
             return "Focus Composer"
         case .openModelPicker:
             return "Open Model Picker"
-        case .addModelToChat:
-            return "Add Model to Chat"
         case .attachFiles:
             return "Attach Files"
         case .expandComposer:
@@ -102,8 +99,6 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
             return "Move focus to the message composer."
         case .openModelPicker:
             return "Open model and provider selection."
-        case .addModelToChat:
-            return "Open the picker to add another model to this conversation."
         case .attachFiles:
             return "Add files to the current draft."
         case .expandComposer:
@@ -137,8 +132,6 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
             return .command("k")
         case .openModelPicker:
             return .command("m", modifiers: [.shift, .command])
-        case .addModelToChat:
-            return .command("p", modifiers: [.shift, .command])
         case .attachFiles:
             return .command("a", modifiers: [.shift, .command])
         case .expandComposer:
