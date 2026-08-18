@@ -72,9 +72,12 @@ extension ChatStreamingOrchestrator {
         // #endregion
 
         await MainActor.run {
-            streamingState.appendDeltas(
+            streamingState.applyPresentationFlush(
                 textDelta: flush.textDelta,
-                thinkingDelta: flush.thinkingDelta
+                thinkingDelta: flush.thinkingDelta,
+                toolCalls: flush.toolCalls,
+                searchActivities: flush.searchActivities,
+                codeExecutionActivities: flush.codeExecutionActivities
             )
         }
 
@@ -107,34 +110,27 @@ extension ChatStreamingOrchestrator {
     static func applyStreamToolCall(
         _ call: ToolCall,
         accumulator: inout StreamingResponseAccumulator,
-        streamingState: StreamingMessageState
-    ) async {
+        uiFlushBuffer: inout StreamingUIFlushBuffer
+    ) {
         accumulator.upsertToolCall(call)
-        let visibleToolCalls = accumulator.buildToolCalls()
-        await MainActor.run {
-            streamingState.setToolCalls(visibleToolCalls)
-        }
+        uiFlushBuffer.setToolCalls(accumulator.buildToolCalls())
     }
 
     static func applyStreamSearchActivity(
         _ activity: SearchActivity,
         accumulator: inout StreamingResponseAccumulator,
-        streamingState: StreamingMessageState
-    ) async {
+        uiFlushBuffer: inout StreamingUIFlushBuffer
+    ) {
         accumulator.upsertSearchActivity(activity)
-        await MainActor.run {
-            streamingState.upsertSearchActivity(activity)
-        }
+        uiFlushBuffer.upsertSearchActivity(activity)
     }
 
     static func applyStreamCodeExecutionActivity(
         _ activity: CodeExecutionActivity,
         accumulator: inout StreamingResponseAccumulator,
-        streamingState: StreamingMessageState
-    ) async {
+        uiFlushBuffer: inout StreamingUIFlushBuffer
+    ) {
         accumulator.upsertCodeExecutionActivity(activity)
-        await MainActor.run {
-            streamingState.upsertCodeExecutionActivity(activity)
-        }
+        uiFlushBuffer.upsertCodeExecutionActivity(activity)
     }
 }

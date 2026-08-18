@@ -34,16 +34,16 @@ extension ChatStreamingOrchestrator {
                 for: call,
                 builtinRoutes: builtinRoutes
             ) {
-                await applyStreamSearchActivity(
+                applyStreamSearchActivity(
                     searchActivity,
                     accumulator: &state.accumulator,
-                    streamingState: streamingState
+                    uiFlushBuffer: &state.uiFlushBuffer
                 )
             }
-            await applyStreamToolCall(
+            applyStreamToolCall(
                 call,
                 accumulator: &state.accumulator,
-                streamingState: streamingState
+                uiFlushBuffer: &state.uiFlushBuffer
             )
         case .toolCallDelta:
             break
@@ -52,28 +52,28 @@ extension ChatStreamingOrchestrator {
                 for: call,
                 builtinRoutes: builtinRoutes
             ) {
-                await applyStreamSearchActivity(
+                applyStreamSearchActivity(
                     searchActivity,
                     accumulator: &state.accumulator,
-                    streamingState: streamingState
+                    uiFlushBuffer: &state.uiFlushBuffer
                 )
             }
-            await applyStreamToolCall(
+            applyStreamToolCall(
                 call,
                 accumulator: &state.accumulator,
-                streamingState: streamingState
+                uiFlushBuffer: &state.uiFlushBuffer
             )
         case .searchActivity(let activity):
-            await applyStreamSearchActivity(
+            applyStreamSearchActivity(
                 activity,
                 accumulator: &state.accumulator,
-                streamingState: streamingState
+                uiFlushBuffer: &state.uiFlushBuffer
             )
         case .codeExecutionActivity(let activity):
-            await applyStreamCodeExecutionActivity(
+            applyStreamCodeExecutionActivity(
                 activity,
                 accumulator: &state.accumulator,
-                streamingState: streamingState
+                uiFlushBuffer: &state.uiFlushBuffer
             )
         case .managedAgentInteractionRequest(let request):
             await flushStreamingUIIfNeeded(

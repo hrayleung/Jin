@@ -4,6 +4,65 @@ import Combine
 
 @MainActor
 final class StreamingMessageStateTests: XCTestCase {
+    func testApplyPresentationFlushIncrementsRenderTickOnceForTextToolsAndSearch() {
+        let state = StreamingMessageState()
+        var changeCount = 0
+        let cancellable = state.objectWillChange.sink {
+            changeCount += 1
+        }
+
+        state.applyPresentationFlush(
+            textDelta: "hello",
+            thinkingDelta: "reason",
+            toolCalls: [ToolCall(id: "call_1", name: "exa__search", arguments: [:])],
+            searchActivities: [
+                SearchActivity(
+                    id: "ws_1",
+                    type: "search",
+                    status: .inProgress,
+                    arguments: ["query": AnyCodable("swift")]
+                )
+            ],
+            codeExecutionActivities: [
+                CodeExecutionActivity(id: "ce_1", status: .inProgress, code: "print(1)")
+            ]
+        )
+
+        XCTAssertEqual(state.renderTick, 1)
+        XCTAssertEqual(changeCount, 1)
+        XCTAssertEqual(state.textContent, "hello")
+        XCTAssertEqual(state.thinkingContent, "reason")
+        XCTAssertEqual(state.streamingToolCalls.map(\.id), ["call_1"])
+        XCTAssertEqual(state.searchActivities.map(\.id), ["ws_1"])
+        XCTAssertEqual(state.codeExecutionActivities.map(\.id), ["ce_1"])
+        withExtendedLifetime(cancellable) {}
+    }
+
+    func testApplyPresentationFlushActivitiesOnlyPublishesOnce() {
+        let state = StreamingMessageState()
+        var changeCount = 0
+        let cancellable = state.objectWillChange.sink {
+            changeCount += 1
+        }
+
+        state.applyPresentationFlush(
+            textDelta: "",
+            thinkingDelta: "",
+            toolCalls: [ToolCall(id: "call_1", name: "exa__search", arguments: [:])],
+            searchActivities: [
+                SearchActivity(id: "ws_1", type: "search", status: .inProgress)
+            ],
+            codeExecutionActivities: []
+        )
+
+        XCTAssertEqual(state.renderTick, 1)
+        XCTAssertEqual(changeCount, 1)
+        XCTAssertEqual(state.textContent, "")
+        XCTAssertEqual(state.streamingToolCalls.map(\.id), ["call_1"])
+        XCTAssertEqual(state.searchActivities.map(\.id), ["ws_1"])
+        withExtendedLifetime(cancellable) {}
+    }
+
     func testAppendDeltasIncrementsRenderTickOnce() {
         let state = StreamingMessageState()
 

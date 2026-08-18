@@ -160,6 +160,11 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
                     lineWidth: JinStrokeWidth.emphasized
                 )
             )
+            .jinBorderBeam(
+                isActive: isBusy || isRecording || isPreparingToSend,
+                style: isRecording ? .pulseInner : .line,
+                cornerRadius: JinRadius.large
+            )
             .shadow(color: JinSemanticColor.shadowSubtle, radius: 6, x: 0, y: 1)
     }
 }

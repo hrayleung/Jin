@@ -25,6 +25,7 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
     let providerType: ProviderType?
     let providerIconID: String?
     let toolResultsByCallID: [String: ToolResult]
+    let liveToolResults: ChatLiveToolResultStore
     let messageEntitiesByID: [UUID: MessageEntity]
     let pinnedBottomRefreshDelays: [TimeInterval]
     let interaction: ChatMessageInteractionContext
@@ -130,6 +131,7 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             eagerCodeHighlightStartIndex: timelineWindow.eagerCodeHighlightStartIndex,
             payloadResolver: ChatTimelinePayloadResolverFactory.make(messageEntitiesByID: messageEntitiesByID),
             toolResultsByCallID: toolResultsByCallID,
+            liveToolResults: liveToolResults,
             messageEntitiesByID: messageEntitiesByID,
             interaction: interaction,
             onOpenArtifact: onOpenArtifact,
@@ -137,7 +139,8 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
             onExpandCollapsedContent: expandCollapsedContent,
             colorScheme: colorScheme,
             isConversationStreaming: isStreaming,
-            streamingSuppressesIdlePlaceholder: streamingSuppressesIdlePlaceholder
+            streamingSuppressesIdlePlaceholder: streamingSuppressesIdlePlaceholder,
+            streamingActivityOwnerMessageID: streamingActivityOwnerMessageID
         )
     }
 
@@ -147,6 +150,14 @@ struct ChatSingleThreadMessagesContentView: View, Equatable {
                 from: timelineWindow.visibleMessages,
                 toolResultsByCallID: toolResultsByCallID
             )
+        )
+    }
+
+    private var streamingActivityOwnerMessageID: UUID? {
+        ChatTimelineStreamingPresentationSupport.persistedActivityOwnerMessageID(
+            isConversationStreaming: isStreaming,
+            lastMessage: timelineWindow.visibleMessages.last,
+            toolResultsByCallID: toolResultsByCallID
         )
     }
 

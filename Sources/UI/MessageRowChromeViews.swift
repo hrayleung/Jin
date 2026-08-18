@@ -46,6 +46,7 @@ struct MessageRowHeaderView: View {
     let assistantDisplayName: String
     let assistantModelLabel: String?
     let providerIconID: String?
+    let activityKind: JinActivityKind?
 
     var body: some View {
         // Lives inside the bubble surface — same YOU / ASSISTANT hierarchy as
@@ -74,6 +75,16 @@ struct MessageRowHeaderView: View {
 
                 identityLabel
                 modelLabel
+                if let activityKind {
+                    HStack(spacing: 4) {
+                        JinActivityOrb(kind: activityKind, size: .inline)
+                        Text(activityKind.statusLabel)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(JinSemanticColor.textTertiary)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(activityKind.accessibilityLabel))
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

@@ -31,6 +31,8 @@ final class ChatRenderCacheController {
     /// bubble.
     private var persistedToolResultsByCallID: [String: ToolResult] = [:]
     private var liveToolResultsByCallID: [String: ToolResult] = [:]
+    /// Observed by persisted MCP cards. Live upserts must not bump `version`.
+    let liveToolResultStore = ChatLiveToolResultStore()
     private var activeConversationID: UUID?
     private(set) var artifactCatalog: ArtifactCatalog = .empty
     /// Total message count from the most recent rebuild. Mirror of the
@@ -337,6 +339,8 @@ final class ChatRenderCacheController {
         isHistoryReady = true
         persistedToolResultsByCallID = [:]
         liveToolResultsByCallID = [:]
+        liveToolResultStore.clear()
+        liveToolResultStore.setSuppressIdleStreamingPlaceholder(false)
         activeConversationID = nil
         toolResultsByCallID = [:]
         artifactCatalog = .empty
@@ -351,7 +355,9 @@ final class ChatRenderCacheController {
             visibleMessages: visibleMessages,
             historyMessages: activeThreadHistory,
             messageEntitiesByID: messageEntitiesByID,
-            toolResultsByCallID: toolResultsByCallID,
+            // Persisted snapshot only. Live results ride `liveToolResultStore`
+            // so ChatView / the table epoch do not rebuild on every tool body.
+            toolResultsByCallID: persistedToolResultsByCallID,
             artifactCatalog: artifactCatalog
         )
     }
@@ -360,7 +366,6 @@ final class ChatRenderCacheController {
         guard activeConversationID == conversationID else { return }
         liveToolResultsByCallID[result.toolCallID] = result
         publishMergedToolResults()
-        version &+= 1
     }
 
     private func replacePersistedToolResults(_ results: [String: ToolResult]) {
@@ -381,6 +386,7 @@ final class ChatRenderCacheController {
                 live
             }
         }
+        liveToolResultStore.replaceAll(liveToolResultsByCallID)
     }
 
     /// Synchronous tail-only decode for the first paint after a conversation

@@ -14,12 +14,13 @@ struct StreamingMessageView: View {
     /// When the last persisted assistant already owns in-flight MCP tools,
     /// collapse this row instead of painting a second empty bubble.
     var suppressIdlePlaceholder: Bool = false
+    /// Live results + suppress flag. Observed so the empty Generating row
+    /// can collapse without a table `rootView` remount.
+    @ObservedObject var liveToolResults: ChatLiveToolResultStore
     @AppStorage(AppPreferenceKeys.codeFontFamily) private var codeFontFamily = JinTypography.systemFontPreferenceValue
     /// Bumped when row-internal state changes the content's height outside
     /// of a streaming delta (thinking block expand/collapse). Folded into
-    /// the `ConstrainedWidth` layout version below so the cached measurement
-    /// is invalidated — `renderTick` alone only ticks on deltas, which left
-    /// the row at a stale height and clipped the newly expanded content.
+    /// `streamingLayoutVersion` so the cached measurement is invalidated.
     @State private var layoutEpoch = 0
 
     var body: some View {
@@ -39,7 +40,7 @@ struct StreamingMessageView: View {
         )
 
         Group {
-        if showsIdlePlaceholder, suppressIdlePlaceholder {
+        if showsIdlePlaceholder, effectiveSuppressIdlePlaceholder {
             Color.clear
                 .frame(maxWidth: .infinity)
                 .frame(height: 0)
@@ -60,6 +61,8 @@ struct StreamingMessageView: View {
                                 Text(label)
                                     .jinTagStyle()
                             }
+
+                            streamingHeaderActivity
 
                             // No greedy Spacer: on macOS 27's ConstrainedWidth
                             // (frame+fixedSize) a Spacer can inflate the bubble
@@ -148,10 +151,7 @@ struct StreamingMessageView: View {
                         .padding(.top, JinSpacing.xSmall - 2)
                     }
                 }
-                // Both inputs are monotonically increasing, so any change —
-                // a streaming delta OR a thinking expand/collapse — yields a
-                // version the cache hasn't seen.
-                .layoutValue(key: ConstrainedWidthContentVersionKey.self, value: .version(state.renderTick &+ layoutEpoch))
+                .layoutValue(key: ConstrainedWidthContentVersionKey.self, value: .version(streamingLayoutVersion))
             }
             .padding(.horizontal, JinSpacing.small)
 
@@ -168,9 +168,54 @@ struct StreamingMessageView: View {
         }
         }
         }
-        .onChange(of: state.renderTick) { _, _ in
+        .onChange(of: streamingLayoutVersion) { _, _ in
             onContentUpdate()
         }
+    }
+
+    /// ConstrainedWidth + row-height pulse. Every coalesced presentation flush
+    /// can change wrapping (including a newline or short CJK line), so it must
+    /// invalidate the measured height. The orb now runs in Core Animation and
+    /// is unaffected by these SwiftUI layout passes.
+    private var streamingLayoutVersion: Int {
+        var version = state.renderTick &* 31
+        version &+= layoutEpoch
+        version &+= effectiveSuppressIdlePlaceholder ? 1 : 0
+        return version
+    }
+
+    private var effectiveSuppressIdlePlaceholder: Bool {
+        suppressIdlePlaceholder || liveToolResults.suppressIdleStreamingPlaceholder
+    }
+
+    /// One live orb for the whole streaming turn. Kind updates in place so
+    /// thinking / search / tools never remount a representable mid-hitch.
+    private var streamingHeaderActivity: some View {
+        let hidesManagedAgentInternalUI = ManagedAgentUIVisibilitySupport.hidesInternalUI(
+            providerType: providerType
+        )
+        let kind = JinActivityKind.resolveStreaming(
+            searchActivities: state.searchActivities,
+            codeExecutionActivities: hidesManagedAgentInternalUI ? [] : state.codeExecutionActivities,
+            toolCalls: hidesManagedAgentInternalUI ? [] : state.streamingToolCalls.filter { call in
+                !BuiltinSearchToolHub.isBuiltinSearchFunctionName(call.name)
+                && !isGoogleProviderNativeToolName(call.name)
+            },
+            toolResultsByCallID: state.toolResultsByCallID,
+            artifactCount: state.artifacts.count,
+            hasVisibleText: state.hasVisibleText,
+            thinkingChunkCount: hidesManagedAgentInternalUI ? 0 : state.thinkingChunks.count,
+            isThinkingComplete: state.isThinkingComplete
+        )
+        return HStack(spacing: 4) {
+            JinActivityOrb(kind: kind, size: .inline)
+            Text(kind.statusLabel)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(JinSemanticColor.textTertiary)
+                .lineLimit(1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(kind.accessibilityLabel))
     }
 
     @ViewBuilder
@@ -288,9 +333,9 @@ private struct StreamingArtifactIndicator: View {
 
     var body: some View {
         HStack(spacing: JinSpacing.small) {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
                 .fill(accentColor.opacity(0.12))
-                .frame(width: 26, height: 26)
+                .frame(width: 24, height: 24)
                 .overlay {
                     Image(systemName: iconName)
                         .font(.system(size: 11, weight: .semibold))
@@ -304,12 +349,7 @@ private struct StreamingArtifactIndicator: View {
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 4) {
-                ProgressView()
-                    .controlSize(.mini)
-                    .scaleEffect(0.6)
-                ArtifactTypeBadge(contentType: artifact.contentType)
-            }
+            ArtifactTypeBadge(contentType: artifact.contentType)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -356,6 +396,7 @@ private struct StreamingArtifactIndicator: View {
             return "chart.bar.xaxis"
         }
     }
+
 }
 
 // MARK: - Preference Keys

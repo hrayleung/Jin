@@ -34,7 +34,14 @@ final class ChatRenderCacheControllerLiveToolResultTests: XCTestCase {
         controller.upsertLiveToolResult(live, conversationID: conversationID)
 
         XCTAssertEqual(controller.toolResultsByCallID["fetch_1"]?.content, "page body")
-        XCTAssertEqual(controller.version, versionBefore &+ 1)
+        XCTAssertEqual(
+            controller.liveToolResultStore.resultsByCallID["fetch_1"]?.content,
+            "page body"
+        )
+        // Live bodies must not bump the table epoch — that remounts every
+        // resident cell and stalls the activity-orb display link.
+        XCTAssertEqual(controller.version, versionBefore)
+        XCTAssertNil(controller.singleThreadContext().toolResultsByCallID["fetch_1"])
     }
 
     func testPersistedToolMessagePrunesMatchingLiveResult() throws {
@@ -89,6 +96,11 @@ final class ChatRenderCacheControllerLiveToolResultTests: XCTestCase {
         )
 
         XCTAssertEqual(controller.toolResultsByCallID["fetch_1"]?.content, "persisted")
+        XCTAssertNil(controller.liveToolResultStore.resultsByCallID["fetch_1"])
+        XCTAssertEqual(
+            controller.singleThreadContext().toolResultsByCallID["fetch_1"]?.content,
+            "persisted"
+        )
     }
 
     func testConversationSwitchClearsLiveToolResults() throws {

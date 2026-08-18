@@ -103,16 +103,9 @@ extension ToolTimelinePresentationSupport {
         private var glyphContent: some View {
             switch glyph {
             case .running:
-                // `isRunningPulse` still gates whether we pulse (vs solid rest),
-                // but the pulse itself is wall-clock driven so a reconfigure
-                // cannot leave the node half-scaled.
-                if isRunningPulse {
-                    JinRunningNodePulse(color: style.accent)
-                } else {
-                    Circle()
-                        .fill(style.accent)
-                        .frame(width: 6, height: 6)
-                }
+                Circle()
+                    .fill(style.accent)
+                    .frame(width: isRunningPulse ? 6 : 5, height: isRunningPulse ? 6 : 5)
             case .success:
                 Image(systemName: "checkmark")
                     .font(.system(size: 8.5, weight: .semibold))

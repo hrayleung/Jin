@@ -126,8 +126,10 @@ extension ChatView {
                 armStreamingPlaceholderSession(diagnosticRunID: diagnosticRunID)
                 // 2) Busy chrome after paint (Stop button) — not before.
                 isPreparingToSend = true
-                // 3) Clear draft only AFTER paint is in the cache.
-                clearComposerDraftAfterSend()
+                // 3) Clear draft text now. Defer the composer-height reset
+                // so shrinking the card does not trigger a second timeline
+                // apply on the Enter turn (the send hitch).
+                clearComposerDraftAfterSend(resetComposerHeight: false)
                 let perMessageIDs = draftSnapshot.perMessageMCPServerIDs
                 // Assign to prepareToSendTask so Stop during the yield window
                 // cancels streaming without undoing the painted turn.
@@ -135,6 +137,9 @@ extension ChatView {
                     // First yield: let SwiftUI commit the user bubble +
                     // Generating row before any disk / provider work.
                     await Task.yield()
+                    if self.composerTextContentHeight != 36 {
+                        self.composerTextContentHeight = 36
+                    }
                     // Always persist the painted user turn before any cancel
                     // exit or network start — commit used persistToDisk: false
                     // so Stop in the yield window would otherwise leave the
@@ -375,10 +380,12 @@ extension ChatView {
     /// render cache (fast path), or immediately when a long prepare is about
     /// to start (PDF path). See send-path ordering notes above.
     @MainActor
-    private func clearComposerDraftAfterSend() {
+    private func clearComposerDraftAfterSend(resetComposerHeight: Bool = true) {
         messageText = ""
         remoteVideoInputURLText = ""
-        composerTextContentHeight = 36
+        if resetComposerHeight {
+            composerTextContentHeight = 36
+        }
         draftAttachments = []
         draftQuotes = []
     }

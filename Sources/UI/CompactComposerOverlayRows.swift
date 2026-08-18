@@ -144,8 +144,10 @@ extension CompactComposerOverlayView {
     var prepareStatusRow: some View {
         if isPreparingToSend, let prepareToSendStatus {
             HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
+                Image(systemName: "paperplane.circle")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
                 Text(prepareToSendStatus)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -162,9 +164,10 @@ extension CompactComposerOverlayView {
     var speechStatusRow: some View {
         if isRecording {
             HStack(spacing: 8) {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 6, height: 6)
+                Image(systemName: "record.circle.fill")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.red)
+                    .frame(width: 20, height: 20)
                 Text("Recording… \(recordingDurationText)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -176,8 +179,10 @@ extension CompactComposerOverlayView {
             .padding(.top, 2)
         } else if isTranscribing {
             HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
+                Image(systemName: "waveform")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
                 Text(transcribingStatusText)
                     .font(.caption)
                     .foregroundStyle(.secondary)

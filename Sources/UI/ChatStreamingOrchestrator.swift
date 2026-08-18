@@ -40,7 +40,10 @@ enum ChatStreamingOrchestrator {
                     metricsCollector.begin(at: Date())
 
                     await MainActor.run {
-                        streamingState.reset()
+                        // reset() always objectWillChange.send() even when
+                        // empty. Skip if persist already cleared this bubble
+                        // and tool execution did not dirty it again.
+                        resetStreamingStateIfNeeded(streamingState)
                     }
 
                     let streamCreationStartedAt = ProcessInfo.processInfo.systemUptime
@@ -122,10 +125,12 @@ enum ChatStreamingOrchestrator {
                     }
 
                     await MainActor.run {
-                        // The persisted assistant already owns these calls.
-                        // Re-attaching them here painted a second empty
-                        // DEFAULT / model bubble with the same Running card.
-                        clearLiveBubbleAfterPersistingToolTurn(streamingState)
+                        // persistAssistantMessage already reset() on a
+                        // successful tool-requesting persist. Skip the
+                        // no-op second reset that would re-invalidate
+                        // the timeline. If persist failed, the bubble
+                        // is still dirty and this still clears it.
+                        resetStreamingStateIfNeeded(streamingState)
                     }
 
                     let toolExecutionResult = await executeToolCalls(
@@ -185,6 +190,15 @@ enum ChatStreamingOrchestrator {
                 callbacks.onSessionEnd(shouldNotifyNow, previewForNotification)
             }
         }
+    }
+
+    /// `StreamingMessageState.reset()` always sends `objectWillChange`.
+    @MainActor
+    static func resetStreamingStateIfNeeded(_ streamingState: StreamingMessageState) {
+        guard streamingState.hasVisiblePresentation || streamingState.renderTick != 0 else {
+            return
+        }
+        streamingState.reset()
     }
 
 }

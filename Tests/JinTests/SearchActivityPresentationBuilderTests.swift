@@ -133,6 +133,21 @@ final class SearchActivityPresentationBuilderTests: XCTestCase {
         XCTAssertEqual(output.sources.first?.previewText, "Longer preview")
     }
 
+    func testCollapsedSourceStripDeduplicatesPagesFromTheSameHost() {
+        let sources = [
+            SearchSource(rawURL: "https://example.com/one", title: nil, previewText: nil),
+            SearchSource(rawURL: "https://example.com/two", title: nil, previewText: nil),
+            SearchSource(rawURL: "https://swift.org/blog", title: nil, previewText: nil),
+        ].compactMap { $0 }
+        let presentations = sources.map {
+            $0.renderPresentation(resolvedURLString: nil, resolvedPreviewText: nil)
+        }
+
+        let distinct = SearchActivityCollapsedSourceSupport.distinctPresentations(presentations)
+
+        XCTAssertEqual(distinct.map(\.host), ["example.com", "swift.org"])
+    }
+
     private func activity(
         id: String,
         type: String = "search",
