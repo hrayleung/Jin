@@ -3,17 +3,23 @@ import SwiftUI
 extension ProviderConfigFormView {
 
     var body: some View {
-        providerFormPresentations(
+        // Derived once for the whole pass: the page and the confirmation dialogs
+        // both need these counts, and re-deriving them per read is what hung the
+        // OpenRouter pane (see `ProviderFormSupport.ModelListState`).
+        let modelList = modelListState
+
+        return providerFormPresentations(
             providerFormLifecycle(
-                providerFormPage.navigationTitle(provider.name)
-            )
+                providerFormPage(modelList).navigationTitle(provider.name)
+            ),
+            modelList: modelList
         )
     }
 
-    var providerFormPage: some View {
+    func providerFormPage(_ modelList: ProviderFormSupport.ModelListState) -> some View {
         JinSettingsPage(maxWidth: providerType == .vertexai ? 820 : 760) {
             providerConfigurationSection
-            providerSecondarySection
+            providerSecondarySection(modelList)
         }
     }
 
@@ -140,14 +146,16 @@ extension ProviderConfigFormView {
     }
 
     @ViewBuilder
-    private var providerSecondarySection: some View {
+    private func providerSecondarySection(
+        _ modelList: ProviderFormSupport.ModelListState
+    ) -> some View {
         if providerType == .claudeManagedAgents {
             JinSettingsSection("Managed Defaults") {
                 claudeManagedDefaultsSection
             }
         } else {
             JinSettingsSection(providerType == .modal ? "Endpoints" : "Models") {
-                modelsSection
+                modelsSection(modelList)
             }
         }
     }

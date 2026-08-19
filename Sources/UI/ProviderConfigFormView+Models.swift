@@ -9,62 +9,19 @@ extension ProviderConfigFormView {
         let models: [ModelInfo]
     }
 
-    func isFullySupportedModel(_ modelID: String) -> Bool {
-        guard let providerType else { return false }
-        let lookupID: String
-        if let model = decodedModels.first(where: { $0.id == modelID }) {
-            lookupID = ModalEndpointSupport.catalogModelID(for: model)
-        } else {
-            lookupID = modelID
-        }
-        return JinModelSupport.isFullySupported(providerType: providerType, modelID: lookupID)
-    }
-
     var decodedModels: [ModelInfo] {
         provider.allModels
     }
 
-    var filteredModels: [ModelInfo] {
-        ProviderFormSupport.filteredModels(decodedModels, searchText: modelSearchText)
-    }
-
-    var enabledByModelID: [String: Bool] {
-        ProviderFormSupport.enabledByModelID(decodedModels)
-    }
-
-    var fullySupportedModelIDs: Set<String> {
-        ProviderFormSupport.fullySupportedModelIDs(decodedModels, isFullySupported: isFullySupportedModel)
-    }
-
-    var modelListSummary: ProviderFormSupport.ModelListSummary {
-        ProviderFormSupport.modelListSummary(
+    /// Derive this once per body pass and pass the value down. Reading it from
+    /// several places in one pass is what used to hang the form — see
+    /// `ProviderFormSupport.ModelListState`.
+    var modelListState: ProviderFormSupport.ModelListState {
+        ProviderFormSupport.modelListState(
             models: decodedModels,
-            isFullySupported: { fullySupportedModelIDs.contains($0) }
+            searchText: modelSearchText,
+            providerType: providerType
         )
-    }
-
-    var enabledModelCount: Int {
-        modelListSummary.enabledCount
-    }
-
-    var fullySupportedModelsCount: Int {
-        modelListSummary.fullySupportedCount
-    }
-
-    var nonFullySupportedModelsCount: Int {
-        modelListSummary.nonFullySupportedCount
-    }
-
-    var disabledModelCount: Int {
-        modelListSummary.disabledCount
-    }
-
-    var canKeepFullySupportedModels: Bool {
-        modelListSummary.canKeepFullySupportedModels(hasProviderType: providerType != nil)
-    }
-
-    var canKeepEnabledModels: Bool {
-        modelListSummary.canKeepEnabledModels
     }
 
     func setModels(_ models: [ModelInfo]) {
@@ -81,7 +38,7 @@ extension ProviderConfigFormView {
         setModels(models)
     }
 
-    func modelEnabledBinding(modelID: String) -> Binding<Bool> {
+    func modelEnabledBinding(modelID: String, enabledByModelID: [String: Bool]) -> Binding<Bool> {
         Binding(
             get: {
                 enabledByModelID[modelID] ?? true
@@ -101,12 +58,18 @@ extension ProviderConfigFormView {
     }
 
     func keepOnlyFullySupportedModels() {
-        guard let models = ProviderFormSupport.modelsKeepingOnlyFullySupported(
-            decodedModels,
+        let models = decodedModels
+        // Resolve the set once up front; the predicate itself must stay O(1).
+        let fullySupportedModelIDs = ProviderFormSupport.fullySupportedModelIDs(
+            models,
+            providerType: providerType
+        )
+        guard let kept = ProviderFormSupport.modelsKeepingOnlyFullySupported(
+            models,
             hasProviderType: providerType != nil,
-            isFullySupported: isFullySupportedModel
+            isFullySupported: { fullySupportedModelIDs.contains($0) }
         ) else { return }
-        setModels(models)
+        setModels(kept)
     }
 
     func keepOnlyEnabledModels() {

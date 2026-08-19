@@ -2,6 +2,71 @@ import Collections
 import Foundation
 
 extension ProviderFormSupport {
+    /// Everything the provider form's model list derives from the stored models,
+    /// resolved in a single pass.
+    ///
+    /// These were separate computed properties on `ProviderConfigFormView`, and
+    /// that is what beachballed the OpenRouter pane. Computed properties re-derive
+    /// on every read, and these nested: the summary's `isFullySupported` closure
+    /// rebuilt the entire fully-supported set once per model, and building that set
+    /// scanned the model array once per model to look up a model it was already
+    /// holding. Reading `enabledModelCount` a single time was O(n^3) — 4.6s for
+    /// OpenRouter's 435 models — and one body pass read the summary five times plus
+    /// the set once per rendered row. Derive once, pass the value down.
+    struct ModelListState {
+        let models: [ModelInfo]
+        let filteredModels: [ModelInfo]
+        let fullySupportedModelIDs: Set<String>
+        let enabledByModelID: [String: Bool]
+        let summary: ModelListSummary
+        let canKeepFullySupportedModels: Bool
+        let canKeepEnabledModels: Bool
+
+        var isEmpty: Bool { models.isEmpty }
+    }
+
+    static func modelListState(
+        models: [ModelInfo],
+        searchText: String,
+        providerType: ProviderType?
+    ) -> ModelListState {
+        let fullySupportedModelIDs = fullySupportedModelIDs(models, providerType: providerType)
+        // The predicate must be O(1). Handing `modelListSummary` a closure that
+        // rebuilds the set is what turned a count into an O(n^3) walk.
+        let summary = modelListSummary(models: models) { fullySupportedModelIDs.contains($0) }
+
+        return ModelListState(
+            models: models,
+            filteredModels: filteredModels(models, searchText: searchText),
+            fullySupportedModelIDs: fullySupportedModelIDs,
+            enabledByModelID: enabledByModelID(models),
+            summary: summary,
+            canKeepFullySupportedModels: summary.canKeepFullySupportedModels(
+                hasProviderType: providerType != nil
+            ),
+            canKeepEnabledModels: summary.canKeepEnabledModels
+        )
+    }
+
+    /// Resolves each model's catalog ID from the model already in hand. The form
+    /// used to look the model back up by ID from inside this loop, which made a
+    /// single set build quadratic on its own.
+    static func fullySupportedModelIDs(
+        _ models: [ModelInfo],
+        providerType: ProviderType?
+    ) -> Set<String> {
+        guard let providerType else { return [] }
+
+        var ids = Set<String>()
+        for model in models where JinModelSupport.isFullySupported(
+            providerType: providerType,
+            modelID: ModalEndpointSupport.catalogModelID(for: model)
+        ) {
+            ids.insert(model.id)
+        }
+        return ids
+    }
+
     /// Filters, never reorders: this is a management surface, and having rows
     /// resort under the cursor while you type makes it easy to edit the wrong model.
     /// `.structural` for the same reason — the speculative subsequence tier belongs

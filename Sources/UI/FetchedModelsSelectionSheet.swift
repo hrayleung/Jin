@@ -5,8 +5,9 @@ struct FetchedModelsSelectionSheet: View {
 
     let fetchedModels: [ModelInfo]
     let existingModelIDs: Set<String>
-    let providerType: ProviderType?
     let onConfirm: ([ModelInfo]) -> Void
+
+    private let fullySupportedModelIDs: Set<String>
 
     @State private var selectedIDs: Set<String>
     @State private var searchText: String
@@ -20,8 +21,11 @@ struct FetchedModelsSelectionSheet: View {
     ) {
         self.fetchedModels = fetchedModels
         self.existingModelIDs = existingModelIDs
-        self.providerType = providerType
         self.onConfirm = onConfirm
+        self.fullySupportedModelIDs = ProviderFormSupport.fullySupportedModelIDs(
+            fetchedModels,
+            providerType: providerType
+        )
 
         let newModelIDs = FetchedModelsSelectionSupport.initialSelectedIDs(
             fetchedModels: fetchedModels,
@@ -130,14 +134,10 @@ struct FetchedModelsSelectionSheet: View {
         }
     }
 
+    /// Resolved once in `init`. This used to scan `fetchedModels` for the model it
+    /// was being asked about, and it is called once per model while filtering and
+    /// again once per row — quadratic over a provider-sized fetch.
     private func isFullySupported(_ modelID: String) -> Bool {
-        guard let providerType else { return false }
-        let lookupID: String
-        if let model = fetchedModels.first(where: { $0.id == modelID }) {
-            lookupID = ModalEndpointSupport.catalogModelID(for: model)
-        } else {
-            lookupID = modelID
-        }
-        return JinModelSupport.isFullySupported(providerType: providerType, modelID: lookupID)
+        fullySupportedModelIDs.contains(modelID)
     }
 }
