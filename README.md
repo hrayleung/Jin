@@ -87,6 +87,7 @@ OpenAI · OpenAI (WebSocket) · Anthropic · Claude Managed Agents · Gemini (AI
 - **Vertex AI** uses a service account JSON.
 - **Claude Managed Agents** uses an Anthropic API key and routes through Anthropic's managed-agent runtime (custom tools, persistent sessions, prompt caching).
 - **Meta** uses a Model API key against `https://api.meta.ai/v1` and ships Muse Spark 1.2 / 1.1 / 1.2 Contributor. Jin talks to Meta over the Responses API for multimodal input, tools, and web search grounding.
+- **OpenCode Go** is a flat-fee subscription at `https://opencode.ai/zen/go/v1`. Jin routes each model to the documented endpoint, including Muse Spark 1.2 and Muse Spark 1.2 Contributor over the Responses API (always-on reasoning with a visible effort control, vision, native PDF). Contributor-tier prompts may be used to train Meta models.
 - **Xiaomi MiMo Token Plan** ships in two flavors — Anthropic-compatible and OpenAI-compatible — so you can use whichever upstream API surface a given MiMo model expects.
 - **Modal** uses one provider and one proxy token (Token ID `wk-…` + Token Secret `ws-…`). Each model you deploy (`modal endpoint create --model …`) has its own URL — add those URLs with **Add Endpoint** or **Fetch from Provider**. Do not create a new Modal provider per model.
 - **Gateway providers** such as OpenRouter, Cloudflare AI Gateway, Vercel AI Gateway, and OpenAI Compatible can route upstream models while still benefiting from Jin's model metadata when the exact upstream model ID is known.

@@ -11,8 +11,9 @@ extension OpenCodeGoAdapter {
     }
 
     /// Models OpenCode Go serves via the OpenAI Responses `/responses` endpoint (per
-    /// opencode.ai/docs/go's endpoint table + models.dev `opencode-go` → `@ai-sdk/openai`).
-    /// Matched by exact ID (see `openAIResponsesModelIDs`), never by prefix.
+    /// opencode.ai/docs/go's endpoint table + models.dev `opencode-go` → `@ai-sdk/openai`):
+    /// GPT-5.6 Luna and Muse Spark 1.2 / 1.2 Contributor. Matched by exact ID (see
+    /// `openAIResponsesModelIDs`), never by prefix.
     static func usesOpenAIResponsesEndpoint(_ modelID: String) -> Bool {
         openAIResponsesModelIDs.contains(modelID.lowercased())
     }

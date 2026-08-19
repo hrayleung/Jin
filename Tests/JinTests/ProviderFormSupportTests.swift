@@ -87,6 +87,10 @@ final class ProviderFormSupportTests: XCTestCase {
             ProviderFormSupport.providerDetailsText(for: .githubCopilot),
             "Uses GitHub Models at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access."
         )
+        XCTAssertEqual(
+            ProviderFormSupport.providerDetailsText(for: .opencodeGo),
+            "OpenCode Go at `https://opencode.ai/zen/go/v1` (Zen API key from the OpenCode console). Jin follows OpenCode's per-model endpoint table: Claude, MiniMax, and Qwen use `/messages`; GPT-5.6 Luna and Muse Spark (`muse-spark-1.2`, `muse-spark-1.2-contributor`) use `/responses`; other models use `/chat/completions`. Contributor-tier prompts and completions may be used to train Meta models."
+        )
         XCTAssertNil(ProviderFormSupport.providerDetailsText(for: .openai))
     }
 

@@ -155,6 +155,12 @@ extension OpenAIAdapter {
     }
 
     private func uploadHostedOpenAIFile(_ file: FileContent) async throws -> HostedProviderFileReference? {
+        // `OpenAIAdapter` is also the Responses delegate for gateways that expose
+        // `/responses` on their own host (OpenCode Go). Those hosts do not document a
+        // `/files` upload surface; a failed hosted upload rethrows and kills the send.
+        // Skip it and fall through to inline `file_data`.
+        guard usesNativeOpenAIPlatform else { return nil }
+
         do {
             return try await ProviderHostedFileStore.shared.uploadOpenAIFile(
                 file: file,

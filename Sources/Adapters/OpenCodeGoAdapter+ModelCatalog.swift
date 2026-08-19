@@ -25,9 +25,11 @@ extension OpenCodeGoAdapter {
                     body: body
                 )
             } else if Self.usesOpenAIResponsesEndpoint(modelID) {
-                // Responses-route models (gpt-5.6-luna) are not served on /chat/completions,
-                // so validate on the endpoint they actually use. `input` accepts a bare
-                // string, and `max_output_tokens` has a documented minimum of 16.
+                // Responses-route models (gpt-5.6-luna, muse-spark-1.2,
+                // muse-spark-1.2-contributor) are not served on /chat/completions, so
+                // validate on the endpoint they actually use.
+                // `input` accepts a bare string, and `max_output_tokens` has a documented
+                // minimum of 16.
                 request = try makeAuthorizedJSONRequest(
                     url: validatedURL("\(Self.hardcodedBaseURL)/responses"),
                     apiKey: key,

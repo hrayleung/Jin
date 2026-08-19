@@ -9,7 +9,7 @@ import Foundation
 /// per-model endpoint table published at https://opencode.ai/docs/go/:
 /// - Claude, MiniMax, and Qwen models → Anthropic-compatible `/messages`
 ///   (see `usesAnthropicMessagesEndpoint(_:)`)
-/// - GPT-5.6 Luna → OpenAI **Responses** `/responses`
+/// - GPT-5.6 Luna and Muse Spark 1.2 → OpenAI **Responses** `/responses`
 ///   (see `usesOpenAIResponsesEndpoint(_:)`)
 /// - DeepSeek, GLM, Kimi, MiMo, Grok, Hy3, … → OpenAI-compatible `/chat/completions`
 ///
@@ -57,18 +57,18 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
     ])
 
     /// Exact model IDs OpenCode Go serves via the OpenAI **Responses** `/responses` endpoint.
-    /// opencode.ai/docs/go's per-model endpoint table (page updated 2026-08-02) is the
-    /// authority: `gpt-5.6-luna` is the only Go model mapped to `@ai-sdk/openai` +
-    /// `/zen/go/v1/responses`; every other OpenAI-shaped model is `@ai-sdk/openai-compatible`
-    /// + `/chat/completions`. A live unauthenticated probe confirms `/responses` exists on the
-    /// Go gateway and accepts this model (it answers `AuthError`), while rejecting the
-    /// Anthropic-format models outright ("Model minimax-m3 is not supported for format
-    /// openai"). `/chat/completions` is not a viable fallback: OpenAI rejects function tools
-    /// combined with reasoning for the GPT-5.6 family there and directs callers to
-    /// `/v1/responses`, so every tool-enabled send would fail. Matched by exact ID — never by
-    /// prefix, since the sibling Sol/Terra tiers are not on OpenCode Go.
+    /// opencode.ai/docs/go maps `gpt-5.6-luna` and Muse Spark to `@ai-sdk/openai` +
+    /// `/zen/go/v1/responses`. Live `/zen/go/v1/models` (2026-08-20) lists both
+    /// `muse-spark-1.2` and `muse-spark-1.2-contributor`; a dummy-key probe of `/responses`
+    /// answers `AuthError` (model accepted) rather than "not supported for format openai"
+    /// (the rejection MiniMax gets there). `muse-spark-1.1` is not served
+    /// ("Model muse-spark-1.1 is not supported"). `/chat/completions` is not a viable
+    /// fallback for Luna: OpenAI rejects function tools combined with reasoning for the
+    /// GPT-5.6 family there. Matched by exact ID — never by prefix.
     static let openAIResponsesModelIDs: Set<String> = [
         "gpt-5.6-luna",
+        "muse-spark-1.2",
+        "muse-spark-1.2-contributor",
     ]
 
     /// Exact model IDs on the OpenAI-compatible `/chat/completions` path whose upstream

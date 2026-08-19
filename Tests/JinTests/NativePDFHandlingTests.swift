@@ -97,6 +97,53 @@ final class NativePDFHandlingTests: XCTestCase {
         )
     }
 
+    func testOpenCodeGoOffersNativePDFOnlyForMuseSparkContributor() {
+        XCTAssertTrue(ProviderType.opencodeGo.supportsNativePDFUpload)
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(
+            providerType: .opencodeGo,
+            modelID: "muse-spark-1.2-contributor"
+        ))
+        XCTAssertTrue(
+            ChatModelCapabilitySupport.supportsNativePDF(
+                supportsMediaGenerationControl: false,
+                providerType: .opencodeGo,
+                resolvedModelSettings: nil,
+                lowerModelID: "muse-spark-1.2-contributor"
+            )
+        )
+        XCTAssertTrue(
+            ChatModelCapabilitySupport.adapterCanSendNativePDF(
+                providerType: .opencodeGo,
+                modelID: "muse-spark-1.2-contributor"
+            )
+        )
+
+        for id in ["muse-spark-1.2", "muse-spark-1.2-contributor"] {
+            XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .opencodeGo, modelID: id), id)
+            XCTAssertTrue(
+                ChatModelCapabilitySupport.adapterCanSendNativePDF(providerType: .opencodeGo, modelID: id),
+                id
+            )
+        }
+
+        for id in ["gpt-5.6-luna", "kimi-k3", "muse-spark-1.1", "glm-5.3"] {
+            XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .opencodeGo, modelID: id), id)
+            XCTAssertFalse(
+                ChatModelCapabilitySupport.adapterCanSendNativePDF(providerType: .opencodeGo, modelID: id),
+                id
+            )
+            XCTAssertFalse(
+                ChatModelCapabilitySupport.supportsNativePDF(
+                    supportsMediaGenerationControl: false,
+                    providerType: .opencodeGo,
+                    resolvedModelSettings: resolvedSettings(capabilities: [.vision, .nativePDF]),
+                    lowerModelID: id
+                ),
+                "\(id) must not inherit Muse Spark's native-PDF path"
+            )
+        }
+    }
+
     func testPagesModeIsAvailableOnlyForVisionWithoutNativePDF() {
         XCTAssertTrue(
             ChatModelCapabilitySupport.isPDFProcessingModeAvailable(

@@ -71,6 +71,10 @@ extension ChatModelCapabilitySupport {
             return JinModelSupport.supportsNativePDF(providerType: providerType, modelID: modelID)
         case .openai, .openaiWebSocket, .xai, .meta:
             return true
+        case .opencodeGo:
+            // Responses-routed Muse Spark IDs emit inline `input_file`. Exact IDs from
+            // live `/models` — a near-miss must not light Native PDF on /chat/completions.
+            return ModelCapabilityRegistry.isOpenCodeGoMuseSparkModelID(modelID.lowercased())
         default:
             return false
         }

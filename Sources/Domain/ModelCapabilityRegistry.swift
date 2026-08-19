@@ -897,6 +897,10 @@ enum ModelCapabilityRegistry {
             return [.high, .max]
         case .opencodeGo where opencodeGoHy3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high]
+        case .opencodeGo where isOpenCodeGoMuseSparkModelID(lowerModelID):
+            // Live Go `/models` serves muse-spark-1.2 and muse-spark-1.2-contributor.
+            // Same Meta band (minimal..xhigh). "none" is HTTP 400; "max" is not accepted.
+            return [.minimal, .low, .medium, .high, .xhigh]
         case .zhipuCodingPlan where glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
         case .zhipuCodingPlan where zhipuGLM52HighMaxReasoningEffortModelIDs.contains(lowerModelID):
@@ -1051,6 +1055,17 @@ enum ModelCapabilityRegistry {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .zyphra, .kimiForCoding, .none:
+            return false
+        }
+    }
+
+    /// Exact Muse Spark IDs live on OpenCode Go (`GET /zen/go/v1/models`, 2026-08-20).
+    /// `muse-spark-1.1` is not served.
+    static func isOpenCodeGoMuseSparkModelID(_ lowerModelID: String) -> Bool {
+        switch lowerModelID {
+        case "muse-spark-1.2", "muse-spark-1.2-contributor":
+            return true
+        default:
             return false
         }
     }
