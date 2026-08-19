@@ -3,18 +3,18 @@ import SwiftUI
 extension ProviderConfigFormView {
 
     @ViewBuilder
-    var modelsSection: some View {
+    func modelsSection(_ state: ProviderFormSupport.ModelListState) -> some View {
         if let modelsError {
             JinSettingsErrorText(text: modelsError)
         }
 
-        if !decodedModels.isEmpty {
+        if !state.isEmpty {
             modelSearchRow
-            modelActionsRow
+            modelActionsRow(state)
         }
 
-        modelsListContent
-        modelsFooterActions
+        modelsListContent(state)
+        modelsFooterActions(state)
     }
 
     private var modelSearchRow: some View {
@@ -32,9 +32,9 @@ extension ProviderConfigFormView {
         .accessibilityLabel("Search models")
     }
 
-    private var modelActionsRow: some View {
+    private func modelActionsRow(_ state: ProviderFormSupport.ModelListState) -> some View {
         HStack(spacing: JinSpacing.small) {
-            Text("Enabled \(enabledModelCount) / \(decodedModels.count)")
+            Text("Enabled \(state.summary.enabledCount) / \(state.summary.totalCount)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -56,25 +56,25 @@ extension ProviderConfigFormView {
 
             Divider().frame(height: 12)
 
-            modelFilterActionsMenu
+            modelFilterActionsMenu(state)
         }
     }
 
-    private var modelFilterActionsMenu: some View {
+    private func modelFilterActionsMenu(_ state: ProviderFormSupport.ModelListState) -> some View {
         Menu {
             Button {
                 showingKeepFullySupportedModelsConfirmation = true
             } label: {
                 Label("Keep Fully Supported", systemImage: "checkmark.seal")
             }
-            .disabled(!canKeepFullySupportedModels)
+            .disabled(!state.canKeepFullySupportedModels)
 
             Button {
                 showingKeepEnabledModelsConfirmation = true
             } label: {
                 Label("Keep Enabled Only", systemImage: "power")
             }
-            .disabled(!canKeepEnabledModels)
+            .disabled(!state.canKeepEnabledModels)
         } label: {
             Image(systemName: "ellipsis.circle")
                 .foregroundStyle(.secondary)
@@ -87,23 +87,26 @@ extension ProviderConfigFormView {
     }
 
     @ViewBuilder
-    private var modelsListContent: some View {
-        if decodedModels.isEmpty {
+    private func modelsListContent(_ state: ProviderFormSupport.ModelListState) -> some View {
+        if state.isEmpty {
             Text(
                 providerType == .modal
                     ? "No endpoints yet."
                     : "No models found. Fetch from provider or add manually."
             )
                 .jinInfoCallout()
-        } else if filteredModels.isEmpty {
+        } else if state.filteredModels.isEmpty {
             Text("No models match your search.")
                 .jinInfoCallout()
         } else {
-            List(filteredModels) { model in
+            List(state.filteredModels) { model in
                 ProviderModelListRow(
                     model: model,
-                    isFullySupported: fullySupportedModelIDs.contains(model.id),
-                    isEnabled: modelEnabledBinding(modelID: model.id),
+                    isFullySupported: state.fullySupportedModelIDs.contains(model.id),
+                    isEnabled: modelEnabledBinding(
+                        modelID: model.id,
+                        enabledByModelID: state.enabledByModelID
+                    ),
                     onEdit: { editingModel = model },
                     onDelete: { requestDeleteModel(model) }
                 )
@@ -120,7 +123,7 @@ extension ProviderConfigFormView {
         }
     }
 
-    private var modelsFooterActions: some View {
+    private func modelsFooterActions(_ state: ProviderFormSupport.ModelListState) -> some View {
         HStack {
             Button("Fetch from Provider") {
                 Task { await fetchModels() }
@@ -154,7 +157,7 @@ extension ProviderConfigFormView {
             } label: {
                 Label("Clear", systemImage: "trash")
             }
-            .disabled(decodedModels.isEmpty)
+            .disabled(state.isEmpty)
             .buttonStyle(.borderless)
         }
     }

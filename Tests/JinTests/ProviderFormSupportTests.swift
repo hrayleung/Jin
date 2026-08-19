@@ -398,6 +398,94 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertFalse(allSupportedSummary.canKeepFullySupportedModels(hasProviderType: true))
     }
 
+    func testFullySupportedModelIDsResolvesCatalogIDFromTheModelInHand() {
+        let models = [
+            model(id: "qwen/qwen3.8-27b", name: "Qwen3.8 27B"),
+            model(id: "vendor/not-in-catalog", name: "Unknown"),
+            model(
+                id: "jin--endpoint.modal.run",
+                name: "Endpoint",
+                catalogMetadata: ModelCatalogMetadata(upstreamModelID: "qwen/qwen3.8-27b")
+            )
+        ]
+
+        // Keyed by each row's own id, but looked up through its catalog id — an
+        // endpoint row still earns the badge from the model it actually serves.
+        XCTAssertEqual(
+            ProviderFormSupport.fullySupportedModelIDs(models, providerType: .openrouter),
+            ["qwen/qwen3.8-27b", "jin--endpoint.modal.run"]
+        )
+    }
+
+    func testFullySupportedModelIDsIsEmptyWithoutAProviderType() {
+        XCTAssertTrue(
+            ProviderFormSupport.fullySupportedModelIDs(
+                [model(id: "qwen/qwen3.8-27b", name: "Qwen3.8 27B")],
+                providerType: nil
+            ).isEmpty
+        )
+    }
+
+    func testModelListStateDerivesEveryFormValueFromOnePass() {
+        let models = [
+            model(id: "qwen/qwen3.8-27b", name: "Qwen3.8 27B", isEnabled: true),
+            model(id: "vendor/not-in-catalog", name: "Unknown Model", isEnabled: false)
+        ]
+
+        let state = ProviderFormSupport.modelListState(
+            models: models,
+            searchText: "unknown",
+            providerType: .openrouter
+        )
+
+        XCTAssertEqual(state.models.map(\.id), models.map(\.id))
+        XCTAssertFalse(state.isEmpty)
+        XCTAssertEqual(state.filteredModels.map(\.id), ["vendor/not-in-catalog"])
+        XCTAssertEqual(state.fullySupportedModelIDs, ["qwen/qwen3.8-27b"])
+        XCTAssertEqual(
+            state.enabledByModelID,
+            ["qwen/qwen3.8-27b": true, "vendor/not-in-catalog": false]
+        )
+        XCTAssertEqual(state.summary.totalCount, 2)
+        XCTAssertEqual(state.summary.enabledCount, 1)
+        XCTAssertEqual(state.summary.fullySupportedCount, 1)
+        XCTAssertTrue(state.canKeepFullySupportedModels)
+        XCTAssertTrue(state.canKeepEnabledModels)
+
+        XCTAssertFalse(
+            ProviderFormSupport.modelListState(
+                models: models,
+                searchText: "",
+                providerType: nil
+            ).canKeepFullySupportedModels
+        )
+    }
+
+    /// Guards the shape, not the machine. Deriving this state used to be O(n^3) —
+    /// the summary's predicate rebuilt the fully-supported set per model, and that
+    /// set scanned the model array per model — so opening a provider with a real
+    /// catalog behind it (OpenRouter ships 435 rows here) froze the Settings window
+    /// for seconds per body pass. A linear pass is sub-millisecond; anything
+    /// super-linear blows this budget by orders of magnitude long before it trips
+    /// on a slow machine.
+    func testModelListStateStaysLinearForAProviderSizedCatalog() {
+        let models = (0..<600).map { index in
+            model(id: "vendor/model-\(index)", name: "Model \(index)", isEnabled: index.isMultiple(of: 2))
+        }
+
+        let started = Date()
+        let state = ProviderFormSupport.modelListState(
+            models: models,
+            searchText: "",
+            providerType: .openrouter
+        )
+        let elapsed = Date().timeIntervalSince(started)
+
+        XCTAssertEqual(state.summary.totalCount, 600)
+        XCTAssertEqual(state.summary.enabledCount, 300)
+        XCTAssertLessThan(elapsed, 1.0, "modelListState regressed to super-linear work")
+    }
+
     func testModelUpdatingReplacesMatchingModelOnly() {
         let updated = model(id: "beta", name: "Beta Updated", contextWindow: 256_000)
         let result = ProviderFormSupport.modelUpdating(

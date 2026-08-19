@@ -2,7 +2,13 @@ import SwiftUI
 
 extension ProviderConfigFormView {
 
-    func providerFormPresentations<Content: View>(_ content: Content) -> some View {
+    /// `modelList` is threaded in rather than read from the view: the dialog
+    /// `message:` builders are non-escaping, so their counts are resolved on every
+    /// body pass, presented or not.
+    func providerFormPresentations<Content: View>(
+        _ content: Content,
+        modelList: ProviderFormSupport.ModelListState
+    ) -> some View {
         content
             .sheet(item: $fetchedModelsForSelection) { selection in
                 FetchedModelsSelectionSheet(
@@ -65,7 +71,7 @@ extension ProviderConfigFormView {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This will delete \(nonFullySupportedModelsCount) models not marked as fully supported and keep \(fullySupportedModelsCount) fully supported model(s).")
+                Text("This will delete \(modelList.summary.nonFullySupportedCount) models not marked as fully supported and keep \(modelList.summary.fullySupportedCount) fully supported model(s).")
             }
             .confirmationDialog(
                 "Keep enabled models for \(provider.name)?",
@@ -77,7 +83,7 @@ extension ProviderConfigFormView {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This will delete \(disabledModelCount) disabled model(s) and keep \(enabledModelCount) enabled model(s).")
+                Text("This will delete \(modelList.summary.disabledCount) disabled model(s) and keep \(modelList.summary.enabledCount) enabled model(s).")
             }
             .confirmationDialog(
                 "Delete model for \(provider.name)?",
