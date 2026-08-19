@@ -67,7 +67,9 @@ extension ProviderConfigFormView {
     }
 
     private var iconRow: some View {
-        JinSettingsControlRow("Icon") {
+        // Leading, like the text fields above and below it, so every value in
+        // the card starts on the same edge.
+        JinSettingsControlRow("Icon", controlAlignment: .leading) {
             ProviderIconPickerField(
                 selectedIconID: Binding(
                     get: { provider.iconID },

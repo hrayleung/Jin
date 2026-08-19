@@ -27,7 +27,7 @@ struct AddProviderView: View {
     var body: some View {
         NavigationStack {
             JinSettingsPage(
-                maxWidth: prefersExpandedCredentialEditor ? 760 : 560,
+                maxWidth: prefersExpandedCredentialEditor ? 760 : 600,
                 horizontalPadding: 20,
                 verticalPadding: 20
             ) {
@@ -45,7 +45,7 @@ struct AddProviderView: View {
                         }
                     }
 
-                    JinSettingsControlRow("Icon") {
+                    JinSettingsControlRow("Icon", controlAlignment: .leading) {
                         ProviderIconPickerField(
                             selectedIconID: $iconID,
                             defaultIconID: LobeProviderIconCatalog.defaultIconID(for: providerType)
@@ -204,13 +204,15 @@ struct AddProviderView: View {
     }
 
     private var addProviderWindowSize: (width: CGFloat, height: CGFloat) {
+        // Wide enough that a default Base URL still fits beside the label
+        // column and the "Default if empty" hint instead of clipping mid-word.
         switch providerType {
         case .vertexai:
             return (740, 660)
         case .modal:
-            return (520, 480)
+            return (600, 480)
         default:
-            return (500, 400)
+            return (600, 400)
         }
     }
 

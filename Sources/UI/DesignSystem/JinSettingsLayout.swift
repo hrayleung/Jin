@@ -59,6 +59,7 @@ struct JinSettingsPage<Content: View>: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .environment(\.jinSettingsFieldChrome, .plain)
+        .jinSettingsLabelColumn()
         .frame(maxWidth: maxWidth)
         .padding(.horizontal, horizontalPadding)
         .padding(.vertical, verticalPadding)
