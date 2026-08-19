@@ -37,6 +37,11 @@ struct JinSettingsControlRow<Control: View>: View {
     let controlAlignment: Alignment
     private let control: () -> Control
 
+    /// Keeps the VoiceOver label/content association that `LabeledContent`
+    /// used to provide, now that the row lays itself out (see
+    /// `JinSettingsLabelColumn`).
+    @Namespace private var labelPair
+
     init(
         _ title: String,
         supportingText: String? = nil,
@@ -50,7 +55,10 @@ struct JinSettingsControlRow<Control: View>: View {
     }
 
     var body: some View {
-        LabeledContent {
+        HStack(alignment: .firstTextBaseline, spacing: JinSettingsMetrics.labelColumnSpacing) {
+            JinSettingsRowLabel(title)
+                .accessibilityLabeledPair(role: .label, id: title, in: labelPair)
+
             VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
                 control()
                     .frame(maxWidth: .infinity, alignment: controlAlignment)
@@ -62,8 +70,7 @@ struct JinSettingsControlRow<Control: View>: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-        } label: {
-            Text(title)
+            .accessibilityLabeledPair(role: .content, id: title, in: labelPair)
         }
     }
 }

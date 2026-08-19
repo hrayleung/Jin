@@ -354,12 +354,18 @@ struct JinSettingsSliderValueRow: View {
         }
     }
 
+    /// `.labelsHidden()` matters even though these sliders carry no label:
+    /// inside a `Form`, `Slider` still reserves an empty label area and starts
+    /// well short of the control column, so the track would sit off the rail
+    /// the fields above and below it line up on.
     @ViewBuilder
     private var slider: some View {
         if let step {
             Slider(value: $value, in: range, step: step)
+                .labelsHidden()
         } else {
             Slider(value: $value, in: range)
+                .labelsHidden()
         }
     }
 }
