@@ -1368,15 +1368,36 @@ extension ModelCatalog {
         // (models.dev marks the model temperature:false, and the Responses sampling gate
         // already excludes reasoning-enabled gpt-5* models).
         // .nativePDF is deliberately not claimed even though models.dev lists PDF input:
-        // .opencodeGo sits in ChatAttachmentCapabilitySupport's native-PDF deny arm, and
-        // whether the Go gateway forwards `input_file` (or hosts /files) is unverified — a
-        // failed hosted upload rethrows and kills the send, so PDFs go through Jin's
-        // text-extraction path instead. .codeExecution and .webSearch are not claimed either:
-        // the gateway hosts neither tool.
+        // hosted `/files` on the Go gateway is unverified, and a failed upload used to
+        // rethrow and kill the send. Muse Spark Contributor (below) is the exception —
+        // it uses inline `file_data` and skips hosted upload. .codeExecution and
+        // .webSearch are not claimed either: the gateway hosts neither tool.
         Record(id: "gpt-5.6-luna", displayName: "GPT-5.6 Luna",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_050_000,
                maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        // Muse Spark 1.2 on OpenCode Go. Live `/zen/go/v1/models` (2026-08-20) lists BOTH
+        // `muse-spark-1.2` (Standard) and `muse-spark-1.2-contributor`. The marketing
+        // page currently highlights Contributor, but Fetch Models returns the Standard
+        // ID too — omitting this record left persisted `muse-spark-1.2` on the
+        // conservative fallback (no reasoningConfig), so the composer hid the thinking
+        // effort control. Same Responses route, limits, and Meta effort band as
+        // Contributor (dev.meta.ai/docs/models). `muse-spark-1.1` is NOT on Go
+        // (gateway: "Model muse-spark-1.1 is not supported"). IDs must also be in
+        // OpenCodeGoAdapter.openAIResponsesModelIDs. Seeded after glm-5.3 so the
+        // first-launch default is unchanged.
+        Record(id: "muse-spark-1.2", displayName: "Muse Spark 1.2",
+               capabilities: [.streaming, .toolCalling, .vision, .nativePDF, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "muse-spark-1.2-contributor", displayName: "Muse Spark 1.2 Contributor",
+               capabilities: [.streaming, .toolCalling, .vision, .nativePDF, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         Record(id: "glm-5", displayName: "GLM-5",

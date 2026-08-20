@@ -74,6 +74,18 @@ enum MetaResponsesInputSupport {
     /// - `id` is optional when encrypted_content is present
     /// - Must be followed by an assistant message or `function_call` before the next
     ///   user/system/developer message
+    /// Encrypted CoT blobs tagged as Meta (native host) or OpenCode Go (the
+    /// Responses gateway that serves Muse Spark). Foreign providers must not
+    /// be replayed — Meta rejects Anthropic/Gemini redacted blocks.
+    static func isMuseSparkReasoningReplayProvider(_ provider: String?) -> Bool {
+        switch provider {
+        case ProviderType.meta.rawValue, ProviderType.opencodeGo.rawValue:
+            return true
+        default:
+            return false
+        }
+    }
+
     static func reasoningReplayItem(encryptedContent: String, id: String?) -> [String: Any] {
         var item: [String: Any] = [
             "type": "reasoning",

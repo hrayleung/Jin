@@ -204,7 +204,14 @@ enum OpenAIResponsesRequestSupport {
         switch normalized {
         case .none:
             return "none"
-        case .minimal, .low:
+        case .minimal:
+            // GPT-5.x dropped "minimal" and historically folded it to "low". Muse Spark
+            // (and any other model whose supported band still lists `.minimal`) must send
+            // the string verbatim — Meta returns HTTP 400 for unknown effort values, and
+            // "low" is a different rung, not an alias.
+            return ModelCapabilityRegistry.supportedReasoningEfforts(for: providerType, modelID: modelID)
+                .contains(.minimal) ? "minimal" : "low"
+        case .low:
             return "low"
         case .medium:
             return "medium"

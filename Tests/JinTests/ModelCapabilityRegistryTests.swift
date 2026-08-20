@@ -264,7 +264,7 @@ final class ModelCapabilityRegistryTests: XCTestCase {
 
         // The 2026-08 additions are not MiMo IDs — the Go gateway hosts no web-search tool
         // for them.
-        for id in ["gpt-5.6-luna", "grok-4.5", "hy3"] {
+        for id in ["gpt-5.6-luna", "grok-4.5", "hy3", "muse-spark-1.2", "muse-spark-1.2-contributor"] {
             XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: id), id)
         }
     }
@@ -288,6 +288,19 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "gpt-5.6-luna"),
             [.low, .medium, .high, .xhigh, .max]
+        )
+        // Muse Spark Standard + Contributor use Meta's minimal..xhigh band (no max, no none).
+        for id in ["muse-spark-1.2", "muse-spark-1.2-contributor"] {
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: id),
+                [.minimal, .low, .medium, .high, .xhigh],
+                id
+            )
+        }
+        // muse-spark-1.1 is not on Go — it must not inherit the band.
+        XCTAssertNotEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "muse-spark-1.1"),
+            [.minimal, .low, .medium, .high, .xhigh]
         )
         // Existing bands are untouched.
         XCTAssertEqual(

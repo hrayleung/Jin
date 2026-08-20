@@ -520,6 +520,68 @@ final class ModelCatalogTests: XCTestCase {
         }
     }
 
+    func testOpenCodeGoMuseSpark12ContributorUsesVerifiedMetadata() {
+        // Live `/zen/go/v1/models` serves Standard + Contributor. Both share Meta
+        // limits and the always-on minimal..xhigh effort band so the composer
+        // thinking-intensity control appears.
+        for id in ["muse-spark-1.2", "muse-spark-1.2-contributor"] {
+            let model = ModelCatalog.modelInfo(for: id, provider: .opencodeGo)
+            XCTAssertEqual(model.contextWindow, 1_048_576, id)
+            XCTAssertEqual(model.maxOutputTokens, 131_072, id)
+            XCTAssertEqual(model.reasoningConfig?.type, .effort, id)
+            XCTAssertEqual(model.reasoningConfig?.defaultEffort, .medium, id)
+            XCTAssertTrue(model.capabilities.contains(.streaming), id)
+            XCTAssertTrue(model.capabilities.contains(.toolCalling), id)
+            XCTAssertTrue(model.capabilities.contains(.vision), id)
+            XCTAssertTrue(model.capabilities.contains(.nativePDF), id)
+            XCTAssertTrue(model.capabilities.contains(.reasoning), id)
+            XCTAssertTrue(model.capabilities.contains(.promptCaching), id)
+            XCTAssertFalse(model.capabilities.contains(.videoInput), id)
+            XCTAssertFalse(model.capabilities.contains(.audio), id)
+            XCTAssertFalse(model.capabilities.contains(.codeExecution), id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .opencodeGo), id)
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: id), id)
+            XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: id), id)
+        }
+
+        XCTAssertEqual(ModelCatalog.modelInfo(for: "muse-spark-1.2", provider: .opencodeGo).name, "Muse Spark 1.2")
+        XCTAssertEqual(
+            ModelCatalog.modelInfo(for: "muse-spark-1.2-contributor", provider: .opencodeGo).name,
+            "Muse Spark 1.2 Contributor"
+        )
+
+        let seeded = ModelCatalog.seededModels(for: .opencodeGo)
+        XCTAssertTrue(seeded.contains(where: { $0.id == "muse-spark-1.2" }))
+        XCTAssertTrue(seeded.contains(where: { $0.id == "muse-spark-1.2-contributor" }))
+        XCTAssertEqual(seeded.first?.id, "glm-5.3")
+
+        // Persisted fetch leftovers often have no reasoningConfig. Catalog overlay
+        // must still light the composer thinking control for the live Standard ID.
+        let persisted = ModelInfo(
+            id: "muse-spark-1.2",
+            name: "muse-spark-1.2",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000
+        )
+        let resolved = ModelSettingsResolver.resolve(model: persisted, providerType: .opencodeGo)
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertFalse(resolved.reasoningCanDisable)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "muse-spark-1.2"),
+            [.minimal, .low, .medium, .high, .xhigh]
+        )
+
+        for id in ["muse-spark-1.1", "muse-spark-1.2-custom"] {
+            let unknown = ModelCatalog.modelInfo(for: id, provider: .opencodeGo)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
+            XCTAssertEqual(unknown.contextWindow, 128_000, id)
+            XCTAssertNil(unknown.reasoningConfig, id)
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .opencodeGo), id)
+        }
+    }
+
     func testOpenCodeGoQwen35PlusDoesNotClaimVideoInput() {
         // qwen3.5-plus routes through the Anthropic /messages endpoint, whose translation
         // replaces a .video part with an "unsupported video input" text notice — claiming

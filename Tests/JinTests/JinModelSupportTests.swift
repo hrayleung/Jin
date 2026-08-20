@@ -367,10 +367,10 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testOpenCodeGoAugust2026ModelsUseExactFullySupportedIDs() {
-        for id in ["gpt-5.6-luna", "grok-4.5", "hy3"] {
+        for id in ["gpt-5.6-luna", "grok-4.5", "hy3", "muse-spark-1.2", "muse-spark-1.2-contributor"] {
             XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: id), id)
         }
-        for id in ["gpt-5.6-luna-pro", "gpt-5.6-sol", "grok-4.5-fast", "hy3-custom"] {
+        for id in ["gpt-5.6-luna-pro", "gpt-5.6-sol", "grok-4.5-fast", "hy3-custom", "muse-spark-1.1"] {
             XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: id), id)
         }
     }

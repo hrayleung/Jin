@@ -150,9 +150,12 @@ enum ProviderType: String, Codable, CaseIterable {
 
     /// Providers whose adapters can put `application/pdf` on the wire.
     /// Perplexity is excluded: its Chat Completions path text-fallbacks files.
+    /// OpenCode Go is included only because Muse Spark 1.2 Contributor on `/responses`
+    /// can emit inline `input_file`; `adapterCanSendNativePDF` still denies every other
+    /// Go model (chat/completions and `/messages` text-fallback files).
     var supportsNativePDFUpload: Bool {
         switch self {
-        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .gemini, .vertexai, .meta:
+        case .openai, .openaiWebSocket, .anthropic, .claudeManagedAgents, .xai, .gemini, .vertexai, .meta, .opencodeGo:
             return true
         default:
             return false

@@ -37,6 +37,12 @@ extension OpenAIAdapter {
             controls: controls,
             supportsSamplingParameters: supportsSamplingParameters
         )
+        // Muse Spark documents temperature XOR top_p (dev.meta.ai). When both knobs are
+        // set, keep temperature — the same rule MetaAdapter applies on the native host.
+        if ModelCapabilityRegistry.isMetaMuseSparkModelID(modelID.lowercased()),
+           body["temperature"] != nil {
+            body.removeValue(forKey: "top_p")
+        }
         if let maxTokens = controls.maxTokens {
             body["max_output_tokens"] = maxTokens
         }

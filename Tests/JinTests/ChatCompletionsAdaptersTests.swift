@@ -2716,6 +2716,21 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("gpt-5.6-luna"))
         XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("GPT-5.6-Luna"))
         XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("gpt-5.6-luna"))
+        // Muse Spark 1.2 Contributor is the second Go Responses model (opencode.ai/docs/go,
+        // page updated 2026-08-19). Exact ID only — Standard-tier Muse Spark is not on Go.
+        for id in ["muse-spark-1.2", "muse-spark-1.2-contributor"] {
+            XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /responses")
+            XCTAssertTrue(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint(id), "\(id) → MetaAdapter replay")
+            XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) must not inherit /messages")
+        }
+        XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("Muse-Spark-1.2"))
+        XCTAssertTrue(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint("Muse-Spark-1.2"))
+        XCTAssertFalse(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint("gpt-5.6-luna"))
+        for id in ["muse-spark-1.1", "muse-spark-1.2-custom"] {
+            XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) must not prefix-match")
+            XCTAssertFalse(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint(id), "\(id) must not prefix-match")
+            XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) must not inherit /messages")
+        }
         // Exact-ID only: the sibling GPT-5.6 tiers are not on OpenCode Go.
         for id in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6", "gpt-5.6-luna-pro"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) must not prefix-match")
@@ -3050,6 +3065,297 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertNil(root["messages"])
 
             let data = try JSONSerialization.data(withJSONObject: ["id": "resp_validation"])
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "ignored", networkManager: networkManager)
+        let isValid = try await adapter.validateAPIKey("test-key")
+        XCTAssertTrue(isValid)
+    }
+
+    func testOpenCodeGoMuseSparkMapsReasoningEffortBandAndOmitsMax() {
+        for id in ["muse-spark-1.2", "muse-spark-1.2-contributor"] {
+            XCTAssertEqual(
+                OpenAIResponsesRequestSupport.mappedReasoningEffort(
+                    .minimal,
+                    providerType: .opencodeGo,
+                    modelID: id
+                ),
+                "minimal",
+                id
+            )
+            XCTAssertEqual(
+                OpenAIResponsesRequestSupport.mappedReasoningEffort(
+                    .max,
+                    providerType: .opencodeGo,
+                    modelID: id
+                ),
+                "xhigh",
+                id
+            )
+        }
+        // GPT-5.6 Luna dropped `minimal`; a stale Minimal control still folds to low.
+        XCTAssertEqual(
+            OpenAIResponsesRequestSupport.mappedReasoningEffort(
+                .minimal,
+                providerType: .opencodeGo,
+                modelID: "gpt-5.6-luna"
+            ),
+            "low"
+        )
+    }
+
+    func testOpenCodeGoAdapterRoutesMuseSparkContributorToResponsesWithMetaSamplingAndNativePDF() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/responses")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            XCTAssertFalse(
+                request.url?.absoluteString.contains("/files") == true,
+                "Go must not attempt a hosted /files upload"
+            )
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(root["model"] as? String, "muse-spark-1.2-contributor")
+            XCTAssertNotNil(root["input"])
+            XCTAssertNil(root["messages"])
+            XCTAssertEqual(root["max_output_tokens"] as? Int, 4096)
+            XCTAssertNil(root["max_tokens"])
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "minimal")
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(reasoning["summary"])
+            XCTAssertNil(reasoning["mode"])
+            XCTAssertNil(reasoning["context"])
+            XCTAssertNil(root["service_tier"])
+            XCTAssertNil(root["prompt_cache_key"])
+            XCTAssertNil(root["prompt_cache_retention"])
+            XCTAssertNil(root["text"])
+            XCTAssertEqual(root["store"] as? Bool, false)
+            let include = try XCTUnwrap(root["include"] as? [String])
+            XCTAssertTrue(include.contains("reasoning.encrypted_content"))
+            XCTAssertFalse(include.contains("web_search_call.results"))
+            XCTAssertEqual(root["temperature"] as? Double, 0.8)
+            // Meta documents temperature XOR top_p; both knobs were set, so top_p drops.
+            XCTAssertNil(root["top_p"])
+
+            let toolTypes = (root["tools"] as? [[String: Any]] ?? []).compactMap { $0["type"] as? String }
+            XCTAssertFalse(toolTypes.contains("code_interpreter"))
+            XCTAssertFalse(toolTypes.contains("web_search"))
+
+            let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+            XCTAssertEqual(input.count, 1)
+            let content = try XCTUnwrap(input[0]["content"] as? [[String: Any]])
+            XCTAssertTrue(content.contains(where: { ($0["type"] as? String) == "input_text" }))
+            XCTAssertTrue(content.contains(where: { ($0["type"] as? String) == "input_image" }))
+            let filePart = try XCTUnwrap(content.first(where: { ($0["type"] as? String) == "input_file" }))
+            XCTAssertEqual(filePart["filename"] as? String, "notes.pdf")
+            let fileData = try XCTUnwrap(filePart["file_data"] as? String)
+            XCTAssertTrue(fileData.hasPrefix("data:application/pdf"))
+            XCTAssertNil(filePart["file_id"], "inline file_data, not a hosted file_id")
+
+            let response: [String: Any] = [
+                "id": "resp_opencode_muse",
+                "output": [["type": "message", "content": [["type": "output_text", "text": "OK"]]]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        var controls = GenerationControls(
+            temperature: 0.8,
+            maxTokens: 4096,
+            reasoning: ReasoningControls(
+                enabled: true,
+                effort: .minimal,
+                summary: .auto,
+                mode: .pro,
+                context: .allTurns
+            )
+        )
+        controls.topP = 0.9
+        controls.pdfProcessingMode = .native
+        controls.textVerbosity = .high
+        controls.openAIServiceTier = .priority
+        controls.contextCache = ContextCacheControls(mode: .implicit, ttl: .hour1, cacheKey: "k")
+        controls.codeExecution = CodeExecutionControls(enabled: true)
+        controls.webSearch = WebSearchControls(enabled: true)
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [
+                    .text("hi"),
+                    .image(ImageContent(mimeType: "image/png", data: Data("PNG".utf8), url: nil)),
+                    .file(FileContent(
+                        mimeType: "application/pdf",
+                        filename: "notes.pdf",
+                        data: Data("%PDF-1.7".utf8)
+                    ))
+                ])
+            ],
+            modelID: "muse-spark-1.2-contributor",
+            controls: controls,
+            tools: [],
+            streaming: false
+        )
+
+        var messageID: String?
+        for try await event in stream {
+            if case .messageStart(let value) = event { messageID = value }
+        }
+        XCTAssertEqual(messageID, "resp_opencode_muse")
+    }
+
+    func testOpenCodeGoAdapterRoutesMuseSpark12StandardToResponsesWithEffort() async throws {
+        // The live Go catalog's Standard ID is what the picker shows as `muse-spark-1.2`.
+        // It must hit /responses and send Meta's effort string, not /chat/completions.
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/responses")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "muse-spark-1.2")
+            XCTAssertNil(root["messages"])
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "high")
+            XCTAssertNil(root["reasoning_effort"])
+
+            let response: [String: Any] = [
+                "id": "resp_opencode_muse_12",
+                "output": [["type": "message", "content": [["type": "output_text", "text": "OK"]]]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "muse-spark-1.2",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            tools: [],
+            streaming: false
+        )
+        var messageID: String?
+        for try await event in stream {
+            if case .messageStart(let value) = event { messageID = value }
+        }
+        XCTAssertEqual(messageID, "resp_opencode_muse_12")
+    }
+
+    func testOpenCodeGoMuseSparkReplaysEncryptedReasoningTaggedAsOpenCodeGo() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/responses")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+
+            XCTAssertEqual(input.count, 5)
+            XCTAssertEqual(input[0]["role"] as? String, "user")
+            XCTAssertEqual(input[1]["type"] as? String, "reasoning")
+            XCTAssertEqual(input[1]["encrypted_content"] as? String, "enc_go_tool_loop")
+            XCTAssertEqual(input[1]["id"] as? String, "rs_go")
+            XCTAssertEqual(input[2]["role"] as? String, "assistant")
+            XCTAssertEqual(input[3]["type"] as? String, "function_call")
+            XCTAssertEqual(input[4]["type"] as? String, "function_call_output")
+            XCTAssertEqual(
+                input.filter { ($0["type"] as? String) == "reasoning" }.count,
+                1,
+                "foreign Anthropic redacted must not be replayed"
+            )
+
+            let response: [String: Any] = [
+                "id": "resp_go_replay",
+                "output": [["type": "message", "content": [["type": "output_text", "text": "ok"]]]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let priorAssistant = Message(
+            role: .assistant,
+            content: [
+                .redactedThinking(RedactedThinkingBlock(
+                    data: "enc_go_tool_loop",
+                    provider: ProviderType.opencodeGo.rawValue,
+                    id: "rs_go"
+                )),
+                .redactedThinking(RedactedThinkingBlock(
+                    data: "anthropic-blob",
+                    provider: ProviderType.anthropic.rawValue
+                )),
+                .text("calling tool")
+            ],
+            toolCalls: [
+                ToolCall(id: "call_1", name: "lookup", arguments: ["q": AnyCodable("x")])
+            ]
+        )
+        let toolResult = Message(
+            role: .tool,
+            content: [.text("result")],
+            toolResults: [
+                ToolResult(toolCallID: "call_1", toolName: "lookup", content: "result")
+            ]
+        )
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("go")]),
+                priorAssistant,
+                toolResult
+            ],
+            modelID: "muse-spark-1.2",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testOpenCodeGoValidateAPIKeyUsesResponsesEndpointForMuseSparkContributor() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored",
+            models: [
+                ModelInfo(
+                    id: "muse-spark-1.2-contributor",
+                    name: "Muse Spark 1.2 Contributor",
+                    capabilities: [.streaming, .toolCalling, .reasoning],
+                    contextWindow: 1_048_576
+                )
+            ]
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/responses")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "muse-spark-1.2-contributor")
+            XCTAssertEqual(root["input"] as? String, "hi")
+            XCTAssertNil(root["messages"])
+
+            let data = try JSONSerialization.data(withJSONObject: ["id": "resp_validation_muse"])
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
         }
 

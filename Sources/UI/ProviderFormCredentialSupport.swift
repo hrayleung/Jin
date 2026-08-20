@@ -96,6 +96,8 @@ extension ProviderFormSupport {
             return "Uses GitHub Models at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access."
         case .meta:
             return "Meta Model API at `https://api.meta.ai/v1` (Bearer key from Meta AI developer console). Seeded models: `muse-spark-1.2` (default), `muse-spark-1.1`, and `muse-spark-1.2-contributor` (discounted training-consent tier). Jin uses the Responses API for multimodal input, tools, and web search. Reasoning is always-on (minimal…xhigh)."
+        case .opencodeGo:
+            return "OpenCode Go at `https://opencode.ai/zen/go/v1` (Zen API key from the OpenCode console). Jin follows OpenCode's per-model endpoint table: Claude, MiniMax, and Qwen use `/messages`; GPT-5.6 Luna and Muse Spark (`muse-spark-1.2`, `muse-spark-1.2-contributor`) use `/responses`; other models use `/chat/completions`. Contributor-tier prompts and completions may be used to train Meta models."
         default:
             return nil
         }

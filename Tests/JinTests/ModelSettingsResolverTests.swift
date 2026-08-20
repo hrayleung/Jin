@@ -1425,6 +1425,18 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "hy3")
         )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(
+                for: .opencodeGo,
+                modelID: "muse-spark-1.2-contributor"
+            )
+        )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "muse-spark-1.2")
+        )
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "muse-spark-1.1")
+        )
         // DeepSeek V4 on Go still thinks when reasoning_effort is omitted; Off is a lie.
         XCTAssertFalse(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "deepseek-v4-pro")
@@ -2198,6 +2210,12 @@ final class ModelSettingsResolverTests: XCTestCase {
         for id in ["muse-spark-1.1", "muse-spark-1.2", "muse-spark-1.2-contributor"] {
             XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .meta, modelID: id), id)
         }
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(
+                for: .opencodeGo,
+                modelID: "muse-spark-1.2-contributor"
+            )
+        )
 
         // Modal Qwen3.8-2.4T-A95B: thinking cannot be disabled (HF card + Modal library).
         XCTAssertFalse(

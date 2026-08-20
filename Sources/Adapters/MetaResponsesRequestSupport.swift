@@ -26,7 +26,9 @@ enum MetaResponsesRequestSupport {
             providerType: providerType,
             modelID: modelID
         )
-        applyContextCacheControls(to: &body, controls: controls)
+        if providerType.supportsNativePromptCaching {
+            applyContextCacheControls(to: &body, controls: controls)
+        }
 
         var toolObjects: [[String: Any]] = []
         if webSearchEnabled {
