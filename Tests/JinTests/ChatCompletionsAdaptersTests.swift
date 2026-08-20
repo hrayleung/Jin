@@ -2720,11 +2720,15 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         // page updated 2026-08-19). Exact ID only — Standard-tier Muse Spark is not on Go.
         for id in ["muse-spark-1.2", "muse-spark-1.2-contributor"] {
             XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /responses")
+            XCTAssertTrue(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint(id), "\(id) → MetaAdapter replay")
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) must not inherit /messages")
         }
         XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("Muse-Spark-1.2"))
+        XCTAssertTrue(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint("Muse-Spark-1.2"))
+        XCTAssertFalse(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint("gpt-5.6-luna"))
         for id in ["muse-spark-1.1", "muse-spark-1.2-custom"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) must not prefix-match")
+            XCTAssertFalse(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint(id), "\(id) must not prefix-match")
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) must not inherit /messages")
         }
         // Exact-ID only: the sibling GPT-5.6 tiers are not on OpenCode Go.
@@ -3134,7 +3138,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertNil(root["prompt_cache_key"])
             XCTAssertNil(root["prompt_cache_retention"])
             XCTAssertNil(root["text"])
-            XCTAssertNil(root["include"])
+            XCTAssertEqual(root["store"] as? Bool, false)
+            let include = try XCTUnwrap(root["include"] as? [String])
+            XCTAssertTrue(include.contains("reasoning.encrypted_content"))
+            XCTAssertFalse(include.contains("web_search_call.results"))
             XCTAssertEqual(root["temperature"] as? Double, 0.8)
             // Meta documents temperature XOR top_p; both knobs were set, so top_p drops.
             XCTAssertNil(root["top_p"])
@@ -3245,6 +3252,80 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             if case .messageStart(let value) = event { messageID = value }
         }
         XCTAssertEqual(messageID, "resp_opencode_muse_12")
+    }
+
+    func testOpenCodeGoMuseSparkReplaysEncryptedReasoningTaggedAsOpenCodeGo() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/responses")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+
+            XCTAssertEqual(input.count, 5)
+            XCTAssertEqual(input[0]["role"] as? String, "user")
+            XCTAssertEqual(input[1]["type"] as? String, "reasoning")
+            XCTAssertEqual(input[1]["encrypted_content"] as? String, "enc_go_tool_loop")
+            XCTAssertEqual(input[1]["id"] as? String, "rs_go")
+            XCTAssertEqual(input[2]["role"] as? String, "assistant")
+            XCTAssertEqual(input[3]["type"] as? String, "function_call")
+            XCTAssertEqual(input[4]["type"] as? String, "function_call_output")
+            XCTAssertEqual(
+                input.filter { ($0["type"] as? String) == "reasoning" }.count,
+                1,
+                "foreign Anthropic redacted must not be replayed"
+            )
+
+            let response: [String: Any] = [
+                "id": "resp_go_replay",
+                "output": [["type": "message", "content": [["type": "output_text", "text": "ok"]]]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let priorAssistant = Message(
+            role: .assistant,
+            content: [
+                .redactedThinking(RedactedThinkingBlock(
+                    data: "enc_go_tool_loop",
+                    provider: ProviderType.opencodeGo.rawValue,
+                    id: "rs_go"
+                )),
+                .redactedThinking(RedactedThinkingBlock(
+                    data: "anthropic-blob",
+                    provider: ProviderType.anthropic.rawValue
+                )),
+                .text("calling tool")
+            ],
+            toolCalls: [
+                ToolCall(id: "call_1", name: "lookup", arguments: ["q": AnyCodable("x")])
+            ]
+        )
+        let toolResult = Message(
+            role: .tool,
+            content: [.text("result")],
+            toolResults: [
+                ToolResult(toolCallID: "call_1", toolName: "lookup", content: "result")
+            ]
+        )
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("go")]),
+                priorAssistant,
+                toolResult
+            ],
+            modelID: "muse-spark-1.2",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
     }
 
     func testOpenCodeGoValidateAPIKeyUsesResponsesEndpointForMuseSparkContributor() async throws {

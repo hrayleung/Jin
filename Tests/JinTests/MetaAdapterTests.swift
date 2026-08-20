@@ -467,6 +467,14 @@ final class MetaAdapterTests: XCTestCase {
         XCTAssertTrue(isValid)
     }
 
+    func testMuseSparkReasoningReplayAcceptsMetaAndOpenCodeGoProviders() {
+        XCTAssertTrue(MetaResponsesInputSupport.isMuseSparkReasoningReplayProvider(ProviderType.meta.rawValue))
+        XCTAssertTrue(MetaResponsesInputSupport.isMuseSparkReasoningReplayProvider(ProviderType.opencodeGo.rawValue))
+        XCTAssertFalse(MetaResponsesInputSupport.isMuseSparkReasoningReplayProvider(ProviderType.anthropic.rawValue))
+        XCTAssertFalse(MetaResponsesInputSupport.isMuseSparkReasoningReplayProvider(nil))
+        XCTAssertFalse(MetaResponsesInputSupport.isMuseSparkReasoningReplayProvider(""))
+    }
+
     func testMetaPromptCacheRetentionMapping() {
         XCTAssertNil(MetaResponsesRequestSupport.metaPromptCacheRetention(for: .providerDefault))
         XCTAssertEqual(MetaResponsesRequestSupport.metaPromptCacheRetention(for: .minutes5), "in_memory")

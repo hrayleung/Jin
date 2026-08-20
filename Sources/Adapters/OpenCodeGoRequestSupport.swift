@@ -13,9 +13,17 @@ extension OpenCodeGoAdapter {
     /// Models OpenCode Go serves via the OpenAI Responses `/responses` endpoint (per
     /// opencode.ai/docs/go's endpoint table + models.dev `opencode-go` → `@ai-sdk/openai`):
     /// GPT-5.6 Luna and Muse Spark 1.2 / 1.2 Contributor. Matched by exact ID (see
-    /// `openAIResponsesModelIDs`), never by prefix.
+    /// `openAIResponsesModelIDs`), never by prefix. Muse Spark still matches so
+    /// `validateAPIKey` probes `/responses`; `sendMessage` then forwards Muse IDs
+    /// to `MetaAdapter` (see `usesMuseSparkResponsesEndpoint`).
     static func usesOpenAIResponsesEndpoint(_ modelID: String) -> Bool {
         openAIResponsesModelIDs.contains(modelID.lowercased())
+    }
+
+    /// Muse Spark IDs that need Meta's encrypted-reasoning request/replay on
+    /// `/responses`. Exact IDs from live Go `/models`.
+    static func usesMuseSparkResponsesEndpoint(_ modelID: String) -> Bool {
+        ModelCapabilityRegistry.isOpenCodeGoMuseSparkModelID(modelID.lowercased())
     }
 
     /// Whether this `/chat/completions` model accepts a caller-supplied `temperature`.

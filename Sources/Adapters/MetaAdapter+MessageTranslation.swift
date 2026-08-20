@@ -77,9 +77,10 @@ extension MetaAdapter {
 
         for part in message.content {
             guard case .redactedThinking(let redacted) = part else { continue }
-            // Only Meta-origin encrypted blobs are valid for Muse Spark replay.
-            // Skip foreign (e.g. Anthropic) or legacy untagged blocks.
-            guard redacted.provider == ProviderType.meta.rawValue else { continue }
+            // Only Muse Spark encrypted blobs are valid for replay. Native Meta
+            // tags `meta`; OpenCode Go's accumulator tags `opencodeGo`. Skip
+            // foreign (e.g. Anthropic) or legacy untagged blocks.
+            guard MetaResponsesInputSupport.isMuseSparkReasoningReplayProvider(redacted.provider) else { continue }
             guard let encrypted = redacted.data.trimmedNonEmpty else { continue }
             out.append(
                 MetaResponsesInputSupport.reasoningReplayItem(
@@ -312,6 +313,10 @@ extension MetaAdapter {
         filename: String,
         mimeType: String
     ) async throws -> HostedProviderFileReference? {
+        // OpenCode Go exposes `/responses` but not Meta's `/files` upload. A failed
+        // hosted upload rethrows and kills the send — skip it and use inline data.
+        guard providerConfig.type == .meta else { return nil }
+
         do {
             return try await ProviderHostedFileStore.shared.uploadMetaFile(
                 data: data,

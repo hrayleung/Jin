@@ -9,8 +9,11 @@ import Foundation
 /// per-model endpoint table published at https://opencode.ai/docs/go/:
 /// - Claude, MiniMax, and Qwen models → Anthropic-compatible `/messages`
 ///   (see `usesAnthropicMessagesEndpoint(_:)`)
-/// - GPT-5.6 Luna and Muse Spark 1.2 → OpenAI **Responses** `/responses`
+/// - GPT-5.6 Luna → OpenAI **Responses** `/responses` via `OpenAIAdapter`
 ///   (see `usesOpenAIResponsesEndpoint(_:)`)
+/// - Muse Spark 1.2 / 1.2 Contributor → Meta-shaped **Responses** `/responses`
+///   via `MetaAdapter` so encrypted reasoning is requested, persisted, and
+///   replayed across tool continuations (see `usesMuseSparkResponsesEndpoint(_:)`)
 /// - DeepSeek, GLM, Kimi, MiMo, Grok, Hy3, … → OpenAI-compatible `/chat/completions`
 ///
 /// Docs: https://opencode.ai/docs/go/
@@ -22,6 +25,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
     let networkManager: NetworkManager
     private let anthropicDelegate: AnthropicAdapter
     private let responsesDelegate: OpenAIAdapter
+    private let museSparkDelegate: MetaAdapter
 
     static let hardcodedBaseURL = "https://opencode.ai/zen/go/v1"
     static let anthropicModelIDs: Set<String> = [
@@ -120,6 +124,18 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
             apiKey: apiKey,
             networkManager: networkManager
         )
+        // Muse Spark on Go is Meta's model behind an OpenAI-shaped `/responses`
+        // gateway. The generic OpenAIAdapter path neither requests
+        // `reasoning.encrypted_content` nor replays the resulting reasoning item
+        // before `function_call` / `function_call_output`, so tool continuations
+        // lose CoT. `MetaAdapter` supplies that request/parse/replay while the
+        // config `type` stays `.opencodeGo` so cache keys, hosted `/files`, and
+        // web_search stay gated off.
+        self.museSparkDelegate = MetaAdapter(
+            providerConfig: delegateConfig,
+            apiKey: apiKey,
+            networkManager: networkManager
+        )
     }
 
     func sendMessage(
@@ -131,6 +147,16 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
         if Self.usesAnthropicMessagesEndpoint(modelID) {
             return try await anthropicDelegate.sendMessage(
+                messages: messages,
+                modelID: modelID,
+                controls: controls,
+                tools: tools,
+                streaming: streaming
+            )
+        }
+
+        if Self.usesMuseSparkResponsesEndpoint(modelID) {
+            return try await museSparkDelegate.sendMessage(
                 messages: messages,
                 modelID: modelID,
                 controls: controls,
