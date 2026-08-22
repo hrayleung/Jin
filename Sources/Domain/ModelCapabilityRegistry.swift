@@ -405,6 +405,17 @@ enum ModelCapabilityRegistry {
         "glm-5.3",
         "glm-5.3[1m]",
     ]
+    /// Ox Alpha on OpenRouter (`stealth/ox-alpha`): live `/models` supported_efforts
+    /// are max/high/low (default max, mandatory=true). Exact ID only — the Go slug
+    /// `ox-alpha-free` is a different product on a different gateway.
+    private static let openRouterOxAlphaReasoningEffortModelIDs: Set<String> = [
+        "stealth/ox-alpha",
+    ]
+    /// Ox Alpha Free on OpenCode Go (`ox-alpha-free`): models.dev `opencode-go`
+    /// reasoning_options are low/high/max (default max). Exact ID only.
+    private static let opencodeGoOxAlphaReasoningEffortModelIDs: Set<String> = [
+        "ox-alpha-free",
+    ]
     /// Zhipu / Z.AI Coding Plan GLM-5.2 IDs: `reasoning_effort` is high/max only,
     /// matching the OpenCode Go 5.2 band and docs.z.ai/devpack/latest-model.
     private static let zhipuGLM52HighMaxReasoningEffortModelIDs: Set<String> = [
@@ -676,7 +687,8 @@ enum ModelCapabilityRegistry {
            openRouterHighBandEffortModelIDs.contains(lowerModelID)
             || openRouterMinimalMaxEffortModelIDs.contains(lowerModelID)
             || openRouterFullLadderEffortModelIDs.contains(lowerModelID)
-            || openRouterDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID) {
+            || openRouterDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
+            || openRouterOxAlphaReasoningEffortModelIDs.contains(lowerModelID) {
             return true
         }
 
@@ -799,6 +811,8 @@ enum ModelCapabilityRegistry {
             return [.low, .high, .max]
         case .openrouter where openRouterDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
+        case .openrouter where openRouterOxAlphaReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
         case .openrouter where openRouterQwen38OpenWeightReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .medium, .xhigh]
         case .openrouter where openRouterQwen38CloudMaxReasoningEffortModelIDs.contains(lowerModelID):
@@ -892,6 +906,8 @@ enum ModelCapabilityRegistry {
         case .opencodeGo where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
         case .opencodeGo where glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
+        case .opencodeGo where opencodeGoOxAlphaReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
         case .opencodeGo where opencodeGoGLMHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]

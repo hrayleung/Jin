@@ -2501,6 +2501,159 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenCodeGoAdapterSendsLowHighMaxReasoningEffortForOxAlphaFree() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        let cases: [(ReasoningEffort, String)] = [
+            (.low, "low"),
+            (.medium, "high"),
+            (.high, "high"),
+            (.max, "max"),
+        ]
+
+        for (effort, expected) in cases {
+            protocolType.requestHandler = { request in
+                XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(root["model"] as? String, "ox-alpha-free")
+                XCTAssertEqual(root["reasoning_effort"] as? String, expected)
+                XCTAssertNil(root["reasoning"])
+                XCTAssertNil(root["thinking"])
+
+                let response: [String: Any] = [
+                    "id": "cmpl_opencode_ox_alpha",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    try JSONSerialization.data(withJSONObject: response)
+                )
+            }
+
+            let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: "ox-alpha-free",
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort)),
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+    }
+
+    func testOpenCodeGoAdapterMapsDisabledOxAlphaFreeThinkingToLowEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["reasoning_effort"] as? String, "low")
+            XCTAssertNil(root["thinking"])
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_ox_alpha_off",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "ox-alpha-free",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testOpenCodeGoAdapterSendsVideoURLForOxAlphaFreeAndDropsItForGLM53() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+        let videoData = Data([0x00, 0x01, 0x02])
+        let messages = [
+            Message(
+                role: .user,
+                content: [
+                    .text("describe this"),
+                    .video(VideoContent(mimeType: "video/mp4", data: videoData))
+                ]
+            )
+        ]
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "ox-alpha-free")
+            let encodedMessages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let userContent = try XCTUnwrap(encodedMessages[0]["content"] as? [[String: Any]])
+            XCTAssertEqual(userContent[0]["type"] as? String, "text")
+            let video = try XCTUnwrap(userContent.first { ($0["type"] as? String) == "video_url" })
+            let videoPayload = try XCTUnwrap(video["video_url"] as? [String: Any])
+            XCTAssertEqual(videoPayload["url"] as? String, mediaDataURI(mimeType: "video/mp4", data: videoData))
+            XCTAssertNil(video["fps"])
+            XCTAssertNil(video["media_resolution"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_ox_alpha_video",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let oxStream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "ox-alpha-free",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in oxStream {}
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "glm-5.3")
+            let encodedMessages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            // GLM-5.3 is text-only on Go; video parts must not become video_url.
+            XCTAssertEqual(encodedMessages[0]["content"] as? String, "describe this")
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_glm53_novideo",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let glmStream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "glm-5.3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in glmStream {}
+    }
+
     func testOpenCodeGoAdapterDropsProviderSpecificReasoningObject() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -2704,7 +2857,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     func testOpenCodeGoEndpointRoutingMatrixMatchesPublishedDocsTable() {
         // opencode.ai/docs/go publishes a per-model endpoint table. Every model must land on
         // exactly one of the three routes, matched by exact ID.
-        for id in ["grok-4.5", "hy3", "glm-5.3", "glm-5.2", "glm-5.1", "kimi-k3", "kimi-k2.7-code",
+        for id in ["grok-4.5", "hy3", "glm-5.3", "glm-5.2", "glm-5.1", "ox-alpha-free", "kimi-k3", "kimi-k2.7-code",
                    "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "mimo-v2.5", "mimo-v2.5-pro"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /chat/completions")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /chat/completions")
@@ -2990,6 +3143,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         }
         XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("glm-5.2"))
         XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("glm-5.3"))
+        XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("ox-alpha-free"))
         XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("grok-4.5"))
         // Unknown kimi-* IDs must not prefix-match into the fixed-temp set.
         XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("kimi-k4"))
@@ -3839,6 +3993,158 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             messages: [Message(role: .user, content: [.text("hello")])],
             modelID: "deepseek/deepseek-v4-pro-0813",
             controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testOpenRouterAdapterSendsMaxEffortAndVideoURLForOxAlpha() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+        let videoData = Data([0x00, 0x01, 0x02])
+        let remoteVideo = try XCTUnwrap(URL(string: "https://cdn.example.com/clip.mp4"))
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "stealth/ox-alpha")
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertEqual(root["include_reasoning"] as? Bool, true)
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "max")
+            XCTAssertNotEqual(reasoning["effort"] as? String, "xhigh")
+            XCTAssertNil(reasoning["enabled"])
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let userContent = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
+            XCTAssertEqual(userContent[0]["type"] as? String, "text")
+            let inlineVideo = try XCTUnwrap(userContent.first { ($0["type"] as? String) == "video_url" && (($0["video_url"] as? [String: Any])?["url"] as? String)?.hasPrefix("data:") == true })
+            let inlinePayload = try XCTUnwrap(inlineVideo["video_url"] as? [String: Any])
+            XCTAssertEqual(inlinePayload["url"] as? String, mediaDataURI(mimeType: "video/mp4", data: videoData))
+            XCTAssertNil(inlineVideo["fps"])
+            let remote = try XCTUnwrap(userContent.first { ($0["type"] as? String) == "video_url" && (($0["video_url"] as? [String: Any])?["url"] as? String) == remoteVideo.absoluteString })
+            XCTAssertNotNil(remote)
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_ox_alpha",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("look"),
+                        .video(VideoContent(mimeType: "video/mp4", data: videoData)),
+                        .video(VideoContent(mimeType: "video/mp4", url: remoteVideo))
+                    ]
+                )
+            ],
+            modelID: "stealth/ox-alpha",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testOpenRouterAdapterMapsDisabledOxAlphaReasoningToLowEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["include_reasoning"] as? Bool, true)
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "low")
+            XCTAssertNotEqual(reasoning["effort"] as? String, "none")
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_ox_alpha_off",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "stealth/ox-alpha",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testOpenRouterAdapterDoesNotSendVideoURLForModelsWithoutVideoInput() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+        let videoData = Data([0x00, 0x01, 0x02])
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "qwen/qwen3.8-27b")
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages[0]["content"] as? String, "look")
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_qwen27_novideo",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("look"),
+                        .video(VideoContent(mimeType: "video/mp4", data: videoData))
+                    ]
+                )
+            ],
+            modelID: "qwen/qwen3.8-27b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
             tools: [],
             streaming: false
         )

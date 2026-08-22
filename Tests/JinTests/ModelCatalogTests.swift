@@ -2042,8 +2042,10 @@ final class ModelCatalogTests: XCTestCase {
                  required: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching], hasReasoning: true, effort: .medium),
         ]
 
-        // The OpenRouter adapter drops video parts, text-fallbacks PDFs, and cannot route
-        // provider-native code execution — no curated OpenRouter record may claim these.
+        // These curated rows predate OpenRouter `video_url` wiring. Native PDF and
+        // provider-native code execution are still text-fallback / unrouted on this
+        // adapter; `.videoInput` stays forbidden on this list (Ox Alpha is the
+        // exception, covered in `testOpenRouterOxAlphaCatalogUsesExactProviderID`).
         let forbidden: ModelCapability = [.videoInput, .nativePDF, .codeExecution]
 
         for c in cases {
@@ -2390,6 +2392,86 @@ final class ModelCatalogTests: XCTestCase {
                 ModelCatalog.isFullySupported(modelID: unknownID, provider: .openrouter),
                 unknownID
             )
+        }
+    }
+
+    func testOpenRouterOxAlphaCatalogUsesExactProviderID() {
+        // Live OpenRouter /models + /endpoints (2026-08-22): stealth/ox-alpha,
+        // 1,048,576 / 131,072, text+image+video, tools, mandatory reasoning
+        // max/high/low default max. No cache / audio / native PDF.
+        let id = "stealth/ox-alpha"
+        let model = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+        XCTAssertEqual(model.name, "Stealth: Ox Alpha")
+        XCTAssertEqual(model.contextWindow, 1_048_576)
+        XCTAssertEqual(model.maxOutputTokens, 131_072)
+        XCTAssertEqual(model.reasoningConfig?.type, .effort)
+        XCTAssertEqual(model.reasoningConfig?.defaultEffort, .max)
+        XCTAssertTrue(model.capabilities.contains(.streaming))
+        XCTAssertTrue(model.capabilities.contains(.toolCalling))
+        XCTAssertTrue(model.capabilities.contains(.vision))
+        XCTAssertTrue(model.capabilities.contains(.videoInput))
+        XCTAssertTrue(model.capabilities.contains(.reasoning))
+        XCTAssertFalse(model.capabilities.contains(.audio))
+        XCTAssertFalse(model.capabilities.contains(.promptCaching))
+        XCTAssertFalse(model.capabilities.contains(.nativePDF))
+        XCTAssertFalse(model.capabilities.contains(.codeExecution))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .openrouter))
+        XCTAssertFalse(ModelCatalog.seededModels(for: .openrouter).contains(where: { $0.id == id }))
+
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: id),
+            [.low, .high, .max]
+        )
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openrouter, modelID: id))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: id))
+
+        for unknownID in ["stealth/ox-alpha-free", "ox-alpha", "stealth/ox-alpha:free", "x-preview-f-free"] {
+            let unknown = ModelCatalog.modelInfo(for: unknownID, provider: .openrouter)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], unknownID)
+            XCTAssertEqual(unknown.contextWindow, 128_000, unknownID)
+            XCTAssertNil(unknown.reasoningConfig, unknownID)
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: unknownID, provider: .openrouter), unknownID)
+        }
+    }
+
+    func testOpenCodeGoOxAlphaFreeCatalogUsesExactProviderID() {
+        // opencode.ai/docs/go + models.dev `opencode-go` (2026-08-22): ox-alpha-free
+        // on /chat/completions, 1,000,000 / 131,072, text+image+video, low/high/max
+        // default max, always-on. Seeded after glm-5.3.
+        let id = "ox-alpha-free"
+        let model = ModelCatalog.modelInfo(for: id, provider: .opencodeGo)
+        XCTAssertEqual(model.name, "Ox Alpha Free")
+        XCTAssertEqual(model.contextWindow, 1_000_000)
+        XCTAssertEqual(model.maxOutputTokens, 131_072)
+        XCTAssertEqual(model.reasoningConfig?.type, .effort)
+        XCTAssertEqual(model.reasoningConfig?.defaultEffort, .max)
+        XCTAssertTrue(model.capabilities.contains(.streaming))
+        XCTAssertTrue(model.capabilities.contains(.toolCalling))
+        XCTAssertTrue(model.capabilities.contains(.vision))
+        XCTAssertTrue(model.capabilities.contains(.videoInput))
+        XCTAssertTrue(model.capabilities.contains(.reasoning))
+        XCTAssertFalse(model.capabilities.contains(.audio))
+        XCTAssertFalse(model.capabilities.contains(.promptCaching))
+        XCTAssertFalse(model.capabilities.contains(.nativePDF))
+        XCTAssertFalse(model.capabilities.contains(.codeExecution))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .opencodeGo))
+
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: id),
+            [.low, .high, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: id))
+
+        let seeded = ModelCatalog.seededModels(for: .opencodeGo)
+        XCTAssertEqual(seeded.first?.id, "glm-5.3")
+        XCTAssertTrue(seeded.contains(where: { $0.id == id }))
+
+        for unknownID in ["ox-alpha", "stealth/ox-alpha", "x-preview-f-free", "ox-alpha-free-custom"] {
+            let unknown = ModelCatalog.modelInfo(for: unknownID, provider: .opencodeGo)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], unknownID)
+            XCTAssertEqual(unknown.contextWindow, 128_000, unknownID)
+            XCTAssertNil(unknown.reasoningConfig, unknownID)
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: unknownID, provider: .opencodeGo), unknownID)
         }
     }
 }

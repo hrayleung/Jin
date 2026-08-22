@@ -24,7 +24,7 @@ extension OpenRouterAdapter {
 
         var body: [String: Any] = [
             "model": modelID,
-            "messages": try translateMessages(messages),
+            "messages": try translateMessages(messages, modelID: modelID),
             "stream": streaming
         ]
 
@@ -99,12 +99,20 @@ extension OpenRouterAdapter {
         return ModelCatalog.entry(for: modelID, provider: .openrouter)?.capabilities.contains(.videoGeneration) == true
     }
 
-    private func translateMessages(_ messages: [Message]) throws -> [[String: Any]] {
-        try translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
+    private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {
+        let includeVideo = modelSupportsVideoInput(providerConfig: providerConfig, modelID: modelID)
+        return try translateMessagesToOpenAIFormat(messages) { message in
+            try translateNonToolMessage(message, includeVideo: includeVideo)
+        }
     }
 
-    private func translateNonToolMessage(_ message: Message) throws -> [String: Any] {
-        let split = splitContentParts(message.content, includeImages: true, includeAudio: true)
+    private func translateNonToolMessage(_ message: Message, includeVideo: Bool) throws -> [String: Any] {
+        let split = splitContentParts(
+            message.content,
+            includeImages: true,
+            includeAudio: true,
+            includeVideo: includeVideo
+        )
 
         var dict: [String: Any] = [
             "role": message.role.rawValue
@@ -116,7 +124,10 @@ extension OpenRouterAdapter {
 
         case .user:
             if split.hasRichUserContent {
-                dict["content"] = try translateUserContentPartsToOpenAIFormat(message.content)
+                dict["content"] = try translateUserContentPartsToOpenAIFormat(
+                    message.content,
+                    videoPartBuilder: includeVideo ? openAIInputVideoPart : nil
+                )
             } else {
                 dict["content"] = split.visible
             }
@@ -192,6 +203,26 @@ extension OpenRouterAdapter {
             }
 
             if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == ReasoningEffort.none {
+                // Always-on models (e.g. stealth/ox-alpha) reject effort "none".
+                // Fall back to the lowest supported effort instead of disabling.
+                if !ModelSettingsResolver.defaultReasoningCanDisable(
+                    for: .openrouter,
+                    modelID: modelID
+                ) {
+                    let fallback = ModelCapabilityRegistry.supportedReasoningEfforts(
+                        for: .openrouter,
+                        modelID: modelID
+                    ).first ?? .low
+                    body["include_reasoning"] = true
+                    body["reasoning"] = [
+                        "effort": OpenAICompatibleReasoningSupport.mapReasoningEffort(
+                            fallback,
+                            providerConfig: providerConfig,
+                            modelID: modelID
+                        )
+                    ]
+                    return false
+                }
                 body["include_reasoning"] = false
                 body["reasoning"] = ["effort": "none"]
                 return false

@@ -1422,6 +1422,12 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertFalse(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "glm-5.3")
         )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "ox-alpha-free")
+        )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "stealth/ox-alpha")
+        )
         XCTAssertTrue(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "hy3")
         )
