@@ -61,8 +61,19 @@ extension GeminiAdapter {
                 }
 
             case .video(let video):
-                if let inline = try inlineDataPart(mimeType: video.mimeType, data: video.data, url: video.url) {
-                    parts.append(inline)
+                if let encoded = try GoogleVideoInputSupport.videoPart(
+                    video,
+                    allowsGoogleCloudStorageURI: false
+                ) {
+                    parts.append(encoded)
+                } else {
+                    parts.append([
+                        "text": remoteVideoNotFetchableNotice(
+                            video,
+                            providerName: "Gemini",
+                            acceptedSources: "an attached file or a YouTube link, not an arbitrary URL"
+                        )
+                    ])
                 }
 
             case .audio(let audio):

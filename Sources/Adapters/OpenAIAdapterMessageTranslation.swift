@@ -143,7 +143,11 @@ extension OpenAIAdapter {
             return OpenAIResponsesInputSupport.fallbackFileContentPart(file: file, role: role)
 
         case .video(let video):
-            return OpenAIResponsesInputSupport.unsupportedVideoContentPart(video: video, role: role)
+            return OpenAIResponsesInputSupport.unsupportedVideoContentPart(
+                video: video,
+                role: role,
+                providerName: providerConfig.type.displayName
+            )
 
         case .audio(let audio):
             guard role == .user else { return nil }

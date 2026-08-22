@@ -2,6 +2,110 @@ import XCTest
 @testable import Jin
 
 final class ModelCatalogTests: XCTestCase {
+
+    /// The exact OpenRouter slugs whose upstream was observed decoding a base64
+    /// `video_url` data URL into real frames on 2026-08-22 (four-segment
+    /// red/yellow/blue/black clip; each model named the colours back).
+    ///
+    /// `architecture.input_modalities` is NOT the source of truth here — it lists `video`
+    /// for `stealth/ox-alpha`, which answers `400 Provider returned error` for one. Adding
+    /// a slug to this set without a probe re-creates the bug where a video attachment is
+    /// accepted by the composer and then discarded on the wire.
+    static let openRouterVideoInputVerifiedModelIDs: Set<String> = [
+        "google/gemini-3.1-flash-lite",
+        "google/gemini-3.1-flash-lite-preview",
+        "google/gemini-3.1-pro-preview",
+        "google/gemini-3.5-flash",
+        "google/gemini-3.5-flash-lite",
+        "google/gemini-3.6-flash",
+        "google/gemini-3.7-flash",
+        "google/gemma-4-26b-a4b-it",
+        "google/gemma-4-26b-a4b-it:free",
+        "google/gemma-4-31b-it",
+        "google/gemma-4-31b-it:free",
+        "meta/muse-spark-1.1",
+        "meta/muse-spark-1.2",
+        "minimax/minimax-m3",
+        "moonshotai/kimi-k3",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "perceptron/perceptron-mk1",
+        "qwen/qwen3.5-plus-20260420",
+        "qwen/qwen3.6-27b",
+        "qwen/qwen3.6-35b-a3b",
+        "qwen/qwen3.6-flash",
+        "qwen/qwen3.6-plus",
+        "qwen/qwen3.8-27b",
+        "qwen/qwen3.8-max",
+        "rekaai/reka-edge",
+        "stepfun/step-3.7-flash",
+        "xiaomi/mimo-v2.5",
+        "z-ai/glm-5v-turbo",
+        "~google/gemini-flash-latest",
+        "~google/gemini-pro-latest",
+        "~moonshotai/kimi-latest",
+    ]
+
+    /// Guards the OpenRouter `.videoInput` surface in both directions: nothing may be added
+    /// without a live probe, and nothing already verified may silently regress.
+    func testOpenRouterVideoInputClaimsMatchLiveProbedModels() {
+        let claimed = Set(
+            (ModelCatalog.orderedRecords[.openrouter] ?? [])
+                .filter { $0.capabilities.contains(.videoInput) }
+                .map(\.id)
+        )
+        XCTAssertEqual(
+            claimed,
+            Self.openRouterVideoInputVerifiedModelIDs,
+            "unexpected: \(claimed.subtracting(Self.openRouterVideoInputVerifiedModelIDs).sorted()); "
+                + "missing: \(Self.openRouterVideoInputVerifiedModelIDs.subtracting(claimed).sorted())"
+        )
+        XCTAssertFalse(claimed.contains("stealth/ox-alpha"))
+    }
+
+    /// Same guard for OpenCode Go. `/messages`-routed IDs (qwen*, minimax*) are excluded on
+    /// purpose: Anthropic's schema has no video block, so the payload would be dropped even
+    /// though those models read video fine on `/chat/completions`.
+    func testOpenCodeGoVideoInputClaimsMatchLiveProbedModels() {
+        let claimed = Set(
+            (ModelCatalog.orderedRecords[.opencodeGo] ?? [])
+                .filter { $0.capabilities.contains(.videoInput) }
+                .map(\.id)
+        )
+        XCTAssertEqual(claimed, ["kimi-k3", "kimi-k2.7-code", "mimo-v2.5"])
+
+        for rejected in ["ox-alpha-free", "kimi-k2.5", "kimi-k2.6", "glm-5.3", "deepseek-v4-flash-vision-exp"] {
+            XCTAssertFalse(
+                ModelCatalog.modelInfo(for: rejected, provider: .opencodeGo).capabilities.contains(.videoInput),
+                "\(rejected) rejects video upstream"
+            )
+        }
+        for messagesRouted in ["qwen3.8-max", "qwen3.7-plus", "qwen3.5-plus", "minimax-m3"] {
+            XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(messagesRouted), messagesRouted)
+            XCTAssertFalse(
+                ModelCatalog.modelInfo(for: messagesRouted, provider: .opencodeGo).capabilities.contains(.videoInput),
+                "\(messagesRouted) is routed to /messages, which silently ignores video"
+            )
+        }
+    }
+
+    /// Google's own gateways carry `.video` through as `inlineData`, so every text model
+    /// there takes video. Only the image-generation records are excluded.
+    func testGeminiAndVertexTextModelsClaimVideoInput() {
+        for provider in [ProviderType.gemini, .vertexai] {
+            for record in ModelCatalog.orderedRecords[provider] ?? [] {
+                guard !record.capabilities.contains(.imageGeneration),
+                      !record.capabilities.contains(.videoGeneration) else {
+                    XCTAssertFalse(record.capabilities.contains(.videoInput), "\(provider) \(record.id)")
+                    continue
+                }
+                XCTAssertTrue(
+                    record.capabilities.contains(.videoInput),
+                    "\(provider) \(record.id) should accept video input"
+                )
+            }
+        }
+    }
+
     func testMistralMedium35CatalogUsesExactOfficialID() {
         let model = ModelCatalog.modelInfo(
             for: "mistral-medium-3.5",
@@ -1732,7 +1836,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(qwen27.contextWindow, 262_144)
         XCTAssertEqual(qwen27.maxOutputTokens, 131_072)
         XCTAssertTrue(qwen27.capabilities.contains(.vision))
-        XCTAssertFalse(qwen27.capabilities.contains(.videoInput))
+        XCTAssertTrue(qwen27.capabilities.contains(.videoInput))
         XCTAssertEqual(qwen27.reasoningConfig?.defaultEffort, .xhigh)
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "qwen/qwen3.8-27b"))
         XCTAssertEqual(
@@ -1757,7 +1861,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(cloudMax.contextWindow, 1_000_000)
         XCTAssertEqual(cloudMax.maxOutputTokens, 131_072)
         XCTAssertTrue(cloudMax.capabilities.contains(.vision))
-        XCTAssertFalse(cloudMax.capabilities.contains(.videoInput))
+        XCTAssertTrue(cloudMax.capabilities.contains(.videoInput))
         XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
             for: .openrouter,
             modelID: "qwen/qwen3.8-max"
@@ -2042,18 +2146,23 @@ final class ModelCatalogTests: XCTestCase {
                  required: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching], hasReasoning: true, effort: .medium),
         ]
 
-        // These curated rows predate OpenRouter `video_url` wiring. Native PDF and
-        // provider-native code execution are still text-fallback / unrouted on this
-        // adapter; `.videoInput` stays forbidden on this list (Ox Alpha is the
-        // exception, covered in `testOpenRouterOxAlphaCatalogUsesExactProviderID`).
-        let forbidden: ModelCapability = [.videoInput, .nativePDF, .codeExecution]
+        // Native PDF and provider-native code execution are still text-fallback /
+        // unrouted on this adapter. `.videoInput` is no longer blanket-forbidden — it is
+        // pinned per model against the live-probe list (see
+        // `openRouterVideoInputVerifiedModelIDs`).
+        let forbidden: ModelCapability = [.nativePDF, .codeExecution]
 
         for c in cases {
             let model = ModelCatalog.modelInfo(for: c.id, provider: .openrouter)
             XCTAssertEqual(model.contextWindow, c.contextWindow, c.id)
             XCTAssertEqual(model.maxOutputTokens, c.maxOutputTokens, c.id)
             XCTAssertTrue(model.capabilities.isSuperset(of: c.required), "\(c.id) missing expected capabilities")
-            XCTAssertTrue(model.capabilities.isDisjoint(with: forbidden), "\(c.id) must not claim video/PDF/code-exec on OpenRouter")
+            XCTAssertTrue(model.capabilities.isDisjoint(with: forbidden), "\(c.id) must not claim PDF/code-exec on OpenRouter")
+            XCTAssertEqual(
+                model.capabilities.contains(.videoInput),
+                Self.openRouterVideoInputVerifiedModelIDs.contains(c.id),
+                "\(c.id) .videoInput must match the live-probe list"
+            )
             if c.hasReasoning {
                 XCTAssertEqual(model.reasoningConfig?.type, .effort, c.id)
                 XCTAssertEqual(model.reasoningConfig?.defaultEffort, c.effort, c.id)
@@ -2195,7 +2304,8 @@ final class ModelCatalogTests: XCTestCase {
         // Reasoning is always-on with no effort control on the gateway (empty
         // reasoning_options) — no config means Jin never sends an unhonored effort.
         XCTAssertNil(kimiK27Code.reasoningConfig)
-        XCTAssertFalse(kimiK27Code.capabilities.contains(.videoInput))
+        // Verified live 2026-08-22: a base64 `video_url` data URL is decoded into frames.
+        XCTAssertTrue(kimiK27Code.capabilities.contains(.videoInput))
 
         let qwen37Plus = ModelCatalog.modelInfo(for: "qwen3.7-plus", provider: .opencodeGo)
         XCTAssertEqual(qwen37Plus.name, "Qwen3.7 Plus")
@@ -2274,9 +2384,8 @@ final class ModelCatalogTests: XCTestCase {
         // Thinking is always-on and effort accepts only "max" — no config means Jin
         // sends no reasoning shape and the endpoint applies max by default.
         XCTAssertNil(kimiK3.reasoningConfig)
-        // Video input is listed by models.dev but the OpenAI-compatible route has no
-        // video part builder, so the capability is deliberately not claimed.
-        XCTAssertFalse(kimiK3.capabilities.contains(.videoInput))
+        // Verified live 2026-08-22: a base64 `video_url` data URL is decoded into frames.
+        XCTAssertTrue(kimiK3.capabilities.contains(.videoInput))
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "kimi-k3", provider: .opencodeGo))
         XCTAssertTrue(ModelCatalog.seededModels(for: .opencodeGo).contains(where: { $0.id == "kimi-k3" }))
 
@@ -2319,12 +2428,17 @@ final class ModelCatalogTests: XCTestCase {
             Expected(id: "thinkingmachines/inkling", contextWindow: 1_048_576, maxOutputTokens: nil, reasoningType: .effort, effort: .high),
         ]
 
-        let forbidden: ModelCapability = [.videoInput, .nativePDF, .codeExecution]
+        let forbidden: ModelCapability = [.nativePDF, .codeExecution]
         for c in cases {
             let model = ModelCatalog.modelInfo(for: c.id, provider: .openrouter)
             XCTAssertEqual(model.contextWindow, c.contextWindow, c.id)
             XCTAssertEqual(model.maxOutputTokens, c.maxOutputTokens, c.id)
-            XCTAssertTrue(model.capabilities.isDisjoint(with: forbidden), "\(c.id) must not claim video/PDF/code-exec on OpenRouter")
+            XCTAssertTrue(model.capabilities.isDisjoint(with: forbidden), "\(c.id) must not claim PDF/code-exec on OpenRouter")
+            XCTAssertEqual(
+                model.capabilities.contains(.videoInput),
+                Self.openRouterVideoInputVerifiedModelIDs.contains(c.id),
+                "\(c.id) .videoInput must match the live-probe list"
+            )
             XCTAssertEqual(model.reasoningConfig?.type, c.reasoningType, c.id)
             XCTAssertEqual(model.reasoningConfig?.defaultEffort, c.effort, c.id)
             XCTAssertTrue(ModelCatalog.isFullySupported(modelID: c.id, provider: .openrouter), c.id)
@@ -2397,8 +2511,10 @@ final class ModelCatalogTests: XCTestCase {
 
     func testOpenRouterOxAlphaCatalogUsesExactProviderID() {
         // Live OpenRouter /models + /endpoints (2026-08-22): stealth/ox-alpha,
-        // 1,048,576 / 131,072, text+image+video, tools, mandatory reasoning
-        // max/high/low default max. No cache / audio / native PDF.
+        // 1,048,576 / 131,072, tools, mandatory reasoning max/high/low default max.
+        // No cache / audio / native PDF. OpenRouter advertises `video` in
+        // input_modalities, but the upstream 400s on a video_url part (live probe
+        // 2026-08-22), so .videoInput must stay off — see the record's comment.
         let id = "stealth/ox-alpha"
         let model = ModelCatalog.modelInfo(for: id, provider: .openrouter)
         XCTAssertEqual(model.name, "Stealth: Ox Alpha")
@@ -2409,7 +2525,10 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(model.capabilities.contains(.streaming))
         XCTAssertTrue(model.capabilities.contains(.toolCalling))
         XCTAssertTrue(model.capabilities.contains(.vision))
-        XCTAssertTrue(model.capabilities.contains(.videoInput))
+        XCTAssertFalse(
+            model.capabilities.contains(.videoInput),
+            "stealth/ox-alpha advertises video input but rejects it upstream"
+        )
         XCTAssertTrue(model.capabilities.contains(.reasoning))
         XCTAssertFalse(model.capabilities.contains(.audio))
         XCTAssertFalse(model.capabilities.contains(.promptCaching))
@@ -2436,8 +2555,10 @@ final class ModelCatalogTests: XCTestCase {
 
     func testOpenCodeGoOxAlphaFreeCatalogUsesExactProviderID() {
         // opencode.ai/docs/go + models.dev `opencode-go` (2026-08-22): ox-alpha-free
-        // on /chat/completions, 1,000,000 / 131,072, text+image+video, low/high/max
-        // default max, always-on. Seeded after glm-5.3.
+        // on /chat/completions, 1,000,000 / 131,072, low/high/max default max,
+        // always-on. Seeded after glm-5.3. Text+image only: the modality tables list
+        // video, but every video shape returns `[1210] Invalid API parameter` live
+        // while an image_url in the same request answers 200.
         let id = "ox-alpha-free"
         let model = ModelCatalog.modelInfo(for: id, provider: .opencodeGo)
         XCTAssertEqual(model.name, "Ox Alpha Free")
@@ -2448,7 +2569,10 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(model.capabilities.contains(.streaming))
         XCTAssertTrue(model.capabilities.contains(.toolCalling))
         XCTAssertTrue(model.capabilities.contains(.vision))
-        XCTAssertTrue(model.capabilities.contains(.videoInput))
+        XCTAssertFalse(
+            model.capabilities.contains(.videoInput),
+            "ox-alpha-free advertises video input but rejects it upstream"
+        )
         XCTAssertTrue(model.capabilities.contains(.reasoning))
         XCTAssertFalse(model.capabilities.contains(.audio))
         XCTAssertFalse(model.capabilities.contains(.promptCaching))

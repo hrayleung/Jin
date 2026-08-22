@@ -159,6 +159,21 @@ Both Gemini (AI Studio) and Vertex AI adapters support Veo video generation mode
 
 Supports text-to-video and image-to-video inputs. Controls configured via `GoogleVideoGenerationControls` in `GenerationControls.swift`.
 
+### Video Input (attaching a video to a chat)
+
+Distinct from video *generation*. Three wire shapes, picked by provider:
+
+| Surface | Shape |
+| --- | --- |
+| OpenAI-compatible `/chat/completions` | `openAIInputVideoPart` → `{"type":"video_url","video_url":{"url":"data:video/mp4;base64,…"}}`. Remote http(s) URLs are forwarded as-is. MiMo alone adds `fps` / `media_resolution` (`mimoInputVideoPart`). |
+| Google `generateContent` (Gemini + Vertex) | `GoogleVideoInputSupport.videoPart` → `inlineData` for local bytes, `fileData.fileUri` for **YouTube** links (the only remote host Google fetches), `gs://` on Vertex only. |
+| Meta Responses | `MetaResponsesInputSupport.videoContentPart`, hosted-file upload past 40 MB. |
+| Anthropic Messages, OpenAI/xAI Responses, Cohere | No video block exists — substitute a notice. |
+
+**A `.video` part must never be dropped silently.** That was the bug behind "the model says it can't see my video": the composer accepts a clip for any model, so an adapter that skipped the part sent a prompt with no trace of the attachment and the model answered "I don't see anything". `splitContentParts` and `translateUserContentPartsToOpenAIFormat` now substitute `unsupportedVideoInputNotice(_:)` whenever video is unsupported, and Google substitutes `remoteVideoNotFetchableNotice` for a URL it cannot reach. `VideoInputTranslationTests` guards this.
+
+**Never claim `.videoInput` from a modality table.** `models.dev`, OpenRouter's `architecture.input_modalities` and vendor docs all list `video` for models whose upstream rejects it — `ox-alpha-free` / `stealth/ox-alpha` advertise video and answer `[1210] Invalid API parameter` / `400 Provider returned error`. Capability is a property of the (model, endpoint) pair, not the model: `qwen3.8-max` reads video on `/chat/completions` but Jin routes it to `/messages`, which ignores it. Verify with a live POST of a synthetic clip whose ground truth you know (e.g. four solid colour segments) and require the model to name them back; a plausible-sounding 200 is not proof. The verified allow-lists are pinned in `ModelCatalogTests.openRouterVideoInputVerifiedModelIDs` and `testOpenCodeGoVideoInputClaimsMatchLiveProbedModels`.
+
 ### Google Maps Grounding
 
 Both Gemini (AI Studio) and Vertex AI adapters support grounding with Google Maps:

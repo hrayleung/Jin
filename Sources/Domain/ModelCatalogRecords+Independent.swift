@@ -1329,12 +1329,21 @@ extension ModelCatalog {
         // 2026-08-22). Exact ID `ox-alpha-free` on /zen/go/v1/chat/completions via
         // @ai-sdk/openai-compatible — must stay out of `anthropicMessagesModelIDs`
         // and `openAIResponsesModelIDs`. 1,000,000 context / 131,072 output (Go's
-        // numbers, not OpenRouter's 1,048,576). Input is text+image+video; no
-        // audio / native PDF / prompt caching. Reasoning is always-on with
-        // low/high/max (default max), same band as glm-5.3; Off is sent as `low`.
+        // numbers, not OpenRouter's 1,048,576). No audio / native PDF / prompt
+        // caching. Reasoning is always-on with low/high/max (default max), same band
+        // as glm-5.3; Off is sent as `low`.
+        //
+        // .videoInput is NOT claimed. models.dev and OpenRouter both advertise
+        // `video` in this model's input modalities, but the upstream rejects every
+        // video shape (live probe 2026-08-22: `video_url` object / bare string / raw
+        // base64 / data URI / remote https all return `[1210] Invalid API parameter`,
+        // and a remote URL comes back as `图片输入格式/解析错误` — the video is being
+        // pushed through the image decoder). An `image_url` part in the same request
+        // answers 200. So: vision yes, video no. Do not re-add .videoInput from a
+        // modality table; only a live probe that returns frame content counts.
         // Seeded after glm-5.3 so the first-launch default is unchanged.
         Record(id: "ox-alpha-free", displayName: "Ox Alpha Free",
-               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_000_000,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
@@ -1425,16 +1434,24 @@ extension ModelCatalog {
         // reasoning_effort accepts only "max" (models.dev reasoning_options;
         // Moonshot docs) — the endpoint applies max when the field is omitted, so
         // reasoningConfig stays nil and Jin sends no reasoning shape (same pattern
-        // as the `k3` Kimi for Coding record). models.dev also lists video input,
-        // but this model routes through the OpenAI-compatible endpoint whose message
-        // translation has no video part builder, so .videoInput is deliberately not
-        // claimed — same rationale as kimi-k2.7-code below.
+        // as the `k3` Kimi for Coding record). .videoInput IS claimed: a live probe
+        // (2026-08-22) of a four-segment colour clip sent as
+        // `{"type":"video_url","video_url":{"url":"data:video/mp4;base64,…"}}` — the
+        // exact part `openAIInputVideoPart` builds — answered "red, yellow, blue,
+        // black", so the frames genuinely reach the model. Remote https URLs are
+        // rejected ("unsupported video url"), which is fine: Jin only forwards a URL
+        // for videos that already live remotely.
         Record(id: "kimi-k3", displayName: "Kimi K3",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        // K2.5 / K2.6 are the video exception in the Kimi line on Go: models.dev lists
+        // video input for both, but the gateway has no video-capable upstream wired up
+        // for them — a `video_url` part returns `[404] No endpoints found that support
+        // input video` (live, 2026-08-22). Vision (image_url) works. Do not claim
+        // .videoInput here just because the sibling K3 / K2.7 Code records do.
         Record(id: "kimi-k2.5", displayName: "Kimi K2.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 262_144,
@@ -1449,11 +1466,10 @@ extension ModelCatalog {
         // models.dev `opencode-go`): 262,144 context AND output, reasoning always-on with
         // NO effort control (empty reasoning_options — the gateway ignores reasoning_effort
         // for it), thinking interleaved via `reasoning_content`. reasoningConfig stays nil
-        // so Jin never sends an effort it can't honor. models.dev also lists video input,
-        // but this model routes through the OpenAI-compatible endpoint whose message
-        // translation has no video part builder, so .videoInput is deliberately not claimed.
+        // so Jin never sends an effort it can't honor. .videoInput verified live the same
+        // way as kimi-k3 above (base64 `video_url` data URL → correct frame colours).
         Record(id: "kimi-k2.7-code", displayName: "Kimi K2.7 Code",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 262_144,
                maxOutputTokens: 262_144,
                reasoningConfig: nil,
@@ -1464,8 +1480,13 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
+        // MiMo V2.5 on Go is the same full-modal checkpoint the MiMo Token Plan provider
+        // serves, and Go proxies it faithfully: a live `video_url` data-URL probe
+        // (2026-08-22) returned the clip's four segment colours in order. The Token Plan
+        // record already claims .videoInput, so claim it here too rather than letting the
+        // same model behave differently depending on which gateway it is reached through.
         Record(id: "mimo-v2.5", displayName: "MiMo V2.5",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .videoInput, .reasoning],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
@@ -1522,10 +1543,17 @@ extension ModelCatalog {
         // Reasoning is the Anthropic thinking budget shape (models.dev reasoning_options =
         // toggle + budget_tokens up to 262,144), and it is genuinely toggleable — hence no
         // entry in ModelSettingsResolver.opencodeGoAlwaysOnReasoningModelIDs.
-        // .videoInput is deliberately not claimed even though models.dev lists video input:
-        // this ID routes through /messages, whose translation replaces a .video part with an
-        // `unsupportedVideoInputNotice` text block — the exact trap the qwen3.7-plus and
-        // qwen3.5-plus records document. .promptCaching is not claimed either, matching every
+        // .videoInput is deliberately not claimed even though models.dev lists video input,
+        // and even though this model demonstrably reads video: the capability is a property
+        // of the (model, endpoint) pair, not the model. On /chat/completions a `video_url`
+        // data URL returns the clip's colours correctly, but Jin routes this ID to
+        // /messages, and a live probe there (2026-08-22, video/mp4 as an Anthropic
+        // `document` block) answers "NOVIDEO" — Anthropic's Messages schema has no video
+        // block, so the payload is accepted and ignored. Claiming .videoInput would light
+        // up video attachments that silently do nothing. Re-routing qwen/minimax to
+        // /chat/completions to unlock video is a separate change: it would also have to
+        // move their thinking-budget reasoning shape to `reasoning_effort`.
+        // .promptCaching is not claimed either, matching every
         // other /messages-routed Qwen/MiniMax row (.opencodeGo supports neither explicit cache
         // mode nor TTL in ChatAuxiliaryControlSupport). Seeded, but placed after glm-5.3 so
         // OpenCode Go's first-launch default (preferredModelID = models.first) is unchanged.
@@ -1546,9 +1574,9 @@ extension ModelCatalog {
         // /messages endpoint (@ai-sdk/anthropic) with a thinking budget like the other
         // qwen3.7 models — it must also be routed in
         // OpenCodeGoAdapter.anthropicMessagesModelIDs. models.dev also lists video input,
-        // but the Anthropic /messages translation has no video part builder (it replaces
-        // .video parts with a placeholder notice), so .videoInput is deliberately not
-        // claimed — same rationale as kimi-k2.7-code above.
+        // but the Anthropic /messages schema has no video block — the translation replaces
+        // .video parts with a placeholder notice — so .videoInput is deliberately not
+        // claimed. Same route-not-model rationale as qwen3.8-max above.
         Record(id: "qwen3.7-plus", displayName: "Qwen3.7 Plus",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_000_000,

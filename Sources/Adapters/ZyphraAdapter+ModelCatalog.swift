@@ -99,9 +99,15 @@ private struct ZyphraModelInfo: Decodable {
         if inputs.contains("audio") {
             capabilities.insert(.audio)
         }
-        if inputs.contains("video") {
-            capabilities.insert(.videoInput)
-        }
+        // `.videoInput` is deliberately NOT derived from `inputModality`. Zyphra's
+        // request builder has no video part builder, so the claim would have promised
+        // a capability the adapter then quietly dropped — the failure mode this whole
+        // pass exists to remove. No model on the live catalogue reports `video` today
+        // (probed 2026-08-22: the eight models report Text / Image / Audio / EEG), so
+        // this costs nothing. To restore it, first confirm Zyphra's video wire shape
+        // against a real model, then wire `openAIInputVideoPart` into
+        // `ZyphraRequestSupport.translateNonToolMessage` gated on
+        // `modelSupportsVideoInput` — the way OpenRouter and OpenCode Go do it.
 
         return capabilities
     }

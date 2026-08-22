@@ -146,4 +146,23 @@ final class OpenAIResponsesInputSupportTests: XCTestCase {
         let assistantPart = OpenAIResponsesInputSupport.unsupportedVideoContentPart(video: video, role: .assistant)
         XCTAssertEqual(assistantPart["type"] as? String, "output_text")
     }
+
+    /// `OpenAIAdapter` is also the `/responses` delegate for OpenCode Go and Ramp Router,
+    /// so the notice must name the gateway the user actually picked.
+    func testUnsupportedVideoContentPartNamesTheRoutingProvider() {
+        let video = VideoContent(mimeType: "video/mp4", data: Data("MP4".utf8), url: nil)
+
+        let routed = OpenAIResponsesInputSupport.unsupportedVideoContentPart(
+            video: video,
+            role: .user,
+            providerName: ProviderType.router.displayName
+        )
+        let text = try? XCTUnwrap(routed["text"] as? String)
+        XCTAssertEqual(
+            text,
+            "Video attachment omitted (video/mp4, 3 bytes): "
+                + "\(ProviderType.router.displayName) Responses API does not support native video input in Jin yet."
+        )
+        XCTAssertFalse(text?.contains("OpenAI") == true)
+    }
 }

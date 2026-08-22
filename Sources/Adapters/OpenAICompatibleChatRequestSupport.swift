@@ -146,10 +146,16 @@ extension OpenAICompatibleAdapter {
                     guard supportsAudioInput else { return nil }
                     return providerConfig.type == .mimoTokenPlanOpenAI ? mimoInputAudioPart : mistralAudioPartBuilder
                 }()
+                let videoBuilder: ((VideoContent) throws -> [String: Any]?)? = {
+                    guard supportsVideoInput else { return nil }
+                    // MiMo wants the `fps` / `media_resolution` siblings; everyone else
+                    // gets the plain documented `video_url` part.
+                    return providerConfig.type == .mimoTokenPlanOpenAI ? mimoInputVideoPart : openAIInputVideoPart
+                }()
                 dict["content"] = try translateUserContentPartsToOpenAIFormat(
                     message.content,
                     audioPartBuilder: audioBuilder,
-                    videoPartBuilder: supportsVideoInput ? mimoInputVideoPart : nil
+                    videoPartBuilder: videoBuilder
                 )
             } else {
                 dict["content"] = split.visible
@@ -175,9 +181,22 @@ extension OpenAICompatibleAdapter {
         return true
     }
 
+    /// Catalog-driven (and user-override-aware) rather than a MiMo-only hardcode.
+    ///
+    /// The hardcode meant a record could claim `.videoInput` on one of the other providers
+    /// behind this adapter and still have the `.video` part dropped on the floor —
+    /// DeepInfra's `nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning` was exactly that. The
+    /// MiMo IDs resolve identically through the catalog (`MiMoModelIDs.v25` / `.v2Omni`
+    /// both carry `.videoInput`), so MiMo behaviour is unchanged — but the Model Settings
+    /// "Video input" toggle now actually reaches the request builder.
+    ///
+    /// Note: DeepInfra could not be probed live (the account is billing-blocked), but the
+    /// same Nemotron Omni checkpoint accepts this exact `video_url` part on OpenRouter and
+    /// returns real frame content, and DeepInfra is a plain OpenAI-compatible surface. If
+    /// the shape is ever wrong the request 400s loudly, which still beats silently
+    /// discarding the attachment.
     private func supportsVideoInput(modelID: String) -> Bool {
-        providerConfig.type == .mimoTokenPlanOpenAI
-            && Self.miMoFullModalInputModelIDs.contains(modelID.lowercased())
+        modelSupportsVideoInput(providerConfig: providerConfig, modelID: modelID)
     }
 
     private func mistralAssistantContentChunks(visible: String, thinking: String) -> [[String: Any]] {
