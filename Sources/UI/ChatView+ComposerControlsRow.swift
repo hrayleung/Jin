@@ -33,6 +33,23 @@ extension ChatView {
                 isFileImporterPresented = true
             }
 
+            if supportsExplicitRemoteVideoURLInput {
+                ComposerRemoteVideoURLPopoverHost(
+                    urlText: remoteVideoInputURLText,
+                    onCommit: commitRemoteVideoInputURL,
+                    onClear: clearRemoteVideoInputURL
+                ) { openEditor in
+                    composerButtonControl(
+                        systemName: "video.badge.plus",
+                        isActive: hasRemoteVideoInputURL,
+                        badgeText: nil,
+                        help: remoteVideoInputHelpText,
+                        disabled: isBusy,
+                        action: openEditor
+                    )
+                }
+            }
+
             composerButtonControl(
                 systemName: conversationEntity.artifactsEnabled == true ? "square.stack.3d.up.fill" : "square.stack.3d.up",
                 isActive: conversationEntity.artifactsEnabled == true,
