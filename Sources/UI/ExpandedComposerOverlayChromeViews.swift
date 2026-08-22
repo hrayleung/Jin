@@ -74,49 +74,6 @@ struct ExpandedComposerAccessorySection<Content: View>: View {
     }
 }
 
-struct ExpandedComposerRemoteVideoURLField: View {
-    @Binding var remoteVideoURLText: String
-
-    let isBusy: Bool
-
-    private var trimmedRemoteVideoURLText: String {
-        remoteVideoURLText.trimmed
-    }
-
-    var body: some View {
-        HStack(spacing: JinSpacing.small) {
-            Image(systemName: "link")
-                .foregroundStyle(.secondary)
-
-            TextField("Source Video URL", text: $remoteVideoURLText)
-                .textFieldStyle(.plain)
-                .font(.callout)
-                .disabled(isBusy)
-
-            if !trimmedRemoteVideoURLText.isEmpty {
-                Button {
-                    remoteVideoURLText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .disabled(isBusy)
-            }
-        }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small + 2)
-        .background(
-            RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                .fill(JinSemanticColor.textSurface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
-        )
-    }
-}
-
 struct ExpandedComposerControlsSection<ControlsRow: View>: View {
     @ViewBuilder let controlsRow: () -> ControlsRow
 

@@ -8,7 +8,6 @@ extension CompactComposerOverlayView {
             perMessageMCPChipsRow
             quoteCardsRow
             attachmentChipsRow
-            remoteVideoInputRow
             composerTextEditor
             composerActionBar
             prepareStatusRow
@@ -74,9 +73,18 @@ extension CompactComposerOverlayView {
 
     @ViewBuilder
     var attachmentChipsRow: some View {
-        if !draftAttachments.isEmpty {
+        if !draftAttachments.isEmpty || showsRemoteVideoURLChip {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: JinSpacing.small) {
+                    // Leads the row: there is at most one, and it is the
+                    // subject of the turn rather than one of N attachments.
+                    if showsRemoteVideoURLChip {
+                        ComposerRemoteVideoURLChip(
+                            urlText: remoteVideoURLText,
+                            onRemove: onRemoveRemoteVideoURL
+                        )
+                    }
+
                     ForEach(draftAttachments) { attachment in
                         DraftAttachmentChip(
                             attachment: attachment,
@@ -86,36 +94,6 @@ extension CompactComposerOverlayView {
                 }
                 .padding(.horizontal, JinSpacing.xSmall)
             }
-        }
-    }
-
-    @ViewBuilder
-    var remoteVideoInputRow: some View {
-        if showsRemoteVideoURLField {
-            HStack(spacing: JinSpacing.small) {
-                Image(systemName: "link")
-                    .foregroundStyle(.secondary)
-
-                TextField("Source Video URL", text: $remoteVideoURLText)
-                    .textFieldStyle(.plain)
-                    .font(.callout)
-                    .disabled(isBusy)
-
-                if !trimmedRemoteVideoURLText.isEmpty {
-                    Button {
-                        remoteVideoURLText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Clear source video URL")
-                    .disabled(isBusy)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .jinSurface(.subtle, cornerRadius: JinRadius.medium)
         }
     }
 
@@ -193,9 +171,5 @@ extension CompactComposerOverlayView {
             }
             .padding(.top, 2)
         }
-    }
-
-    var trimmedRemoteVideoURLText: String {
-        remoteVideoURLText.trimmed
     }
 }

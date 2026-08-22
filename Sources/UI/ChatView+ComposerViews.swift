@@ -13,7 +13,6 @@ extension ChatView {
         ) { textBinding, canSendDraft in
             CompactComposerOverlayView(
                 messageText: textBinding,
-                remoteVideoURLText: $remoteVideoInputURLText,
                 draftAttachments: $draftAttachments,
                 draftQuotes: $draftQuotes,
                 isComposerDropTargeted: $isComposerDropTargeted,
@@ -24,7 +23,8 @@ extension ChatView {
                 sendWithCommandEnter: sendWithCommandEnter,
                 isBusy: isBusy,
                 canSendDraft: canSendDraft,
-                showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
+                remoteVideoURLText: remoteVideoInputURLText,
+                supportsRemoteVideoURLInput: supportsExplicitRemoteVideoURLInput,
                 isPreparingToSend: isPreparingToSend,
                 prepareToSendStatus: prepareToSendStatus,
                 isRecording: speechToTextManager.isRecording,
@@ -38,6 +38,7 @@ extension ChatView {
                 onSubmit: handleComposerSubmit,
                 onCancel: handleComposerCancel,
                 onRemoveAttachment: removeDraftAttachment,
+                onRemoveRemoteVideoURL: clearRemoteVideoInputURL,
                 onRemoveQuote: removeDraftQuote,
                 onExpand: {
                     isComposerFocused = false
@@ -80,7 +81,6 @@ extension ChatView {
         ) { textBinding, canSendDraft in
             ExpandedComposerOverlay(
                 messageText: textBinding,
-                remoteVideoURLText: $remoteVideoInputURLText,
                 draftAttachments: $draftAttachments,
                 draftQuotes: $draftQuotes,
                 isPresented: $isExpandedComposerPresented,
@@ -90,7 +90,8 @@ extension ChatView {
                 sendWithCommandEnter: sendWithCommandEnter,
                 isBusy: isBusy,
                 canSendDraft: canSendDraft,
-                showsRemoteVideoURLField: supportsExplicitRemoteVideoURLInput,
+                remoteVideoURLText: remoteVideoInputURLText,
+                supportsRemoteVideoURLInput: supportsExplicitRemoteVideoURLInput,
                 isPreparingToSend: isPreparingToSend,
                 prepareToSendStatus: prepareToSendStatus,
                 isRecording: speechToTextManager.isRecording,
@@ -110,6 +111,7 @@ extension ChatView {
                 onDropFileURLs: handleDroppedFileURLs,
                 onDropImages: handleDroppedImages,
                 onRemoveAttachment: removeDraftAttachment,
+                onRemoveRemoteVideoURL: clearRemoteVideoInputURL,
                 onRemoveQuote: removeDraftQuote,
                 slashCommandServers: slashCommandMCPItems,
                 isSlashCommandActive: isSlashMCPPopoverVisible && isComposerTarget,

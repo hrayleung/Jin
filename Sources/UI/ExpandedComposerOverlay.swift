@@ -7,7 +7,6 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Binding var messageText: String
-    @Binding var remoteVideoURLText: String
     @Binding var draftAttachments: [DraftAttachment]
     @Binding var draftQuotes: [DraftQuote]
     @Binding var isPresented: Bool
@@ -18,7 +17,9 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     let sendWithCommandEnter: Bool
     let isBusy: Bool
     let canSendDraft: Bool
-    let showsRemoteVideoURLField: Bool
+    /// Value, not a `Binding` — see `CompactComposerOverlayView`.
+    let remoteVideoURLText: String
+    let supportsRemoteVideoURLInput: Bool
     let isPreparingToSend: Bool
     let prepareToSendStatus: String?
     let isRecording: Bool
@@ -31,6 +32,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     let onDropFileURLs: ([URL]) -> Bool
     let onDropImages: ([NSImage]) -> Bool
     let onRemoveAttachment: (DraftAttachment) -> Void
+    let onRemoveRemoteVideoURL: () -> Void
     let onRemoveQuote: (DraftQuote) -> Void
     let slashCommandServers: [SlashCommandMCPServerItem]
     let isSlashCommandActive: Bool
@@ -52,7 +54,6 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     // instead of flashing "0 words · 0 characters" while expanding from compact.
     init(
         messageText: Binding<String>,
-        remoteVideoURLText: Binding<String>,
         draftAttachments: Binding<[DraftAttachment]>,
         draftQuotes: Binding<[DraftQuote]>,
         isPresented: Binding<Bool>,
@@ -62,7 +63,8 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         sendWithCommandEnter: Bool,
         isBusy: Bool,
         canSendDraft: Bool,
-        showsRemoteVideoURLField: Bool,
+        remoteVideoURLText: String,
+        supportsRemoteVideoURLInput: Bool,
         isPreparingToSend: Bool,
         prepareToSendStatus: String?,
         isRecording: Bool,
@@ -75,6 +77,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         onDropFileURLs: @escaping ([URL]) -> Bool,
         onDropImages: @escaping ([NSImage]) -> Bool,
         onRemoveAttachment: @escaping (DraftAttachment) -> Void,
+        onRemoveRemoteVideoURL: @escaping () -> Void,
         onRemoveQuote: @escaping (DraftQuote) -> Void,
         slashCommandServers: [SlashCommandMCPServerItem],
         isSlashCommandActive: Bool,
@@ -88,7 +91,6 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         @ViewBuilder controlsRow: @escaping () -> ControlsRow
     ) {
         _messageText = messageText
-        _remoteVideoURLText = remoteVideoURLText
         _draftAttachments = draftAttachments
         _draftQuotes = draftQuotes
         _isPresented = isPresented
@@ -98,7 +100,8 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         self.sendWithCommandEnter = sendWithCommandEnter
         self.isBusy = isBusy
         self.canSendDraft = canSendDraft
-        self.showsRemoteVideoURLField = showsRemoteVideoURLField
+        self.remoteVideoURLText = remoteVideoURLText
+        self.supportsRemoteVideoURLInput = supportsRemoteVideoURLInput
         self.isPreparingToSend = isPreparingToSend
         self.prepareToSendStatus = prepareToSendStatus
         self.isRecording = isRecording
@@ -111,6 +114,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         self.onDropFileURLs = onDropFileURLs
         self.onDropImages = onDropImages
         self.onRemoveAttachment = onRemoveAttachment
+        self.onRemoveRemoteVideoURL = onRemoveRemoteVideoURL
         self.onRemoveQuote = onRemoveQuote
         self.slashCommandServers = slashCommandServers
         self.isSlashCommandActive = isSlashCommandActive
@@ -133,6 +137,10 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
             isRecording: isRecording,
             isTranscribing: isTranscribing
         )
+    }
+
+    private var showsRemoteVideoURLChip: Bool {
+        supportsRemoteVideoURLInput && !remoteVideoURLText.trimmed.isEmpty
     }
 
     private var panelStrokeColor: Color {
@@ -175,10 +183,19 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
             }
         }
 
-        if !draftAttachments.isEmpty {
+        if !draftAttachments.isEmpty || showsRemoteVideoURLChip {
             ExpandedComposerAccessorySection(title: "Attachments", systemName: "paperclip") {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: JinSpacing.small) {
+                        // Leads the row: there is at most one, and it is the
+                        // subject of the turn rather than one of N attachments.
+                        if showsRemoteVideoURLChip {
+                            ComposerRemoteVideoURLChip(
+                                urlText: remoteVideoURLText,
+                                onRemove: onRemoveRemoteVideoURL
+                            )
+                        }
+
                         ForEach(draftAttachments) { attachment in
                             DraftAttachmentChip(
                                 attachment: attachment,
@@ -188,15 +205,6 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
                     }
                     .padding(.horizontal, JinSpacing.xSmall)
                 }
-            }
-        }
-
-        if showsRemoteVideoURLField {
-            ExpandedComposerAccessorySection(title: "Source Video URL", systemName: "link") {
-                ExpandedComposerRemoteVideoURLField(
-                    remoteVideoURLText: $remoteVideoURLText,
-                    isBusy: isBusy
-                )
             }
         }
     }

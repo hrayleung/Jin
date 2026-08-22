@@ -128,4 +128,28 @@ final class ChatMessagePreparationUtilitiesTests: XCTestCase {
             "First\n\nSecond"
         )
     }
+
+    func testResolvedRemoteVideoInputURLReturnsNilWhenExplicitInputUnsupported() throws {
+        XCTAssertNil(
+            try ChatMessagePreparationSupport.resolvedRemoteVideoInputURL(
+                from: "https://cdn.example.com/a.mp4",
+                supportsExplicitRemoteVideoURLInput: false
+            )
+        )
+
+        XCTAssertEqual(
+            try ChatMessagePreparationSupport.resolvedRemoteVideoInputURL(
+                from: "https://cdn.example.com/a.mp4",
+                supportsExplicitRemoteVideoURLInput: true
+            ),
+            URL(string: "https://cdn.example.com/a.mp4")
+        )
+
+        XCTAssertThrowsError(
+            try ChatMessagePreparationSupport.resolvedRemoteVideoInputURL(
+                from: "file:///tmp/a.mp4",
+                supportsExplicitRemoteVideoURLInput: true
+            )
+        )
+    }
 }

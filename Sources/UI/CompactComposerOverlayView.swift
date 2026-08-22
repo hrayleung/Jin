@@ -8,7 +8,6 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     @EnvironmentObject var shortcutsStore: AppShortcutsStore
 
     @Binding var messageText: String
-    @Binding var remoteVideoURLText: String
     @Binding var draftAttachments: [DraftAttachment]
     @Binding var draftQuotes: [DraftQuote]
     @Binding var isComposerDropTargeted: Bool
@@ -20,7 +19,10 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     let sendWithCommandEnter: Bool
     let isBusy: Bool
     let canSendDraft: Bool
-    let showsRemoteVideoURLField: Bool
+    /// Value, not a `Binding` — the composer can no longer write it per
+    /// keystroke; the editor popover commits through `onCommit` instead.
+    let remoteVideoURLText: String
+    let supportsRemoteVideoURLInput: Bool
     let isPreparingToSend: Bool
     let prepareToSendStatus: String?
     let isRecording: Bool
@@ -32,6 +34,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     let onSubmit: () -> Void
     let onCancel: () -> Bool
     let onRemoveAttachment: (DraftAttachment) -> Void
+    let onRemoveRemoteVideoURL: () -> Void
     let onRemoveQuote: (DraftQuote) -> Void
     let onExpand: () -> Void
     let onHide: () -> Void
@@ -49,7 +52,6 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
 
     init(
         messageText: Binding<String>,
-        remoteVideoURLText: Binding<String>,
         draftAttachments: Binding<[DraftAttachment]>,
         draftQuotes: Binding<[DraftQuote]>,
         isComposerDropTargeted: Binding<Bool>,
@@ -60,7 +62,8 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         sendWithCommandEnter: Bool,
         isBusy: Bool,
         canSendDraft: Bool,
-        showsRemoteVideoURLField: Bool,
+        remoteVideoURLText: String,
+        supportsRemoteVideoURLInput: Bool,
         isPreparingToSend: Bool,
         prepareToSendStatus: String?,
         isRecording: Bool,
@@ -72,6 +75,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         onSubmit: @escaping () -> Void,
         onCancel: @escaping () -> Bool,
         onRemoveAttachment: @escaping (DraftAttachment) -> Void,
+        onRemoveRemoteVideoURL: @escaping () -> Void,
         onRemoveQuote: @escaping (DraftQuote) -> Void,
         onExpand: @escaping () -> Void,
         onHide: @escaping () -> Void,
@@ -88,7 +92,6 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         @ViewBuilder controlsRow: @escaping () -> ControlsRow
     ) {
         _messageText = messageText
-        _remoteVideoURLText = remoteVideoURLText
         _draftAttachments = draftAttachments
         _draftQuotes = draftQuotes
         _isComposerDropTargeted = isComposerDropTargeted
@@ -99,7 +102,8 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         self.sendWithCommandEnter = sendWithCommandEnter
         self.isBusy = isBusy
         self.canSendDraft = canSendDraft
-        self.showsRemoteVideoURLField = showsRemoteVideoURLField
+        self.remoteVideoURLText = remoteVideoURLText
+        self.supportsRemoteVideoURLInput = supportsRemoteVideoURLInput
         self.isPreparingToSend = isPreparingToSend
         self.prepareToSendStatus = prepareToSendStatus
         self.isRecording = isRecording
@@ -111,6 +115,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         self.onSubmit = onSubmit
         self.onCancel = onCancel
         self.onRemoveAttachment = onRemoveAttachment
+        self.onRemoveRemoteVideoURL = onRemoveRemoteVideoURL
         self.onRemoveQuote = onRemoveQuote
         self.onExpand = onExpand
         self.onHide = onHide
@@ -125,6 +130,10 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         self.onRemovePerMessageMCPServer = onRemovePerMessageMCPServer
         self.onInterceptKeyDown = onInterceptKeyDown
         self.controlsRow = controlsRow
+    }
+
+    var showsRemoteVideoURLChip: Bool {
+        supportsRemoteVideoURLInput && !remoteVideoURLText.trimmed.isEmpty
     }
 
     var sendButtonPresentation: ComposerSendButtonPresentation {
