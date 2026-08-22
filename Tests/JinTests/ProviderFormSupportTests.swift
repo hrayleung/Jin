@@ -445,6 +445,9 @@ final class ProviderFormSupportTests: XCTestCase {
         XCTAssertEqual(state.models.map(\.id), models.map(\.id))
         XCTAssertFalse(state.isEmpty)
         XCTAssertEqual(state.filteredModels.map(\.id), ["vendor/not-in-catalog"])
+        // Drives the trailing-separator suppression in the row list, so it has to
+        // track the *filtered* tail, not the full catalog's.
+        XCTAssertEqual(state.lastFilteredModelID, "vendor/not-in-catalog")
         XCTAssertEqual(state.fullySupportedModelIDs, ["qwen/qwen3.8-27b"])
         XCTAssertEqual(
             state.enabledByModelID,

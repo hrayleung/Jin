@@ -99,27 +99,47 @@ extension ProviderConfigFormView {
             Text("No models match your search.")
                 .jinInfoCallout()
         } else {
-            List(state.filteredModels) { model in
-                ProviderModelListRow(
-                    model: model,
-                    isFullySupported: state.fullySupportedModelIDs.contains(model.id),
-                    isEnabled: modelEnabledBinding(
-                        modelID: model.id,
-                        enabledByModelID: state.enabledByModelID
-                    ),
-                    onEdit: { editingModel = model },
-                    onDelete: { requestDeleteModel(model) }
-                )
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.visible)
+            // Deliberately a ScrollView + LazyVStack, not a `List`.
+            //
+            // A `List` nested in a grouped `Form` builds a `ListCoreScrollView` with
+            // `hasVerticalScroller == false` that refuses scroll wheel events outright
+            // — handing one straight to `scrollWheel(with:)` does not move it. That was
+            // survivable while the list was `minHeight`-only, because it grew to its
+            // full content height and the Form's own scroll view carried the user past
+            // the overflow. Bounding it to `modelListHeight` (needed so rows virtualize)
+            // shrank the Form back under one screen, so the only surface with hidden
+            // content became the one that cannot scroll: with 64 models you could see
+            // seven and reach none of the rest.
+            //
+            // `LazyVStack` keeps the virtualization the bound was introduced for — at
+            // 435 models it is materially cheaper than the `List` it replaces (37 ms vs
+            // 114 ms first layout, 34 vs 94 live NSViews) — and its `HostingScrollView`
+            // takes the wheel normally.
+            ScrollView(.vertical) {
+                LazyVStack(spacing: 0) {
+                    ForEach(state.filteredModels) { model in
+                        ProviderModelListRow(
+                            model: model,
+                            isFullySupported: state.fullySupportedModelIDs.contains(model.id),
+                            isEnabled: modelEnabledBinding(
+                                modelID: model.id,
+                                enabledByModelID: state.enabledByModelID
+                            ),
+                            onEdit: { editingModel = model },
+                            onDelete: { requestDeleteModel(model) }
+                        )
+                        .padding(.vertical, JinSpacing.xSmall)
+
+                        if model.id != state.lastFilteredModelID {
+                            Divider()
+                        }
+                    }
+                }
             }
-            .listStyle(.plain)
             .frame(height: ProviderFormSupport.modelListHeight)
-            .scrollContentBackground(.hidden)
             // The grouped Section card is the only surface. A second fill/outline
             // punches a darker well through the card in dark mode.
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
+            .scrollContentBackground(.hidden)
         }
     }
 

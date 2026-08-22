@@ -22,6 +22,12 @@ extension ProviderFormSupport {
         let canKeepFullySupportedModels: Bool
         let canKeepEnabledModels: Bool
 
+        /// The rows draw their own separators (they live in a `LazyVStack`, not a
+        /// `List`) and the trailing one has to be suppressed. Stored, not computed —
+        /// this struct exists precisely because SwiftUI re-evaluates computed
+        /// properties on every read.
+        let lastFilteredModelID: String?
+
         var isEmpty: Bool { models.isEmpty }
     }
 
@@ -35,16 +41,19 @@ extension ProviderFormSupport {
         // rebuilds the set is what turned a count into an O(n^3) walk.
         let summary = modelListSummary(models: models) { fullySupportedModelIDs.contains($0) }
 
+        let filtered = filteredModels(models, searchText: searchText)
+
         return ModelListState(
             models: models,
-            filteredModels: filteredModels(models, searchText: searchText),
+            filteredModels: filtered,
             fullySupportedModelIDs: fullySupportedModelIDs,
             enabledByModelID: enabledByModelID(models),
             summary: summary,
             canKeepFullySupportedModels: summary.canKeepFullySupportedModels(
                 hasProviderType: providerType != nil
             ),
-            canKeepEnabledModels: summary.canKeepEnabledModels
+            canKeepEnabledModels: summary.canKeepEnabledModels,
+            lastFilteredModelID: filtered.last?.id
         )
     }
 
