@@ -46,7 +46,11 @@ enum ModelSettingsResolver {
         )
         let modelType = overrides?.modelType ?? inferModelType(capabilities: capabilities, modelID: lookupID)
         let reasoningCanDisable = overrides?.reasoningCanDisable
-            ?? defaultReasoningCanDisable(for: providerType, modelID: lookupID)
+            ?? defaultReasoningCanDisable(
+                for: providerType,
+                modelID: lookupID,
+                declaredEfforts: reasoningConfig?.supportedEfforts
+            )
         let supportsWebSearch = overrides?.webSearchSupported
             ?? ModelCapabilityRegistry.supportsWebSearch(for: providerType, modelID: lookupID)
         let requestShape = ModelCapabilityRegistry.requestShape(for: providerType, modelID: lookupID)
@@ -83,7 +87,11 @@ enum ModelSettingsResolver {
         return .chat
     }
 
-    static func defaultReasoningCanDisable(for providerType: ProviderType?, modelID: String) -> Bool {
+    static func defaultReasoningCanDisable(
+        for providerType: ProviderType?,
+        modelID: String,
+        declaredEfforts: [ReasoningEffort]? = nil
+    ) -> Bool {
         guard let providerType else { return true }
         if providerType == .fireworks {
             return !isFireworksAlwaysOnReasoningModel(modelID)
@@ -129,7 +137,11 @@ enum ModelSettingsResolver {
             // so derive the answer instead of maintaining a second always-on list
             // that could drift out of sync with the bands.
             return ModelCapabilityRegistry
-                .supportedReasoningEfforts(for: .router, modelID: modelID)
+                .supportedReasoningEfforts(
+                    for: .router,
+                    modelID: modelID,
+                    declaredEfforts: declaredEfforts
+                )
                 .contains(ReasoningEffort.none)
         }
         if providerType == .modal {

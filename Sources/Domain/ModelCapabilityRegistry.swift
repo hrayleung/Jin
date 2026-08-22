@@ -913,7 +913,20 @@ enum ModelCapabilityRegistry {
         return openAIStyleVerbosityModelIDs.contains(canonicalLowerModelID)
     }
 
-    static func supportedReasoningEfforts(for providerType: ProviderType?, modelID: String) -> [ReasoningEffort] {
+    /// - Parameter declaredEfforts: the band the provider itself reported for this
+    ///   model (`ModelReasoningConfig.supportedEfforts`). When present it wins
+    ///   outright: it is live truth for a model the bundled catalog may predate, and
+    ///   on providers that enforce their bands the derived ladder below would happily
+    ///   offer a value the model rejects. Callers without a model in hand pass nil.
+    static func supportedReasoningEfforts(
+        for providerType: ProviderType?,
+        modelID: String,
+        declaredEfforts: [ReasoningEffort]? = nil
+    ) -> [ReasoningEffort] {
+        if let declaredEfforts, !declaredEfforts.isEmpty {
+            return declaredEfforts
+        }
+
         let lowerModelID = modelID.lowercased()
 
         // Gateway-prefixed Gemini IDs (google/…, google-ai-studio/…, etc.) share the
@@ -1144,11 +1157,16 @@ enum ModelCapabilityRegistry {
     static func normalizedReasoningEffort(
         _ effort: ReasoningEffort,
         for providerType: ProviderType?,
-        modelID: String
+        modelID: String,
+        declaredEfforts: [ReasoningEffort]? = nil
     ) -> ReasoningEffort {
         guard effort != .none else { return .none }
 
-        let supportedEfforts = supportedReasoningEfforts(for: providerType, modelID: modelID)
+        let supportedEfforts = supportedReasoningEfforts(
+            for: providerType,
+            modelID: modelID,
+            declaredEfforts: declaredEfforts
+        )
         guard !supportedEfforts.isEmpty else { return effort }
         if supportedEfforts.contains(effort) {
             return effort

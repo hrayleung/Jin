@@ -80,7 +80,17 @@ extension RouterAdapter {
         else { return nil }
 
         let defaultEffort = reasoning.defaultEffort.flatMap(ReasoningEffort.init(rawValue:))
-        return ModelReasoningConfig(type: .effort, defaultEffort: defaultEffort)
+        // Carry the band itself, not just the default. Router enforces it — an
+        // out-of-band value is `400 Invalid reasoning effort.`, never a clamp — so a
+        // model this build's catalog predates must not fall back to the derived
+        // OpenAI ladder, which would offer `medium` to a `[medium, high, xhigh]`-less
+        // model. Unknown wire values are dropped rather than guessed at.
+        let band = efforts.compactMap { ReasoningEffort(rawValue: $0.value) }
+        return ModelReasoningConfig(
+            type: .effort,
+            defaultEffort: defaultEffort,
+            supportedEfforts: band.isEmpty ? nil : band
+        )
     }
 
     private static func bundledCatalogModels() -> [ModelInfo] {

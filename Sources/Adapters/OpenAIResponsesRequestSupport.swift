@@ -49,7 +49,8 @@ enum OpenAIResponsesRequestSupport {
         providerType: ProviderType?,
         modelID: String,
         reasoningEnabled: Bool,
-        reasoningEffort: ReasoningEffort?
+        reasoningEffort: ReasoningEffort?,
+        declaredEfforts: [ReasoningEffort]? = nil
     ) {
         // When reasoning is Off, omit the entire `reasoning` object so persisted
         // summary/mode/context cannot re-enable or alter reasoning behavior.
@@ -60,7 +61,8 @@ enum OpenAIResponsesRequestSupport {
                 reasoningDict["effort"] = mappedReasoningEffort(
                     reasoningEffort,
                     providerType: providerType,
-                    modelID: modelID
+                    modelID: modelID,
+                    declaredEfforts: declaredEfforts
                 )
             }
             if isNativeOpenAIPlatform(providerType), let summary = controls.reasoning?.summary {
@@ -193,12 +195,14 @@ enum OpenAIResponsesRequestSupport {
     static func mappedReasoningEffort(
         _ effort: ReasoningEffort,
         providerType: ProviderType?,
-        modelID: String
+        modelID: String,
+        declaredEfforts: [ReasoningEffort]? = nil
     ) -> String {
         let normalized = ModelCapabilityRegistry.normalizedReasoningEffort(
             effort,
             for: providerType,
-            modelID: modelID
+            modelID: modelID,
+            declaredEfforts: declaredEfforts
         )
 
         switch normalized {
@@ -209,8 +213,11 @@ enum OpenAIResponsesRequestSupport {
             // (and any other model whose supported band still lists `.minimal`) must send
             // the string verbatim — Meta returns HTTP 400 for unknown effort values, and
             // "low" is a different rung, not an alias.
-            return ModelCapabilityRegistry.supportedReasoningEfforts(for: providerType, modelID: modelID)
-                .contains(.minimal) ? "minimal" : "low"
+            return ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: providerType,
+                modelID: modelID,
+                declaredEfforts: declaredEfforts
+            ).contains(.minimal) ? "minimal" : "low"
         case .low:
             return "low"
         case .medium:
@@ -221,6 +228,10 @@ enum OpenAIResponsesRequestSupport {
             return "xhigh"
         case .max:
             // `max` is a real API value starting with GPT-5.6; older models reject it.
+            // A provider-reported band is authoritative over the static allowlist.
+            if let declaredEfforts, !declaredEfforts.isEmpty {
+                return declaredEfforts.contains(.max) ? "max" : "xhigh"
+            }
             return ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: providerType, modelID: modelID)
                 ? "max"
                 : "xhigh"

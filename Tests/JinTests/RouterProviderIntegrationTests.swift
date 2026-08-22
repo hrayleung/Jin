@@ -438,6 +438,156 @@ final class RouterProviderIntegrationTests: XCTestCase {
         XCTAssertTrue(model.capabilities.contains(.toolCalling))
         XCTAssertTrue(model.capabilities.contains(.reasoning))
         XCTAssertEqual(model.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(model.reasoningConfig?.supportedEfforts, [.low, .high])
+    }
+
+    /// A model newer than this build's catalog has no static band, so the registry
+    /// would otherwise hand back the derived OpenAI ladder — offering `medium` to a
+    /// `[low, high]` model, which Router answers with `400 Invalid reasoning effort.`
+    /// The band Router reported at fetch time has to win everywhere the effort is
+    /// presented, clamped, or serialized.
+    func testFetchedEffortBandOverridesTheDerivedLadder() async throws {
+        let model = try await fetchSingleModel(
+            id: "router-future-model",
+            efforts: ["low", "high"],
+            defaultEffort: "high"
+        )
+        let band = try XCTUnwrap(model.reasoningConfig?.supportedEfforts)
+
+        // Without the fetched band the registry invents low/medium/high.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .router,
+                modelID: model.id
+            ),
+            [.low, .medium, .high]
+        )
+        // With it, presentation is exact…
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .router,
+                modelID: model.id,
+                declaredEfforts: band
+            ),
+            [.low, .high]
+        )
+        // …clamping never lands on the rejected rung…
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(
+                .medium,
+                for: .router,
+                modelID: model.id,
+                declaredEfforts: band
+            ),
+            .high
+        )
+        // …and the resolver reads it straight off the fetched model.
+        let resolved = ModelSettingsResolver.resolve(model: model, providerType: .router)
+        XCTAssertEqual(resolved.reasoningConfig?.supportedEfforts, [.low, .high])
+        // `none` is absent from the band, so thinking cannot be switched off.
+        XCTAssertFalse(resolved.reasoningCanDisable)
+    }
+
+    /// The band also has to reach the wire, or the menu and the request disagree.
+    func testFetchedEffortBandDrivesTheSerializedEffort() async throws {
+        let model = try await fetchSingleModel(
+            id: "router-future-model",
+            efforts: ["low", "high"],
+            defaultEffort: "high"
+        )
+        let config = ProviderConfig(
+            id: "router",
+            name: "Ramp Router",
+            type: .router,
+            baseURL: "https://api.router.com/v1",
+            models: [model]
+        )
+
+        let (configuration, protocolType) = routerMakeMockedSessionConfiguration()
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(routerRequestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            // `.medium` is not in Router's band for this model — clamp up, don't send it.
+            XCTAssertEqual(reasoning["effort"] as? String, "high")
+            return (routerOKResponse(for: request), routerMinimalResponseBody())
+        }
+
+        let adapter = RouterAdapter(
+            providerConfig: config,
+            apiKey: "sk-routgw-test",
+            networkManager: NetworkManager(configuration: configuration)
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: model.id,
+            controls: GenerationControls(
+                maxTokens: 256,
+                reasoning: ReasoningControls(enabled: true, effort: .medium)
+            ),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    /// `ModelReasoningConfig` is persisted inside `ModelOverrides`, so the new band
+    /// field has to be additive: configs written by earlier builds carry no key.
+    func testReasoningConfigDecodesWithoutABandKey() throws {
+        let legacy = Data(#"{"type":"effort","defaultEffort":"high"}"#.utf8)
+        let decoded = try JSONDecoder().decode(ModelReasoningConfig.self, from: legacy)
+        XCTAssertEqual(decoded.type, .effort)
+        XCTAssertEqual(decoded.defaultEffort, .high)
+        XCTAssertNil(decoded.supportedEfforts)
+
+        let roundTripped = try JSONDecoder().decode(
+            ModelReasoningConfig.self,
+            from: try JSONEncoder().encode(
+                ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.low, .high])
+            )
+        )
+        XCTAssertEqual(roundTripped.supportedEfforts, [.low, .high])
+    }
+
+    /// Fetches one synthetic model through the real `/v1/models` decode path.
+    private func fetchSingleModel(
+        id: String,
+        efforts: [String],
+        defaultEffort: String
+    ) async throws -> ModelInfo {
+        let (configuration, protocolType) = routerMakeMockedSessionConfiguration()
+        protocolType.requestHandler = { request in
+            let payload: [String: Any] = [
+                "object": "list",
+                "data": [[
+                    "id": id,
+                    "object": "model",
+                    "owned_by": "openai",
+                    "router": [
+                        "display_name": id,
+                        "status": "active",
+                        "limits": ["context_window": 400_000, "max_output_tokens": 128_000],
+                        "capabilities": [
+                            "modalities": ["input": ["text"], "output": ["text"]],
+                            "tools": ["supported": true],
+                            "reasoning": [
+                                "supported": true,
+                                "efforts": efforts.map { ["value": $0] },
+                                "default_effort": defaultEffort
+                            ]
+                        ]
+                    ]
+                ]]
+            ]
+            return (routerOKResponse(for: request), try JSONSerialization.data(withJSONObject: payload))
+        }
+        let adapter = RouterAdapter(
+            providerConfig: DefaultProviderSeeds.router,
+            apiKey: "sk-routgw-test",
+            networkManager: NetworkManager(configuration: configuration)
+        )
+        let models = try await adapter.fetchAvailableModels()
+        return try XCTUnwrap(models.first)
     }
 
     func testFetchAvailableModelsFallsBackToBundledCatalog() async throws {

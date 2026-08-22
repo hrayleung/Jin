@@ -237,7 +237,10 @@ extension ChatView {
     var availableReasoningEffortLevels: [ReasoningEffort] {
         ModelCapabilityRegistry.supportedReasoningEfforts(
             for: providerType,
-            modelID: activeModelID
+            modelID: activeModelID,
+            // A band the provider reported at fetch time beats the bundled catalog:
+            // it is the only thing that is right for a model newer than this build.
+            declaredEfforts: resolvedModelSettings?.reasoningConfig?.supportedEfforts
         )
     }
 

@@ -545,7 +545,8 @@ struct ModelSettingsSheet: View {
     private var availableReasoningEffortLevels: [ReasoningEffort] {
         ModelCapabilityRegistry.supportedReasoningEfforts(
             for: providerType,
-            modelID: catalogModelID
+            modelID: catalogModelID,
+            declaredEfforts: model.reasoningConfig?.supportedEfforts
         )
     }
 
