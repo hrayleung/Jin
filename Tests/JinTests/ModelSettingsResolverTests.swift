@@ -1456,6 +1456,55 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
     }
 
+    func testResolverAppliesOxAlphaCatalogMetadataForLegacyPersistedModels() {
+        // Fetch leftovers persist conservative ModelInfo (128k, no reasoningConfig,
+        // no video). Catalog overlay must restore the verified limits and lock Off.
+        let goLegacy = ModelInfo(
+            id: "ox-alpha-free",
+            name: "ox-alpha-free",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedGo = ModelSettingsResolver.resolve(model: goLegacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedGo.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedGo.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedGo.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedGo.capabilities.contains(.videoInput))
+        XCTAssertTrue(resolvedGo.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedGo.capabilities.contains(.toolCalling))
+        XCTAssertFalse(resolvedGo.capabilities.contains(.audio))
+        XCTAssertFalse(resolvedGo.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolvedGo.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedGo.reasoningConfig?.defaultEffort, .max)
+        XCTAssertFalse(resolvedGo.reasoningCanDisable)
+
+        let openRouterLegacy = ModelInfo(
+            id: "stealth/ox-alpha",
+            name: "stealth/ox-alpha",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedOpenRouter = ModelSettingsResolver.resolve(
+            model: openRouterLegacy,
+            providerType: .openrouter
+        )
+        XCTAssertEqual(resolvedOpenRouter.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedOpenRouter.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedOpenRouter.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedOpenRouter.capabilities.contains(.videoInput))
+        XCTAssertTrue(resolvedOpenRouter.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedOpenRouter.capabilities.contains(.toolCalling))
+        XCTAssertFalse(resolvedOpenRouter.capabilities.contains(.audio))
+        XCTAssertFalse(resolvedOpenRouter.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolvedOpenRouter.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedOpenRouter.reasoningConfig?.defaultEffort, .max)
+        XCTAssertFalse(resolvedOpenRouter.reasoningCanDisable)
+    }
+
     func testResolverInfersOpenCodeGoDeepSeekV4MetadataForLegacyPersistedModels() {
         let proLegacy = ModelInfo(
             id: "deepseek-v4-pro",
