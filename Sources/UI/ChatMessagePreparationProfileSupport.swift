@@ -106,8 +106,16 @@ extension ChatMessagePreparationSupport {
             || supportsImageGenerationModel(providerType: providerTypeSnapshot, lowerModelID: lowerModelID)
         let supportsVideoGen = (resolvedModelSettings?.capabilities.contains(.videoGeneration) == true)
             || supportsVideoGenerationModel(providerType: providerTypeSnapshot, lowerModelID: lowerModelID)
-        let supportsVideoInput = resolvedModelSettings?.capabilities.contains(.videoInput) == true
         let supportsMediaGen = supportsImageGen || supportsVideoGen
+        // Must agree with `ChatView.supportsVideoInput`, which decides whether the composer
+        // shows the remote-video-URL field at all. When these two diverge the field appears
+        // and then the send throws "only supported by video-capable models".
+        let supportsVideoInput = ChatModelCapabilitySupport.supportsVideoInput(
+            resolvedModelSettings: resolvedModelSettings,
+            supportsMediaGenerationControl: supportsMediaGen,
+            providerType: providerTypeSnapshot,
+            lowerModelID: lowerModelID
+        )
         let nativePDFSupported = supportsNativePDFForThread(
             providerType: providerTypeSnapshot,
             lowerModelID: lowerModelID,

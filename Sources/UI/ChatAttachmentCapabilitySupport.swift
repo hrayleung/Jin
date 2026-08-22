@@ -159,12 +159,16 @@ extension ChatModelCapabilitySupport {
         }
 
         guard !supportsMediaGenerationControl else { return false }
-        guard providerType == .mimoTokenPlanOpenAI else { return false }
 
-        return ModelCatalog.modelInfo(
+        // Catalog fallback for any provider, not just MiMo: a model persisted before its
+        // record gained `.videoInput` carries stale capabilities, and `resolvedModelSettings`
+        // is nil on the paths that never resolved one. Keeping this MiMo-only left every
+        // other provider's video-capable models looking text/image-only in the composer.
+        guard let providerType else { return false }
+        return ModelCatalog.entry(
             for: lowerModelID,
-            provider: .mimoTokenPlanOpenAI
-        ).capabilities.contains(.videoInput)
+            provider: providerType
+        )?.capabilities.contains(.videoInput) == true
     }
 
     static func supportsImageGenerationWebSearch(

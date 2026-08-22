@@ -66,11 +66,19 @@ enum VertexAIMessageTranslation {
                 url: image.url
             )
         case .video(let video):
-            return try GeminiModelConstants.inlineDataPart(
-                mimeType: video.mimeType,
-                data: video.data,
-                url: video.url
-            )
+            if let encoded = try GoogleVideoInputSupport.videoPart(
+                video,
+                allowsGoogleCloudStorageURI: true
+            ) {
+                return encoded
+            }
+            return [
+                "text": remoteVideoNotFetchableNotice(
+                    video,
+                    providerName: "Vertex AI",
+                    acceptedSources: "an attached file, a YouTube link, or a gs:// Cloud Storage URI"
+                )
+            ]
         case .audio(let audio):
             return try GeminiModelConstants.inlineDataPart(
                 mimeType: audio.mimeType,

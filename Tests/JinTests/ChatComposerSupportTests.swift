@@ -103,12 +103,37 @@ final class ChatComposerSupportTests: XCTestCase {
 
     func testComposerHelpTextAndDurationFormatting() {
         XCTAssertEqual(
-            ChatComposerSupport.fileAttachmentHelpText(supportsAudioInput: true, supportsNativePDF: true),
+            ChatComposerSupport.fileAttachmentHelpText(
+                supportsAudioInput: true,
+                supportsVideoInput: true,
+                supportsNativePDF: true
+            ),
             "Attach images / videos / audio / documents (native PDF available)"
         )
         XCTAssertEqual(
-            ChatComposerSupport.fileAttachmentHelpText(supportsAudioInput: false, supportsNativePDF: false),
+            ChatComposerSupport.fileAttachmentHelpText(
+                supportsAudioInput: false,
+                supportsVideoInput: true,
+                supportsNativePDF: false
+            ),
             "Attach images / videos / documents (PDFs may use page images, extraction, or OCR)"
+        )
+        // A model that cannot read video must not be advertised as taking one.
+        XCTAssertEqual(
+            ChatComposerSupport.fileAttachmentHelpText(
+                supportsAudioInput: false,
+                supportsVideoInput: false,
+                supportsNativePDF: false
+            ),
+            "Attach images / documents (PDFs may use page images, extraction, or OCR; this model cannot read video)"
+        )
+        XCTAssertEqual(
+            ChatComposerSupport.fileAttachmentHelpText(
+                supportsAudioInput: true,
+                supportsVideoInput: false,
+                supportsNativePDF: true
+            ),
+            "Attach images / audio / documents (native PDF available; this model cannot read video)"
         )
         XCTAssertEqual(ChatComposerSupport.artifactsHelpText(isEnabled: true), "Artifacts enabled for new replies")
         XCTAssertEqual(ChatComposerSupport.artifactsHelpText(isEnabled: false), "Enable artifact generation for new replies")

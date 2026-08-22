@@ -2578,7 +2578,13 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
-    func testOpenCodeGoAdapterSendsVideoURLForOxAlphaFreeAndDropsItForGLM53() async throws {
+    /// Video input on OpenCode Go is per-model, and the models that *advertise* it are not
+    /// the models that *accept* it. Kimi K3 really decodes a base64 `video_url` (probed
+    /// 2026-08-22); `ox-alpha-free` answers `[1210] Invalid API parameter` for every video
+    /// shape despite models.dev listing video; GLM-5.3 is text-only. The two that cannot
+    /// take video must still tell the model an attachment was dropped — silently omitting
+    /// it is what made Ox Alpha reply "I don't see anything".
+    func testOpenCodeGoAdapterSendsVideoURLOnlyForVideoCapableModels() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
         let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
@@ -2596,7 +2602,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         protocolType.requestHandler = { request in
             let body = try XCTUnwrap(requestBodyData(request))
             let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
-            XCTAssertEqual(root["model"] as? String, "ox-alpha-free")
+            XCTAssertEqual(root["model"] as? String, "kimi-k3")
             let encodedMessages = try XCTUnwrap(root["messages"] as? [[String: Any]])
             let userContent = try XCTUnwrap(encodedMessages[0]["content"] as? [[String: Any]])
             XCTAssertEqual(userContent[0]["type"] as? String, "text")
@@ -2605,9 +2611,13 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertEqual(videoPayload["url"] as? String, mediaDataURI(mimeType: "video/mp4", data: videoData))
             XCTAssertNil(video["fps"])
             XCTAssertNil(video["media_resolution"])
+            XCTAssertFalse(
+                userContent.contains { ($0["text"] as? String)?.contains("Video attachment omitted") == true },
+                "A model that accepts video must not also be told the video was omitted"
+            )
 
             let response: [String: Any] = [
-                "id": "cmpl_opencode_ox_alpha_video",
+                "id": "cmpl_opencode_kimi_k3_video",
                 "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
             ]
             return (
@@ -2617,25 +2627,87 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         }
 
         let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
-        let oxStream = try await adapter.sendMessage(
+        let kimiStream = try await adapter.sendMessage(
             messages: messages,
-            modelID: "ox-alpha-free",
-            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            modelID: "kimi-k3",
+            controls: GenerationControls(),
             tools: [],
             streaming: false
         )
-        for try await _ in oxStream {}
+        for try await _ in kimiStream {}
+
+        for modelID in ["ox-alpha-free", "glm-5.3"] {
+            protocolType.requestHandler = { request in
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(root["model"] as? String, modelID)
+                let encodedMessages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+                let content = try XCTUnwrap(encodedMessages[0]["content"] as? String)
+                XCTAssertTrue(content.hasPrefix("describe this\n"), "\(modelID): \(content)")
+                XCTAssertTrue(
+                    content.contains("Video attachment omitted (video/mp4, 3 bytes)"),
+                    "\(modelID) must report the dropped attachment rather than swallow it: \(content)"
+                )
+                XCTAssertFalse(
+                    String(decoding: body, as: UTF8.self).contains("video_url"),
+                    "\(modelID) must not emit a video_url part"
+                )
+
+                let response: [String: Any] = [
+                    "id": "cmpl_opencode_\(modelID)_novideo",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    try JSONSerialization.data(withJSONObject: response)
+                )
+            }
+
+            let stream = try await adapter.sendMessage(
+                messages: messages,
+                modelID: modelID,
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+    }
+
+    /// The shared `OpenAICompatibleAdapter` used to hardcode video input to MiMo, so
+    /// DeepInfra's Nemotron Omni record claimed `.videoInput` while the request builder threw
+    /// the clip away. Video support is now catalog-driven for every provider behind this
+    /// adapter, and non-MiMo providers get the plain documented `video_url` part.
+    func testOpenAICompatibleAdapterSendsVideoForCatalogVideoModels() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(
+            id: "deepinfra",
+            name: "DeepInfra",
+            type: .deepinfra,
+            apiKey: "ignored",
+            baseURL: "https://api.deepinfra.com/v1/openai"
+        )
+        let videoData = Data([0x00, 0x01, 0x02])
+        let messages = [
+            Message(role: .user, content: [.text("describe this"), .video(VideoContent(mimeType: "video/mp4", data: videoData))])
+        ]
 
         protocolType.requestHandler = { request in
             let body = try XCTUnwrap(requestBodyData(request))
             let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
-            XCTAssertEqual(root["model"] as? String, "glm-5.3")
             let encodedMessages = try XCTUnwrap(root["messages"] as? [[String: Any]])
-            // GLM-5.3 is text-only on Go; video parts must not become video_url.
-            XCTAssertEqual(encodedMessages[0]["content"] as? String, "describe this")
+            let userContent = try XCTUnwrap(encodedMessages[0]["content"] as? [[String: Any]])
+            let video = try XCTUnwrap(userContent.first { ($0["type"] as? String) == "video_url" })
+            XCTAssertEqual(
+                (video["video_url"] as? [String: Any])?["url"] as? String,
+                mediaDataURI(mimeType: "video/mp4", data: videoData)
+            )
+            XCTAssertNil(video["fps"], "fps / media_resolution are MiMo-only")
+            XCTAssertNil(video["media_resolution"])
 
             let response: [String: Any] = [
-                "id": "cmpl_opencode_glm53_novideo",
+                "id": "cmpl_deepinfra_nemotron_video",
                 "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
             ]
             return (
@@ -2644,14 +2716,46 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             )
         }
 
-        let glmStream = try await adapter.sendMessage(
+        let adapter = OpenAICompatibleAdapter(
+            providerConfig: providerConfig,
+            apiKey: "test-key",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
             messages: messages,
-            modelID: "glm-5.3",
-            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            modelID: "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning",
+            controls: GenerationControls(),
             tools: [],
             streaming: false
         )
-        for try await _ in glmStream {}
+        for try await _ in stream {}
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertFalse(String(decoding: body, as: UTF8.self).contains("video_url"))
+            let encodedMessages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let content = try XCTUnwrap(encodedMessages[0]["content"] as? String)
+            XCTAssertTrue(content.contains("Video attachment omitted (video/mp4, 3 bytes)"), content)
+
+            let response: [String: Any] = [
+                "id": "cmpl_deepinfra_text_novideo",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let textOnly = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "deepseek-ai/DeepSeek-V3",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in textOnly {}
     }
 
     func testOpenCodeGoAdapterDropsProviderSpecificReasoningObject() async throws {
@@ -4000,7 +4104,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
-    func testOpenRouterAdapterSendsMaxEffortAndVideoURLForOxAlpha() async throws {
+    /// A model whose catalog record claims `.videoInput` must get both flavours of
+    /// `video_url`: local bytes inlined as a base64 data URL, and an already-remote clip
+    /// forwarded by URL. `qwen/qwen3.8-27b` was verified live on 2026-08-22.
+    func testOpenRouterAdapterSendsInlineAndRemoteVideoURLForVideoCapableModel() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
         let providerConfig = ProviderConfig(
@@ -4015,8 +4122,76 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         protocolType.requestHandler = { request in
             let body = try XCTUnwrap(requestBodyData(request))
-            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
-            let root = try XCTUnwrap(json)
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "qwen/qwen3.8-27b")
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let userContent = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
+            XCTAssertEqual(userContent[0]["type"] as? String, "text")
+            let inlineVideo = try XCTUnwrap(userContent.first {
+                ($0["type"] as? String) == "video_url"
+                    && (($0["video_url"] as? [String: Any])?["url"] as? String)?.hasPrefix("data:") == true
+            })
+            let inlinePayload = try XCTUnwrap(inlineVideo["video_url"] as? [String: Any])
+            XCTAssertEqual(inlinePayload["url"] as? String, mediaDataURI(mimeType: "video/mp4", data: videoData))
+            XCTAssertNil(inlineVideo["fps"])
+            XCTAssertNotNil(userContent.first {
+                ($0["type"] as? String) == "video_url"
+                    && (($0["video_url"] as? [String: Any])?["url"] as? String) == remoteVideo.absoluteString
+            })
+            XCTAssertFalse(
+                userContent.contains { ($0["text"] as? String)?.contains("Video attachment omitted") == true }
+            )
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_qwen38_27b_video",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("look"),
+                        .video(VideoContent(mimeType: "video/mp4", data: videoData)),
+                        .video(VideoContent(mimeType: "video/mp4", url: remoteVideo))
+                    ]
+                )
+            ],
+            modelID: "qwen/qwen3.8-27b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    /// Ox Alpha keeps its mandatory max effort, but must NOT be sent video: OpenRouter's
+    /// `input_modalities` advertises it while the upstream answers `400 Provider returned
+    /// error` for a `video_url` part (live, 2026-08-22). Each dropped clip has to surface
+    /// as its own notice so the model knows something was attached.
+    func testOpenRouterAdapterSendsMaxEffortAndOmitsVideoForOxAlpha() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+        let videoData = Data([0x00, 0x01, 0x02])
+        let remoteVideo = try XCTUnwrap(URL(string: "https://cdn.example.com/clip.mp4"))
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
             XCTAssertEqual(root["model"] as? String, "stealth/ox-alpha")
             XCTAssertNil(root["reasoning_effort"])
             XCTAssertEqual(root["include_reasoning"] as? Bool, true)
@@ -4025,15 +4200,18 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertNotEqual(reasoning["effort"] as? String, "xhigh")
             XCTAssertNil(reasoning["enabled"])
 
+            XCTAssertFalse(
+                String(decoding: body, as: UTF8.self).contains("video_url"),
+                "stealth/ox-alpha rejects video_url upstream; Jin must not send it"
+            )
             let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
-            let userContent = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
-            XCTAssertEqual(userContent[0]["type"] as? String, "text")
-            let inlineVideo = try XCTUnwrap(userContent.first { ($0["type"] as? String) == "video_url" && (($0["video_url"] as? [String: Any])?["url"] as? String)?.hasPrefix("data:") == true })
-            let inlinePayload = try XCTUnwrap(inlineVideo["video_url"] as? [String: Any])
-            XCTAssertEqual(inlinePayload["url"] as? String, mediaDataURI(mimeType: "video/mp4", data: videoData))
-            XCTAssertNil(inlineVideo["fps"])
-            let remote = try XCTUnwrap(userContent.first { ($0["type"] as? String) == "video_url" && (($0["video_url"] as? [String: Any])?["url"] as? String) == remoteVideo.absoluteString })
-            XCTAssertNotNil(remote)
+            let content = try XCTUnwrap(messages[0]["content"] as? String)
+            XCTAssertTrue(content.hasPrefix("look\n"), content)
+            XCTAssertTrue(content.contains("Video attachment omitted (video/mp4, 3 bytes)"), content)
+            XCTAssertTrue(
+                content.contains("Video attachment omitted (video/mp4, \(remoteVideo.absoluteString))"),
+                content
+            )
 
             let response: [String: Any] = [
                 "id": "cmpl_or_ox_alpha",
@@ -4104,7 +4282,9 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
-    func testOpenRouterAdapterDoesNotSendVideoURLForModelsWithoutVideoInput() async throws {
+    /// A text-only OpenRouter model must not receive `video_url`, and — the regression that
+    /// started this — must not receive a message that quietly pretends no attachment existed.
+    func testOpenRouterAdapterReplacesVideoWithNoticeForModelsWithoutVideoInput() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
         let providerConfig = ProviderConfig(
@@ -4118,14 +4298,17 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         protocolType.requestHandler = { request in
             let body = try XCTUnwrap(requestBodyData(request))
-            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
-            let root = try XCTUnwrap(json)
-            XCTAssertEqual(root["model"] as? String, "qwen/qwen3.8-27b")
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "qwen/qwen3.8-2.4t-a95b")
+            XCTAssertFalse(String(decoding: body, as: UTF8.self).contains("video_url"))
             let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
-            XCTAssertEqual(messages[0]["content"] as? String, "look")
+            XCTAssertEqual(
+                messages[0]["content"] as? String,
+                "look\nVideo attachment omitted (video/mp4, 3 bytes): the selected model does not accept video input."
+            )
 
             let response: [String: Any] = [
-                "id": "cmpl_or_qwen27_novideo",
+                "id": "cmpl_or_qwen24t_novideo",
                 "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
             ]
             let data = try JSONSerialization.data(withJSONObject: response)
@@ -4143,8 +4326,67 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                     ]
                 )
             ],
-            modelID: "qwen/qwen3.8-27b",
+            modelID: "qwen/qwen3.8-2.4t-a95b",
             controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    /// The mixed case: an image the model *can* see plus a video it cannot. The content
+    /// becomes a parts array, so the notice has to be injected there too — otherwise the
+    /// video vanishes exactly as it did on the plain-string path.
+    func testOpenRouterAdapterNoticesVideoAlongsideSupportedImage() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertFalse(String(decoding: body, as: UTF8.self).contains("video_url"))
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let userContent = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
+            XCTAssertNotNil(userContent.first { ($0["type"] as? String) == "image_url" })
+            let notice = try XCTUnwrap(userContent.first {
+                ($0["text"] as? String)?.contains("Video attachment omitted") == true
+            })
+            XCTAssertEqual(notice["type"] as? String, "text")
+            XCTAssertEqual(
+                notice["text"] as? String,
+                "Video attachment omitted (video/mp4, 3 bytes): the selected model does not accept video input."
+            )
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_mixed_media",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("look"),
+                        .image(ImageContent(mimeType: "image/png", data: Data([0x10, 0x11]))),
+                        .video(VideoContent(mimeType: "video/mp4", data: Data([0x00, 0x01, 0x02])))
+                    ]
+                )
+            ],
+            modelID: "stealth/ox-alpha",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
             tools: [],
             streaming: false
         )

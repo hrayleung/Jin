@@ -148,16 +148,47 @@ func deepMergeDictionary(into base: inout [String: Any], additional: [String: An
 
 // MARK: - Unsupported Video Input Notice
 
-func unsupportedVideoInputNotice(_ video: VideoContent, providerName: String, apiName: String = "chat API") -> String {
-    let detail: String
+/// Human-readable identifier for a video attachment, used in the omission notices.
+private func videoAttachmentDetail(_ video: VideoContent) -> String {
     if let url = video.url {
-        detail = url.isFileURL ? url.lastPathComponent : url.absoluteString
-    } else if let data = video.data {
-        detail = "\(data.count) bytes"
-    } else {
-        detail = "no media payload"
+        return url.isFileURL ? url.lastPathComponent : url.absoluteString
     }
-    return "Video attachment omitted (\(video.mimeType), \(detail)): \(providerName) \(apiName) does not support native video input in Jin yet."
+    if let data = video.data {
+        return "\(data.count) bytes"
+    }
+    return "no media payload"
+}
+
+/// Notice substituted for a `.video` part on an API surface that has no video
+/// content block at all (Anthropic Messages, OpenAI/xAI Responses, Meta).
+/// The whole *API* is the ceiling here, not the model.
+func unsupportedVideoInputNotice(_ video: VideoContent, providerName: String, apiName: String = "chat API") -> String {
+    "Video attachment omitted (\(video.mimeType), \(videoAttachmentDetail(video))): "
+        + "\(providerName) \(apiName) does not support native video input in Jin yet."
+}
+
+/// Notice substituted for a `.video` part on the OpenAI-compatible `/chat/completions`
+/// surface, where `video_url` exists as a wire shape but only some models accept it.
+///
+/// A dropped `.video` part used to be invisible: the model received the prompt text with
+/// no hint that anything was attached, so it answered "I don't see anything" and the user
+/// blamed Jin. Every caller of `splitContentParts` / `translateUserContentPartsToOpenAIFormat`
+/// now substitutes this instead of dropping the part on the floor.
+func unsupportedVideoInputNotice(_ video: VideoContent) -> String {
+    "Video attachment omitted (\(video.mimeType), \(videoAttachmentDetail(video))): "
+        + "the selected model does not accept video input."
+}
+
+/// Notice for a video the provider *could* read, but cannot reach: Google's
+/// `generateContent` fetches YouTube links itself and refuses every other remote host
+/// ("Cannot fetch content from the provided URL"). Saying so beats dropping the link.
+func remoteVideoNotFetchableNotice(
+    _ video: VideoContent,
+    providerName: String,
+    acceptedSources: String
+) -> String {
+    "Video attachment omitted (\(video.mimeType), \(videoAttachmentDetail(video))): "
+        + "\(providerName) can only read a video from \(acceptedSources)."
 }
 
 // MARK: - Request Builder Helpers

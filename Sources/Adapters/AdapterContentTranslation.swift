@@ -104,6 +104,9 @@ struct SplitContentResult {
 ///   - includeVideo: Whether to detect video as rich content (default: false).
 ///   - imageUnsupportedMessage: If non-nil, appends this message for image parts instead of
 ///     flagging as rich content. Used by text-only providers (DeepSeek, Cerebras).
+///
+/// When `includeVideo` is false a `.video` part is **not** dropped — it degrades to
+/// `unsupportedVideoInputNotice(_:)` text so the model is told an attachment existed.
 func splitContentParts(
     _ parts: [ContentPart],
     separator: String = "",
@@ -116,6 +119,7 @@ func splitContentParts(
     visibleParts.reserveCapacity(parts.count)
 
     var thinkingParts: [String] = []
+    var videoNotices: [String] = []
     var hasRichUserContent = false
 
     for part in parts {
@@ -138,9 +142,11 @@ func splitContentParts(
             if includeAudio {
                 hasRichUserContent = true
             }
-        case .video:
+        case .video(let video):
             if includeVideo {
                 hasRichUserContent = true
+            } else {
+                videoNotices.append(unsupportedVideoInputNotice(video))
             }
         case .thinking(let thinking):
             if !thinking.text.isEmpty {
@@ -151,8 +157,17 @@ func splitContentParts(
         }
     }
 
+    // Notices are appended last and always newline-delimited: most callers join with the
+    // empty separator, which would otherwise weld the notice onto the end of the user's
+    // sentence ("describe thisVideo attachment omitted…").
+    var visible = visibleParts.joined(separator: separator)
+    if !videoNotices.isEmpty {
+        let joinedNotices = videoNotices.joined(separator: "\n")
+        visible = visible.isEmpty ? joinedNotices : "\(visible)\n\(joinedNotices)"
+    }
+
     return SplitContentResult(
-        visible: visibleParts.joined(separator: separator),
+        visible: visible,
         thinking: thinkingParts.joined(),
         hasRichUserContent: hasRichUserContent
     )
@@ -162,6 +177,11 @@ func splitContentParts(
 
 /// Translates user content parts to the OpenAI multimodal content format.
 /// Used by adapters that support vision and/or audio input.
+///
+/// With no `videoPartBuilder` — or when the builder cannot resolve a payload — a `.video`
+/// part degrades to `unsupportedVideoInputNotice(_:)` text rather than disappearing.
+/// This path is reached whenever the message *also* carries supported rich content, so it
+/// must mirror the `splitContentParts` fallback exactly.
 func translateUserContentPartsToOpenAIFormat(
     _ parts: [ContentPart],
     audioPartBuilder: ((AudioContent) throws -> [String: Any]?)? = openAIInputAudioPart,
@@ -207,6 +227,11 @@ func translateUserContentPartsToOpenAIFormat(
         case .video(let video):
             if let builder = videoPartBuilder, let inputVideo = try builder(video) {
                 out.append(inputVideo)
+            } else {
+                out.append([
+                    "type": "text",
+                    "text": unsupportedVideoInputNotice(video)
+                ])
             }
 
         case .thinking, .redactedThinking:

@@ -45,8 +45,18 @@ enum OpenAIResponsesInputSupport {
         textContentPart(AttachmentPromptRenderer.fallbackText(for: file), role: role)
     }
 
-    static func unsupportedVideoContentPart(video: VideoContent, role: MessageRole) -> [String: Any] {
-        textContentPart(unsupportedVideoInputNotice(video, providerName: "OpenAI"), role: role)
+    /// `providerName` is not always "OpenAI": `OpenAIAdapter` is also the `/responses`
+    /// delegate for OpenCode Go (gpt-5.6-luna) and Ramp Router, and naming the wrong
+    /// vendor in a notice the model reads back is needlessly confusing.
+    static func unsupportedVideoContentPart(
+        video: VideoContent,
+        role: MessageRole,
+        providerName: String = "OpenAI"
+    ) -> [String: Any] {
+        textContentPart(
+            unsupportedVideoInputNotice(video, providerName: providerName, apiName: "Responses API"),
+            role: role
+        )
     }
 
     static func functionCallItem(_ call: ToolCall) -> [String: Any] {

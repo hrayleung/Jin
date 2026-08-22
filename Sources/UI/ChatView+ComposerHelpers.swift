@@ -99,6 +99,7 @@ extension ChatView {
     var fileAttachmentHelpText: String {
         ChatComposerSupport.fileAttachmentHelpText(
             supportsAudioInput: supportsAudioInput,
+            supportsVideoInput: supportsVideoInput,
             supportsNativePDF: supportsNativePDF
         )
     }

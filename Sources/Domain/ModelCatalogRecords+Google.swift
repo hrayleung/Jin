@@ -59,10 +59,24 @@ extension ModelCatalog {
 
     // Seed list verified against ai.google.dev/gemini-api/docs/models + deprecations
     // (2026-07-15). Shut-down previews stay catalog-only for legacy persisted chats.
+    //
+    // `.videoInput`: every text model here takes video. `GeminiContentTranslation` has
+    // always emitted `.video` parts as `inlineData`, so this was working while the catalog
+    // said otherwise — the missing claim only suppressed the UI affordances (remote video
+    // URL input, composer help text). Verified live 2026-08-22 against `:generateContent`
+    // with a four-segment colour clip: 3.7-flash, 3.6-flash, 3.5-flash, 3.5-flash-lite,
+    // 3.1-flash-lite, 3.1-flash-lite-preview, 3.1-pro-preview, 3-flash-preview, 2.5-pro,
+    // 2.5-flash, 2.5-flash-lite, gemma-4-31b-it and gemma-4-26b-a4b-it all returned the
+    // colours in order. The remaining IDs (gemini-3, gemini-3-pro, gemini-2.5,
+    // gemini-3-pro-preview) 404 on AI Studio — they are carried for persisted chats and
+    // claim video on Google's documented family behaviour, not a probe.
+    //
+    // Image-generation records are deliberately excluded: `supportsVideoInput` is gated off
+    // whenever a media-generation control is active, so the claim would be dead weight.
     static let geminiRecords: [Record] = [
         // Seeded — live stable / current preview IDs only
         Record(id: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro (Preview)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
@@ -87,38 +101,38 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3-flash-preview", displayName: "Gemini 3 Flash (Preview)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
         // GA 2026-08-13. Thinking is LOW/MEDIUM/HIGH — MINIMAL is rejected by the API.
         Record(id: "gemini-3.7-flash", displayName: "Gemini 3.7 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3.6-flash", displayName: "Gemini 3.6 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3.5-flash", displayName: "Gemini 3.5 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3.5-flash-lite", displayName: "Gemini 3.5 Flash-Lite",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3.1-flash-lite", displayName: "Gemini 3.1 Flash-Lite",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
@@ -134,31 +148,31 @@ extension ModelCatalog {
         // would send a filename stub. Vertex keeps `.nativePDF` for the same IDs
         // because that adapter can inline application/pdf.
         Record(id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_535,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
                isFullySupported: true, isSeeded: false),
         Record(id: "gemini-2.5", displayName: "Gemini 2.5",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
                isFullySupported: true, isSeeded: false),
         Record(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_535,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
                isFullySupported: true, isSeeded: false),
         Record(id: "gemini-2.5-flash-lite", displayName: "Gemini 2.5 Flash Lite",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_535,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
                isFullySupported: true, isSeeded: false),
         // Catalog-only — shut-down previews (still resolve for persisted model IDs)
         Record(id: "gemini-3-pro-preview", displayName: "Gemini 3 Pro (Preview, Retired)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
@@ -176,28 +190,28 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: false, isSeeded: false),
         Record(id: "gemini-3.1-flash-lite-preview", displayName: "Gemini 3.1 Flash-Lite (Preview, Retired)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: false, isSeeded: false),
         Record(id: "gemini-3", displayName: "Gemini 3",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF],
                contextWindow: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "gemini-3-pro", displayName: "Gemini 3 Pro",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: false, isSeeded: false),
         Record(id: "gemma-4-31b-it", displayName: "Gemma 4 31B",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "gemma-4-26b-a4b-it", displayName: "Gemma 4 26B A4B",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
@@ -205,10 +219,16 @@ extension ModelCatalog {
 
     // MARK: Vertex AI
 
+    // `.videoInput` mirrors `geminiRecords`: `VertexAIMessageTranslation` routes `.video`
+    // through the same `GoogleModelConstants.inlineDataPart` helper as the AI Studio
+    // adapter, so the wire shape is byte-identical to the one probed there, and Vertex
+    // documents video input for the whole Gemini line. This table is claimed on that basis
+    // (no Vertex credentials on hand to probe); if a Vertex Gemini model ever rejects
+    // `inlineData` video, drop the claim on that record rather than the whole table.
     static let vertexAIRecords: [Record] = [
         // Seeded — live stable / current preview IDs only
         Record(id: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro (Preview)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
@@ -226,44 +246,44 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3-flash-preview", displayName: "Gemini 3 Flash (Preview)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         // GA 2026-08-13. Thinking is LOW/MEDIUM/HIGH — MINIMAL is rejected by the API.
         Record(id: "gemini-3.7-flash", displayName: "Gemini 3.7 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3.6-flash", displayName: "Gemini 3.6 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3.5-flash", displayName: "Gemini 3.5 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3.5-flash-lite", displayName: "Gemini 3.5 Flash-Lite",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3.1-flash-lite", displayName: "Gemini 3.1 Flash-Lite",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_535,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
@@ -276,7 +296,7 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: true),
         // Catalog-only — shut-down previews + live non-seeded 2.5 text
         Record(id: "gemini-3-pro-preview", displayName: "Gemini 3 Pro (Preview, Retired)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
@@ -294,34 +314,34 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: false, isSeeded: false),
         Record(id: "gemini-3.1-flash-lite-preview", displayName: "Gemini 3.1 Flash-Lite (Preview, Retired)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: false, isSeeded: false),
         Record(id: "gemini-3", displayName: "Gemini 3",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF],
                contextWindow: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "gemini-3-pro", displayName: "Gemini 3 Pro",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: false, isSeeded: false),
         Record(id: "gemini-2.5", displayName: "Gemini 2.5",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF],
                contextWindow: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
                isFullySupported: true, isSeeded: false),
         Record(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_535,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
                isFullySupported: true, isSeeded: false),
         Record(id: "gemini-2.5-flash-lite", displayName: "Gemini 2.5 Flash Lite",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_535,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 2048),
@@ -330,18 +350,41 @@ extension ModelCatalog {
 
     // MARK: OpenRouter
 
+    // `.videoInput` policy for this table (and for `opencodeGoRecords`, which shares the
+    // same `openAIInputVideoPart` wire shape):
+    //
+    // OpenRouter's `architecture.input_modalities` listing `video` is NOT sufficient — it
+    // describes the model, not what this gateway's upstream will accept. `stealth/ox-alpha`
+    // advertises video and answers `400 Provider returned error` for it. Claim `.videoInput`
+    // only after a live POST of
+    // `{"type":"video_url","video_url":{"url":"data:video/mp4;base64,…"}}` (OpenRouter's
+    // documented shape, and exactly what `openAIInputVideoPart` builds) comes back
+    // describing the clip's actual frames. "200 with a plausible answer" is not enough
+    // either: probe with a synthetic clip whose ground truth you know — a model that only
+    // received the prompt will confabulate or say it sees nothing.
+    //
+    // Every `.videoInput` below was verified that way on 2026-08-22 with a four-segment
+    // red/yellow/blue/black clip. Models that are colour-approximate but clearly reading
+    // frames (they report the crossfade colours — orange/olive) count as reading.
     static let openRouterRecords: [Record] = [
         // Ox Alpha stealth preview (verified against live OpenRouter
         // GET /api/v1/model/stealth/ox-alpha + /endpoints, 2026-08-22). Single
-        // Stealth upstream. 1,048,576 context / 131,072 max output. Input is
-        // text+image+video (no audio). Tools + response_format; no structured
-        // outputs, no cached-input pricing. Reasoning is mandatory (cannot send
-        // effort "none") with supported_efforts max/high/low, default max.
-        // `.videoInput` is claimed because OpenRouterRequestSupport now emits the
-        // documented `video_url` part for this exact ID. Adapter text-fallbacks
-        // files; no native PDF / code execution / web-search plugin on this slug.
+        // Stealth upstream. 1,048,576 context / 131,072 max output. Tools +
+        // response_format; no structured outputs, no cached-input pricing.
+        // Reasoning is mandatory (cannot send effort "none") with
+        // supported_efforts max/high/low, default max.
+        //
+        // .videoInput is NOT claimed even though OpenRouter's own
+        // `architecture.input_modalities` lists `video` for this slug: a live
+        // `video_url` request (2026-08-22, base64 data URL per OpenRouter's
+        // documented shape) answers `400 Provider returned error`, while the same
+        // request with an `image_url` part answers 200. The identical upstream on
+        // OpenCode Go (`ox-alpha-free`) rejects video with `[1210] Invalid API
+        // parameter`. Modality tables lie for this model — only re-add .videoInput
+        // if a live probe returns frame content. Adapter text-fallbacks files; no
+        // native PDF / code execution / web-search plugin on this slug.
         Record(id: "stealth/ox-alpha", displayName: "Stealth: Ox Alpha",
-               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
@@ -367,11 +410,11 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
 
         // Qwen3.8-27B (OpenRouter live /models, 2026-08-14): dense VLM, 262,144 /
-        // 131,072, text+image+video. Chat translation has no video part builder, so
-        // .videoInput is not claimed. Thinking default on and disableable;
+        // 131,072, text+image+video. .videoInput verified live (see the note above
+        // openRouterRecords). Thinking default on and disableable;
         // efforts xhigh/medium/low (default xhigh). Cached-input pricing.
         Record(id: "qwen/qwen3.8-27b", displayName: "Qwen: Qwen3.8 27B",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning, .promptCaching],
                contextWindow: 262_144,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
@@ -386,9 +429,9 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
         // Alibaba Cloud Qwen3.8 Max (OpenRouter live /models, 2026-08-03). Not the
         // open-weight 2.4T checkpoint: this slug is multimodal (text+image+video)
-        // with a wider effort band including high/minimal. .videoInput not claimed.
+        // with a wider effort band including high/minimal. .videoInput verified live.
         Record(id: "qwen/qwen3.8-max", displayName: "Qwen: Qwen3.8 Max",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning, .promptCaching],
                contextWindow: 1_000_000,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
@@ -422,13 +465,13 @@ extension ModelCatalog {
         // reasoning (mandatory=true, minimal..xhigh). OpenRouter chat path still
         // text-fallbacks files — claim vision/reasoning/promptCaching only.
         Record(id: "meta/muse-spark-1.2", displayName: "Meta: Muse Spark 1.2",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "meta/muse-spark-1.1", displayName: "Meta: Muse Spark 1.1",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
@@ -564,43 +607,43 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "google/gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro (Preview)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "google/gemini-3.1-flash-lite-preview", displayName: "Gemini 3.1 Flash-Lite (Preview)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: true, isSeeded: false),
         Record(id: "google/gemini-3.1-flash-lite", displayName: "Gemini 3.1 Flash-Lite",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: true, isSeeded: false),
         Record(id: "google/gemini-3.7-flash", displayName: "Gemini 3.7 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "google/gemini-3.6-flash", displayName: "Gemini 3.6 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "google/gemini-3.5-flash", displayName: "Gemini 3.5 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "google/gemini-3.5-flash-lite", displayName: "Gemini 3.5 Flash-Lite",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
@@ -620,7 +663,7 @@ extension ModelCatalog {
         // max_completion_tokens up to the full window with a 131,072 default while
         // OpenRouter reports no provider cap, so maxOutputTokens stays conservative.
         Record(id: "moonshotai/kimi-k3", displayName: "Kimi K3",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
                reasoningConfig: nil,
@@ -638,13 +681,13 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "google/gemma-4-31b-it", displayName: "Gemma 4 31B",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 262_144,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "google/gemma-4-26b-a4b-it", displayName: "Gemma 4 26B A4B",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 262_144,
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
@@ -669,13 +712,13 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "minimax/minimax-m3", displayName: "MiniMax: MiniMax M3",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning, .promptCaching],
                contextWindow: 1048576,
                maxOutputTokens: 512000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "stepfun/step-3.7-flash", displayName: "StepFun: Step 3.7 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning, .promptCaching],
                contextWindow: 256000,
                maxOutputTokens: 256000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
@@ -731,7 +774,7 @@ extension ModelCatalog {
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
         Record(id: "perceptron/perceptron-mk1", displayName: "Perceptron: Perceptron Mk1",
-               capabilities: [.streaming, .vision, .reasoning],
+               capabilities: [.streaming, .vision, .videoInput, .reasoning],
                contextWindow: 32768,
                maxOutputTokens: 8192,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
@@ -766,7 +809,7 @@ extension ModelCatalog {
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
         Record(id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", displayName: "NVIDIA: Nemotron 3 Nano Omni (Free)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning],
                contextWindow: 256000,
                maxOutputTokens: 65536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
@@ -796,19 +839,19 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
                isFullySupported: true, isSeeded: false),
         Record(id: "~google/gemini-pro-latest", displayName: "Google: Gemini Pro (Latest)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching],
                contextWindow: 1048576,
                maxOutputTokens: 65536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "~moonshotai/kimi-latest", displayName: "MoonshotAI: Kimi (Latest)",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning, .promptCaching],
                contextWindow: 262144,
                maxOutputTokens: 262144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "~google/gemini-flash-latest", displayName: "Google: Gemini Flash (Latest)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching],
                contextWindow: 1048576,
                maxOutputTokens: 65536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
@@ -826,19 +869,19 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "qwen/qwen3.5-plus-20260420", displayName: "Qwen: Qwen3.5 Plus 2026-04-20",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 1000000,
                maxOutputTokens: 65536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "qwen/qwen3.6-flash", displayName: "Qwen: Qwen3.6 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 1000000,
                maxOutputTokens: 65536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
                isFullySupported: true, isSeeded: false),
         Record(id: "qwen/qwen3.6-35b-a3b", displayName: "Qwen: Qwen3.6 35B A3B",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 262144,
                maxOutputTokens: 262140,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
@@ -850,7 +893,7 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "qwen/qwen3.6-27b", displayName: "Qwen: Qwen3.6 27B",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 262144,
                maxOutputTokens: 262140,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
@@ -885,7 +928,7 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "xiaomi/mimo-v2.5", displayName: "Xiaomi: MiMo-V2.5",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching],
                contextWindow: 1048576,
                maxOutputTokens: 131072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
@@ -937,25 +980,25 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         Record(id: "google/gemma-4-26b-a4b-it:free", displayName: "Google: Gemma 4 26B A4B (Free)",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 262144,
                maxOutputTokens: 32768,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
                isFullySupported: true, isSeeded: false),
         Record(id: "google/gemma-4-31b-it:free", displayName: "Google: Gemma 4 31B (Free)",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 262144,
                maxOutputTokens: 32768,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
                isFullySupported: true, isSeeded: false),
         Record(id: "qwen/qwen3.6-plus", displayName: "Qwen: Qwen3.6 Plus",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
                contextWindow: 1000000,
                maxOutputTokens: 65536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "z-ai/glm-5v-turbo", displayName: "Z.ai: GLM 5V Turbo",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning, .promptCaching],
                contextWindow: 202752,
                maxOutputTokens: 131072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
@@ -973,7 +1016,7 @@ extension ModelCatalog {
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
         Record(id: "rekaai/reka-edge", displayName: "Reka AI: Reka Edge",
-               capabilities: [.streaming, .toolCalling, .vision],
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput],
                contextWindow: 16384,
                maxOutputTokens: 16384,
                reasoningConfig: nil,
@@ -1002,8 +1045,9 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .low),
                isFullySupported: true, isSeeded: false),
         // MARK: New OpenRouter models (verified against OpenRouter /models + /endpoints, 2026-07-11)
-        // Capability ceiling: the OpenRouter adapter drops video input and text-fallbacks
-        // PDFs, so these records never claim .videoInput/.nativePDF/.codeExecution.
+        // Capability ceiling: the OpenRouter adapter text-fallbacks PDFs, so these records
+        // never claim .nativePDF/.codeExecution. (.videoInput is no longer capped here —
+        // see the note above openRouterRecords for how it is verified per model.)
         // GPT-5.6 Sol/Terra/Luna (created 2026-07-09): 1.05M ctx / 128K out, efforts
         // none..max default medium; the -pro twins are the same models served with
         // OpenAI's reasoning.mode=pro at identical listed pricing.

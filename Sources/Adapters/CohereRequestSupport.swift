@@ -77,7 +77,13 @@ extension CohereAdapter {
                 segments.append(quote.quotedText)
             case .file(let file):
                 segments.append(AttachmentPromptRenderer.fallbackText(for: file))
-            case .image, .video, .audio, .thinking, .redactedThinking:
+            case .video(let video):
+                // Cohere's Chat API has no video block and this renderer flattens to plain
+                // text, so the clip cannot be sent — but it must not disappear silently
+                // either. (Images/audio keep their existing behaviour; only video was
+                // reported as "the model says it sees nothing".)
+                segments.append(unsupportedVideoInputNotice(video))
+            case .image, .audio, .thinking, .redactedThinking:
                 continue
             }
         }

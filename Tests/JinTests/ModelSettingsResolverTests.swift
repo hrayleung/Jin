@@ -1457,8 +1457,9 @@ final class ModelSettingsResolverTests: XCTestCase {
     }
 
     func testResolverAppliesOxAlphaCatalogMetadataForLegacyPersistedModels() {
-        // Fetch leftovers persist conservative ModelInfo (128k, no reasoningConfig,
-        // no video). Catalog overlay must restore the verified limits and lock Off.
+        // Fetch leftovers persist conservative ModelInfo (128k, no reasoningConfig).
+        // Catalog overlay must restore the verified limits and lock Off — and must NOT
+        // add .videoInput: both Ox Alpha slugs reject video upstream.
         let goLegacy = ModelInfo(
             id: "ox-alpha-free",
             name: "ox-alpha-free",
@@ -1471,7 +1472,7 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedGo.contextWindow, 1_000_000)
         XCTAssertEqual(resolvedGo.maxOutputTokens, 131_072)
         XCTAssertTrue(resolvedGo.capabilities.contains(.vision))
-        XCTAssertTrue(resolvedGo.capabilities.contains(.videoInput))
+        XCTAssertFalse(resolvedGo.capabilities.contains(.videoInput))
         XCTAssertTrue(resolvedGo.capabilities.contains(.reasoning))
         XCTAssertTrue(resolvedGo.capabilities.contains(.toolCalling))
         XCTAssertFalse(resolvedGo.capabilities.contains(.audio))
@@ -1495,7 +1496,7 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedOpenRouter.contextWindow, 1_048_576)
         XCTAssertEqual(resolvedOpenRouter.maxOutputTokens, 131_072)
         XCTAssertTrue(resolvedOpenRouter.capabilities.contains(.vision))
-        XCTAssertTrue(resolvedOpenRouter.capabilities.contains(.videoInput))
+        XCTAssertFalse(resolvedOpenRouter.capabilities.contains(.videoInput))
         XCTAssertTrue(resolvedOpenRouter.capabilities.contains(.reasoning))
         XCTAssertTrue(resolvedOpenRouter.capabilities.contains(.toolCalling))
         XCTAssertFalse(resolvedOpenRouter.capabilities.contains(.audio))

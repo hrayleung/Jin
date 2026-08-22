@@ -266,7 +266,8 @@ final class AdapterRequestConstructionTests: XCTestCase {
         XCTAssertEqual(oxAlpha.maxOutputTokens, 131_072)
         XCTAssertTrue(oxAlpha.capabilities.contains(.toolCalling))
         XCTAssertTrue(oxAlpha.capabilities.contains(.vision))
-        XCTAssertTrue(oxAlpha.capabilities.contains(.videoInput))
+        // Vision only: the upstream rejects a video_url part despite the modality listing.
+        XCTAssertFalse(oxAlpha.capabilities.contains(.videoInput))
         XCTAssertTrue(oxAlpha.capabilities.contains(.reasoning))
         XCTAssertFalse(oxAlpha.capabilities.contains(.audio))
         XCTAssertFalse(oxAlpha.capabilities.contains(.promptCaching))
