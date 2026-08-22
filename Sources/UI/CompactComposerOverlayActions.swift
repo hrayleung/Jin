@@ -29,22 +29,23 @@ extension CompactComposerOverlayView {
         .shortcutHint(.expandComposer)
     }
 
-    var sendButton: some View {
-        Button(action: onSend) {
-            Image(systemName: sendButtonPresentation.compactSystemImage)
+    func sendButton(canSendDraft: Bool) -> some View {
+        let presentation = sendButtonPresentation(canSendDraft: canSendDraft)
+        return Button(action: onSend) {
+            Image(systemName: presentation.compactSystemImage)
                 .resizable()
                 .symbolRenderingMode(.hierarchical)
                 .frame(width: 22, height: 22)
                 .foregroundStyle(isBusy ? Color.secondary : (canSendDraft ? Color.accentColor : .gray))
                 // Soft morph between send ↔ stop so the busy flip doesn't pop.
                 .contentTransition(.symbolEffect(.replace.downUp))
-                .animation(JinMotion.sendGlyph, value: sendButtonPresentation.compactSystemImage)
+                .animation(JinMotion.sendGlyph, value: presentation.compactSystemImage)
                 .animation(JinMotion.sendGlyph, value: isBusy)
         }
         .buttonStyle(.plain)
-        .disabled(sendButtonPresentation.isDisabled)
+        .disabled(presentation.isDisabled)
         .padding(.bottom, 2)
-        .accessibilityLabel(sendButtonPresentation.isBusy ? "Stop" : "Send")
+        .accessibilityLabel(presentation.isBusy ? "Stop" : "Send")
         .help(
             isBusy
                 ? shortcutsStore.helpText("Stop", for: .stopGenerating)
@@ -55,7 +56,7 @@ extension CompactComposerOverlayView {
             sendWithCommandEnter
                 ? AppShortcutBinding(key: .returnKey, modifiers: [.command])
                 : nil,
-            available: !isBusy && !sendButtonPresentation.isDisabled
+            available: !isBusy && !presentation.isDisabled
         )
     }
 }

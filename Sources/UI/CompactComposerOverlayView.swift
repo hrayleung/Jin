@@ -7,7 +7,11 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     @EnvironmentObject var shortcutsStore: AppShortcutsStore
 
-    @Binding var messageText: String
+    // Deliberately *not* observed here: reading `text` from this body would
+    // rebuild the whole composer (controls row + eagerly-evaluated menus) on
+    // every keystroke. The editor and send button each observe the store
+    // through their own leaf hosts instead.
+    let composerTextStore: ComposerTextStore
     @Binding var draftAttachments: [DraftAttachment]
     @Binding var draftQuotes: [DraftQuote]
     @Binding var isComposerDropTargeted: Bool
@@ -18,7 +22,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     let currentModelName: String?
     let sendWithCommandEnter: Bool
     let isBusy: Bool
-    let canSendDraft: Bool
+    let isImportingDropAttachments: Bool
     /// Value, not a `Binding` — the composer can no longer write it per
     /// keystroke; the editor popover commits through `onCommit` instead.
     let remoteVideoURLText: String
@@ -51,7 +55,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
     let controlsRow: () -> ControlsRow
 
     init(
-        messageText: Binding<String>,
+        composerTextStore: ComposerTextStore,
         draftAttachments: Binding<[DraftAttachment]>,
         draftQuotes: Binding<[DraftQuote]>,
         isComposerDropTargeted: Binding<Bool>,
@@ -61,7 +65,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         currentModelName: String? = nil,
         sendWithCommandEnter: Bool,
         isBusy: Bool,
-        canSendDraft: Bool,
+        isImportingDropAttachments: Bool,
         remoteVideoURLText: String,
         supportsRemoteVideoURLInput: Bool,
         isPreparingToSend: Bool,
@@ -91,7 +95,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         onInterceptKeyDown: ((UInt16) -> Bool)? = nil,
         @ViewBuilder controlsRow: @escaping () -> ControlsRow
     ) {
-        _messageText = messageText
+        self.composerTextStore = composerTextStore
         _draftAttachments = draftAttachments
         _draftQuotes = draftQuotes
         _isComposerDropTargeted = isComposerDropTargeted
@@ -101,7 +105,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         self.currentModelName = currentModelName
         self.sendWithCommandEnter = sendWithCommandEnter
         self.isBusy = isBusy
-        self.canSendDraft = canSendDraft
+        self.isImportingDropAttachments = isImportingDropAttachments
         self.remoteVideoURLText = remoteVideoURLText
         self.supportsRemoteVideoURLInput = supportsRemoteVideoURLInput
         self.isPreparingToSend = isPreparingToSend
@@ -136,7 +140,7 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
         supportsRemoteVideoURLInput && !remoteVideoURLText.trimmed.isEmpty
     }
 
-    var sendButtonPresentation: ComposerSendButtonPresentation {
+    func sendButtonPresentation(canSendDraft: Bool) -> ComposerSendButtonPresentation {
         ComposerSendButtonPresentation(
             usesCommandReturn: sendWithCommandEnter,
             isBusy: isBusy,

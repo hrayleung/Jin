@@ -89,7 +89,10 @@ struct ExpandedComposerControlsSection<ControlsRow: View>: View {
 }
 
 struct ExpandedComposerFooter: View {
-    let draftMetrics: ComposerDraftTextMetrics
+    /// Observed here (word/character count updates per keystroke); the footer
+    /// is a small leaf, so this keeps the per-keystroke re-render off the
+    /// overlay body and its controls row.
+    @Bindable var textStore: ComposerTextStore
     let contextUsageEstimate: ChatContextUsageEstimate?
     let currentModelName: String?
     let sendWithCommandEnter: Bool
@@ -115,7 +118,7 @@ struct ExpandedComposerFooter: View {
 
     private var statusColumn: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(draftMetrics.summaryText)
+            Text(ComposerDraftTextMetrics(messageText: textStore.text).summaryText)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .monospacedDigit()

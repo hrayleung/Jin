@@ -31,7 +31,14 @@ extension CompactComposerOverlayView {
 
             hideButton
             expandButton
-            sendButton
+            ChatComposerCanSendHost(
+                textStore: composerTextStore,
+                draftAttachments: draftAttachments,
+                draftQuotes: draftQuotes,
+                isImportingDropAttachments: isImportingDropAttachments
+            ) { canSendDraft in
+                sendButton(canSendDraft: canSendDraft)
+            }
         }
     }
 
@@ -99,20 +106,22 @@ extension CompactComposerOverlayView {
 
     @ViewBuilder
     var composerTextEditor: some View {
-        DroppableTextEditor(
-            text: $messageText,
-            isDropTargeted: $isComposerDropTargeted,
-            isFocused: $isComposerFocused,
-            placeholder: "Write a message",
-            font: NSFont.preferredFont(forTextStyle: .body),
-            useCommandEnterToSubmit: sendWithCommandEnter,
-            onDropFileURLs: onDropFileURLs,
-            onDropImages: onDropImages,
-            onSubmit: onSubmit,
-            onCancel: onCancel,
-            onContentHeightChanged: updateComposerTextContentHeight,
-            onInterceptKeyDown: onInterceptKeyDown
-        )
+        ChatComposerEditorTextHost(textStore: composerTextStore) { textBinding in
+            DroppableTextEditor(
+                text: textBinding,
+                isDropTargeted: $isComposerDropTargeted,
+                isFocused: $isComposerFocused,
+                placeholder: "Write a message",
+                font: NSFont.preferredFont(forTextStyle: .body),
+                useCommandEnterToSubmit: sendWithCommandEnter,
+                onDropFileURLs: onDropFileURLs,
+                onDropImages: onDropImages,
+                onSubmit: onSubmit,
+                onCancel: onCancel,
+                onContentHeightChanged: updateComposerTextContentHeight,
+                onInterceptKeyDown: onInterceptKeyDown
+            )
+        }
         .frame(height: composerTextContentHeight)
         .help(shortcutsStore.helpText("Message composer", for: .focusComposer))
         .shortcutHint(.focusComposer, placement: .above)

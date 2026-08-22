@@ -28,14 +28,16 @@ extension ChatView {
     }
 
     func updateSlashCommandState(for text: String, target: SlashCommandTarget) {
+        // Cheap text check first: this runs on every keystroke, and the
+        // capability guard below re-derives model settings each time.
+        if !isSlashMCPPopoverVisible, !SlashCommandDetection.mayContainActiveToken(in: text) {
+            return
+        }
+
         guard supportsMCPToolsControl, !eligibleMCPServers.isEmpty else {
             if isSlashMCPPopoverVisible {
                 isSlashMCPPopoverVisible = false
             }
-            return
-        }
-
-        if !isSlashMCPPopoverVisible, !SlashCommandDetection.mayContainActiveToken(in: text) {
             return
         }
 
