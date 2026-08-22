@@ -1325,6 +1325,20 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: true),
+        // Ox Alpha Free (limited-time; opencode.ai/docs/go + models.dev `opencode-go`,
+        // 2026-08-22). Exact ID `ox-alpha-free` on /zen/go/v1/chat/completions via
+        // @ai-sdk/openai-compatible — must stay out of `anthropicMessagesModelIDs`
+        // and `openAIResponsesModelIDs`. 1,000,000 context / 131,072 output (Go's
+        // numbers, not OpenRouter's 1,048,576). Input is text+image+video; no
+        // audio / native PDF / prompt caching. Reasoning is always-on with
+        // low/high/max (default max), same band as glm-5.3; Off is sent as `low`.
+        // Seeded after glm-5.3 so the first-launch default is unchanged.
+        Record(id: "ox-alpha-free", displayName: "Ox Alpha Free",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
         // GLM-5.2 stays on the Go line (1M / 131K, high/max effort). Seeded after 5.3
         // so the first-launch default is the current flagship.
         Record(id: "glm-5.2", displayName: "GLM-5.2",

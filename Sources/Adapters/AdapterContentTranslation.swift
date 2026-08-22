@@ -58,6 +58,27 @@ func openAIInputAudioPart(_ audio: AudioContent) throws -> [String: Any]? {
     ]
 }
 
+/// Builds the OpenAI-compatible / OpenRouter `video_url` content part.
+/// Remote HTTP(S) URLs are forwarded; local files and in-memory data become
+/// `data:<mime>;base64,...` URLs. Returns nil when neither a URL nor bytes exist.
+/// Do not add MiMo-only fields (`fps`, `media_resolution`) here.
+func openAIInputVideoPart(_ video: VideoContent) throws -> [String: Any]? {
+    let urlString: String?
+    if let url = video.url, !url.isFileURL {
+        urlString = url.absoluteString
+    } else if let payloadData = try resolveVideoData(video) {
+        urlString = mediaDataURI(mimeType: video.mimeType, data: payloadData)
+    } else {
+        urlString = nil
+    }
+    guard let urlString else { return nil }
+
+    return [
+        "type": "video_url",
+        "video_url": ["url": urlString]
+    ]
+}
+
 // MARK: - Content Splitting
 
 /// Result of splitting `[ContentPart]` into visible text, thinking text, and

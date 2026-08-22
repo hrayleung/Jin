@@ -31,6 +31,20 @@ func modelSupportsWebSearch(
 
 // MARK: - Reasoning Support Detection
 
+/// Checks whether a model supports video input based on configured model info or the catalog.
+/// Exact catalog `.videoInput` only — never inferred from a video-like modality string.
+func modelSupportsVideoInput(
+    providerConfig: ProviderConfig,
+    modelID: String
+) -> Bool {
+    if let resolved = resolvedConfiguredModelSettings(providerConfig: providerConfig, modelID: modelID) {
+        return resolved.capabilities.contains(.videoInput)
+    }
+
+    return ModelCatalog.entry(for: modelID, provider: providerConfig.type)?
+        .capabilities.contains(.videoInput) == true
+}
+
 /// Checks whether a model supports reasoning based on configured model info or capability registry.
 func modelSupportsReasoning(
     providerConfig: ProviderConfig,

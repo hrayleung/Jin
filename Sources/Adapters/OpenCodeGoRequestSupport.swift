@@ -41,7 +41,7 @@ extension OpenCodeGoAdapter {
     ) throws -> URLRequest {
         var body: [String: Any] = [
             "model": modelID,
-            "messages": try translateMessages(messages),
+            "messages": try translateMessages(messages, modelID: modelID),
             "stream": streaming
         ]
 
@@ -67,9 +67,9 @@ extension OpenCodeGoAdapter {
         // `reasoning_effort` STRING instead. These models (GLM, DeepSeek, Kimi, MiMo) reason
         // by default, so to disable we omit the field entirely rather than send an
         // unsupported value — `reasoning_content` still streams back in the response.
-        // GLM-5.3 is the exception: thinking cannot be disabled (z.ai/blog/glm-5.3), so
-        // a disabled/legacy Off control is sent as `low` rather than omitted.
-        if modelID.lowercased() == "glm-5.3" {
+        // GLM-5.3 and Ox Alpha Free cannot disable thinking, so a disabled/legacy Off
+        // control is sent as `low` rather than omitted (default max).
+        if Self.usesAlwaysOnLowHighMaxReasoningEffort(modelID) {
             let effort: ReasoningEffort
             if let reasoning = controls.reasoning, reasoning.enabled, let requested = reasoning.effort, requested != ReasoningEffort.none {
                 effort = requested
@@ -118,12 +118,31 @@ extension OpenCodeGoAdapter {
         )
     }
 
-    private func translateMessages(_ messages: [Message]) throws -> [[String: Any]] {
-        try translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
+    /// Exact IDs whose thinking cannot be turned off and whose `reasoning_effort`
+    /// band is low/high/max (default max). Off maps to `low`.
+    static func usesAlwaysOnLowHighMaxReasoningEffort(_ modelID: String) -> Bool {
+        switch modelID.lowercased() {
+        case "glm-5.3", "ox-alpha-free":
+            return true
+        default:
+            return false
+        }
     }
 
-    private func translateNonToolMessage(_ message: Message) throws -> [String: Any] {
-        let split = splitContentParts(message.content, includeImages: true, includeAudio: true)
+    private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {
+        let includeVideo = modelSupportsVideoInput(providerConfig: providerConfig, modelID: modelID)
+        return try translateMessagesToOpenAIFormat(messages) { message in
+            try translateNonToolMessage(message, includeVideo: includeVideo)
+        }
+    }
+
+    private func translateNonToolMessage(_ message: Message, includeVideo: Bool) throws -> [String: Any] {
+        let split = splitContentParts(
+            message.content,
+            includeImages: true,
+            includeAudio: true,
+            includeVideo: includeVideo
+        )
 
         var dict: [String: Any] = ["role": message.role.rawValue]
 
@@ -133,7 +152,10 @@ extension OpenCodeGoAdapter {
 
         case .user:
             if split.hasRichUserContent {
-                dict["content"] = try translateUserContentPartsToOpenAIFormat(message.content)
+                dict["content"] = try translateUserContentPartsToOpenAIFormat(
+                    message.content,
+                    videoPartBuilder: includeVideo ? openAIInputVideoPart : nil
+                )
             } else {
                 dict["content"] = split.visible
             }
@@ -163,10 +185,10 @@ extension OpenCodeGoAdapter {
 
     private func mapReasoningEffort(_ effort: ReasoningEffort, modelID: String) -> String {
         switch modelID.lowercased() {
-        case "glm-5.3":
-            // Official GLM-5.3 band is low/high/max (default max). Disabled thinking is
-            // no longer supported and maps to `low` (z.ai/blog/glm-5.3). Medium is not a
-            // valid wire value — fold it to high.
+        case "glm-5.3", "ox-alpha-free":
+            // Official band is low/high/max (default max). Disabled thinking is
+            // no longer supported and maps to `low`. Medium is not a valid wire
+            // value — fold it to high.
             switch effort {
             case .none, .minimal, .low:
                 return "low"

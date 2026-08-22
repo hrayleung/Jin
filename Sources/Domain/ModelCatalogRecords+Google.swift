@@ -331,6 +331,22 @@ extension ModelCatalog {
     // MARK: OpenRouter
 
     static let openRouterRecords: [Record] = [
+        // Ox Alpha stealth preview (verified against live OpenRouter
+        // GET /api/v1/model/stealth/ox-alpha + /endpoints, 2026-08-22). Single
+        // Stealth upstream. 1,048,576 context / 131,072 max output. Input is
+        // text+image+video (no audio). Tools + response_format; no structured
+        // outputs, no cached-input pricing. Reasoning is mandatory (cannot send
+        // effort "none") with supported_efforts max/high/low, default max.
+        // `.videoInput` is claimed because OpenRouterRequestSupport now emits the
+        // documented `video_url` part for this exact ID. Adapter text-fallbacks
+        // files; no native PDF / code execution / web-search plugin on this slug.
+        Record(id: "stealth/ox-alpha", displayName: "Stealth: Ox Alpha",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: false),
+
         // Dots Studio dots3-note preview (Xiaohongshu; verified against live OpenRouter
         // /models + /endpoints, 2026-08-15, plus HF `dots-studio/dots3-note-prev` and
         // studio.dots.ai). Only the live `:free` slug (AtlasCloud fp8) is catalogued —

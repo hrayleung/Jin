@@ -167,6 +167,31 @@ final class AdapterRequestConstructionTests: XCTestCase {
                             ],
                             "supported_parameters": ["reasoning", "reasoning_effort", "tools"],
                         ],
+                        [
+                            "id": "stealth/ox-alpha",
+                            "name": "Ox Alpha",
+                            "context_length": 1_048_576,
+                            "architecture": [
+                                "input_modalities": ["text", "image", "video"],
+                                "output_modalities": ["text"],
+                            ],
+                            "supported_parameters": [
+                                "include_reasoning",
+                                "max_tokens",
+                                "reasoning",
+                                "reasoning_effort",
+                                "response_format",
+                                "temperature",
+                                "tool_choice",
+                                "tools",
+                                "top_k",
+                                "top_p",
+                            ],
+                            "top_provider": [
+                                "context_length": 1_048_576,
+                                "max_completion_tokens": 131_072,
+                            ],
+                        ],
                     ],
                 ]
             case "https://openrouter.ai/api/v1/videos/models":
@@ -234,6 +259,19 @@ final class AdapterRequestConstructionTests: XCTestCase {
         let unknownEffort = try XCTUnwrap(byID["vendor/unknown-effort-reasoner"])
         XCTAssertEqual(unknownEffort.reasoningConfig?.type, .effort)
         XCTAssertEqual(unknownEffort.reasoningConfig?.defaultEffort, .medium)
+
+        let oxAlpha = try XCTUnwrap(byID["stealth/ox-alpha"])
+        XCTAssertEqual(oxAlpha.name, "Stealth: Ox Alpha")
+        XCTAssertEqual(oxAlpha.contextWindow, 1_048_576)
+        XCTAssertEqual(oxAlpha.maxOutputTokens, 131_072)
+        XCTAssertTrue(oxAlpha.capabilities.contains(.toolCalling))
+        XCTAssertTrue(oxAlpha.capabilities.contains(.vision))
+        XCTAssertTrue(oxAlpha.capabilities.contains(.videoInput))
+        XCTAssertTrue(oxAlpha.capabilities.contains(.reasoning))
+        XCTAssertFalse(oxAlpha.capabilities.contains(.audio))
+        XCTAssertFalse(oxAlpha.capabilities.contains(.promptCaching))
+        XCTAssertEqual(oxAlpha.reasoningConfig?.type, .effort)
+        XCTAssertEqual(oxAlpha.reasoningConfig?.defaultEffort, .max)
     }
 
     func testOpenRouterAdapterFetchModelsMergesAsyncVideoModelsIntoSelectionResults() async throws {

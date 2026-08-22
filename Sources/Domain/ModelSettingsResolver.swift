@@ -233,15 +233,17 @@ enum ModelSettingsResolver {
     /// `thinking: {"type": "disabled"}`, but the Go gateway is a strict chat/completions
     /// proxy that rejects that extra field. Omitting `reasoning_effort` therefore leaves
     /// thinking on, so the UI must not offer Off. GLM-5.3 rejects `thinking.type:
-    /// disabled` (z.ai/blog/glm-5.3); disable is converted to `low`. Muse Spark rejects
-    /// `reasoning.effort: "none"` with HTTP 400 (Meta docs); omit the field instead and
-    /// lock the Off toggle. Other GLM / Kimi / MiMo stay on the provider-wide
-    /// omit-to-disable convention.
+    /// disabled` (z.ai/blog/glm-5.3); disable is converted to `low`. Ox Alpha Free
+    /// (`ox-alpha-free`) is the same always-on low/high/max band (models.dev
+    /// `opencode-go`, 2026-08-22). Muse Spark rejects `reasoning.effort: "none"` with
+    /// HTTP 400 (Meta docs); omit the field instead and lock the Off toggle. Other
+    /// GLM / Kimi / MiMo stay on the provider-wide omit-to-disable convention.
     private static let opencodeGoAlwaysOnReasoningModelIDs: Set<String> = [
         "grok-4.5",
         "deepseek-v4-pro",
         "deepseek-v4-flash",
         "glm-5.3",
+        "ox-alpha-free",
         "muse-spark-1.2",
         "muse-spark-1.2-contributor",
     ]
@@ -267,6 +269,7 @@ enum ModelSettingsResolver {
         "meta/muse-spark-1.2",
         "qwen/qwen3.8-2.4t-a95b",
         "qwen/qwen3.8-max",
+        "stealth/ox-alpha",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /
