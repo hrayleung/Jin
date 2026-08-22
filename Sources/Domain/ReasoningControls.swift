@@ -168,15 +168,26 @@ struct ModelReasoningConfig: Codable, Equatable {
     let type: ReasoningConfigType
     let defaultEffort: ReasoningEffort?
     let defaultBudget: Int?
+    /// The exact effort band the provider reported for this model at fetch time,
+    /// when it publishes one. Providers whose bands are enforced rather than clamped
+    /// (Router returns `400 Invalid reasoning effort.`) need this for models that
+    /// postdate the bundled catalog: without it the effort menu falls back to the
+    /// derived OpenAI ladder and can offer a value the model rejects.
+    ///
+    /// `nil` means "no live band, use `ModelCapabilityRegistry`" — the normal case.
+    /// Optional so previously persisted `ModelOverrides` still decode.
+    let supportedEfforts: [ReasoningEffort]?
 
     init(
         type: ReasoningConfigType,
         defaultEffort: ReasoningEffort? = nil,
-        defaultBudget: Int? = nil
+        defaultBudget: Int? = nil,
+        supportedEfforts: [ReasoningEffort]? = nil
     ) {
         self.type = type
         self.defaultEffort = defaultEffort
         self.defaultBudget = defaultBudget
+        self.supportedEfforts = supportedEfforts
     }
 }
 

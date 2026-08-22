@@ -102,7 +102,7 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                 }
             } else {
                 switch providerType {
-                case .openai, .openaiWebSocket:
+                case .openai, .openaiWebSocket, .router:
                     Divider()
                     ForEach(WebSearchContextSize.allCases, id: \.self) { size in
                         Button {

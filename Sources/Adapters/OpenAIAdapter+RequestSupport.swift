@@ -15,7 +15,8 @@ extension OpenAIAdapter {
         let reasoningEnabled = (reasoningEffort ?? .none) != .none
         let supportsSamplingParameters = supportsOpenAIResponsesSamplingParameters(
             modelID: modelID,
-            reasoningEnabled: reasoningEnabled
+            reasoningEnabled: reasoningEnabled,
+            providerType: providerConfig.type
         )
         let webSearchEnabled = controls.webSearch?.enabled == true && supportsWebSearch(modelID)
 
@@ -44,7 +45,21 @@ extension OpenAIAdapter {
             body.removeValue(forKey: "top_p")
         }
         if let maxTokens = controls.maxTokens {
-            body["max_output_tokens"] = maxTokens
+            // Router's Anthropic-routed models reject a ceiling that leaves no room for
+            // the thinking budget, so raise it to the documented minimum rather than
+            // letting the send 400. No-op for every other provider and model.
+            if RouterRequestSupport.requiresAnthropicThinkingHeadroom(
+                providerType: providerConfig.type,
+                modelID: modelID,
+                reasoningEnabled: reasoningEnabled
+            ) {
+                body["max_output_tokens"] = max(
+                    maxTokens,
+                    RouterRequestSupport.minimumMaxOutputTokensWithReasoning
+                )
+            } else {
+                body["max_output_tokens"] = maxTokens
+            }
         }
         if usesNativeOpenAIPlatform, let serviceTier = resolvedOpenAIServiceTier(from: controls) {
             body["service_tier"] = serviceTier
@@ -55,7 +70,11 @@ extension OpenAIAdapter {
             providerType: providerConfig.type,
             modelID: modelID,
             reasoningEnabled: reasoningEnabled,
-            reasoningEffort: reasoningEffort
+            reasoningEffort: reasoningEffort,
+            // Gateways that publish a per-model effort band and enforce it (Router)
+            // record it on the model at fetch time. Prefer it over the static
+            // allowlists, which cannot know a model newer than this build.
+            declaredEfforts: declaredReasoningEfforts(for: modelID)
         )
 
         let functionTools = tools.isEmpty ? [] : (translateTools(tools) as? [[String: Any]] ?? [])
@@ -94,6 +113,16 @@ extension OpenAIAdapter {
     /// also used as a delegate for gateways that expose the Responses API on their own host
     /// (OpenCode Go's `/zen/go/v1/responses`), where OpenAI-platform-only wire fields are
     /// rejected as unknown input.
+    /// The effort band the provider reported for this model when its catalog was
+    /// fetched, if any. Nil for every model whose band is only known statically —
+    /// which is the whole bundled catalog, so this is a no-op on the OpenAI path.
+    func declaredReasoningEfforts(for modelID: String) -> [ReasoningEffort]? {
+        providerConfig.models
+            .first { $0.id == modelID }?
+            .reasoningConfig?
+            .supportedEfforts
+    }
+
     var usesNativeOpenAIPlatform: Bool {
         providerConfig.type == .openai || providerConfig.type == .openaiWebSocket
     }

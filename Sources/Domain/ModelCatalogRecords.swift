@@ -50,6 +50,7 @@ extension ModelCatalog {
         .modal: modalRecords,
         .morphllm: morphLLMRecords,
         .opencodeGo: opencodeGoRecords,
+        .router: routerRecords,
         .gemini: geminiRecords,
         .vertexai: vertexAIRecords,
         .openrouter: openRouterRecords,

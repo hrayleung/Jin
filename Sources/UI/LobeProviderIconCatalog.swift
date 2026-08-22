@@ -203,6 +203,10 @@ enum LobeProviderIconCatalog {
         LobeProviderIcon(id: "Qiniu", docsSlug: "qiniu", filename: "qiniu.svg"),
         LobeProviderIcon(id: "Qwen", docsSlug: "qwen", filename: "qwen.svg"),
         LobeProviderIcon(id: "Replicate", docsSlug: "replicate", filename: "replicate.svg"),
+        // Not a Lobe icon — Ramp's Router has no lobe-icons entry, so the bundled PNGs
+        // are rendered from Ramp's own mark (router.com/icon.svg), monochrome to match
+        // the rest of the set (black on light, white on dark).
+        LobeProviderIcon(id: "Router", docsSlug: "router", filename: "router.svg"),
         LobeProviderIcon(id: "Rwkv", docsSlug: "rwkv", filename: "rwkv.svg"),
         LobeProviderIcon(id: "SambaNova", docsSlug: "samba-nova", filename: "sambanova.svg"),
         LobeProviderIcon(id: "Search1API", docsSlug: "search1-api", filename: "search1api.svg"),
@@ -317,6 +321,8 @@ enum LobeProviderIconCatalog {
             return "Morph"
         case .opencodeGo:
             return "OpenCode"
+        case .router:
+            return "Router"
         case .gemini:
             return "AiStudio"
         case .vertexai:

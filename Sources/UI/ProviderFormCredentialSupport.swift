@@ -21,7 +21,7 @@ extension ProviderFormSupport {
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .xai,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .gemini, .zyphra, .meta, .kimiForCoding:
+             .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .router, .gemini, .zyphra, .meta, .kimiForCoding:
             return .apiKey
         case .modal:
             return .proxyTokenPair
@@ -96,6 +96,8 @@ extension ProviderFormSupport {
             return "Uses GitHub Models at `https://models.github.ai/inference`. Configure a GitHub token with GitHub Models access."
         case .meta:
             return "Meta Model API at `https://api.meta.ai/v1` (Bearer key from Meta AI developer console). Seeded models: `muse-spark-1.2` (default), `muse-spark-1.1`, and `muse-spark-1.2-contributor` (discounted training-consent tier). Jin uses the Responses API for multimodal input, tools, and web search. Reasoning is always-on (minimal…xhigh)."
+        case .router:
+            return "Ramp Router at `https://api.router.com/v1` (key from app.router.com/keys — keep the `/v1`). Router is Responses-only: Jin sends every model to `POST /v1/responses`; there is no Chat Completions endpoint. Model IDs are account-scoped and are *not* the labels in Router's docs table — use Fetch Models, which reads Router's per-model limits, input modalities, and reasoning bands directly. Anthropic models are `claude-…`, Fireworks-hosted open models are `accounts/fireworks/…`. Web search is available on the OpenAI-served models. Router has no file-upload API, so PDFs are sent as extracted text."
         case .opencodeGo:
             return "OpenCode Go at `https://opencode.ai/zen/go/v1` (Zen API key from the OpenCode console). Jin follows OpenCode's per-model endpoint table: Claude, MiniMax, and Qwen use `/messages`; GPT-5.6 Luna and Muse Spark (`muse-spark-1.2`, `muse-spark-1.2-contributor`) use `/responses`; other models use `/chat/completions`. Contributor-tier prompts and completions may be used to train Meta models."
         default:

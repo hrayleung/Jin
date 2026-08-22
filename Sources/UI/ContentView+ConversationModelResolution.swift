@@ -209,6 +209,7 @@ extension ContentView {
         "baseten": "moonshotai/Kimi-K3",
         "modal": "moonshotai/Kimi-K3",
         "opencode-go": "glm-5.3",
+        "router": "claude-opus-5",
         "cerebras": "qwen-3-235b-a22b-instruct-2507",
         "sambanova": "MiniMax-M2.5",
         "databricks": "databricks-claude-sonnet-4-6",

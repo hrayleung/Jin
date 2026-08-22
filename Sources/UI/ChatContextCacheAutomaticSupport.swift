@@ -47,9 +47,12 @@ extension ChatAuxiliaryControlSupport {
             return ContextCacheControls(mode: .implicit)
         case .cloudflareAIGateway:
             return ContextCacheControls(mode: .implicit, ttl: .minutes5)
+        // Router passes provider cache controls through rather than owning a cache, and
+        // exposes no cache resource of its own — the upstream's implicit caching still
+        // applies without Jin sending anything.
         case .githubCopilot, .openaiCompatible, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
              .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks,
-             .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra:
+             .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .router, .zyphra:
             return nil
         }
     }

@@ -46,7 +46,11 @@ enum ModelSettingsResolver {
         )
         let modelType = overrides?.modelType ?? inferModelType(capabilities: capabilities, modelID: lookupID)
         let reasoningCanDisable = overrides?.reasoningCanDisable
-            ?? defaultReasoningCanDisable(for: providerType, modelID: lookupID)
+            ?? defaultReasoningCanDisable(
+                for: providerType,
+                modelID: lookupID,
+                declaredEfforts: reasoningConfig?.supportedEfforts
+            )
         let supportsWebSearch = overrides?.webSearchSupported
             ?? ModelCapabilityRegistry.supportsWebSearch(for: providerType, modelID: lookupID)
         let requestShape = ModelCapabilityRegistry.requestShape(for: providerType, modelID: lookupID)
@@ -83,7 +87,11 @@ enum ModelSettingsResolver {
         return .chat
     }
 
-    static func defaultReasoningCanDisable(for providerType: ProviderType?, modelID: String) -> Bool {
+    static func defaultReasoningCanDisable(
+        for providerType: ProviderType?,
+        modelID: String,
+        declaredEfforts: [ReasoningEffort]? = nil
+    ) -> Bool {
         guard let providerType else { return true }
         if providerType == .fireworks {
             return !isFireworksAlwaysOnReasoningModel(modelID)
@@ -122,6 +130,19 @@ enum ModelSettingsResolver {
             // requests without thinking are silently routed to K2.6). K3 keeps its
             // reasoningConfig nil so this default is moot for it.
             return !kimiForCodingAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
+        if providerType == .router {
+            // Router publishes an exact effort band per model and rejects anything
+            // outside it. A band without `none` means thinking cannot be turned off,
+            // so derive the answer instead of maintaining a second always-on list
+            // that could drift out of sync with the bands.
+            return ModelCapabilityRegistry
+                .supportedReasoningEfforts(
+                    for: .router,
+                    modelID: modelID,
+                    declaredEfforts: declaredEfforts
+                )
+                .contains(ReasoningEffort.none)
         }
         if providerType == .modal {
             // Qwen3.8-2.4T-A95B requires thinking on every turn (HF card + Modal

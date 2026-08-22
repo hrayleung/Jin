@@ -592,6 +592,130 @@ enum ModelCapabilityRegistry {
     private static let basetenMercury2ReasoningEffortModelIDs: Set<String> = [
         "inception/mercury-2",
     ]
+
+    // MARK: Router (Ramp) effort bands
+    //
+    // Transcribed from `GET https://api.router.com/v1/models` on 2026-08-22, where
+    // each model carries an exact `capabilities.reasoning.efforts` array. Router
+    // ENFORCES these — an out-of-band value returns `400 Invalid reasoning effort.`
+    // rather than being clamped, so a wrong band is a broken send, not a cosmetic
+    // menu bug. Router also re-labels upstream models, so these IDs deliberately do
+    // not match any other provider's (`claude-opus-5`, not `claude-opus-5-20260115`;
+    // `accounts/fireworks/models/kimi-k3`, not `moonshotai/kimi-k3`).
+
+    /// Router band `none, minimal, low, medium, high, xhigh, max`.
+    private static let routerFullLadderEffortModelIDs: Set<String> = [
+        "accounts/fireworks/models/deepseek-v4-flash",
+        "accounts/fireworks/models/deepseek-v4-flash-0731",
+        "accounts/fireworks/models/deepseek-v4-pro",
+        "accounts/fireworks/models/deepseek-v4-pro-0813",
+        "accounts/fireworks/models/glm-5p2",
+        "accounts/fireworks/routers/glm-5p2-fast",
+        "claude-opus-4-6",
+        "claude-opus-4-7",
+        "claude-opus-4-8",
+        "claude-opus-5",
+        "claude-sonnet-4-6",
+        "claude-sonnet-5",
+        "grok-4.20-multi-agent-0309",
+    ]
+    /// Router band `none, minimal, low, medium, high, xhigh`.
+    private static let routerNoneToExtremeEffortModelIDs: Set<String> = [
+        "accounts/fireworks/models/gpt-oss-20b",
+        "accounts/fireworks/models/kimi-k2p6",
+        "accounts/fireworks/models/kimi-k2p7-code",
+        "accounts/fireworks/models/minimax-m2p7",
+        "accounts/fireworks/models/minimax-m3",
+        "accounts/fireworks/models/nemotron-3-ultra-nvfp4",
+        "accounts/fireworks/models/qwen3p7-plus",
+        "accounts/fireworks/models/qwen3p8-max",
+        "accounts/fireworks/routers/kimi-k2p6-turbo",
+        "accounts/fireworks/routers/kimi-k2p7-code-fast",
+        "claude-haiku-4-5",
+        "grok-4.3",
+    ]
+    /// Router band `minimal, low, medium, high, xhigh, max`.
+    private static let routerMinimalToMaxEffortModelIDs: Set<String> = [
+        "accounts/fireworks/models/kimi-k3",
+        "accounts/fireworks/routers/kimi-k3-fast",
+        "claude-fable-5",
+    ]
+    /// Router band `minimal, low, medium, high, xhigh`.
+    private static let routerMinimalToExtremeEffortModelIDs: Set<String> = [
+        "accounts/fireworks/models/gpt-oss-120b",
+        "grok-4.5",
+        "grok-4.6",
+    ]
+    /// Router band `none, low, medium, high, xhigh, max` (GPT-5.6 family).
+    private static let routerNoneLowToMaxEffortModelIDs: Set<String> = [
+        "gpt-5.6-luna",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+    ]
+    /// Router band `none, low, medium, high, xhigh`. Note Router drops `minimal`
+    /// on these, unlike OpenAI's own GPT-5.4/5.5 ladder.
+    private static let routerNoneLowToExtremeEffortModelIDs: Set<String> = [
+        "gpt-5.2",
+        "gpt-5.3-codex",
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "gpt-5.4-nano",
+        "gpt-5.5",
+    ]
+    /// Router band `medium, high, xhigh` (Pro models — no low, no off).
+    private static let routerMediumToExtremeEffortModelIDs: Set<String> = [
+        "gpt-5.2-pro",
+        "gpt-5.4-pro",
+        "gpt-5.5-pro",
+    ]
+    /// Router band `none, low, medium, high`.
+    private static let routerNoneLowToHighEffortModelIDs: Set<String> = [
+        "gpt-5.1",
+    ]
+    /// Router band `minimal, low, medium, high`.
+    private static let routerMinimalToHighEffortModelIDs: Set<String> = [
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
+    ]
+    /// Router band `high` only.
+    private static let routerHighOnlyEffortModelIDs: Set<String> = [
+        "gpt-5-pro",
+    ]
+    /// Router band `low, medium, high`.
+    private static let routerLowToHighEffortModelIDs: Set<String> = [
+        "o3",
+        "o3-pro",
+    ]
+    /// Every Router model whose band includes `max`. Kept as one flat set so
+    /// `supportsOpenAIStyleMaxEffort` can answer without recursing into
+    /// `supportedReasoningEfforts`.
+    private static let routerMaxEffortModelIDs: Set<String> =
+        routerFullLadderEffortModelIDs
+            .union(routerMinimalToMaxEffortModelIDs)
+            .union(routerNoneLowToMaxEffortModelIDs)
+    /// Router models accepting Responses `text.verbosity` — `/v1/models` reports
+    /// `verbosity.supported: true` for exactly the GPT-5 family (verified accepted
+    /// on gpt-5.4, 2026-08-22).
+    private static let routerVerbosityModelIDs: Set<String> = [
+        "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-pro",
+        "gpt-5.1", "gpt-5.2", "gpt-5.2-pro", "gpt-5.3-codex",
+        "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro",
+        "gpt-5.5", "gpt-5.5-pro",
+        "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra",
+    ]
+    /// Router models that reach OpenAI's hosted web search. Router's capability
+    /// table lists basic web search as OpenAI-only; the Fireworks-served
+    /// `gpt-oss-*` share the naming but not the backend, so they are excluded.
+    private static let routerWebSearchModelIDs: Set<String> = [
+        "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini",
+        "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-pro",
+        "gpt-5.1", "gpt-5.2", "gpt-5.2-pro", "gpt-5.3-codex",
+        "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro",
+        "gpt-5.5", "gpt-5.5-pro",
+        "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra",
+        "o3", "o3-pro",
+    ]
     private static let xAIMultiAgentReasoningEffortModelIDs: Set<String> = [
         "grok-4.20-multi-agent",
         "grok-4.20-multi-agent-0309",
@@ -650,7 +774,8 @@ enum ModelCapabilityRegistry {
 
     static func requestShape(for providerType: ProviderType?, modelID _: String) -> ModelRequestShape {
         switch providerType {
-        case .openai, .openaiWebSocket:
+        case .openai, .openaiWebSocket, .router:
+            // Router is Responses-only — `POST /v1/chat/completions` 404s there.
             return .openAIResponses
         case .anthropic, .claudeManagedAgents, .mimoTokenPlanAnthropic, .kimiForCoding:
             return .anthropic
@@ -735,6 +860,12 @@ enum ModelCapabilityRegistry {
                 || modalInklingReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
             }
+        case .router:
+            // Early return, not a fall-through `if`: Router relabels OpenAI models
+            // under their bare public names, so the generic tail below would grant
+            // `max` to any Router ID that happens to collide with the GPT-5.6 set —
+            // and would never be able to deny it for Router IDs that lack the band.
+            return routerMaxEffortModelIDs.contains(lowerModelID)
         default:
             break
         }
@@ -783,6 +914,10 @@ enum ModelCapabilityRegistry {
         switch providerType {
         case .openai, .openaiWebSocket, .none:
             break
+        case .router:
+            // Router's own /v1/models reports verbosity.supported for exactly the
+            // GPT-5 family; verified accepted on gpt-5.4 (2026-08-22).
+            return routerVerbosityModelIDs.contains(modelID.lowercased())
         default:
             return false
         }
@@ -790,7 +925,20 @@ enum ModelCapabilityRegistry {
         return openAIStyleVerbosityModelIDs.contains(canonicalLowerModelID)
     }
 
-    static func supportedReasoningEfforts(for providerType: ProviderType?, modelID: String) -> [ReasoningEffort] {
+    /// - Parameter declaredEfforts: the band the provider itself reported for this
+    ///   model (`ModelReasoningConfig.supportedEfforts`). When present it wins
+    ///   outright: it is live truth for a model the bundled catalog may predate, and
+    ///   on providers that enforce their bands the derived ladder below would happily
+    ///   offer a value the model rejects. Callers without a model in hand pass nil.
+    static func supportedReasoningEfforts(
+        for providerType: ProviderType?,
+        modelID: String,
+        declaredEfforts: [ReasoningEffort]? = nil
+    ) -> [ReasoningEffort] {
+        if let declaredEfforts, !declaredEfforts.isEmpty {
+            return declaredEfforts
+        }
+
         let lowerModelID = modelID.lowercased()
 
         // Gateway-prefixed Gemini IDs (google/…, google-ai-studio/…, etc.) share the
@@ -925,6 +1073,31 @@ enum ModelCapabilityRegistry {
             // Muse Spark accepts minimal..xhigh ("none" returns HTTP 400 and is handled
             // by omitting the field; "max" is not accepted).
             return [.minimal, .low, .medium, .high, .xhigh]
+        // Router bands are enforced by the gateway (`400 Invalid reasoning effort.`),
+        // so every band it publishes gets an explicit arm rather than falling through
+        // to the derived OpenAI ladder below.
+        case .router where routerFullLadderEffortModelIDs.contains(lowerModelID):
+            return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
+        case .router where routerNoneToExtremeEffortModelIDs.contains(lowerModelID):
+            return [.none, .minimal, .low, .medium, .high, .xhigh]
+        case .router where routerMinimalToMaxEffortModelIDs.contains(lowerModelID):
+            return [.minimal, .low, .medium, .high, .xhigh, .max]
+        case .router where routerMinimalToExtremeEffortModelIDs.contains(lowerModelID):
+            return [.minimal, .low, .medium, .high, .xhigh]
+        case .router where routerNoneLowToMaxEffortModelIDs.contains(lowerModelID):
+            return [.none, .low, .medium, .high, .xhigh, .max]
+        case .router where routerNoneLowToExtremeEffortModelIDs.contains(lowerModelID):
+            return [.none, .low, .medium, .high, .xhigh]
+        case .router where routerMediumToExtremeEffortModelIDs.contains(lowerModelID):
+            return [.medium, .high, .xhigh]
+        case .router where routerNoneLowToHighEffortModelIDs.contains(lowerModelID):
+            return [.none, .low, .medium, .high]
+        case .router where routerMinimalToHighEffortModelIDs.contains(lowerModelID):
+            return [.minimal, .low, .medium, .high]
+        case .router where routerHighOnlyEffortModelIDs.contains(lowerModelID):
+            return [.high]
+        case .router where routerLowToHighEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high]
         default:
             break
         }
@@ -1000,11 +1173,16 @@ enum ModelCapabilityRegistry {
     static func normalizedReasoningEffort(
         _ effort: ReasoningEffort,
         for providerType: ProviderType?,
-        modelID: String
+        modelID: String,
+        declaredEfforts: [ReasoningEffort]? = nil
     ) -> ReasoningEffort {
         guard effort != .none else { return .none }
 
-        let supportedEfforts = supportedReasoningEfforts(for: providerType, modelID: modelID)
+        let supportedEfforts = supportedReasoningEfforts(
+            for: providerType,
+            modelID: modelID,
+            declaredEfforts: declaredEfforts
+        )
         guard !supportedEfforts.isEmpty else { return effort }
         if supportedEfforts.contains(effort) {
             return effort
@@ -1068,6 +1246,12 @@ enum ModelCapabilityRegistry {
             return MiMoModelIDs.tokenPlanExactModelIDs.contains(lowerModelID)
         case .meta:
             return isMetaMuseSparkModelID(lowerModelID)
+        case .router:
+            // Router's capability table lists basic web search as OpenAI-only, and the
+            // `{"type":"web_search"}` tool comes back fully populated on gpt-5.4-mini
+            // (verified 2026-08-22). Fireworks-served `gpt-oss-*` share the naming but
+            // not the backend, so the allowlist is by exact ID.
+            return routerWebSearchModelIDs.contains(lowerModelID)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .zyphra, .kimiForCoding, .none:
@@ -1326,7 +1510,7 @@ enum ModelCapabilityRegistry {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .baseten,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm,
-             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .router, .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
     }
@@ -1359,7 +1543,7 @@ enum ModelCapabilityRegistry {
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo,
-             .zyphra, .meta, .kimiForCoding, .none:
+             .router, .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
     }
