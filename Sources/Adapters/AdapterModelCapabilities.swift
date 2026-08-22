@@ -299,7 +299,23 @@ private let openAIResponsesSamplingAllowedModelIDs: Set<String> = [
     "gpt-5.1",
 ]
 
-func supportsOpenAIResponsesSamplingParameters(modelID: String, reasoningEnabled: Bool) -> Bool {
+func supportsOpenAIResponsesSamplingParameters(
+    modelID: String,
+    reasoningEnabled: Bool,
+    providerType: ProviderType? = nil
+) -> Bool {
+    // Router relays one Responses payload to whichever upstream serves the model, so
+    // Anthropic's own rule leaks through: "`temperature` may only be set to 1 when
+    // thinking is enabled." That is invisible from the model ID's shape alone, hence
+    // the provider hint (verified against the live gateway 2026-08-22).
+    if RouterRequestSupport.suppressesSamplingParameters(
+        providerType: providerType,
+        modelID: modelID,
+        reasoningEnabled: reasoningEnabled
+    ) {
+        return false
+    }
+
     let lower = modelID.lowercased()
     let canonical: String
     if lower.hasPrefix("openai/") {

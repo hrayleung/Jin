@@ -18,7 +18,7 @@ extension ChatModelCapabilitySupport {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .anthropic, .claudeManagedAgents, .perplexity,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
+             .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .router, .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
     }
@@ -140,8 +140,10 @@ extension ChatModelCapabilitySupport {
             return resolvedModelSettings?.capabilities.contains(.audio) == true
         case .fireworks:
             return fireworksAudioInputModelIDs.contains(lowerModelID)
+        // Router: every model in its live catalog reports `modalities.input` as
+        // text (+image) only — no audio anywhere in the fleet.
         case .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .xai, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
+             .mimoTokenPlanAnthropic, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .router, .zyphra, .meta, .kimiForCoding, .none:
             return false
         }
     }

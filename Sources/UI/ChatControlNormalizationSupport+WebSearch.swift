@@ -21,7 +21,10 @@ extension ChatControlNormalizationSupport {
         guard enabled else { return WebSearchControls(enabled: false) }
 
         switch providerType {
-        case .openai, .openaiWebSocket:
+        // Router relays OpenAI's hosted web_search tool verbatim — it echoes back a
+        // fully populated `search_context_size` (verified 2026-08-22) and has no
+        // notion of xAI-style sources.
+        case .openai, .openaiWebSocket, .router:
             return WebSearchControls(enabled: true, contextSize: .medium, sources: nil)
         case .perplexity:
             return WebSearchControls(enabled: true, contextSize: nil, sources: nil)
@@ -45,7 +48,7 @@ extension ChatControlNormalizationSupport {
     ) {
         guard controls.webSearch?.enabled == true else { return }
         switch providerType {
-        case .openai, .openaiWebSocket:
+        case .openai, .openaiWebSocket, .router:
             controls.webSearch?.sources = nil
             if controls.webSearch?.contextSize == nil {
                 controls.webSearch?.contextSize = .medium

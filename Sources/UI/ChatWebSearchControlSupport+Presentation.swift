@@ -33,7 +33,7 @@ extension ChatAuxiliaryControlSupport {
         }
 
         switch providerType {
-        case .openai, .openaiWebSocket:
+        case .openai, .openaiWebSocket, .router:
             return (controls.webSearch?.contextSize ?? .medium).displayName
         case .perplexity:
             return (controls.webSearch?.contextSize ?? .low).displayName
@@ -70,7 +70,7 @@ extension ChatAuxiliaryControlSupport {
         }
 
         switch providerType {
-        case .openai, .openaiWebSocket:
+        case .openai, .openaiWebSocket, .router:
             switch controls.webSearch?.contextSize ?? .medium {
             case .low: return "L"
             case .medium: return "M"

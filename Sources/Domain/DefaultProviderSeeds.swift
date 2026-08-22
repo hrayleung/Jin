@@ -38,6 +38,7 @@ enum DefaultProviderSeeds {
             modal,
             morphLLM,
             opencodeGo,
+            router,
             gemini,
             vertexAI,
             zyphra,
@@ -310,6 +311,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .fireworks),
             baseURL: ProviderType.fireworks.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .fireworks)
+        )
+    }
+
+    static var router: ProviderConfig {
+        ProviderConfig(
+            id: "router",
+            name: "Ramp Router",
+            type: .router,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .router),
+            baseURL: ProviderType.router.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .router)
         )
     }
 

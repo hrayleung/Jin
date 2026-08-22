@@ -58,13 +58,13 @@ Resources/    → HTML templates, provider icons
 
 All providers implement the `LLMProviderAdapter` protocol (`sendMessage`, `validateAPIKey`, `fetchAvailableModels`, `translateTools`). Adapters return `AsyncThrowingStream<StreamEvent, Error>` for streaming.
 
-**Provider types**: see the `ProviderType` enum in `Sources/Domain/ProviderTypes.swift` — it is the single source of truth and currently lists ~35 cases (openai, openaiCompatible, openrouter, anthropic, gemini, vertexai, xai, baseten, modal, databricks, …).
+**Provider types**: see the `ProviderType` enum in `Sources/Domain/ProviderTypes.swift` — it is the single source of truth and currently lists 36 cases (openai, openaiCompatible, openrouter, anthropic, gemini, vertexai, xai, baseten, modal, databricks, router, …).
 
 **Shared core**: `OpenAIChatCompletionsCore.swift` provides shared request/response decoding for all OpenAI-compatible adapters (OpenAI, DeepSeek, Cerebras, Fireworks, Groq, Perplexity, OpenRouter, OpenAICompatible). `OpenAICompatibleAdapter` is the generic base.
 
 **Anthropic-specific**: `AnthropicRequestPreflight.swift` preprocesses requests, `AnthropicToolUseNormalizer.swift` normalizes tool use. `AnthropicModelLimits.swift` tracks model-specific limits.
 
-**Adding a new provider** touches ~15 sites, not 3. Mirror the newest existing provider (`baseten`, or `modal` for a token-gated OpenAI-compatible gateway) and grep for its enum case to find every one. In rough order:
+**Adding a new provider** touches ~15 sites, not 3. Mirror the newest existing provider (`baseten`, `modal` for a token-gated OpenAI-compatible gateway, or `router` for a Responses-only gateway) and grep for its enum case to find every one. In rough order:
 
 1. `Sources/Domain/ProviderTypes.swift` — enum case, `displayName`, `defaultBaseURL`
 2. `Sources/Adapters/` — either join the shared `OpenAICompatibleAdapter` case in `ProviderManager.createAdapter(for:)`, or add the usual triplet: `XAdapter.swift` + `XAdapter+ModelCatalog.swift` + `XRequestSupport.swift`, plus a factory case

@@ -123,6 +123,15 @@ enum ModelSettingsResolver {
             // reasoningConfig nil so this default is moot for it.
             return !kimiForCodingAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType == .router {
+            // Router publishes an exact effort band per model and rejects anything
+            // outside it. A band without `none` means thinking cannot be turned off,
+            // so derive the answer instead of maintaining a second always-on list
+            // that could drift out of sync with the bands.
+            return ModelCapabilityRegistry
+                .supportedReasoningEfforts(for: .router, modelID: modelID)
+                .contains(ReasoningEffort.none)
+        }
         if providerType == .modal {
             // Qwen3.8-2.4T-A95B requires thinking on every turn (HF card + Modal
             // library, 2026-08-12). Kimi K3 / Inkling stay toggleable via `none`.

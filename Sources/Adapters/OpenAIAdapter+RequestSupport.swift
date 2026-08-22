@@ -15,7 +15,8 @@ extension OpenAIAdapter {
         let reasoningEnabled = (reasoningEffort ?? .none) != .none
         let supportsSamplingParameters = supportsOpenAIResponsesSamplingParameters(
             modelID: modelID,
-            reasoningEnabled: reasoningEnabled
+            reasoningEnabled: reasoningEnabled,
+            providerType: providerConfig.type
         )
         let webSearchEnabled = controls.webSearch?.enabled == true && supportsWebSearch(modelID)
 
@@ -44,7 +45,21 @@ extension OpenAIAdapter {
             body.removeValue(forKey: "top_p")
         }
         if let maxTokens = controls.maxTokens {
-            body["max_output_tokens"] = maxTokens
+            // Router's Anthropic-routed models reject a ceiling that leaves no room for
+            // the thinking budget, so raise it to the documented minimum rather than
+            // letting the send 400. No-op for every other provider and model.
+            if RouterRequestSupport.requiresAnthropicThinkingHeadroom(
+                providerType: providerConfig.type,
+                modelID: modelID,
+                reasoningEnabled: reasoningEnabled
+            ) {
+                body["max_output_tokens"] = max(
+                    maxTokens,
+                    RouterRequestSupport.minimumMaxOutputTokensWithReasoning
+                )
+            } else {
+                body["max_output_tokens"] = maxTokens
+            }
         }
         if usesNativeOpenAIPlatform, let serviceTier = resolvedOpenAIServiceTier(from: controls) {
             body["service_tier"] = serviceTier

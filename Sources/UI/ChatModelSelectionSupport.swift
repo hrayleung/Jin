@@ -76,6 +76,16 @@ enum ChatModelSelectionSupport {
         "Qwen/Qwen3.8-2.4T-A95B",
         "thinkingmachines/Inkling-NVFP4",
     ]
+    static let preferredRouterModelOrder: [String] = [
+        "claude-opus-5",
+        "claude-sonnet-5",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.4",
+        "grok-4.6",
+        "accounts/fireworks/models/kimi-k3",
+        "accounts/fireworks/models/deepseek-v4-pro",
+    ]
     static let preferredDatabricksModelOrder: [String] = [
         "databricks-claude-sonnet-4-6",
         "databricks-claude-opus-5",
@@ -182,6 +192,13 @@ enum ChatModelSelectionSupport {
             return nil
         case .baseten:
             for preferredID in preferredBasetenModelOrder {
+                if let modelID = models.first(where: { $0.id == preferredID })?.id {
+                    return modelID
+                }
+            }
+            return nil
+        case .router:
+            for preferredID in preferredRouterModelOrder {
                 if let modelID = models.first(where: { $0.id == preferredID })?.id {
                     return modelID
                 }
