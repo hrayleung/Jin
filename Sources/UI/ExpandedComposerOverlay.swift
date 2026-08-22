@@ -6,7 +6,10 @@ import AppKit
 struct ExpandedComposerOverlay<ControlsRow: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @Binding var messageText: String
+    // Not observed from this body — see `CompactComposerOverlayView`. The
+    // editor host and the footer observe the store themselves so typing does
+    // not rebuild the controls row and its eagerly-evaluated menus.
+    let composerTextStore: ComposerTextStore
     @Binding var draftAttachments: [DraftAttachment]
     @Binding var draftQuotes: [DraftQuote]
     @Binding var isPresented: Bool
@@ -16,7 +19,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     let currentModelName: String?
     let sendWithCommandEnter: Bool
     let isBusy: Bool
-    let canSendDraft: Bool
+    let isImportingDropAttachments: Bool
     /// Value, not a `Binding` — see `CompactComposerOverlayView`.
     let remoteVideoURLText: String
     let supportsRemoteVideoURLInput: Bool
@@ -46,14 +49,11 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     let controlsRow: () -> ControlsRow
 
     @State private var isEditorFocused = false
-    @State private var draftMetrics: ComposerDraftTextMetrics
 
     private let panelCornerRadius: CGFloat = 26
 
-    // Custom init so `draftMetrics` reflects the existing draft on first render
-    // instead of flashing "0 words · 0 characters" while expanding from compact.
     init(
-        messageText: Binding<String>,
+        composerTextStore: ComposerTextStore,
         draftAttachments: Binding<[DraftAttachment]>,
         draftQuotes: Binding<[DraftQuote]>,
         isPresented: Binding<Bool>,
@@ -62,7 +62,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         currentModelName: String?,
         sendWithCommandEnter: Bool,
         isBusy: Bool,
-        canSendDraft: Bool,
+        isImportingDropAttachments: Bool,
         remoteVideoURLText: String,
         supportsRemoteVideoURLInput: Bool,
         isPreparingToSend: Bool,
@@ -90,7 +90,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         onInterceptKeyDown: ((UInt16) -> Bool)?,
         @ViewBuilder controlsRow: @escaping () -> ControlsRow
     ) {
-        _messageText = messageText
+        self.composerTextStore = composerTextStore
         _draftAttachments = draftAttachments
         _draftQuotes = draftQuotes
         _isPresented = isPresented
@@ -99,7 +99,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         self.currentModelName = currentModelName
         self.sendWithCommandEnter = sendWithCommandEnter
         self.isBusy = isBusy
-        self.canSendDraft = canSendDraft
+        self.isImportingDropAttachments = isImportingDropAttachments
         self.remoteVideoURLText = remoteVideoURLText
         self.supportsRemoteVideoURLInput = supportsRemoteVideoURLInput
         self.isPreparingToSend = isPreparingToSend
@@ -126,10 +126,9 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
         self.onRemovePerMessageMCPServer = onRemovePerMessageMCPServer
         self.onInterceptKeyDown = onInterceptKeyDown
         self.controlsRow = controlsRow
-        _draftMetrics = State(initialValue: ComposerDraftTextMetrics(messageText: messageText.wrappedValue))
     }
 
-    private var sendButtonPresentation: ComposerSendButtonPresentation {
+    private func sendButtonPresentation(canSendDraft: Bool) -> ComposerSendButtonPresentation {
         ComposerSendButtonPresentation(
             usesCommandReturn: sendWithCommandEnter,
             isBusy: isBusy,
@@ -137,6 +136,12 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
             isRecording: isRecording,
             isTranscribing: isTranscribing
         )
+    }
+
+    /// Read outside body evaluation only (submit handlers).
+    private var currentCanSendDraft: Bool {
+        let hasText = !composerTextStore.text.trimmed.isEmpty
+        return (hasText || !draftAttachments.isEmpty || !draftQuotes.isEmpty) && !isImportingDropAttachments
     }
 
     private var showsRemoteVideoURLChip: Bool {
@@ -219,9 +224,6 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
                     isEditorFocused = true
                 }
             }
-            .onChange(of: messageText) { _, newValue in
-                draftMetrics = ComposerDraftTextMetrics(messageText: newValue)
-            }
             .onDisappear {
                 isEditorFocused = false
             }
@@ -258,21 +260,28 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
             inlineAccessoryRows
             editorSection
             ExpandedComposerControlsSection(controlsRow: controlsRow)
-            ExpandedComposerFooter(
-                draftMetrics: draftMetrics,
-                contextUsageEstimate: contextUsageEstimate,
-                currentModelName: currentModelName,
-                sendWithCommandEnter: sendWithCommandEnter,
-                isBusy: isBusy,
-                isPreparingToSend: isPreparingToSend,
-                prepareToSendStatus: prepareToSendStatus,
-                isRecording: isRecording,
-                isTranscribing: isTranscribing,
-                recordingDurationText: recordingDurationText,
-                transcribingStatusText: transcribingStatusText,
-                sendButtonPresentation: sendButtonPresentation,
-                onSend: onSend
-            )
+            ChatComposerCanSendHost(
+                textStore: composerTextStore,
+                draftAttachments: draftAttachments,
+                draftQuotes: draftQuotes,
+                isImportingDropAttachments: isImportingDropAttachments
+            ) { canSendDraft in
+                ExpandedComposerFooter(
+                    textStore: composerTextStore,
+                    contextUsageEstimate: contextUsageEstimate,
+                    currentModelName: currentModelName,
+                    sendWithCommandEnter: sendWithCommandEnter,
+                    isBusy: isBusy,
+                    isPreparingToSend: isPreparingToSend,
+                    prepareToSendStatus: prepareToSendStatus,
+                    isRecording: isRecording,
+                    isTranscribing: isTranscribing,
+                    recordingDurationText: recordingDurationText,
+                    transcribingStatusText: transcribingStatusText,
+                    sendButtonPresentation: sendButtonPresentation(canSendDraft: canSendDraft),
+                    onSend: onSend
+                )
+            }
         }
         .padding(JinSpacing.xLarge)
         .background {
@@ -312,26 +321,28 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
                 isFocused: isEditorFocused,
                 isDropTargeted: isComposerDropTargeted
             ) {
-                DroppableTextEditor(
-                    text: $messageText,
-                    isDropTargeted: $isComposerDropTargeted,
-                    isFocused: $isEditorFocused,
-                    placeholder: "Write a message",
-                    font: NSFont.preferredFont(forTextStyle: .body),
-                    useCommandEnterToSubmit: sendWithCommandEnter,
-                    onDropFileURLs: onDropFileURLs,
-                    onDropImages: onDropImages,
-                    onSubmit: {
-                        guard !sendButtonPresentation.isDisabled else { return }
-                        onSend()
-                    },
-                    onCancel: {
-                        isPresented = false
-                        onCollapse()
-                        return true
-                    },
-                    onInterceptKeyDown: onInterceptKeyDown
-                )
+                ChatComposerEditorTextHost(textStore: composerTextStore) { textBinding in
+                    DroppableTextEditor(
+                        text: textBinding,
+                        isDropTargeted: $isComposerDropTargeted,
+                        isFocused: $isEditorFocused,
+                        placeholder: "Write a message",
+                        font: NSFont.preferredFont(forTextStyle: .body),
+                        useCommandEnterToSubmit: sendWithCommandEnter,
+                        onDropFileURLs: onDropFileURLs,
+                        onDropImages: onDropImages,
+                        onSubmit: {
+                            guard !sendButtonPresentation(canSendDraft: currentCanSendDraft).isDisabled else { return }
+                            onSend()
+                        },
+                        onCancel: {
+                            isPresented = false
+                            onCollapse()
+                            return true
+                        },
+                        onInterceptKeyDown: onInterceptKeyDown
+                    )
+                }
                 .frame(minHeight: 320, maxHeight: .infinity, alignment: .topLeading)
                 .shortcutHint(.focusComposer, placement: .trailing)
             }
