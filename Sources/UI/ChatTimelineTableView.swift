@@ -78,12 +78,14 @@ struct ChatTimelineMessageContent: View {
     var body: some View {
         let interaction = shared.interaction
         let messageEntitiesByID = shared.messageEntitiesByID
-        let resolvedToolResults = shared.toolResultsByCallID.merging(liveToolResults.resultsByCallID) { _, live in
-            live
-        }
-        let ownsStreamingActivity = shared.streamingActivityOwnerMessageID == item.id
+        let isConversationStreaming = liveToolResults.isConversationStreaming
+        let resolvedToolResults = ChatTimelineStreamingPresentationSupport.resolvedToolResults(
+            persisted: shared.toolResultsByCallID,
+            live: liveToolResults.resultsByCallID
+        )
+        let ownsStreamingActivity = liveToolResults.streamingActivityOwnerMessageID == item.id
             && ChatTimelineStreamingPresentationSupport.isLiveToolTimeline(
-                isConversationStreaming: shared.isConversationStreaming,
+                isConversationStreaming: isConversationStreaming,
                 visibleToolCalls: item.visibleToolCalls,
                 toolResultsByCallID: resolvedToolResults
             )
@@ -96,7 +98,7 @@ struct ChatTimelineMessageContent: View {
             deferCodeHighlightUpgrade: index < shared.eagerCodeHighlightStartIndex,
             payloadResolver: shared.payloadResolver,
             toolResultsByCallID: resolvedToolResults,
-            isConversationStreaming: shared.isConversationStreaming,
+            isConversationStreaming: isConversationStreaming,
             showsStreamingActivity: ownsStreamingActivity,
             textToSpeechEnabled: interaction.textToSpeechEnabled,
             textToSpeechConfigured: interaction.textToSpeechConfigured,
@@ -768,6 +770,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// Epoch of the last applied model, for the same-IDs reconcile gate.
     /// `nil` (fresh controller / new conversation) always counts as changed.
     private var lastAppliedContentEpoch: ChatTimelineContentEpoch?
+    /// Last applied activity-orb owner. Identity mutations skip survivors, so
+    /// a finish that only removes the streaming row must still reconfigure
+    /// this persisted assistant or Connecting stays up until chat switch.
+    private var lastStreamingActivityOwnerMessageID: UUID?
 
     // Scroll-ahead markdown prewarm (see ChatTimelineScrollPrewarmPlanner).
     // Debounce and warm tasks are held separately: cancelling the debounce
@@ -913,6 +919,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
         let previousRows = rows
         let previousEditingUserMessageID = lastAppliedContentEpoch?.editingUserMessageID
+        let previousStreamingActivityOwnerMessageID = lastStreamingActivityOwnerMessageID
         let widthChanged = abs(currentColumnWidth - newModel.shared.columnWidth) > 0.5
         let conversationChanged = lastConversationID != newModel.conversationID
         let epochChanged = lastAppliedContentEpoch != newModel.contentEpoch
@@ -921,8 +928,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             || abs(scrollView.contentInsets.bottom - newModel.bottomInset) > 0.5
 
         model = newModel
-        newModel.shared.liveToolResults.setSuppressIdleStreamingPlaceholder(
-            newModel.shared.streamingSuppressesIdlePlaceholder
+        newModel.shared.liveToolResults.applyTimelinePresentation(
+            isConversationStreaming: newModel.shared.isConversationStreaming,
+            activityOwnerMessageID: newModel.shared.streamingActivityOwnerMessageID,
+            suppressIdleStreamingPlaceholder: newModel.shared.streamingSuppressesIdlePlaceholder
         )
         // Visibility (rendersRow) inputs all live in the content epoch;
         // rebuild the set whenever they can have changed — BEFORE any table
@@ -960,6 +969,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
         currentColumnWidth = newModel.shared.columnWidth
         lastAppliedContentEpoch = newModel.contentEpoch
+        lastStreamingActivityOwnerMessageID = newModel.shared.streamingActivityOwnerMessageID
 
         scrollView.scrollerStyle = preferredScrollerStyle()
 
@@ -1038,7 +1048,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 old: previousRows,
                 new: newModel.rows,
                 previousEditingUserMessageID: previousEditingUserMessageID,
-                newEditingUserMessageID: newModel.contentEpoch.editingUserMessageID
+                newEditingUserMessageID: newModel.contentEpoch.editingUserMessageID,
+                previousStreamingActivityOwnerMessageID: previousStreamingActivityOwnerMessageID,
+                newStreamingActivityOwnerMessageID: newModel.shared.streamingActivityOwnerMessageID
             )
         } else {
             reconcile(old: previousRows, new: rows, widthChanged: widthChanged, epochChanged: epochChanged)
@@ -1577,20 +1589,25 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     }
 
     /// Reconfigures resident cells whose identity survived a row-list
-    /// mutation but whose content or editing state did not. `batchDiff`
-    /// only inserts/removes — without this, an edited user bubble stays
-    /// on the dismissed editor (often blank) until the next epoch apply.
+    /// mutation but whose content, editing state, or live activity chrome
+    /// did not. `batchDiff` only inserts/removes — without this, an edited
+    /// user bubble stays on the dismissed editor, and a finished tool turn
+    /// keeps Connecting until the user switches chats.
     private func reloadSurvivingRowsIfNeeded(
         old: [ChatTimelineRow],
         new: [ChatTimelineRow],
         previousEditingUserMessageID: UUID?,
-        newEditingUserMessageID: UUID?
+        newEditingUserMessageID: UUID?,
+        previousStreamingActivityOwnerMessageID: UUID?,
+        newStreamingActivityOwnerMessageID: UUID?
     ) {
         let identities = ChatTimelineSurvivingRowReloadSupport.identitiesNeedingReload(
             old: old,
             new: new,
             previousEditingUserMessageID: previousEditingUserMessageID,
-            newEditingUserMessageID: newEditingUserMessageID
+            newEditingUserMessageID: newEditingUserMessageID,
+            previousStreamingActivityOwnerMessageID: previousStreamingActivityOwnerMessageID,
+            newStreamingActivityOwnerMessageID: newStreamingActivityOwnerMessageID
         )
         guard !identities.isEmpty else { return }
 

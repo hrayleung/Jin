@@ -89,6 +89,55 @@ final class ChatTimelineSurvivingRowReloadSupportTests: XCTestCase {
         XCTAssertFalse(identities.contains("msg-\(earlier.id.uuidString)"))
     }
 
+    func testStreamingFinishReloadsThePersistedActivityOwner() {
+        let user = TimelineRowFixtures.item(role: "user", text: "Question")
+        let assistant = TimelineRowFixtures.item(role: "assistant", text: "Answer")
+        let old: [ChatTimelineRow] = [
+            .message(user, index: 0),
+            .message(assistant, index: 1),
+            .streaming(StreamingMessageState()),
+        ]
+        let newRows: [ChatTimelineRow] = [
+            .message(user, index: 0),
+            .message(assistant, index: 1),
+        ]
+
+        let identities = ChatTimelineSurvivingRowReloadSupport.identitiesNeedingReload(
+            old: old,
+            new: newRows,
+            previousEditingUserMessageID: nil,
+            newEditingUserMessageID: nil,
+            previousStreamingActivityOwnerMessageID: assistant.id,
+            newStreamingActivityOwnerMessageID: nil
+        )
+        XCTAssertEqual(identities, ["msg-\(assistant.id.uuidString)"])
+        XCTAssertFalse(identities.contains("msg-\(user.id.uuidString)"))
+    }
+
+    func testUnchangedActivityOwnerDoesNotReloadSurvivors() {
+        let user = TimelineRowFixtures.item(role: "user", text: "Question")
+        let assistant = TimelineRowFixtures.item(role: "assistant", text: "Answer")
+        let old: [ChatTimelineRow] = [
+            .message(user, index: 0),
+            .message(assistant, index: 1),
+        ]
+        let newRows: [ChatTimelineRow] = [
+            .message(user, index: 0),
+            .message(assistant, index: 1),
+            .streaming(StreamingMessageState()),
+        ]
+
+        let identities = ChatTimelineSurvivingRowReloadSupport.identitiesNeedingReload(
+            old: old,
+            new: newRows,
+            previousEditingUserMessageID: nil,
+            newEditingUserMessageID: nil,
+            previousStreamingActivityOwnerMessageID: assistant.id,
+            newStreamingActivityOwnerMessageID: assistant.id
+        )
+        XCTAssertTrue(identities.isEmpty)
+    }
+
     private func makeUserItem(id: UUID, text: String) -> MessageRenderItem {
         MessageRenderItem(
             id: id,

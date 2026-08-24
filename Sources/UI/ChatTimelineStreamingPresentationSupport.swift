@@ -94,4 +94,14 @@ enum ChatTimelineStreamingPresentationSupport {
             toolResultsByCallID[call.id] == nil
         }
     }
+
+    /// Persisted snapshot wins on conflict so a just-saved tool body replaces
+    /// the in-flight copy. Live results fill gaps for cards that still hold a
+    /// pre-persist `shared` snapshot across an identity mutation.
+    static func resolvedToolResults(
+        persisted: [String: ToolResult],
+        live: [String: ToolResult]
+    ) -> [String: ToolResult] {
+        persisted.merging(live) { persistedResult, _ in persistedResult }
+    }
 }

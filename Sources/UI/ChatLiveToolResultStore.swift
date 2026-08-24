@@ -16,9 +16,33 @@ final class ChatLiveToolResultStore: ObservableObject {
     /// cell can observe the flag without a `rootView` remount.
     @Published private(set) var suppressIdleStreamingPlaceholder = false
 
+    /// Conversation-level streaming flag observed by persisted assistant
+    /// cards. Identity mutations do not reconfigure survivors, so this must
+    /// travel on the same store as live tool results or Connecting stays up
+    /// after the turn has finished.
+    @Published private(set) var isConversationStreaming = false
+
+    /// The persisted assistant that temporarily owns the turn's one live orb
+    /// while the empty streaming row is suppressed.
+    @Published private(set) var streamingActivityOwnerMessageID: UUID?
+
     func setSuppressIdleStreamingPlaceholder(_ suppress: Bool) {
         guard suppressIdleStreamingPlaceholder != suppress else { return }
         suppressIdleStreamingPlaceholder = suppress
+    }
+
+    func applyTimelinePresentation(
+        isConversationStreaming: Bool,
+        activityOwnerMessageID: UUID?,
+        suppressIdleStreamingPlaceholder: Bool
+    ) {
+        if self.isConversationStreaming != isConversationStreaming {
+            self.isConversationStreaming = isConversationStreaming
+        }
+        if streamingActivityOwnerMessageID != activityOwnerMessageID {
+            streamingActivityOwnerMessageID = activityOwnerMessageID
+        }
+        setSuppressIdleStreamingPlaceholder(suppressIdleStreamingPlaceholder)
     }
 
     func replaceAll(_ results: [String: ToolResult]) {
