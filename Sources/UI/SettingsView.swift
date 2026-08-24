@@ -179,25 +179,10 @@ struct SettingsView: View {
     // MARK: - Columns
 
     private var sidebarColumn: some View {
-        List(SettingsSection.allCases, selection: $selectedSection) { section in
-            NavigationLink(value: section) {
-                Label(section.rawValue, systemImage: section.systemImage)
-            }
-        }
-        // Keep the native sidebar material. Painting an opaque `sidebarSurface`
-        // (#ECECF0) over it read as a flat grey slab next to the near-white
-        // `surface` (#FBFBFC) content and detail columns, and — unlike the real
-        // material — never picked up the window's vibrancy. NavigationSplitView
-        // draws its own column divider, so the hand-rolled hairline goes too.
-        .listStyle(.sidebar)
-        // `toolbar(removing:)` only takes effect on the *column's* content, not
-        // on the NavigationSplitView itself — applied there it silently no-ops.
-        // Settings has a fixed three-column layout, so the toggle is dead weight;
-        // dropping it also empties the toolbar, collapsing the strip that was
-        // stranding the button on its own row under the window controls.
-        .toolbar(removing: .sidebarToggle)
-        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
-        .searchable(text: $searchText, placement: .sidebar, prompt: "Search settings")
+        SettingsSidebarColumn(
+            selectedSection: $selectedSection,
+            searchText: $searchText
+        )
     }
 
     private var contentColumn: some View {
