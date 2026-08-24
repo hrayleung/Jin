@@ -120,4 +120,19 @@ final class SettingsSelectionSupportTests: XCTestCase {
         XCTAssertNil(selection.pluginID)
         XCTAssertEqual(selection.generalCategory, .appearance)
     }
+
+    func testValidatedSelectionIsEqualWhenAlreadyValid() {
+        let current = SettingsSelectionSupport.Selection(
+            section: .providers,
+            providerID: "provider-a"
+        )
+        let validated = SettingsSelectionSupport.validatedSelection(
+            current,
+            providerIDs: ["provider-a", "provider-b"],
+            serverIDs: [],
+            pluginIDs: []
+        )
+
+        XCTAssertEqual(current, validated)
+    }
 }

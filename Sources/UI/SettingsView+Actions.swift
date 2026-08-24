@@ -105,18 +105,20 @@ extension SettingsView {
     }
 
     func ensureValidSelection() {
+        let current = SettingsSelectionSupport.Selection(
+            section: selectedSection,
+            providerID: selectedProviderID,
+            serverID: selectedServerID,
+            pluginID: selectedPluginID,
+            generalCategory: selectedGeneralCategory
+        )
         let selection = SettingsSelectionSupport.validatedSelection(
-            SettingsSelectionSupport.Selection(
-                section: selectedSection,
-                providerID: selectedProviderID,
-                serverID: selectedServerID,
-                pluginID: selectedPluginID,
-                generalCategory: selectedGeneralCategory
-            ),
+            current,
             providerIDs: filteredProviders.map(\.id),
             serverIDs: filteredMCPServers.map(\.id),
             pluginIDs: filteredPlugins.map(\.id)
         )
+        guard selection != current else { return }
 
         selectedSection = selection.section
         selectedProviderID = selection.providerID
