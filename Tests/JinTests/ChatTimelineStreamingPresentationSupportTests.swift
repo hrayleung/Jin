@@ -171,6 +171,20 @@ final class ChatTimelineStreamingPresentationSupportTests: XCTestCase {
         )
     }
 
+    func testResolvedToolResultsPreferPersistedAndFillFromLive() {
+        let live = ToolResult(toolCallID: "fetch_1", content: "live")
+        let persisted = ToolResult(toolCallID: "fetch_1", content: "persisted")
+        let extraLive = ToolResult(toolCallID: "search_1", content: "live-only")
+
+        let merged = ChatTimelineStreamingPresentationSupport.resolvedToolResults(
+            persisted: ["fetch_1": persisted],
+            live: ["fetch_1": live, "search_1": extraLive]
+        )
+
+        XCTAssertEqual(merged["fetch_1"]?.content, "persisted")
+        XCTAssertEqual(merged["search_1"]?.content, "live-only")
+    }
+
     private func makeItem(
         role: MessageRole,
         toolCalls: [ToolCall]

@@ -44,7 +44,7 @@ final class ChatRenderCacheControllerLiveToolResultTests: XCTestCase {
         XCTAssertNil(controller.singleThreadContext().toolResultsByCallID["fetch_1"])
     }
 
-    func testPersistedToolMessagePrunesMatchingLiveResult() throws {
+    func testPersistedToolMessageKeepsLiveResultForStaleCards() throws {
         let controller = ChatRenderCacheController()
         let assistant = try MessageEntity.fromDomain(
             Message(
@@ -96,7 +96,9 @@ final class ChatRenderCacheControllerLiveToolResultTests: XCTestCase {
         )
 
         XCTAssertEqual(controller.toolResultsByCallID["fetch_1"]?.content, "persisted")
-        XCTAssertNil(controller.liveToolResultStore.resultsByCallID["fetch_1"])
+        // Live copies stay so a surviving assistant card that still holds the
+        // pre-persist snapshot does not flip back to Connecting / Running.
+        XCTAssertEqual(controller.liveToolResultStore.resultsByCallID["fetch_1"]?.content, "live")
         XCTAssertEqual(
             controller.singleThreadContext().toolResultsByCallID["fetch_1"]?.content,
             "persisted"
@@ -122,10 +124,19 @@ final class ChatRenderCacheControllerLiveToolResultTests: XCTestCase {
             conversationID: conversationID
         )
         XCTAssertEqual(controller.toolResultsByCallID["fetch_1"]?.content, "live")
+        controller.liveToolResultStore.applyTimelinePresentation(
+            isConversationStreaming: true,
+            activityOwnerMessageID: UUID(),
+            suppressIdleStreamingPlaceholder: true
+        )
 
         controller.clearForConversationSwitch()
 
         XCTAssertTrue(controller.toolResultsByCallID.isEmpty)
+        XCTAssertTrue(controller.liveToolResultStore.resultsByCallID.isEmpty)
+        XCTAssertFalse(controller.liveToolResultStore.isConversationStreaming)
+        XCTAssertNil(controller.liveToolResultStore.streamingActivityOwnerMessageID)
+        XCTAssertFalse(controller.liveToolResultStore.suppressIdleStreamingPlaceholder)
     }
 
     func testLateLiveResultFromPreviousConversationIsIgnored() throws {

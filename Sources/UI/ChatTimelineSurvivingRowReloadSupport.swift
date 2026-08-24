@@ -10,7 +10,9 @@ enum ChatTimelineSurvivingRowReloadSupport {
         old: [ChatTimelineRow],
         new: [ChatTimelineRow],
         previousEditingUserMessageID: UUID?,
-        newEditingUserMessageID: UUID?
+        newEditingUserMessageID: UUID?,
+        previousStreamingActivityOwnerMessageID: UUID? = nil,
+        newStreamingActivityOwnerMessageID: UUID? = nil
     ) -> Set<String> {
         var previousItems: [String: MessageRenderItem] = [:]
         previousItems.reserveCapacity(old.count)
@@ -34,6 +36,15 @@ enum ChatTimelineSurvivingRowReloadSupport {
             }
             identities.insert(row.identity)
         }
+
+        // The persisted assistant that hosted Connecting is a surviving
+        // identity when the streaming row is removed or a follow-up message
+        // is appended. Without this reload it keeps the pre-finish snapshot
+        // until the user leaves and re-enters the conversation.
+        if previousStreamingActivityOwnerMessageID != newStreamingActivityOwnerMessageID {
+            insertMessageIdentity(previousStreamingActivityOwnerMessageID, into: &identities)
+            insertMessageIdentity(newStreamingActivityOwnerMessageID, into: &identities)
+        }
         return identities
     }
 
@@ -51,5 +62,10 @@ enum ChatTimelineSurvivingRowReloadSupport {
             || previous.canDeleteResponse != current.canDeleteResponse
             || previous.perMessageMCPServerNames != current.perMessageMCPServerNames
             || previous.renderedBlocks.count != current.renderedBlocks.count
+    }
+
+    private static func insertMessageIdentity(_ messageID: UUID?, into identities: inout Set<String>) {
+        guard let messageID else { return }
+        identities.insert("msg-\(messageID.uuidString)")
     }
 }

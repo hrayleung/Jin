@@ -36,6 +36,35 @@ final class ChatLiveToolResultStoreTests: XCTestCase {
         XCTAssertFalse(store.suppressIdleStreamingPlaceholder)
     }
 
+    func testTimelinePresentationIgnoresRedundantWrites() {
+        let store = ChatLiveToolResultStore()
+        let owner = UUID()
+        store.applyTimelinePresentation(
+            isConversationStreaming: true,
+            activityOwnerMessageID: owner,
+            suppressIdleStreamingPlaceholder: true
+        )
+        XCTAssertTrue(store.isConversationStreaming)
+        XCTAssertEqual(store.streamingActivityOwnerMessageID, owner)
+        XCTAssertTrue(store.suppressIdleStreamingPlaceholder)
+
+        store.applyTimelinePresentation(
+            isConversationStreaming: true,
+            activityOwnerMessageID: owner,
+            suppressIdleStreamingPlaceholder: true
+        )
+        XCTAssertEqual(store.streamingActivityOwnerMessageID, owner)
+
+        store.applyTimelinePresentation(
+            isConversationStreaming: false,
+            activityOwnerMessageID: nil,
+            suppressIdleStreamingPlaceholder: false
+        )
+        XCTAssertFalse(store.isConversationStreaming)
+        XCTAssertNil(store.streamingActivityOwnerMessageID)
+        XCTAssertFalse(store.suppressIdleStreamingPlaceholder)
+    }
+
     func testClearEmptiesResults() {
         let store = ChatLiveToolResultStore()
         store.upsert(ToolResult(toolCallID: "c1", toolName: "lookup", content: "x", isError: false))

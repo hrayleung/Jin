@@ -340,7 +340,11 @@ final class ChatRenderCacheController {
         persistedToolResultsByCallID = [:]
         liveToolResultsByCallID = [:]
         liveToolResultStore.clear()
-        liveToolResultStore.setSuppressIdleStreamingPlaceholder(false)
+        liveToolResultStore.applyTimelinePresentation(
+            isConversationStreaming: false,
+            activityOwnerMessageID: nil,
+            suppressIdleStreamingPlaceholder: false
+        )
         activeConversationID = nil
         toolResultsByCallID = [:]
         artifactCatalog = .empty
@@ -370,22 +374,18 @@ final class ChatRenderCacheController {
 
     private func replacePersistedToolResults(_ results: [String: ToolResult]) {
         persistedToolResultsByCallID = results
-        if !liveToolResultsByCallID.isEmpty {
-            liveToolResultsByCallID = liveToolResultsByCallID.filter { callID, _ in
-                persistedToolResultsByCallID[callID] == nil
-            }
-        }
+        // Keep live copies after persist. Identity mutations do not
+        // reconfigure the surviving assistant card, so pruning here made
+        // Connecting / Running come back on a stale pre-persist snapshot.
+        // Persisted values still win in `resolvedToolResults`.
         publishMergedToolResults()
     }
 
     private func publishMergedToolResults() {
-        if liveToolResultsByCallID.isEmpty {
-            toolResultsByCallID = persistedToolResultsByCallID
-        } else {
-            toolResultsByCallID = persistedToolResultsByCallID.merging(liveToolResultsByCallID) { _, live in
-                live
-            }
-        }
+        toolResultsByCallID = ChatTimelineStreamingPresentationSupport.resolvedToolResults(
+            persisted: persistedToolResultsByCallID,
+            live: liveToolResultsByCallID
+        )
         liveToolResultStore.replaceAll(liveToolResultsByCallID)
     }
 
