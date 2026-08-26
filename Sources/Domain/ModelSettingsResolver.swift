@@ -247,10 +247,10 @@ enum ModelSettingsResolver {
         "grok-4.5",
     ]
 
-    /// OpenCode Go models whose upstream reasoning cannot be disabled. Grok 4.5 is served
-    /// under its bare upstream slug there, so it inherits xAI's "Reasoning cannot be
-    /// disabled" constraint. DeepSeek V4 is the same class of lock for a different
-    /// reason: official DeepSeek thinking is on by default and only turns off with
+    /// OpenCode Go models whose upstream reasoning cannot be disabled. Grok 4.6 / 4.5 are
+    /// served under their bare upstream slugs there, so they inherit xAI's "Reasoning cannot
+    /// be disabled" constraint (docs.x.ai). DeepSeek V4 is the same class of lock for a
+    /// different reason: official DeepSeek thinking is on by default and only turns off with
     /// `thinking: {"type": "disabled"}`, but the Go gateway is a strict chat/completions
     /// proxy that rejects that extra field. Omitting `reasoning_effort` therefore leaves
     /// thinking on, so the UI must not offer Off. GLM-5.3 rejects `thinking.type:
@@ -260,6 +260,7 @@ enum ModelSettingsResolver {
     /// HTTP 400 (Meta docs); omit the field instead and lock the Off toggle. Other
     /// GLM / Kimi / MiMo stay on the provider-wide omit-to-disable convention.
     private static let opencodeGoAlwaysOnReasoningModelIDs: Set<String> = [
+        "grok-4.6",
         "grok-4.5",
         "deepseek-v4-pro",
         "deepseek-v4-flash",

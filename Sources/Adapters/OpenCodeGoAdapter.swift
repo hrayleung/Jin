@@ -9,12 +9,12 @@ import Foundation
 /// per-model endpoint table published at https://opencode.ai/docs/go/:
 /// - Claude, MiniMax, and Qwen models → Anthropic-compatible `/messages`
 ///   (see `usesAnthropicMessagesEndpoint(_:)`)
-/// - GPT-5.6 Luna → OpenAI **Responses** `/responses` via `OpenAIAdapter`
+/// - GPT-5.6 Luna and Grok 4.6 → OpenAI **Responses** `/responses` via `OpenAIAdapter`
 ///   (see `usesOpenAIResponsesEndpoint(_:)`)
 /// - Muse Spark 1.2 / 1.2 Contributor → Meta-shaped **Responses** `/responses`
 ///   via `MetaAdapter` so encrypted reasoning is requested, persisted, and
 ///   replayed across tool continuations (see `usesMuseSparkResponsesEndpoint(_:)`)
-/// - DeepSeek, GLM, Kimi, MiMo, Grok, Hy3, Ox Alpha Free, … → OpenAI-compatible `/chat/completions`
+/// - DeepSeek, GLM, Kimi, MiMo, Grok 4.5, Hy3, Ox Alpha Free, … → OpenAI-compatible `/chat/completions`
 ///
 /// Docs: https://opencode.ai/docs/go/
 actor OpenCodeGoAdapter: LLMProviderAdapter {
@@ -61,16 +61,18 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
     ])
 
     /// Exact model IDs OpenCode Go serves via the OpenAI **Responses** `/responses` endpoint.
-    /// opencode.ai/docs/go maps `gpt-5.6-luna` and Muse Spark to `@ai-sdk/openai` +
+    /// opencode.ai/docs/go maps `gpt-5.6-luna`, `grok-4.6`, and Muse Spark to `@ai-sdk/openai` +
     /// `/zen/go/v1/responses`. Live `/zen/go/v1/models` (2026-08-20) lists both
     /// `muse-spark-1.2` and `muse-spark-1.2-contributor`; a dummy-key probe of `/responses`
     /// answers `AuthError` (model accepted) rather than "not supported for format openai"
     /// (the rejection MiniMax gets there). `muse-spark-1.1` is not served
     /// ("Model muse-spark-1.1 is not supported"). `/chat/completions` is not a viable
     /// fallback for Luna: OpenAI rejects function tools combined with reasoning for the
-    /// GPT-5.6 family there. Matched by exact ID — never by prefix.
+    /// GPT-5.6 family there. Grok 4.5 stays on `/chat/completions` — do not fold it in by
+    /// prefix. Matched by exact ID — never by prefix.
     static let openAIResponsesModelIDs: Set<String> = [
         "gpt-5.6-luna",
+        "grok-4.6",
         "muse-spark-1.2",
         "muse-spark-1.2-contributor",
     ]

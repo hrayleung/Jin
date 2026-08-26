@@ -1406,13 +1406,17 @@ final class ModelSettingsResolverTests: XCTestCase {
     }
 
     func testResolverLocksReasoningOnForOpenCodeGoGrok45() {
-        // Grok 4.5 is served under its bare upstream slug on OpenCode Go, so it inherits
-        // xAI's "Reasoning cannot be disabled" constraint — offering a Thinking-off toggle
-        // would only omit reasoning_effort while the model keeps reasoning anyway.
+        // Grok 4.6 / 4.5 are served under their bare upstream slugs on OpenCode Go, so they
+        // inherit xAI's "Reasoning cannot be disabled" constraint — offering a Thinking-off
+        // toggle would only omit the effort field while the model keeps reasoning anyway.
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.6")
+        )
         XCTAssertFalse(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.5")
         )
         // Matches the lock the sibling providers already apply to the same model.
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.6"))
         XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.5"))
         // Narrow by design: OpenCode Go's other models keep the provider-wide
         // omit-to-disable convention.
@@ -1542,6 +1546,45 @@ final class ModelSettingsResolverTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "deepseek-v4-flash"),
             [.high, .max]
         )
+    }
+
+    func testResolverInfersOpenCodeGoGrok46MetadataForLegacyPersistedModels() {
+        let legacy = ModelInfo(
+            id: "grok-4.6",
+            name: "Grok 4.6",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolved = ModelSettingsResolver.resolve(model: legacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolved.contextWindow, 500_000)
+        XCTAssertNil(resolved.maxOutputTokens)
+        XCTAssertTrue(resolved.capabilities.contains(.vision))
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolved.capabilities.contains(.promptCaching))
+        XCTAssertFalse(resolved.capabilities.contains(.nativePDF))
+        XCTAssertFalse(resolved.capabilities.contains(.codeExecution))
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(resolved.reasoningCanDisable)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "grok-4.6"),
+            [.low, .medium, .high, .xhigh]
+        )
+
+        let nearMiss = ModelInfo(
+            id: "grok-4.6-custom",
+            name: "Grok 4.6 Custom",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let unresolved = ModelSettingsResolver.resolve(model: nearMiss, providerType: .opencodeGo)
+        XCTAssertEqual(unresolved.contextWindow, 8_192)
+        XCTAssertNil(unresolved.reasoningConfig)
+        XCTAssertTrue(unresolved.reasoningCanDisable)
     }
 
     func testSambaNovaAlwaysOnReasoningModelsCannotDisableByDefault() {
@@ -2241,8 +2284,9 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.3"))
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.6-custom"))
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.5-custom"))
-        // OpenCode Go does not host grok-4.6; do not inherit the lock by prefix.
-        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.6"))
+        // OpenCode Go hosts grok-4.6 under the same bare slug; lock Off, but not by prefix.
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.6"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.6-custom"))
 
         // OpenRouter reasoning.mandatory=true models (live metadata, 2026-07-11 / 2026-08-12).
         for id in ["x-ai/grok-4.6", "x-ai/grok-4.5", "anthropic/claude-fable-5", "sakana/fugu-ultra", "qwen/qwen3.8-2.4t-a95b", "qwen/qwen3.8-max"] {

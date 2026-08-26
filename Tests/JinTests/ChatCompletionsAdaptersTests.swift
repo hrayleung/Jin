@@ -2966,6 +2966,11 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /chat/completions")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /chat/completions")
         }
+        // grok-4.6 replaced grok-4.5 at the top of opencode.ai/docs/go and moved to /responses.
+        XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("grok-4.6"))
+        XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("Grok-4.6"))
+        XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("grok-4.6"))
+        XCTAssertFalse(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint("grok-4.6"))
         for id in ["minimax-m3", "minimax-m2.7", "minimax-m2.5", "qwen3.8-max", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus"] {
             XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /messages")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /messages")
@@ -2990,6 +2995,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         }
         // Exact-ID only: the sibling GPT-5.6 tiers are not on OpenCode Go.
         for id in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6", "gpt-5.6-luna-pro"] {
+            XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) must not prefix-match")
+        }
+        // grok-4.5 stays on /chat/completions; near-miss grok-4.6 IDs must not inherit /responses.
+        for id in ["grok-4.6-custom", "grok-4.6-fast", "grok-4.5"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) must not prefix-match")
         }
         // Routing stays exact-ID for the new flagship too: qwen3.8-max is served, but a
@@ -3127,6 +3136,123 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             if case .messageStart(let value) = event { messageID = value }
         }
         XCTAssertEqual(messageID, "resp_opencode_luna")
+    }
+
+    func testOpenCodeGoAdapterRoutesGrok46ToResponsesWithXHighEffortAndSampling() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            // opencode.ai/docs/go endpoint table: grok-4.6 → /zen/go/v1/responses via @ai-sdk/openai.
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/responses")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(root["model"] as? String, "grok-4.6")
+            XCTAssertNotNil(root["input"])
+            XCTAssertNil(root["messages"])
+            XCTAssertEqual(root["max_output_tokens"] as? Int, 4096)
+            XCTAssertNil(root["max_tokens"])
+
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "xhigh")
+            XCTAssertNil(root["reasoning_effort"])
+
+            // OpenAI-platform-only fields must never reach the strict Go gateway.
+            XCTAssertNil(reasoning["summary"])
+            XCTAssertNil(reasoning["mode"])
+            XCTAssertNil(reasoning["context"])
+            XCTAssertNil(root["service_tier"])
+            XCTAssertNil(root["prompt_cache_key"])
+            XCTAssertNil(root["prompt_cache_retention"])
+            XCTAssertNil(root["text"])
+            XCTAssertNil(root["include"])
+            // Unlike gpt-5.6-luna, grok-4.6 accepts sampling with reasoning enabled
+            // (models.dev `opencode-go` temperature:true; docs.x.ai lists no sampling lock).
+            XCTAssertEqual(root["temperature"] as? Double, 0.7)
+            XCTAssertEqual(root["top_p"] as? Double, 0.9)
+            let toolTypes = (root["tools"] as? [[String: Any]] ?? []).compactMap { $0["type"] as? String }
+            XCTAssertFalse(toolTypes.contains("code_interpreter"))
+            XCTAssertFalse(toolTypes.contains("web_search"))
+
+            let response: [String: Any] = [
+                "id": "resp_opencode_grok46",
+                "output": [["type": "message", "content": [["type": "output_text", "text": "OK"]]]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        var controls = GenerationControls(
+            temperature: 0.7,
+            maxTokens: 4096,
+            reasoning: ReasoningControls(
+                enabled: true,
+                effort: .xhigh,
+                summary: .auto,
+                mode: .pro,
+                context: .allTurns
+            )
+        )
+        controls.topP = 0.9
+        controls.textVerbosity = .high
+        controls.openAIServiceTier = .priority
+        controls.contextCache = ContextCacheControls(mode: .implicit, ttl: .hour1, cacheKey: "k")
+        controls.codeExecution = CodeExecutionControls(enabled: true)
+        controls.webSearch = WebSearchControls(enabled: true)
+        controls.providerSpecific = ["reasoning": AnyCodable(["effort": "low"])]
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "grok-4.6",
+            controls: controls,
+            tools: [],
+            streaming: false
+        )
+
+        var messageID: String?
+        for try await event in stream {
+            if case .messageStart(let value) = event { messageID = value }
+        }
+        XCTAssertEqual(messageID, "resp_opencode_grok46")
+    }
+
+    func testOpenCodeGoAdapterOmitsReasoningObjectForDisabledGrok46() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/responses")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "grok-4.6")
+            // Always-on: Off omits the object rather than sending effort "none" (HTTP 400).
+            XCTAssertNil(root["reasoning"])
+            XCTAssertNil(root["reasoning_effort"])
+
+            let response: [String: Any] = [
+                "id": "resp_opencode_grok46_off",
+                "output": [["type": "message", "content": [["type": "output_text", "text": "OK"]]]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "grok-4.6",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false, effort: ReasoningEffort.none)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
     }
 
     func testOpenCodeGoAdapterMapsHy3EffortsToLowHighOnly() async throws {
@@ -3331,6 +3457,42 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(isValid)
     }
 
+    func testOpenCodeGoValidateAPIKeyUsesResponsesEndpointForGrok46() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored",
+            models: [
+                ModelInfo(
+                    id: "grok-4.6",
+                    name: "Grok 4.6",
+                    capabilities: [.streaming, .toolCalling, .reasoning],
+                    contextWindow: 500_000
+                )
+            ]
+        )
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/responses")
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "grok-4.6")
+            XCTAssertEqual(root["input"] as? String, "hi")
+            XCTAssertNil(root["messages"])
+
+            let data = try JSONSerialization.data(withJSONObject: ["id": "resp_validation_grok46"])
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "ignored", networkManager: networkManager)
+        let isValid = try await adapter.validateAPIKey("test-key")
+        XCTAssertTrue(isValid)
+    }
+
     func testOpenCodeGoMuseSparkMapsReasoningEffortBandAndOmitsMax() {
         for id in ["muse-spark-1.2", "muse-spark-1.2-contributor"] {
             XCTAssertEqual(
@@ -3358,6 +3520,31 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 .minimal,
                 providerType: .opencodeGo,
                 modelID: "gpt-5.6-luna"
+            ),
+            "low"
+        )
+        // grok-4.6 accepts xhigh verbatim and clamps max (not a Grok value) to xhigh.
+        XCTAssertEqual(
+            OpenAIResponsesRequestSupport.mappedReasoningEffort(
+                .xhigh,
+                providerType: .opencodeGo,
+                modelID: "grok-4.6"
+            ),
+            "xhigh"
+        )
+        XCTAssertEqual(
+            OpenAIResponsesRequestSupport.mappedReasoningEffort(
+                .max,
+                providerType: .opencodeGo,
+                modelID: "grok-4.6"
+            ),
+            "xhigh"
+        )
+        XCTAssertEqual(
+            OpenAIResponsesRequestSupport.mappedReasoningEffort(
+                .minimal,
+                providerType: .opencodeGo,
+                modelID: "grok-4.6"
             ),
             "low"
         )

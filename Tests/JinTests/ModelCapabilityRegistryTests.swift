@@ -264,7 +264,7 @@ final class ModelCapabilityRegistryTests: XCTestCase {
 
         // The 2026-08 additions are not MiMo IDs — the Go gateway hosts no web-search tool
         // for them.
-        for id in ["gpt-5.6-luna", "grok-4.5", "hy3", "muse-spark-1.2", "muse-spark-1.2-contributor"] {
+        for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "hy3", "muse-spark-1.2", "muse-spark-1.2-contributor"] {
             XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: id), id)
         }
     }
@@ -279,10 +279,23 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "hy3-preview"),
             [.low, .high]
         )
+        // Grok 4.6's reasoning is always-on with low/medium/high/xhigh (docs.x.ai).
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "grok-4.6"),
+            [.low, .medium, .high, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.max, for: .opencodeGo, modelID: "grok-4.6"),
+            .xhigh
+        )
         // Grok 4.5's reasoning is always-on with the standard low/medium/high band.
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "grok-4.5"),
             [.low, .medium, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.xhigh, for: .opencodeGo, modelID: "grok-4.5"),
+            .high
         )
         // GPT-5.6 Luna adds xhigh and max on top of the standard band.
         XCTAssertEqual(
@@ -572,7 +585,12 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             ModelCapabilityRegistry.normalizedReasoningEffort(.max, for: .xai, modelID: "grok-4.6"),
             .xhigh
         )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "grok-4.6"),
+            [.low, .medium, .high, .xhigh]
+        )
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.6-custom", provider: .xai))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.6-custom", provider: .opencodeGo))
     }
 
     func testGrok45EffortMenuIsLowMediumHigh() {

@@ -1356,30 +1356,48 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
-        // Grok 4.5 joined OpenCode Go's line-up alongside GPT-5.6 Luna (opencode.ai/docs/go,
-        // updated 2026-08-02, lists it first in "the current list of models"). That page's
-        // endpoint table routes grok-4.5 to /zen/go/v1/chat/completions via
-        // @ai-sdk/openai-compatible, and a live unauthenticated probe of /zen/go/v1/messages
-        // confirms the gateway rejects it there ("Model grok-4.5 is not supported for format
-        // anthropic"), so it must stay out of `anthropicMessagesModelIDs`. 500K context is the
-        // real upstream Grok 4.5 number (down from 4.3's 1M), matching Jin's native xAI record.
-        // xAI publishes no separate max-output cap — models.dev's `output: 500000` merely
-        // echoes the context window — so none is recorded here, exactly as the native xAI,
-        // OpenRouter and Vercel grok-4.5 records do; recording it would make
-        // GenerationControlsResolver send a default max_tokens equal to the whole window.
-        // Reasoning is always-on with the low/medium/high band (docs.x.ai) and default high,
-        // which is precisely what the shared `mapReasoningEffortNoneDisabled` already emits,
-        // so no mapper arm is needed. .nativePDF/.codeExecution are deliberately not claimed:
-        // the Go entry lists no PDF modality, this adapter's OpenAI-compatible translation
-        // renders .file parts as text, and `supportsCodeExecution` is false for .opencodeGo.
+        // Grok 4.6 is now first on opencode.ai/docs/go's model list (page updated 2026-08-25).
+        // That page's endpoint table routes grok-4.6 to /zen/go/v1/responses via @ai-sdk/openai
+        // — NOT /chat/completions (that's still grok-4.5) and NOT /messages. Adding the ID
+        // here is NOT sufficient: routing lives in OpenCodeGoAdapter.openAIResponsesModelIDs,
+        // which forwards to an OpenAIAdapter delegate pinned to the Go base URL. Keep this ID
+        // out of `anthropicMessagesModelIDs` and the Muse Spark set. 500K context / no separate
+        // text output cap match docs.x.ai/developers/grok-4-6 (updated 2026-08-21) and Jin's
+        // native xAI record; models.dev's `output: 500000` merely echoes the context window,
+        // and recording it would make GenerationControlsResolver send a default
+        // max_output_tokens equal to the whole window. Reasoning is always-on with the
+        // low/medium/high/xhigh band (default high); `max` is not a Grok value and clamps to
+        // xhigh. Temperature is accepted (models.dev `opencode-go` temperature:true), unlike
+        // gpt-5.6-luna. .nativePDF/.codeExecution/.webSearch are deliberately not claimed: Go's
+        // privacy note says ZDR disables Files/Collections, hosted `/files` on the gateway is
+        // unverified, and `supportsCodeExecution` / `supportsWebSearch` are false for
+        // .opencodeGo. Seeded after glm-5.3 so the first-launch default is unchanged.
+        Record(id: "grok-4.6", displayName: "Grok 4.6",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 500_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        // Grok 4.5 remains on /zen/go/v1/chat/completions via @ai-sdk/openai-compatible
+        // (opencode.ai/docs/go still lists the ID on models.dev even though 4.6 replaced it
+        // at the top of the marketing list). A live unauthenticated probe of /zen/go/v1/messages
+        // rejects it there ("Model grok-4.5 is not supported for format anthropic"), so it must
+        // stay out of `anthropicMessagesModelIDs` and `openAIResponsesModelIDs`. 500K context is
+        // the real upstream Grok 4.5 number (down from 4.3's 1M), matching Jin's native xAI
+        // record. xAI publishes no separate max-output cap — models.dev's `output: 500000`
+        // merely echoes the context window — so none is recorded here. Reasoning is always-on
+        // with the low/medium/high band (docs.x.ai; no xhigh) and default high, which is
+        // precisely what the shared `mapReasoningEffortNoneDisabled` already emits, so no
+        // mapper arm is needed. .nativePDF/.codeExecution are deliberately not claimed: the Go
+        // entry lists no PDF modality, this adapter's OpenAI-compatible translation renders
+        // .file parts as text, and `supportsCodeExecution` is false for .opencodeGo.
         Record(id: "grok-4.5", displayName: "Grok 4.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 500_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
-        // GPT-5.6 Luna is the first OpenCode Go model served on the OpenAI **Responses** API:
-        // opencode.ai/docs/go's endpoint table maps it to /zen/go/v1/responses via
-        // @ai-sdk/openai, while every other OpenAI-shaped Go model uses /chat/completions.
+        // GPT-5.6 Luna is served on the OpenAI **Responses** API (alongside grok-4.6 and
+        // Muse Spark): opencode.ai/docs/go's endpoint table maps it to /zen/go/v1/responses via
+        // @ai-sdk/openai, while chat/completions remains the default for other OpenAI-shaped Go models.
         // Adding the ID here is NOT sufficient — routing lives in
         // OpenCodeGoAdapter.openAIResponsesModelIDs, which forwards to an OpenAIAdapter
         // delegate pinned to the Go base URL. 1,050,000 context / 128,000 output are OpenAI's

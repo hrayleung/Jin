@@ -537,6 +537,17 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertFalse(luna.capabilities.contains(.codeExecution))
         XCTAssertFalse(luna.capabilities.contains(.videoInput))
 
+        let grok46 = ModelCatalog.modelInfo(for: "grok-4.6", provider: .opencodeGo)
+        XCTAssertEqual(grok46.contextWindow, 500_000)
+        XCTAssertNil(grok46.maxOutputTokens)
+        XCTAssertEqual(grok46.reasoningConfig?.type, .effort)
+        XCTAssertEqual(grok46.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(grok46.capabilities.contains(.vision))
+        XCTAssertTrue(grok46.capabilities.contains(.promptCaching))
+        XCTAssertFalse(grok46.capabilities.contains(.nativePDF))
+        XCTAssertFalse(grok46.capabilities.contains(.codeExecution))
+        XCTAssertFalse(grok46.capabilities.contains(.videoInput))
+
         let grok = ModelCatalog.modelInfo(for: "grok-4.5", provider: .opencodeGo)
         XCTAssertEqual(grok.contextWindow, 500_000)
         // xAI publishes no separate output cap; recording one would default max_tokens to the
@@ -562,13 +573,13 @@ final class ModelCatalogTests: XCTestCase {
         // All three are seeded, and glm-5.3 is OpenCode Go's first-launch default.
         let seeded = ModelCatalog.seededModels(for: .opencodeGo)
         XCTAssertEqual(seeded.first?.id, "glm-5.3")
-        for id in ["gpt-5.6-luna", "grok-4.5", "hy3"] {
+        for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "hy3"] {
             XCTAssertTrue(seeded.contains(where: { $0.id == id }), "\(id) should be seeded")
             XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .opencodeGo), id)
         }
 
         // Near-miss IDs must fall back to the conservative default entry, not prefix-match.
-        for id in ["gpt-5.6-luna-pro", "grok-4.5-fast", "hy3-custom"] {
+        for id in ["gpt-5.6-luna-pro", "grok-4.6-custom", "grok-4.6-fast", "grok-4.5-fast", "hy3-custom"] {
             let unknown = ModelCatalog.modelInfo(for: id, provider: .opencodeGo)
             XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
             XCTAssertEqual(unknown.contextWindow, 128_000, id)
@@ -604,8 +615,9 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertFalse(qwen38.capabilities.contains(.promptCaching))
 
         // Its thinking is toggleable (models.dev reasoning_options include a toggle), unlike
-        // grok-4.5 on the same provider.
+        // grok-4.6 / grok-4.5 on the same provider.
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "qwen3.8-max"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.6"))
         XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.5"))
 
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "qwen3.8-max", provider: .opencodeGo))
@@ -2246,7 +2258,6 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(grok46.reasoningConfig?.defaultEffort, .high)
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "grok-4.6", provider: .xai))
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.6-custom", provider: .xai))
-        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.6", provider: .opencodeGo))
 
         let vercelGrok46 = ModelCatalog.modelInfo(for: "xai/grok-4.6", provider: .vercelAIGateway)
         XCTAssertEqual(vercelGrok46.contextWindow, 500_000)
