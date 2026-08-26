@@ -25,7 +25,7 @@ extension OpenCodeGoAdapter {
                     body: body
                 )
             } else if Self.usesOpenAIResponsesEndpoint(modelID) {
-                // Responses-route models (gpt-5.6-luna, muse-spark-1.2,
+                // Responses-route models (gpt-5.6-luna, grok-4.6, muse-spark-1.2,
                 // muse-spark-1.2-contributor) are not served on /chat/completions, so
                 // validate on the endpoint they actually use.
                 // `input` accepts a bare string, and `max_output_tokens` has a documented

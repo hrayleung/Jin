@@ -1061,6 +1061,12 @@ enum ModelCapabilityRegistry {
             return [.high, .max]
         case .opencodeGo where opencodeGoHy3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high]
+        case .opencodeGo where xAIAlwaysOnStandardEffortWithXHighModelIDs.contains(lowerModelID):
+            // grok-4.6 on Go: always-on low/medium/high/xhigh (docs.x.ai/developers/grok-4-6).
+            // Distinct from grok-4.5, which rejects xhigh. Exact ID via the shared set.
+            return [.low, .medium, .high, .xhigh]
+        case .opencodeGo where xAIAlwaysOnStandardEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high]
         case .opencodeGo where isOpenCodeGoMuseSparkModelID(lowerModelID):
             // Live Go `/models` serves muse-spark-1.2 and muse-spark-1.2-contributor.
             // Same Meta band (minimal..xhigh). "none" is HTTP 400; "max" is not accepted.

@@ -126,7 +126,7 @@ final class NativePDFHandlingTests: XCTestCase {
             )
         }
 
-        for id in ["gpt-5.6-luna", "kimi-k3", "muse-spark-1.1", "glm-5.3"] {
+        for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "kimi-k3", "muse-spark-1.1", "glm-5.3"] {
             XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .opencodeGo, modelID: id), id)
             XCTAssertFalse(
                 ChatModelCapabilitySupport.adapterCanSendNativePDF(providerType: .opencodeGo, modelID: id),
