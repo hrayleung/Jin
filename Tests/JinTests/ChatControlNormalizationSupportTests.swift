@@ -80,4 +80,46 @@ final class ChatControlNormalizationSupportTests: XCTestCase {
         XCTAssertEqual(controls.xaiImageGeneration?.aspectRatio, .ratio16x9)
         XCTAssertNil(controls.xaiImageGeneration?.resolution)
     }
+
+    func testNormalizeImageGenerationControlsKeepsImagineImage20QualityAndResolution() {
+        var controls = GenerationControls(
+            xaiImageGeneration: XAIImageGenerationControls(
+                aspectRatio: .ratio16x9,
+                resolution: .res2k,
+                quality: .low
+            )
+        )
+
+        ChatControlNormalizationSupport.normalizeImageGenerationControls(
+            controls: &controls,
+            supportsImageGenerationControl: true,
+            providerType: .xai,
+            supportsCurrentModelImageSizeControl: false,
+            supportedCurrentModelImageSizes: [],
+            supportedCurrentModelImageAspectRatios: [],
+            lowerModelID: "grok-imagine-image-2.0"
+        )
+
+        XCTAssertEqual(controls.xaiImageGeneration?.aspectRatio, .ratio16x9)
+        XCTAssertEqual(controls.xaiImageGeneration?.resolution, .res2k)
+        XCTAssertEqual(controls.xaiImageGeneration?.quality, .low)
+    }
+
+    func testNormalizeImageGenerationControlsDropsHighQualityOnImagineImage20() {
+        var controls = GenerationControls(
+            xaiImageGeneration: XAIImageGenerationControls(quality: .high)
+        )
+
+        ChatControlNormalizationSupport.normalizeImageGenerationControls(
+            controls: &controls,
+            supportsImageGenerationControl: true,
+            providerType: .xai,
+            supportsCurrentModelImageSizeControl: false,
+            supportedCurrentModelImageSizes: [],
+            supportedCurrentModelImageAspectRatios: [],
+            lowerModelID: "grok-imagine-image-2.0"
+        )
+
+        XCTAssertNil(controls.xaiImageGeneration)
+    }
 }

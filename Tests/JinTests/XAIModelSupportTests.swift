@@ -4,6 +4,8 @@ import XCTest
 final class XAIModelSupportTests: XCTestCase {
     func testKnownImageAndVideoIDsUseExactSets() {
         XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("grok-imagine-image"))
+        XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("grok-imagine-image-2.0"))
+        XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("GROK-IMAGINE-IMAGE-2.0"))
         XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("grok-imagine-image-quality"))
         XCTAssertTrue(XAIModelSupport.isImageGenerationModelID("GROK-IMAGINE-IMAGE-PRO"))
         XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video"))
@@ -13,6 +15,7 @@ final class XAIModelSupportTests: XCTestCase {
         XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video-1.5-2026-05-30"))
 
         XCTAssertFalse(XAIModelSupport.isImageGenerationModelID("grok-imagine-image-custom"))
+        XCTAssertFalse(XAIModelSupport.isImageGenerationModelID("grok-imagine-image-2.0-custom"))
         XCTAssertFalse(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video-custom"))
     }
 
@@ -44,10 +47,25 @@ final class XAIModelSupportTests: XCTestCase {
     func testSupportsImageResolutionControlOnlyForQualityAndProTiers() {
         XCTAssertTrue(XAIModelSupport.supportsImageResolutionControl("grok-imagine-image-quality"))
         XCTAssertTrue(XAIModelSupport.supportsImageResolutionControl("GROK-IMAGINE-IMAGE-PRO"))
+        XCTAssertTrue(XAIModelSupport.supportsImageResolutionControl("grok-imagine-image-2.0"))
 
         XCTAssertFalse(XAIModelSupport.supportsImageResolutionControl("grok-imagine-image"))
         XCTAssertFalse(XAIModelSupport.supportsImageResolutionControl("grok-2-image-1212"))
         XCTAssertFalse(XAIModelSupport.supportsImageResolutionControl("grok-4"))
+    }
+
+    func testSupportsImageQualityControlOnlyForImagineImage20() {
+        XCTAssertTrue(XAIModelSupport.supportsImageQualityControl("grok-imagine-image-2.0"))
+        XCTAssertTrue(XAIModelSupport.supportsImageQualityControl("GROK-IMAGINE-IMAGE-2.0"))
+        XCTAssertEqual(
+            XAIModelSupport.supportedImageQualities(for: "grok-imagine-image-2.0"),
+            [.low, .medium]
+        )
+
+        XCTAssertFalse(XAIModelSupport.supportsImageQualityControl("grok-imagine-image"))
+        XCTAssertFalse(XAIModelSupport.supportsImageQualityControl("grok-imagine-image-quality"))
+        XCTAssertFalse(XAIModelSupport.supportsImageQualityControl("grok-imagine-image-pro"))
+        XCTAssertTrue(XAIModelSupport.supportedImageQualities(for: "grok-imagine-image").isEmpty)
     }
 
     func testInferredCapabilitiesPreferVideoAndImageOutputModels() {

@@ -36,6 +36,13 @@ enum XAIMediaRequestSupport {
             body["resolution"] = resolution.rawValue
         }
 
+        if !isImageEdit,
+           XAIModelSupport.supportsImageQualityControl(modelID),
+           let quality = controls?.quality,
+           XAIModelSupport.supportedImageQualities(for: modelID).contains(quality) {
+            body["quality"] = quality.rawValue
+        }
+
         body["response_format"] = "b64_json"
         if let user = normalizedTrimmedString(controls?.user) {
             body["user"] = user

@@ -8,12 +8,7 @@ extension ChatView {
 
     static let openAIImageGenerationModelIDs: Set<String> = OpenAIImageModelSupport.imageGenerationModelIDs
 
-    static let xAIImageGenerationModelIDs: Set<String> = [
-        "grok-imagine-image",
-        "grok-imagine-image-quality",
-        "grok-imagine-image-pro",
-        "grok-2-image-1212",
-    ]
+    static let xAIImageGenerationModelIDs: Set<String> = XAIModelSupport.imageGenerationModelIDs
 
     static let xAIVideoGenerationModelIDs: Set<String> = [
         "grok-imagine-video",

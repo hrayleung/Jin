@@ -30,6 +30,24 @@ final class ChatModelCapabilitySupportTests: XCTestCase {
                 geminiImageGenerationModelIDs: ChatView.geminiImageGenerationModelIDs
             )
         )
+        XCTAssertTrue(
+            ChatModelCapabilitySupport.isImageGenerationModelID(
+                providerType: .xai,
+                lowerModelID: "grok-imagine-image-2.0",
+                openAIImageGenerationModelIDs: ChatView.openAIImageGenerationModelIDs,
+                xAIImageGenerationModelIDs: ChatView.xAIImageGenerationModelIDs,
+                geminiImageGenerationModelIDs: ChatView.geminiImageGenerationModelIDs
+            )
+        )
+        XCTAssertFalse(
+            ChatModelCapabilitySupport.isImageGenerationModelID(
+                providerType: .xai,
+                lowerModelID: "grok-imagine-image-2.0-custom",
+                openAIImageGenerationModelIDs: ChatView.openAIImageGenerationModelIDs,
+                xAIImageGenerationModelIDs: ChatView.xAIImageGenerationModelIDs,
+                geminiImageGenerationModelIDs: ChatView.geminiImageGenerationModelIDs
+            )
+        )
     }
 
     func testSupportsVideoInputUsesMiMoTokenPlanCatalogFallback() {

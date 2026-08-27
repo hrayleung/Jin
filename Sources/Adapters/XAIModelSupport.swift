@@ -2,6 +2,7 @@ import Foundation
 
 enum XAIModelSupport {
     static let imageGenerationModelIDs: Set<String> = [
+        "grok-imagine-image-2.0",
         "grok-imagine-image",
         "grok-imagine-image-quality",
         "grok-imagine-image-pro",
@@ -9,9 +10,17 @@ enum XAIModelSupport {
     ]
 
     static let resolutionCapableImageModelIDs: Set<String> = [
+        "grok-imagine-image-2.0",
         "grok-imagine-image-quality",
         "grok-imagine-image-pro",
     ]
+
+    /// `quality` is documented only for `grok-imagine-image-2.0` (`low`/`medium`).
+    static let qualityCapableImageModelIDs: Set<String> = [
+        "grok-imagine-image-2.0",
+    ]
+
+    static let image2QualityOptions: [XAIImageQuality] = [.low, .medium]
     static let videoGenerationModelIDs: Set<String> = [
         "grok-imagine-video",
         "grok-imagine-video-1.5",
@@ -117,6 +126,14 @@ enum XAIModelSupport {
 
     static func supportsImageResolutionControl(_ modelID: String) -> Bool {
         resolutionCapableImageModelIDs.contains(modelID.lowercased())
+    }
+
+    static func supportsImageQualityControl(_ modelID: String) -> Bool {
+        qualityCapableImageModelIDs.contains(modelID.lowercased())
+    }
+
+    static func supportedImageQualities(for modelID: String) -> [XAIImageQuality] {
+        supportsImageQualityControl(modelID) ? image2QualityOptions : []
     }
 
     static func supportsFullHDVideoResolution(_ modelID: String) -> Bool {

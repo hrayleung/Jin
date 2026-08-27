@@ -1664,6 +1664,123 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(pro.reasoningConfig?.defaultEffort, .high)
     }
 
+    func testDeepSeekVisionExpSendsImageURLOnUserMessages() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "ds",
+            name: "DeepSeek",
+            type: .deepseek,
+            apiKey: "ignored",
+            baseURL: "https://api.deepseek.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "deepseek-v4-flash-vision-exp")
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 1)
+            let content = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
+            XCTAssertEqual(content[0]["type"] as? String, "text")
+            XCTAssertEqual(content[0]["text"] as? String, "What is in this image?")
+            XCTAssertEqual(content[1]["type"] as? String, "image_url")
+            let imageURL = try XCTUnwrap(content[1]["image_url"] as? [String: Any])
+            XCTAssertEqual(imageURL["url"] as? String, "https://example.com/image.jpg")
+
+            let response: [String: Any] = [
+                "id": "cmpl_ds_vision",
+                "choices": [["message": ["role": "assistant", "content": "A cat"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = DeepSeekAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("What is in this image?"),
+                        .image(ImageContent(
+                            mimeType: "image/jpeg",
+                            data: nil,
+                            url: URL(string: "https://example.com/image.jpg")
+                        ))
+                    ]
+                )
+            ],
+            modelID: "deepseek-v4-flash-vision-exp",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
+    func testDeepSeekFlashOmitsImagesInsteadOfSendingVisionBlocks() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "ds",
+            name: "DeepSeek",
+            type: .deepseek,
+            apiKey: "ignored",
+            baseURL: "https://api.deepseek.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "deepseek-v4-flash")
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 1)
+            let content = try XCTUnwrap(messages[0]["content"] as? String)
+            XCTAssertTrue(content.contains("What is in this image?"))
+            XCTAssertTrue(content.contains("Image attachment omitted"))
+
+            let response: [String: Any] = [
+                "id": "cmpl_ds_no_vision",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = DeepSeekAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("What is in this image?"),
+                        .image(ImageContent(
+                            mimeType: "image/jpeg",
+                            data: nil,
+                            url: URL(string: "https://example.com/image.jpg")
+                        ))
+                    ]
+                )
+            ],
+            modelID: "deepseek-v4-flash",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+
+        for try await _ in stream {}
+    }
+
     func testOpenRouterAdapterBuildsChatCompletionsRequestWithReasoningAndWebPlugin() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

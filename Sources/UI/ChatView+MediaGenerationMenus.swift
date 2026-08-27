@@ -11,9 +11,11 @@ extension ChatView {
             XAIImageGenerationMenuView(
                 isConfigured: isImageGenerationConfigured,
                 supportsResolution: XAIModelSupport.supportsImageResolutionControl(lowerModelID),
+                supportsQuality: XAIModelSupport.supportsImageQualityControl(lowerModelID),
                 currentCount: controls.xaiImageGeneration?.count,
                 selectedAspectRatio: controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio,
                 currentResolution: controls.xaiImageGeneration?.resolution,
+                currentQuality: controls.xaiImageGeneration?.quality,
                 menuItemLabel: { title, isSelected in
                     menuItemLabel(title, isSelected: isSelected)
                 },
@@ -35,6 +37,9 @@ extension ChatView {
                 },
                 onSetResolution: { value in
                     updateXAIImageGeneration { $0.resolution = value }
+                },
+                onSetQuality: { value in
+                    updateXAIImageGeneration { $0.quality = value }
                 },
                 onReset: {
                     controls.xaiImageGeneration = nil
@@ -150,9 +155,13 @@ extension ChatView {
         var draft = controls.xaiImageGeneration ?? XAIImageGenerationControls()
         mutate(&draft)
 
-        // These legacy fields are not supported by current xAI image APIs.
-        draft.quality = nil
         draft.style = nil
+        if !XAIModelSupport.supportsImageQualityControl(lowerModelID) {
+            draft.quality = nil
+        } else if let quality = draft.quality,
+                  !XAIModelSupport.supportedImageQualities(for: lowerModelID).contains(quality) {
+            draft.quality = nil
+        }
         if draft.aspectRatio != nil {
             draft.size = nil
         }
