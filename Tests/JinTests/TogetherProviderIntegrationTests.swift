@@ -32,13 +32,17 @@ final class TogetherProviderIntegrationTests: XCTestCase {
 
         XCTAssertEqual(togetherProvider.id, "together")
         XCTAssertEqual(togetherProvider.baseURL, ProviderType.together.defaultBaseURL)
-        XCTAssertEqual(togetherProvider.models.count, 13)
+        XCTAssertEqual(togetherProvider.models.count, 21)
         XCTAssertEqual(
             togetherProvider.models.map(\.id),
             [
                 "moonshotai/Kimi-K3",
                 "moonshotai/Kimi-K2.5",
                 "thinkingmachines/Inkling",
+                "moonshotai/Kimi-K2.7-Code",
+                "meta/muse-spark-1.2",
+                "zai-org/GLM-5.3",
+                "zai-org/GLM-5.3-Flash",
                 "zai-org/GLM-5.2",
                 "zai-org/GLM-5",
                 "deepseek-ai/DeepSeek-V3.1",
@@ -46,6 +50,10 @@ final class TogetherProviderIntegrationTests: XCTestCase {
                 "deepseek-ai/DeepSeek-V4-Flash-0731",
                 "openai/gpt-oss-120b",
                 "Qwen/Qwen3.8-2.4T-A95B",
+                "Qwen/Qwen3.8-27B",
+                "MiniMaxAI/MiniMax-M3",
+                "MiniMaxAI/MiniMax-M2.7",
+                "nvidia/Nemotron-3.5-Lightning",
                 "Qwen/Qwen3.5-397B-A17B",
                 "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
                 "Qwen/Qwen3-Coder-Next-FP8",

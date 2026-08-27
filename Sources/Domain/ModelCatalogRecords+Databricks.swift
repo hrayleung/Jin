@@ -89,6 +89,12 @@ extension ModelCatalog {
         // MARK: Catalog-only — recognized when fetched from the workspace
 
         // Anthropic Claude
+        Record(id: "databricks-claude-fable-5", displayName: "Claude Fable 5",
+               capabilities: [.streaming, .toolCalling, .vision],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
         Record(id: "databricks-claude-sonnet-5", displayName: "Claude Sonnet 5",
                capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,
@@ -146,6 +152,11 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
 
         // Google Gemini
+        Record(id: "databricks-gemini-3-7-flash", displayName: "Gemini 3.7 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         Record(id: "databricks-gemini-3-5-flash", displayName: "Gemini 3.5 Flash",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_048_576,

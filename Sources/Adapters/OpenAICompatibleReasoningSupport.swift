@@ -278,7 +278,7 @@ enum OpenAICompatibleReasoningSupport {
 
     private static func isZhipuGLM53ModelID(_ lowerModelID: String) -> Bool {
         switch lowerModelID {
-        case "glm-5.3", "glm-5.3[1m]":
+        case "glm-5.3", "glm-5.3[1m]", "glm-5.3-flash":
             return true
         default:
             return false

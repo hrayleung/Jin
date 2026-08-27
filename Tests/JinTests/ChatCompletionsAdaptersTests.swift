@@ -2636,7 +2636,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
         for try await _ in kimiStream {}
 
-        for modelID in ["ox-alpha-free", "glm-5.3"] {
+        for modelID in ["ox-alpha-free", "glm-5.3", "glm-5.3-flash"] {
             protocolType.requestHandler = { request in
                 let body = try XCTUnwrap(requestBodyData(request))
                 let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -2961,7 +2961,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     func testOpenCodeGoEndpointRoutingMatrixMatchesPublishedDocsTable() {
         // opencode.ai/docs/go publishes a per-model endpoint table. Every model must land on
         // exactly one of the three routes, matched by exact ID.
-        for id in ["grok-4.5", "hy3", "glm-5.3", "glm-5.2", "glm-5.1", "ox-alpha-free", "kimi-k3", "kimi-k2.7-code",
+        for id in ["grok-4.5", "hy3", "glm-5.3", "glm-5.3-flash", "glm-5.2", "glm-5.1", "ox-alpha-free", "kimi-k3", "kimi-k2.7-code",
                    "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "mimo-v2.5", "mimo-v2.5-pro"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /chat/completions")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /chat/completions")

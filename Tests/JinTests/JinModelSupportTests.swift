@@ -115,6 +115,7 @@ final class JinModelSupportTests: XCTestCase {
     func testZhipuCodingPlanUsesExactMatchForFullySupportedTag() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5.3"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5.3[1m]"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5.3-flash"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-4.7"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .zhipuCodingPlan, modelID: "glm-5.3-custom"))
@@ -123,6 +124,7 @@ final class JinModelSupportTests: XCTestCase {
 
     func testTogetherSeededModelsAreMarkedAsFullySupported() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "moonshotai/Kimi-K2.5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "zai-org/GLM-5.3-Flash"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "zai-org/GLM-5"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V3.1"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "openai/gpt-oss-120b"))
@@ -361,6 +363,7 @@ final class JinModelSupportTests: XCTestCase {
 
     func testOpenCodeGoGLM53ModelUsesExactFullySupportedIDs() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.3-flash"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.3-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.3-preview"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "glm-5.3[1m]"))
@@ -496,5 +499,72 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-mythos-5"))
         let fable = ModelCatalog.modelInfo(for: "claude-fable-5", provider: .anthropic)
         XCTAssertTrue(fable.capabilities.contains(.codeExecution))
+    }
+
+    func testNewFrontierModelsSupportAndMetadata() {
+        // DeepSeek V4 Pro 0813 and Flash 0731 on native DeepSeek
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-pro-0813"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-flash-0731"))
+        let deepseekV4Pro0813 = ModelCatalog.modelInfo(for: "deepseek-v4-pro-0813", provider: .deepseek)
+        XCTAssertEqual(deepseekV4Pro0813.contextWindow, 1_000_000)
+        XCTAssertEqual(deepseekV4Pro0813.maxOutputTokens, 384_000)
+        XCTAssertEqual(deepseekV4Pro0813.reasoningConfig?.defaultEffort, .high)
+
+        // GLM-5.3 on OpenRouter, Together, DeepInfra, Fireworks, Baseten, Modal, Cloudflare, Vercel
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "z-ai/glm-5.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "zai-org/GLM-5.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "zai-org/GLM-5.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/glm-5p3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .baseten, modelID: "zai-org/GLM-5.3-Flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .modal, modelID: "zai-org/GLM-5.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "z-ai/glm-5.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "zai/glm-5.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "zai/glm-5.3-flash"))
+
+        // Qwen 3.8 27B across providers
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "qwen/qwen3.8-27b"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3.8-27B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.8-27B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/qwen3p8-27b"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .baseten, modelID: "Qwen/Qwen3.8-27B"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "qwen/qwen3.8-27b"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "qwen/qwen3.8-27b"))
+
+        // MiniMax M3 and M2.7 across providers
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .minimaxCodingPlan, modelID: "MiniMax-M3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .minimaxCodingPlan, modelID: "MiniMax-M2.7"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .sambanova, modelID: "MiniMax-M3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "MiniMaxAI/MiniMax-M3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "MiniMaxAI/MiniMax-M3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/minimax-m3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "minimax/minimax-m3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "minimax/minimax-m3"))
+
+        // Kimi K3 Fast & K2.7 Code
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "moonshotai/kimi-k3-fast"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "moonshotai/kimi-k2.7-code"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "moonshotai/Kimi-K2.7-Code"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "moonshotai/Kimi-K2.7-Code"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/kimi-k2p7-code"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "moonshotai/kimi-k3-fast"))
+
+        // Muse Spark 1.2 across providers
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "meta/muse-spark-1.2-contributor"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "meta/muse-spark-1.2"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .baseten, modelID: "meta/muse-spark-1.2"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "meta/muse-spark-1.2"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "meta/muse-spark-1.2"))
+
+        // Nemotron 3.5 Lightning across providers
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "nvidia/Nemotron-3.5-Lightning"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "nvidia/NVIDIA-Nemotron-3.5-Lightning"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/nemotron-3-5-lightning"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .modal, modelID: "nvidia/Nemotron-3.5-Lightning"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "nvidia/nemotron-3.5-lightning"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "nvidia/nemotron-3.5-lightning"))
+
+        // Databricks new additions
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-claude-fable-5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-gemini-3-7-flash"))
     }
 }

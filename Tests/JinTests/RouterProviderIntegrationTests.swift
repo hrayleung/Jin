@@ -31,7 +31,7 @@ final class RouterProviderIntegrationTests: XCTestCase {
 
     func testSeededModelsMatchLiveCatalog() {
         let seeded = ModelCatalog.seededModels(for: .router).map(\.id)
-        XCTAssertEqual(seeded.count, 16)
+        XCTAssertEqual(seeded.count, 17)
         XCTAssertEqual(seeded, [
             "claude-fable-5",
             "claude-haiku-4-5",
@@ -44,6 +44,7 @@ final class RouterProviderIntegrationTests: XCTestCase {
             "o3",
             "grok-4.6",
             "accounts/fireworks/models/deepseek-v4-pro",
+            "accounts/fireworks/models/glm-5p3",
             "accounts/fireworks/models/glm-5p2",
             "accounts/fireworks/models/gpt-oss-120b",
             "accounts/fireworks/models/kimi-k3",
@@ -196,7 +197,7 @@ final class RouterProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(config.name, "Ramp Router")
         XCTAssertEqual(config.type, .router)
         XCTAssertEqual(config.baseURL, "https://api.router.com/v1")
-        XCTAssertEqual(config.models.count, 16)
+        XCTAssertEqual(config.models.count, 17)
         XCTAssertTrue(DefaultProviderSeeds.allProviders().contains(where: { $0.id == "router" }))
         XCTAssertEqual(ProviderFormSupport.credentialKind(for: .router), .apiKey)
 

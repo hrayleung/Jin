@@ -99,6 +99,10 @@ extension ContentView {
             return glm47.id
         }
         if providerID == "minimax" || providerID == "minimax-coding-plan",
+           let m3 = models.first(where: { $0.id == "MiniMax-M3" }) {
+            return m3.id
+        }
+        if providerID == "minimax" || providerID == "minimax-coding-plan",
            let m27 = models.first(where: { $0.id == "MiniMax-M2.7" }) {
             return m27.id
         }

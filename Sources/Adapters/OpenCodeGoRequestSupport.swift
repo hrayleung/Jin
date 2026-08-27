@@ -123,7 +123,7 @@ extension OpenCodeGoAdapter {
     /// band is low/high/max (default max). Off maps to `low`.
     static func usesAlwaysOnLowHighMaxReasoningEffort(_ modelID: String) -> Bool {
         switch modelID.lowercased() {
-        case "glm-5.3", "ox-alpha-free":
+        case "glm-5.3", "glm-5.3-flash", "ox-alpha-free":
             return true
         default:
             return false
@@ -186,7 +186,7 @@ extension OpenCodeGoAdapter {
 
     private func mapReasoningEffort(_ effort: ReasoningEffort, modelID: String) -> String {
         switch modelID.lowercased() {
-        case "glm-5.3", "ox-alpha-free":
+        case "glm-5.3", "glm-5.3-flash", "ox-alpha-free":
             // Official band is low/high/max (default max). Disabled thinking is
             // no longer supported and maps to `low`. Medium is not a valid wire
             // value — fold it to high.

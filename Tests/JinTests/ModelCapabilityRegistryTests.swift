@@ -333,6 +333,18 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .zhipuCodingPlan, modelID: "glm-5.3[1m]"),
             [.low, .high, .max]
         )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .zhipuCodingPlan, modelID: "glm-5.3-flash"),
+            [.low, .high, .max]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "glm-5.3-flash"),
+            [.low, .high, .max]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .together, modelID: "zai-org/GLM-5.3-Flash"),
+            [.low, .high, .max]
+        )
         // Near-miss IDs must not inherit the 5.3 band.
         XCTAssertNotEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "glm-5.3-custom"),
