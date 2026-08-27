@@ -12,7 +12,7 @@ extension ChatAuxiliaryControlSupport {
         case .perplexity:
             return controls.webSearch?.enabled ?? true
         case .openai, .openaiWebSocket, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
-             .openrouter, .anthropic, .claudeManagedAgents, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .xai,
+             .openrouter, .anthropic, .claudeManagedAgents, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .runinfra, .xai,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
              .fireworks, .cerebras, .sambanova, .databricks, .gemini, .vertexai, .modal, .morphllm, .opencodeGo, .router, .zyphra, .makora, .meta, .kimiForCoding, .none:
             return controls.webSearch?.enabled == true

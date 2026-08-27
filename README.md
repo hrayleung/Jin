@@ -81,7 +81,7 @@ Conversation-first, tool-aware, and built for macOS instead of Electron.
 
 Configure providers in **Settings > Providers**. Jin supports direct providers, gateways, and coding-focused runtimes:
 
-OpenAI · OpenAI (WebSocket) · Anthropic · Claude Managed Agents · Gemini (AI Studio) · Vertex AI · xAI · Meta · Perplexity · Groq · Cohere · Mistral · DeepInfra · Together AI · Baseten · Modal · Makora · Fireworks · SambaNova · Databricks · Cerebras · DeepSeek · Zhipu Coding Plan · MiniMax · MiniMax Coding Plan · Xiaomi MiMo Token Plan · Kimi for Coding · Zyphra · MorphLLM · OpenCode Go · GitHub Copilot · Ramp Router · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Vercel AI Gateway
+OpenAI · OpenAI (WebSocket) · Anthropic · Claude Managed Agents · Gemini (AI Studio) · Vertex AI · xAI · Meta · Perplexity · Groq · Cohere · Mistral · DeepInfra · Together AI · Baseten · RunInfra · Modal · Makora · Fireworks · SambaNova · Databricks · Cerebras · DeepSeek · Zhipu Coding Plan · MiniMax · MiniMax Coding Plan · Xiaomi MiMo Token Plan · Kimi for Coding · Zyphra · MorphLLM · OpenCode Go · GitHub Copilot · Ramp Router · OpenRouter · OpenAI Compatible · Cloudflare AI Gateway · Vercel AI Gateway
 
 - **Most providers** use an API key.
 - **Vertex AI** uses a service account JSON.

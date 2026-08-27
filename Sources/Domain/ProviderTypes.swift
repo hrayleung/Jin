@@ -84,6 +84,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case openrouter
     case perplexity
     case router
+    case runinfra
     case sambanova
     case together
     case vercelAIGateway
@@ -108,6 +109,7 @@ enum ProviderType: String, Codable, CaseIterable {
         // Ramp's own branding is "Ramp Router"; the bare product name would read as
         // a near-duplicate of OpenRouter two rows up in every provider list.
         case .router: return "Ramp Router"
+        case .runinfra: return "RunInfra"
         case .groq: return "Groq"
         case .kimiForCoding: return "Kimi for Coding"
         case .cohere: return "Cohere"
@@ -184,6 +186,7 @@ enum ProviderType: String, Codable, CaseIterable {
         // Router serves only `GET /v1/models` and `POST /v1/responses`; the `/v1`
         // has to stay in the base URL because both are appended to it verbatim.
         case .router: return "https://api.router.com/v1"
+        case .runinfra: return "https://api.runinfra.ai/v1"
         case .groq: return "https://api.groq.com/openai/v1"
         case .kimiForCoding: return "https://api.kimi.com/coding"
         case .cohere: return "https://api.cohere.com/v2"

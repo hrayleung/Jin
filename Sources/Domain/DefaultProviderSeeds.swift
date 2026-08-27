@@ -24,6 +24,7 @@ enum DefaultProviderSeeds {
             deepInfra,
             together,
             baseten,
+            runinfra,
             xAI,
             deepSeek,
             zhipuCodingPlan,
@@ -202,6 +203,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .together),
             baseURL: ProviderType.together.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .together)
+        )
+    }
+
+    static var runinfra: ProviderConfig {
+        ProviderConfig(
+            id: "runinfra",
+            name: "RunInfra",
+            type: .runinfra,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .runinfra),
+            baseURL: ProviderType.runinfra.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .runinfra)
         )
     }
 

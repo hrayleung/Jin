@@ -246,7 +246,7 @@ enum ContextCacheUtilities {
                 adjustedControls = prepared.controls
             }
         case .xai, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
-             .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek,
+             .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .runinfra, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
              .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .router, .zyphra, .makora, .meta, .kimiForCoding:
             break
