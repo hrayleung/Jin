@@ -51,7 +51,7 @@ extension ChatAuxiliaryControlSupport {
         // exposes no cache resource of its own — the upstream's implicit caching still
         // applies without Jin sending anything.
         case .githubCopilot, .openaiCompatible, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
-             .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks,
+             .mistral, .deepinfra, .together, .baseten, .runinfra, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks,
              .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .router, .zyphra, .makora:
             return nil
         }

@@ -16,7 +16,7 @@ extension ChatModelCapabilitySupport {
         case .gemini, .vertexai:
             return geminiImageGenerationModelIDs.contains(lowerModelID)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
-             .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .anthropic, .claudeManagedAgents, .perplexity,
+             .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .runinfra, .anthropic, .claudeManagedAgents, .perplexity,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
              .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .router, .zyphra, .makora, .meta, .kimiForCoding, .none:
             return false
@@ -134,7 +134,7 @@ extension ChatModelCapabilitySupport {
             return mistralAudioInputModelIDs.contains(lowerModelID)
         case .gemini, .vertexai:
             return geminiAudioInputModelIDs.contains(lowerModelID)
-        case .githubCopilot, .openrouter, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .deepinfra, .together, .baseten:
+        case .githubCopilot, .openrouter, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .deepinfra, .together, .baseten, .runinfra:
             return compatibleAudioInputModelIDs.contains(lowerModelID)
         case .mimoTokenPlanOpenAI:
             return resolvedModelSettings?.capabilities.contains(.audio) == true

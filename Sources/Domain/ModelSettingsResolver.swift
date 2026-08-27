@@ -153,6 +153,9 @@ enum ModelSettingsResolver {
             // GPT-OSS 120B on Makora: reasoning always on (omp-makora-provider).
             return !MakoraModelSupport.isAlwaysOnReasoningModel(modelID)
         }
+        if providerType == .runinfra {
+            return !runinfraAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
         return true
     }
 
@@ -323,6 +326,14 @@ enum ModelSettingsResolver {
     /// multimodal and toggleable).
     private static let modalAlwaysOnReasoningModelIDs: Set<String> = [
         "qwen/qwen3.8-2.4t-a95b",
+    ]
+
+    /// RunInfra IDs whose thinking cannot be turned off. Exact-ID only.
+    /// `qwen3-8-2-4t-a95b` refuses `reasoning_effort: "none"` with 400
+    /// "Disabling thinking is not supported." (chat-completions docs, 2026-08-27).
+    private static let runinfraAlwaysOnReasoningModelIDs: Set<String> = [
+        "qwen3-8-2-4t-a95b",
+        "inferact/qwen3.8-2.4t-a95b-nvfp4",
     ]
 
     private static func isSambaNovaAlwaysOnReasoningModel(_ modelID: String) -> Bool {

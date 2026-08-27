@@ -109,6 +109,9 @@ actor ProviderManager {
         case .router:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return RouterAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .runinfra:
+            let apiKey = requiredAPIKey(from: credentials, for: config.type)
+            return RunInfraAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .gemini:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return GeminiAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)

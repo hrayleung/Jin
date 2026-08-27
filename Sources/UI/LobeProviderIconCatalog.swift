@@ -210,6 +210,10 @@ enum LobeProviderIconCatalog {
         // are rendered from Ramp's own mark (router.com/icon.svg), monochrome to match
         // the rest of the set (black on light, white on dark).
         LobeProviderIcon(id: "Router", docsSlug: "router", filename: "router.svg"),
+        // Not a Lobe icon — RunInfra has no lobe-icons entry, so the bundled PNGs
+        // are a monochrome reconstruction of RunInfra's block R (black on light,
+        // white on dark) to match the rest of the set.
+        LobeProviderIcon(id: "RunInfra", docsSlug: "runinfra", filename: "runinfra.svg"),
         LobeProviderIcon(id: "Rwkv", docsSlug: "rwkv", filename: "rwkv.svg"),
         LobeProviderIcon(id: "SambaNova", docsSlug: "samba-nova", filename: "sambanova.svg"),
         LobeProviderIcon(id: "Search1API", docsSlug: "search1-api", filename: "search1api.svg"),
@@ -328,6 +332,8 @@ enum LobeProviderIconCatalog {
             return "OpenCode"
         case .router:
             return "Router"
+        case .runinfra:
+            return "RunInfra"
         case .gemini:
             return "AiStudio"
         case .vertexai:
