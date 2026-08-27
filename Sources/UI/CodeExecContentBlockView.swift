@@ -129,21 +129,13 @@ struct CodeExecContentBlockView: View {
 
     private var expandTitle: String {
         CodeExecContentBlockSupport.expandControlTitle(
-            hiddenLineCount: CodeExecContentBlockSupport.hiddenLineCount(
-                for: contentMetrics,
-                isExpanded: false
-            ),
+            for: contentMetrics,
             isExpanded: isExpanded
         )
     }
 
     private var remainderCaption: String? {
-        CodeExecContentBlockSupport.truncatedRemainderCaption(
-            hiddenLineCount: CodeExecContentBlockSupport.hiddenLineCount(
-                for: contentMetrics,
-                isExpanded: true
-            )
-        )
+        CodeExecContentBlockSupport.truncatedRemainderCaption(for: contentMetrics)
     }
 
     private static let contentFont = Font.system(.caption, design: .monospaced)
