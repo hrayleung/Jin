@@ -125,45 +125,106 @@ final class CodeExecutionTimelineSupportTests: XCTestCase {
         XCTAssertEqual(CodeExecutionTimelineSupport.headerTitle(activityCount: 2), "2 Code Executions")
     }
 
-    func testCompactStatusSummarizesCompletedAndFailedActivities() {
-        XCTAssertNil(
-            CodeExecutionTimelineSupport.compactStatus(
+    func testIsSingleExecutionMatchesActivityCount() {
+        XCTAssertTrue(
+            CodeExecutionTimelineSupport.isSingleExecution([
+                activity(id: "one", status: .completed)
+            ])
+        )
+        XCTAssertFalse(
+            CodeExecutionTimelineSupport.isSingleExecution([
+                activity(id: "one", status: .completed),
+                activity(id: "two", status: .completed)
+            ])
+        )
+    }
+
+    func testHeaderStatusUsesQuietSuccessAndRunningCopy() {
+        XCTAssertEqual(
+            CodeExecutionTimelineSupport.headerStatus(
                 for: [activity(id: "running", status: .interpreting)]
-            )
+            ),
+            .init(kind: .running, text: "Running", icon: nil)
         )
         XCTAssertEqual(
-            CodeExecutionTimelineSupport.compactStatus(
+            CodeExecutionTimelineSupport.headerStatus(
+                for: [activity(id: "write", status: .writingCode)]
+            ),
+            .init(kind: .running, text: "Writing", icon: nil)
+        )
+        XCTAssertEqual(
+            CodeExecutionTimelineSupport.headerStatus(
+                for: [activity(id: "start", status: .inProgress)]
+            ),
+            .init(kind: .running, text: "Starting", icon: nil)
+        )
+        XCTAssertEqual(
+            CodeExecutionTimelineSupport.headerStatus(
                 for: [activity(id: "done", status: .completed)]
             ),
-            .init(text: "Done", icon: "checkmark.circle", kind: .success)
+            .init(kind: .success, text: nil, icon: "checkmark.circle.fill")
         )
         XCTAssertEqual(
-            CodeExecutionTimelineSupport.compactStatus(
+            CodeExecutionTimelineSupport.headerStatus(
                 for: [activity(id: "failed", status: .failed)]
             ),
-            .init(text: "Failed", icon: "xmark.circle", kind: .failure)
+            .init(kind: .failure, text: "Failed", icon: "xmark.circle.fill")
         )
         XCTAssertEqual(
-            CodeExecutionTimelineSupport.compactStatus(
+            CodeExecutionTimelineSupport.headerStatus(
                 for: [
                     activity(id: "failed", status: .failed),
                     activity(id: "incomplete", status: .incomplete)
                 ]
             ),
-            .init(text: "2 failed", icon: "xmark.circle", kind: .failure)
+            .init(kind: .failure, text: "2 failed", icon: "xmark.circle.fill")
         )
         XCTAssertEqual(
-            CodeExecutionTimelineSupport.compactStatus(
+            CodeExecutionTimelineSupport.headerStatus(
                 for: [
                     activity(id: "done", status: .completed),
                     activity(id: "failed", status: .failed)
                 ]
             ),
-            .init(text: "1 ok / 1 failed", icon: "xmark.circle", kind: .failure)
+            .init(kind: .failure, text: "1 ok / 1 failed", icon: "xmark.circle.fill")
         )
         XCTAssertNil(
-            CodeExecutionTimelineSupport.compactStatus(
+            CodeExecutionTimelineSupport.headerStatus(
                 for: [activity(id: "unknown", status: .unknown("queued"))]
+            )
+        )
+    }
+
+    func testCollapsedPreviewUsesFirstCodeLineOrRunningPlaceholder() {
+        XCTAssertEqual(
+            CodeExecutionTimelineSupport.collapsedPreview(
+                for: [
+                    CodeExecutionActivity(
+                        id: "code",
+                        status: .completed,
+                        code: "\nimport platform\nprint(1)"
+                    )
+                ]
+            ),
+            "import platform"
+        )
+        XCTAssertEqual(
+            CodeExecutionTimelineSupport.collapsedPreview(
+                for: [activity(id: "write", status: .writingCode)]
+            ),
+            "Writing code..."
+        )
+        XCTAssertNil(
+            CodeExecutionTimelineSupport.collapsedPreview(
+                for: [
+                    activity(id: "one", status: .completed, code: "print(1)"),
+                    activity(id: "two", status: .completed, code: "print(2)")
+                ]
+            )
+        )
+        XCTAssertNil(
+            CodeExecutionTimelineSupport.collapsedPreview(
+                for: [activity(id: "done", status: .completed)]
             )
         )
     }
@@ -182,8 +243,9 @@ final class CodeExecutionTimelineSupportTests: XCTestCase {
 
     private func activity(
         id: String,
-        status: CodeExecutionStatus
+        status: CodeExecutionStatus,
+        code: String? = nil
     ) -> CodeExecutionActivity {
-        CodeExecutionActivity(id: id, status: status)
+        CodeExecutionActivity(id: id, status: status, code: code)
     }
 }

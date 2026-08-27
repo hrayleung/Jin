@@ -103,26 +103,33 @@ enum GeminiRequestSupport {
         return toolArray
     }
 
+    /// Gemini requires `toolConfig.includeServerSideToolInvocations` when a
+    /// built-in tool (code execution, Google Search, Maps, URL context) is
+    /// combined with function calling. Omitting it returns HTTP 400.
+    /// Docs: https://ai.google.dev/gemini-api/docs/generate-content/tool-combination
+    static func shouldIncludeServerSideToolInvocations(in tools: [[String: Any]]) -> Bool {
+        hasBuiltInTool(in: tools) && hasFunctionDeclarations(in: tools)
+    }
+
     static func toolConfig(
         controls: GenerationControls,
+        tools: [[String: Any]],
         supportsGoogleMaps: Bool
     ) -> [String: Any]? {
-        guard controls.googleMaps?.enabled == true, supportsGoogleMaps else {
-            return nil
+        var config: [String: Any] = [:]
+
+        if shouldIncludeServerSideToolInvocations(in: tools) {
+            config["includeServerSideToolInvocations"] = true
         }
 
-        var retrievalConfig: [String: Any] = [:]
-
-        if let lat = controls.googleMaps?.latitude,
-           let lng = controls.googleMaps?.longitude {
-            retrievalConfig["latLng"] = [
-                "latitude": lat,
-                "longitude": lng
-            ]
+        if let retrievalConfig = mapsRetrievalConfig(
+            controls: controls,
+            supportsGoogleMaps: supportsGoogleMaps
+        ) {
+            config["retrievalConfig"] = retrievalConfig
         }
 
-        guard !retrievalConfig.isEmpty else { return nil }
-        return ["retrievalConfig": retrievalConfig]
+        return config.isEmpty ? nil : config
     }
 
     static func functionDeclarations(from tools: [ToolDefinition]) -> [[String: Any]] {
@@ -173,6 +180,49 @@ enum GeminiRequestSupport {
 
     static func supportsThinkingLevel(_ modelID: String) -> Bool {
         supportsThinkingConfig(modelID)
+    }
+
+    private static func hasBuiltInTool(in tools: [[String: Any]]) -> Bool {
+        tools.contains { tool in
+            tool["google_search"] != nil
+                || tool["googleSearch"] != nil
+                || tool["code_execution"] != nil
+                || tool["codeExecution"] != nil
+                || tool["googleMaps"] != nil
+                || tool["url_context"] != nil
+                || tool["urlContext"] != nil
+        }
+    }
+
+    private static func hasFunctionDeclarations(in tools: [[String: Any]]) -> Bool {
+        tools.contains { tool in
+            guard let declarations = tool["functionDeclarations"] as? [Any] else {
+                return false
+            }
+            return !declarations.isEmpty
+        }
+    }
+
+    private static func mapsRetrievalConfig(
+        controls: GenerationControls,
+        supportsGoogleMaps: Bool
+    ) -> [String: Any]? {
+        guard controls.googleMaps?.enabled == true, supportsGoogleMaps else {
+            return nil
+        }
+
+        var retrievalConfig: [String: Any] = [:]
+
+        if let lat = controls.googleMaps?.latitude,
+           let lng = controls.googleMaps?.longitude {
+            retrievalConfig["latLng"] = [
+                "latitude": lat,
+                "longitude": lng
+            ]
+        }
+
+        guard !retrievalConfig.isEmpty else { return nil }
+        return retrievalConfig
     }
 
     private static func addSamplingControls(

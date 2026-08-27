@@ -33,39 +33,77 @@ final class CodeExecContentBlockSupportTests: XCTestCase {
         )
     }
 
-    func testExpandControlMatchesExistingLineLengthAndCharacterThresholds() {
-        XCTAssertFalse(CodeExecContentBlockSupport.showsExpandControl(for: metrics(lines: 12, longest: 120, count: 800)))
-        XCTAssertTrue(CodeExecContentBlockSupport.showsExpandControl(for: metrics(lines: 13, longest: 1, count: 13)))
-        XCTAssertTrue(CodeExecContentBlockSupport.showsExpandControl(for: metrics(lines: 1, longest: 121, count: 121)))
-        XCTAssertTrue(CodeExecContentBlockSupport.showsExpandControl(for: metrics(lines: 1, longest: 1, count: 801)))
-    }
-
-    func testCurrentMaxHeightOnlyAppliesWhenExpandable() {
-        XCTAssertNil(
-            CodeExecContentBlockSupport.currentMaxHeight(
-                for: metrics(lines: 1, longest: 1, count: 1),
-                isExpanded: false,
-                collapsedHeight: 176,
-                expandedHeight: 320
+    func testExpandControlUsesLineCountOnlyBecauseLongLinesWrap() {
+        XCTAssertFalse(
+            CodeExecContentBlockSupport.showsExpandControl(
+                for: metrics(lines: 12, longest: 400, count: 800)
             )
         )
+        XCTAssertTrue(
+            CodeExecContentBlockSupport.showsExpandControl(
+                for: metrics(lines: 13, longest: 1, count: 13)
+            )
+        )
+    }
+
+    func testVisibleTextTruncatesCollapsedAndExpandedLineLimits() {
+        let text = (1...90).map(String.init).joined(separator: "\n")
+
+        let collapsed = CodeExecContentBlockSupport.visibleText(for: text, isExpanded: false)
         XCTAssertEqual(
-            CodeExecContentBlockSupport.currentMaxHeight(
-                for: metrics(lines: 13, longest: 1, count: 13),
-                isExpanded: false,
-                collapsedHeight: 176,
-                expandedHeight: 320
-            ),
-            176
+            CodeExecContentBlockSupport.lines(from: collapsed).count,
+            CodeExecContentBlockSupport.collapsedLineLimit
+        )
+        XCTAssertEqual(collapsed.split(separator: "\n", omittingEmptySubsequences: false).first, "1")
+        XCTAssertEqual(collapsed.split(separator: "\n", omittingEmptySubsequences: false).last, "12")
+
+        let expanded = CodeExecContentBlockSupport.visibleText(for: text, isExpanded: true)
+        XCTAssertEqual(
+            CodeExecContentBlockSupport.lines(from: expanded).count,
+            CodeExecContentBlockSupport.expandedRenderLineLimit
+        )
+
+        XCTAssertEqual(
+            CodeExecContentBlockSupport.visibleText(for: "print(1)", isExpanded: false),
+            "print(1)"
+        )
+    }
+
+    func testHiddenLineCountAndExpandCopy() {
+        let metrics = CodeExecContentBlockSupport.metrics(
+            for: (1...20).map(String.init).joined(separator: "\n")
         )
         XCTAssertEqual(
-            CodeExecContentBlockSupport.currentMaxHeight(
-                for: metrics(lines: 13, longest: 1, count: 13),
-                isExpanded: true,
-                collapsedHeight: 176,
-                expandedHeight: 320
-            ),
-            320
+            CodeExecContentBlockSupport.hiddenLineCount(for: metrics, isExpanded: false),
+            8
+        )
+        XCTAssertEqual(
+            CodeExecContentBlockSupport.hiddenLineCount(for: metrics, isExpanded: true),
+            0
+        )
+        XCTAssertEqual(
+            CodeExecContentBlockSupport.expandControlTitle(hiddenLineCount: 8, isExpanded: false),
+            "Show 8 more lines"
+        )
+        XCTAssertEqual(
+            CodeExecContentBlockSupport.expandControlTitle(hiddenLineCount: 1, isExpanded: false),
+            "Show 1 more line"
+        )
+        XCTAssertEqual(
+            CodeExecContentBlockSupport.expandControlTitle(hiddenLineCount: 8, isExpanded: true),
+            "Show less"
+        )
+        XCTAssertEqual(
+            CodeExecContentBlockSupport.truncatedRemainderCaption(hiddenLineCount: 0),
+            nil
+        )
+        XCTAssertEqual(
+            CodeExecContentBlockSupport.truncatedRemainderCaption(hiddenLineCount: 1),
+            "1 more line — copy for the full output"
+        )
+        XCTAssertEqual(
+            CodeExecContentBlockSupport.truncatedRemainderCaption(hiddenLineCount: 12),
+            "12 more lines — copy for the full output"
         )
     }
 

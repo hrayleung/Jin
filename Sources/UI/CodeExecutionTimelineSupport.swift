@@ -1,15 +1,16 @@
 import Foundation
 
 enum CodeExecutionTimelineSupport {
-    enum CompactStatusKind: Equatable {
-        case success
-        case failure
-    }
+    struct HeaderStatus: Equatable {
+        enum Kind: Equatable {
+            case running
+            case success
+            case failure
+        }
 
-    struct CompactStatus: Equatable {
-        let text: String
-        let icon: String
-        let kind: CompactStatusKind
+        let kind: Kind
+        let text: String?
+        let icon: String?
     }
 
     struct ActivityCounts: Equatable {
@@ -42,6 +43,10 @@ enum CodeExecutionTimelineSupport {
         counts(for: activities).active > 0
     }
 
+    static func isSingleExecution(_ activities: [CodeExecutionActivity]) -> Bool {
+        activities.count == 1
+    }
+
     static func counts(for activities: [CodeExecutionActivity]) -> ActivityCounts {
         var active = 0
         var completed = 0
@@ -70,28 +75,50 @@ enum CodeExecutionTimelineSupport {
         return "\(activityCount) Code Executions"
     }
 
-    static func compactStatus(for activities: [CodeExecutionActivity]) -> CompactStatus? {
+    static func headerStatus(for activities: [CodeExecutionActivity]) -> HeaderStatus? {
         let counts = counts(for: activities)
         if counts.active > 0 {
-            return nil
+            return HeaderStatus(
+                kind: .running,
+                text: runningLabel(for: activities),
+                icon: nil
+            )
         }
 
         if counts.failed > 0 {
-            return CompactStatus(
+            return HeaderStatus(
+                kind: .failure,
                 text: failureLabel(completedCount: counts.completed, failedCount: counts.failed),
-                icon: "xmark.circle",
-                kind: .failure
+                icon: "xmark.circle.fill"
             )
         }
 
         if counts.completed > 0 {
-            return CompactStatus(
-                text: "Done",
-                icon: "checkmark.circle",
-                kind: .success
+            return HeaderStatus(
+                kind: .success,
+                text: nil,
+                icon: "checkmark.circle.fill"
             )
         }
         return nil
+    }
+
+    /// One-line collapsed preview for the common single-execution path.
+    static func collapsedPreview(for activities: [CodeExecutionActivity]) -> String? {
+        guard let activity = activities.first, activities.count == 1 else { return nil }
+        if let line = firstNonEmptyLine(activity.code) {
+            return line
+        }
+        switch activity.status {
+        case .writingCode:
+            return "Writing code..."
+        case .interpreting:
+            return "Running code..."
+        case .inProgress:
+            return "Starting..."
+        case .completed, .failed, .incomplete, .unknown:
+            return nil
+        }
     }
 
     static func animationSignature(for activities: [CodeExecutionActivity]) -> String {
@@ -120,10 +147,35 @@ enum CodeExecutionTimelineSupport {
         }
     }
 
+    private static func runningLabel(for activities: [CodeExecutionActivity]) -> String {
+        var sawWriting = false
+        for activity in activities {
+            switch activity.status {
+            case .interpreting:
+                return "Running"
+            case .writingCode:
+                sawWriting = true
+            default:
+                break
+            }
+        }
+        return sawWriting ? "Writing" : "Starting"
+    }
+
     private static func failureLabel(completedCount: Int, failedCount: Int) -> String {
         if completedCount > 0 {
             return "\(completedCount) ok / \(failedCount) failed"
         }
         return failedCount == 1 ? "Failed" : "\(failedCount) failed"
+    }
+
+    private static func firstNonEmptyLine(_ text: String?) -> String? {
+        guard let text else { return nil }
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            if let trimmed = String(line).trimmedNonEmpty {
+                return trimmed
+            }
+        }
+        return nil
     }
 }

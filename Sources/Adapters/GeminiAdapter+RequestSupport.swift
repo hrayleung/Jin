@@ -56,6 +56,7 @@ extension GeminiAdapter {
 
         if let toolConfig = GeminiRequestSupport.toolConfig(
             controls: controls,
+            tools: toolArray,
             supportsGoogleMaps: modelSupportsGoogleMaps
         ) {
             body["toolConfig"] = toolConfig

@@ -1,7 +1,12 @@
 import SwiftUI
 
-/// Displays a timeline of code execution activities from provider-native code execution tools
-/// (OpenAI Code Interpreter, Anthropic Code Execution, xAI Code Interpreter).
+/// Code execution activity in the message timeline.
+///
+/// Design (Claude / Cursor progressive-disclosure):
+/// - **Secondary visual weight** — muted chrome that never competes with prose.
+/// - **Single-execution path** is one control (no nested "Execution 1" headers).
+/// - **Multi-execution path** uses a quiet summary + compact per-run rows.
+/// - Code wraps; never dual-axis scroll (that overflowed the card).
 struct CodeExecutionTimelineView: View {
     let activities: [CodeExecutionActivity]
     let isStreaming: Bool
@@ -11,6 +16,7 @@ struct CodeExecutionTimelineView: View {
     /// Expanded execution details stay unmounted until first expand when the
     /// display mode starts collapsed.
     @State private var hasEverExpanded: Bool
+    @State private var expandGeneration = 0
 
     init(
         activities: [CodeExecutionActivity],
@@ -32,16 +38,24 @@ struct CodeExecutionTimelineView: View {
     var body: some View {
         if !activities.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                headerRow
+                CodeExecutionTimelineHeaderRow(
+                    title: headerTitle,
+                    headerStatus: headerStatus,
+                    collapsedPreview: isExpanded ? nil : collapsedPreview,
+                    isExpanded: isExpanded,
+                    onToggle: toggleExpanded
+                )
 
                 if hasEverExpanded {
                     JinCollapsibleContent(isExpanded: isExpanded) {
-                        expandedContent
+                        CodeExecutionTimelineExpandedContentView(
+                            activities: activities,
+                            isSingleExecution: isSingleExecution
+                        )
                     }
                 }
             }
             .clipped()
-            // Height animation is driven only by `withAnimation` on toggle.
             .animation(.easeInOut(duration: 0.2), value: animationSignature)
             .onChange(of: isStreaming) { _, streaming in
                 let mode = Self.resolveDisplayMode()
@@ -68,64 +82,51 @@ struct CodeExecutionTimelineView: View {
         return CodeExecutionDisplayMode(rawValue: raw) ?? .expanded
     }
 
-    // MARK: - Header Row
+    private func toggleExpanded() {
+        expandGeneration &+= 1
+        let generation = expandGeneration
 
-    private var headerRow: some View {
-        CodeExecutionTimelineHeaderRow(
-            title: headerTitle,
-            isStreaming: isStreaming,
-            hasActiveExecution: hasActiveExecution,
-            compactStatus: compactStatus,
-            isExpanded: expansionBinding
-        )
-    }
-
-    private var expansionBinding: Binding<Bool> {
-        Binding(
-            get: { isExpanded },
-            set: { newValue in
-                if !newValue {
-                    isExpanded = false
-                    return
-                }
-                // First expand: mount collapsed so the height probe warms,
-                // then open on the next turns (matches MCP / web search).
-                if hasEverExpanded {
-                    isExpanded = true
-                    return
-                }
-                hasEverExpanded = true
-                Task { @MainActor in
-                    await Task.yield()
-                    await Task.yield()
-                    withAnimation(JinMotion.disclosure(expanding: true)) {
-                        isExpanded = true
-                    }
-                }
+        if isExpanded {
+            withAnimation(JinMotion.disclosure(expanding: false)) {
+                isExpanded = false
             }
-        )
+            return
+        }
+
+        if hasEverExpanded {
+            withAnimation(JinMotion.disclosure(expanding: true)) {
+                isExpanded = true
+            }
+            return
+        }
+
+        // First expand: mount collapsed so the height probe warms,
+        // then open on the next turns (matches MCP / web search).
+        hasEverExpanded = true
+        Task { @MainActor in
+            await Task.yield()
+            await Task.yield()
+            guard generation == expandGeneration else { return }
+            withAnimation(JinMotion.disclosure(expanding: true)) {
+                isExpanded = true
+            }
+        }
     }
 
-    // MARK: - Expanded Content
-
-    @ViewBuilder
-    private var expandedContent: some View {
-        CodeExecutionTimelineExpandedContentView(activities: activities)
-    }
-
-    // MARK: - Computed
-
-    private var hasActiveExecution: Bool {
-        CodeExecutionTimelineSupport.hasActiveExecution(activities)
+    private var isSingleExecution: Bool {
+        CodeExecutionTimelineSupport.isSingleExecution(activities)
     }
 
     private var headerTitle: String {
         CodeExecutionTimelineSupport.headerTitle(activityCount: activities.count)
     }
 
-    private var compactStatus: ToolTimelinePresentationSupport.CompactStatusStyle? {
-        CodeExecutionTimelineSupport.compactStatus(for: activities)
-            .map(ToolTimelinePresentationSupport.CompactStatusStyle.init)
+    private var headerStatus: CodeExecutionTimelineSupport.HeaderStatus? {
+        CodeExecutionTimelineSupport.headerStatus(for: activities)
+    }
+
+    private var collapsedPreview: String? {
+        CodeExecutionTimelineSupport.collapsedPreview(for: activities)
     }
 
     private var animationSignature: String {

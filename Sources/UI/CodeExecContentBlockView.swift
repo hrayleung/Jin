@@ -9,12 +9,9 @@ struct CodeExecContentBlockView: View {
     let badgeText: String?
 
     private let contentMetrics: CodeExecContentBlockSupport.Metrics
-    private let highlightedCode: AttributedString?
-    private let collapsedHeight: CGFloat = 176
-    private let expandedHeight: CGFloat = 320
+    private let language: CodeExecCodeLanguage?
 
     @State private var isExpanded = false
-    @State private var scrollViewWidth: CGFloat = 0
 
     init(
         title: String,
@@ -27,52 +24,52 @@ struct CodeExecContentBlockView: View {
         self.text = text
         self.style = style
         self.badgeText = badgeText
+        self.language = language
         self.contentMetrics = CodeExecContentBlockSupport.metrics(for: text)
-
-        if style.usesSyntaxHighlighting {
-            self.highlightedCode = CodeExecSyntaxHighlighter.highlighted(text, language: language)
-        } else {
-            self.highlightedCode = nil
-        }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+        VStack(alignment: .leading, spacing: 4) {
             sectionHeader
 
-            ScrollView([.vertical, .horizontal], showsIndicators: true) {
-                HStack(alignment: .top, spacing: JinSpacing.medium) {
-                    if style.showsLineNumbers, let lineNumberText {
-                        Text(lineNumberText)
-                            .font(Self.contentFont)
-                            .foregroundStyle(JinSemanticColor.textTertiary)
-                            .multilineTextAlignment(.trailing)
-                            .padding(.trailing, JinSpacing.small)
-                            .overlay(alignment: .trailing) {
-                                Rectangle()
-                                    .fill(JinSemanticColor.borderSubtle)
-                                    .frame(width: JinStrokeWidth.hairline)
-                            }
-                    }
+            ZStack(alignment: .bottom) {
+                renderedTextBody
+                    .padding(.horizontal, JinSpacing.small)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                            .fill(style.bodyBackground)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
 
-                    renderedTextBody
+                if showsExpandControl, !isExpanded {
+                    LinearGradient(
+                        colors: [style.bodyBackground.opacity(0), style.bodyBackground],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 28)
+                    .allowsHitTesting(false)
                 }
-                .padding(JinSpacing.small)
-                .frame(minWidth: scrollViewWidth, alignment: .leading)
             }
-            .defaultScrollAnchor(.topLeading)
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear { scrollViewWidth = geo.size.width }
-                        .onChange(of: geo.size.width) { _, w in scrollViewWidth = w }
+
+            if showsExpandControl {
+                Button(expandTitle) {
+                    withAnimation(.spring(duration: 0.25, bounce: 0)) {
+                        isExpanded.toggle()
+                    }
                 }
-            )
-            .frame(maxHeight: currentMaxHeight, alignment: .top)
-            .background(
-                RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                    .fill(JinSemanticColor.subtleSurface)
-            )
+                .buttonStyle(.plain)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+            }
+
+            if isExpanded, let remainderCaption {
+                Text(remainderCaption)
+                    .font(.caption2)
+                    .foregroundStyle(JinSemanticColor.textTertiary)
+            }
         }
     }
 
@@ -83,7 +80,7 @@ struct CodeExecContentBlockView: View {
                 .foregroundStyle(style.iconColor)
 
             Text(title)
-                .jinSectionHeader()
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(style.titleColor)
 
             if let badgeText, !badgeText.isEmpty {
@@ -91,44 +88,34 @@ struct CodeExecContentBlockView: View {
                     .jinTagStyle(foreground: style.badgeColor)
             }
 
-            // Copy + Show More sit next to the title cluster, not on the right margin.
+            Spacer(minLength: 0)
+
             CopyToPasteboardButton(
                 text: text,
                 helpText: "Copy \(title.lowercased())",
                 copiedHelpText: "\(title) copied",
                 useProminentStyle: false
             )
-
-            if showsExpandControl {
-                Button(isExpanded ? "Show Less" : "Show More") {
-                    withAnimation(.spring(duration: 0.25, bounce: 0)) {
-                        isExpanded.toggle()
-                    }
-                }
-                .buttonStyle(.plain)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
         }
     }
 
     @ViewBuilder
     private var renderedTextBody: some View {
-        if let highlightedCode {
-            Text(highlightedCode)
+        if style.usesSyntaxHighlighting {
+            Text(CodeExecSyntaxHighlighter.highlighted(visibleText, language: language))
                 .font(Self.contentFont)
                 .multilineTextAlignment(.leading)
                 .textSelection(.enabled)
-                .fixedSize(horizontal: true, vertical: true)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            Text(text)
+            Text(visibleText)
                 .font(Self.contentFont)
                 .foregroundStyle(style.textColor)
                 .multilineTextAlignment(.leading)
                 .textSelection(.enabled)
-                .fixedSize(horizontal: true, vertical: true)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -136,17 +123,27 @@ struct CodeExecContentBlockView: View {
         CodeExecContentBlockSupport.showsExpandControl(for: contentMetrics)
     }
 
-    private var currentMaxHeight: CGFloat? {
-        CodeExecContentBlockSupport.currentMaxHeight(
-            for: contentMetrics,
-            isExpanded: isExpanded,
-            collapsedHeight: collapsedHeight,
-            expandedHeight: expandedHeight
+    private var visibleText: String {
+        CodeExecContentBlockSupport.visibleText(for: text, isExpanded: isExpanded)
+    }
+
+    private var expandTitle: String {
+        CodeExecContentBlockSupport.expandControlTitle(
+            hiddenLineCount: CodeExecContentBlockSupport.hiddenLineCount(
+                for: contentMetrics,
+                isExpanded: false
+            ),
+            isExpanded: isExpanded
         )
     }
 
-    private var lineNumberText: String? {
-        CodeExecContentBlockSupport.lineNumberText(forLineCount: contentMetrics.lineCount)
+    private var remainderCaption: String? {
+        CodeExecContentBlockSupport.truncatedRemainderCaption(
+            hiddenLineCount: CodeExecContentBlockSupport.hiddenLineCount(
+                for: contentMetrics,
+                isExpanded: true
+            )
+        )
     }
 
     private static let contentFont = Font.system(.caption, design: .monospaced)

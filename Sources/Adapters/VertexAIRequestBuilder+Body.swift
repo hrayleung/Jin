@@ -31,7 +31,7 @@ extension VertexAIRequestBuilder {
             body["tools"] = toolArray
         }
 
-        if let toolConfig = makeToolConfig(modelID: modelID, controls: controls) {
+        if let toolConfig = makeToolConfig(modelID: modelID, controls: controls, tools: toolArray) {
             body["toolConfig"] = toolConfig
         }
 

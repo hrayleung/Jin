@@ -491,4 +491,75 @@ final class VertexAIRequestBuilderTests: XCTestCase {
         // A blank location must not produce an invalid "https://-aiplatform..." host.
         XCTAssertEqual(makeVertexCredentials(location: "").vertexBaseURL, "https://aiplatform.googleapis.com/v1")
     }
+
+    func testBuildRequestIncludesServerSideToolInvocationsWhenMixingCodeExecutionAndFunctionCalling() throws {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let request = try builder.buildRequest(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "gemini-3.7-flash",
+            controls: GenerationControls(
+                codeExecution: CodeExecutionControls(enabled: true)
+            ),
+            tools: [ToolDefinition(
+                id: "weather",
+                name: "weather",
+                description: "Fetches the weather",
+                parameters: ParameterSchema(
+                    properties: [
+                        "city": PropertySchema(type: "string", description: "City name")
+                    ],
+                    required: ["city"]
+                ),
+                source: .builtin
+            )],
+            streaming: false,
+            accessToken: "vertex-token"
+        )
+
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: XCTUnwrap(vertexAIRequestBodyData(request))) as? [String: Any])
+        let tools = try XCTUnwrap(json["tools"] as? [[String: Any]])
+        XCTAssertTrue(tools.contains { $0["codeExecution"] != nil })
+        XCTAssertTrue(tools.contains { $0["functionDeclarations"] != nil })
+
+        let toolConfig = try XCTUnwrap(json["toolConfig"] as? [String: Any])
+        XCTAssertEqual(toolConfig["includeServerSideToolInvocations"] as? Bool, true)
+        XCTAssertNil(toolConfig["retrievalConfig"])
+    }
+
+    func testBuildRequestOmitsServerSideToolInvocationsForFunctionCallingOnly() throws {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let request = try builder.buildRequest(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "gemini-2.5-flash",
+            controls: GenerationControls(),
+            tools: [ToolDefinition(
+                id: "weather",
+                name: "weather",
+                description: "Fetches the weather",
+                parameters: ParameterSchema(
+                    properties: [
+                        "city": PropertySchema(type: "string", description: "City name")
+                    ],
+                    required: ["city"]
+                ),
+                source: .builtin
+            )],
+            streaming: false,
+            accessToken: "vertex-token"
+        )
+
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: XCTUnwrap(vertexAIRequestBodyData(request))) as? [String: Any])
+        XCTAssertNotNil(json["tools"])
+        XCTAssertNil(json["toolConfig"])
+    }
 }

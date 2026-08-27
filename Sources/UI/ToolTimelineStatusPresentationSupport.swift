@@ -15,10 +15,6 @@ extension ToolTimelinePresentationSupport {
         init(text: String, icon: String, tone: StatusTone) {
             self.init(text: text, icon: icon, color: tone.color)
         }
-
-        init(_ status: CodeExecutionTimelineSupport.CompactStatus) {
-            self.init(text: status.text, icon: status.icon, tone: status.kind.timelineTone)
-        }
     }
 
     struct CompactStatusBadge: View {
@@ -182,17 +178,6 @@ extension ToolTimelinePresentationSupport {
                     .font(.system(size: 9.5, weight: .semibold))
                     .foregroundStyle(color)
             }
-        }
-    }
-}
-
-private extension CodeExecutionTimelineSupport.CompactStatusKind {
-    var timelineTone: ToolTimelinePresentationSupport.StatusTone {
-        switch self {
-        case .success:
-            return .success
-        case .failure:
-            return .failure
         }
     }
 }

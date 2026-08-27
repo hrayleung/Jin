@@ -45,7 +45,28 @@ extension VertexAIRequestBuilder {
         return ["googleMaps": mapsConfig]
     }
 
-    func makeToolConfig(modelID: String, controls: GenerationControls) -> [String: Any]? {
+    func makeToolConfig(
+        modelID: String,
+        controls: GenerationControls,
+        tools: [[String: Any]]
+    ) -> [String: Any]? {
+        var config: [String: Any] = [:]
+
+        if GeminiRequestSupport.shouldIncludeServerSideToolInvocations(in: tools) {
+            config["includeServerSideToolInvocations"] = true
+        }
+
+        if let retrievalConfig = makeMapsRetrievalConfig(modelID: modelID, controls: controls) {
+            config["retrievalConfig"] = retrievalConfig
+        }
+
+        return config.isEmpty ? nil : config
+    }
+
+    func makeMapsRetrievalConfig(
+        modelID: String,
+        controls: GenerationControls
+    ) -> [String: Any]? {
         guard controls.googleMaps?.enabled == true,
               modelSupport.supportsGoogleMaps(modelID) else {
             return nil
@@ -60,7 +81,7 @@ extension VertexAIRequestBuilder {
             retrievalConfig["languageCode"] = languageCode
         }
         guard !retrievalConfig.isEmpty else { return nil }
-        return ["retrievalConfig": retrievalConfig]
+        return retrievalConfig
     }
 
     static func translateTools(_ tools: [ToolDefinition]) -> Any {

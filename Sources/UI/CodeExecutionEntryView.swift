@@ -6,81 +6,65 @@ import AppKit
 struct CodeExecutionEntryView: View {
     let activity: CodeExecutionActivity
     let entryIndex: Int
-    let showsConnectorAbove: Bool
-    let showsConnectorBelow: Bool
-
-    @State private var isRunningPulse = false
+    var showsHeader: Bool = false
 
     private var executionStatus: CodeExecVisualStatus {
         CodeExecutionEntrySupport.visualStatus(for: activity.status)
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: JinSpacing.small) {
-            ToolTimelinePresentationSupport.TerminalTimelineRail(
-                glyph: executionStatus.timelineNodeGlyph,
-                style: visualStyle,
-                showsConnectorAbove: showsConnectorAbove,
-                showsConnectorBelow: showsConnectorBelow,
-                isRunningPulse: isRunningPulse
-            )
-
-            VStack(alignment: .leading, spacing: JinSpacing.small) {
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            if showsHeader {
                 entryHeader
-                entryBody
             }
-            .padding(.horizontal, JinSpacing.medium)
-            .padding(.vertical, JinSpacing.small)
-            .jinSurface(.subtle, cornerRadius: JinRadius.small)
+            entryBody
         }
         .animation(.easeInOut(duration: 0.18), value: executionStatus)
-        .onAppear {
-            updatePulseAnimation(for: executionStatus)
-        }
-        .onChange(of: executionStatus) { _, newValue in
-            updatePulseAnimation(for: newValue)
-        }
     }
 
-    // MARK: - Entry Header
+    // MARK: - Entry Header (multi-execution only)
 
     private var entryHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
-            Image(systemName: "terminal")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(visualStyle.accent)
-                .frame(width: 16, height: 16)
-
             Text("Execution \(entryIndex + 1)")
-                .font(.system(.caption, design: .monospaced).weight(.semibold))
-                .foregroundStyle(.primary)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(JinSemanticColor.textSecondary)
                 .lineLimit(1)
 
-            Spacer(minLength: 0)
+            quietStatus
 
             if let returnCode = activity.returnCode, shouldShowReturnCode {
                 Text("exit \(returnCode)")
-                    .jinTagStyle(
-                        foreground: returnCode == 0
-                            ? .secondary
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(
+                        returnCode == 0
+                            ? JinSemanticColor.textTertiary
                             : ToolTimelinePresentationSupport.StatusTone.failure.emphasizedColor
                     )
+                    .monospacedDigit()
             }
 
-            statusPill
+            Spacer(minLength: 0)
         }
     }
 
     @ViewBuilder
-    private var statusPill: some View {
+    private var quietStatus: some View {
         let style = visualStyle
+        HStack(spacing: 4) {
+            if executionStatus != .running {
+                Image(systemName: executionStatus.statusGlyph)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(style.accent)
+            }
 
-        ToolTimelinePresentationSupport.InlineStatusLabel(
-            glyph: executionStatus.timelineNodeGlyph,
-            label: statusLabel,
-            textColor: style.text,
-            accentColor: style.accent
-        )
+            if executionStatus != .success {
+                Text(statusLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(style.text)
+            }
+        }
+        .lineLimit(1)
     }
 
     private var statusLabel: String {
@@ -94,10 +78,9 @@ struct CodeExecutionEntryView: View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
             if let code = activity.code, !code.isEmpty {
                 CodeExecContentBlockView(
-                    title: "Generated Code",
+                    title: codeBadgeText ?? "Code",
                     text: code,
                     style: .code,
-                    badgeText: codeBadgeText,
                     language: codeLanguage
                 )
             }
@@ -130,9 +113,6 @@ struct CodeExecutionEntryView: View {
                 Text(CodeExecutionEntrySupport.imageOutputSummary(count: outputImages.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, JinSpacing.medium)
-                    .padding(.vertical, JinSpacing.small)
-                    .jinSurface(.subtle, cornerRadius: JinRadius.small)
             }
 
             if let outputFiles = activity.outputFiles, !outputFiles.isEmpty {
@@ -150,14 +130,9 @@ struct CodeExecutionEntryView: View {
     @ViewBuilder
     private var statusPlaceholder: some View {
         if executionStatus == .running {
-            HStack(spacing: JinSpacing.small) {
-                Text(CodeExecutionEntrySupport.statusPlaceholderText(for: activity.status))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, JinSpacing.medium)
-            .padding(.vertical, JinSpacing.small)
-            .jinSurface(.subtle, cornerRadius: JinRadius.small)
+            Text(CodeExecutionEntrySupport.statusPlaceholderText(for: activity.status))
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -192,10 +167,6 @@ struct CodeExecutionEntryView: View {
         CodeExecutionEntrySupport.codeBadgeText(for: codeLanguage)
     }
 
-    private func updatePulseAnimation(for status: CodeExecVisualStatus) {
-        isRunningPulse = status == .running
-    }
-
     @ViewBuilder
     private func metadataBlock(title: String, value: String, copyHelpText: String) -> some View {
         HStack(alignment: .center, spacing: JinSpacing.small) {
@@ -217,9 +188,6 @@ struct CodeExecutionEntryView: View {
                 useProminentStyle: false
             )
         }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small)
-        .jinSurface(.subtle, cornerRadius: JinRadius.small)
     }
 
     @ViewBuilder
@@ -258,6 +226,19 @@ enum CodeExecVisualStatus: Equatable {
             return .error
         case .neutral:
             return .neutral
+        }
+    }
+
+    var statusGlyph: String {
+        switch self {
+        case .running:
+            return "circle.fill"
+        case .success:
+            return "checkmark.circle.fill"
+        case .error:
+            return "xmark.circle.fill"
+        case .neutral:
+            return "circle"
         }
     }
 }

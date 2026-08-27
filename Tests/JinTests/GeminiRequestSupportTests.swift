@@ -242,6 +242,65 @@ final class GeminiRequestSupportTests: XCTestCase {
         let parameters = try XCTUnwrap(functionDeclarations.first?["parameters"] as? [String: Any])
         XCTAssertEqual(parameters["type"] as? String, "object")
         XCTAssertEqual(parameters["required"] as? [String], ["q"])
+
+        let mixedToolConfig = try XCTUnwrap(
+            GeminiRequestSupport.toolConfig(
+                controls: GenerationControls(
+                    webSearch: WebSearchControls(enabled: true),
+                    googleMaps: GoogleMapsControls(enabled: true, enableWidget: true),
+                    codeExecution: CodeExecutionControls(enabled: true)
+                ),
+                tools: toolArray,
+                supportsGoogleMaps: true
+            )
+        )
+        XCTAssertEqual(mixedToolConfig["includeServerSideToolInvocations"] as? Bool, true)
+        XCTAssertNil(mixedToolConfig["retrievalConfig"])
+    }
+
+    func testToolConfigSetsIncludeServerSideToolInvocationsOnlyWhenMixingBuiltInAndFunctionCalling() {
+        let functionTools: [[String: Any]] = [
+            ["functionDeclarations": [["name": "lookup"]]]
+        ]
+        let codeExecutionTools: [[String: Any]] = [
+            ["code_execution": [:]]
+        ]
+        let mixedTools: [[String: Any]] = [
+            ["code_execution": [:]],
+            ["functionDeclarations": [["name": "lookup"]]]
+        ]
+        let vertexMixedTools: [[String: Any]] = [
+            ["googleSearch": [:]],
+            ["functionDeclarations": [["name": "lookup"]]]
+        ]
+
+        XCTAssertTrue(GeminiRequestSupport.shouldIncludeServerSideToolInvocations(in: mixedTools))
+        XCTAssertTrue(GeminiRequestSupport.shouldIncludeServerSideToolInvocations(in: vertexMixedTools))
+        XCTAssertFalse(GeminiRequestSupport.shouldIncludeServerSideToolInvocations(in: functionTools))
+        XCTAssertFalse(GeminiRequestSupport.shouldIncludeServerSideToolInvocations(in: codeExecutionTools))
+        XCTAssertFalse(GeminiRequestSupport.shouldIncludeServerSideToolInvocations(in: []))
+
+        let mixedConfig = GeminiRequestSupport.toolConfig(
+            controls: GenerationControls(),
+            tools: mixedTools,
+            supportsGoogleMaps: false
+        )
+        XCTAssertEqual(mixedConfig?["includeServerSideToolInvocations"] as? Bool, true)
+
+        XCTAssertNil(
+            GeminiRequestSupport.toolConfig(
+                controls: GenerationControls(),
+                tools: functionTools,
+                supportsGoogleMaps: false
+            )
+        )
+        XCTAssertNil(
+            GeminiRequestSupport.toolConfig(
+                controls: GenerationControls(),
+                tools: codeExecutionTools,
+                supportsGoogleMaps: false
+            )
+        )
     }
 
     func testToolArrayOmitsFunctionDeclarationsWhenUnsupported() {
@@ -258,14 +317,16 @@ final class GeminiRequestSupportTests: XCTestCase {
     }
 
     func testToolConfigUsesMapsCoordinatesOnlyWhenSupported() throws {
+        let mapsControls = GenerationControls(
+            googleMaps: GoogleMapsControls(
+                enabled: true,
+                latitude: GoogleMapsCoordinateFixture.latitude,
+                longitude: GoogleMapsCoordinateFixture.longitude
+            )
+        )
         let config = GeminiRequestSupport.toolConfig(
-            controls: GenerationControls(
-                googleMaps: GoogleMapsControls(
-                    enabled: true,
-                    latitude: GoogleMapsCoordinateFixture.latitude,
-                    longitude: GoogleMapsCoordinateFixture.longitude
-                )
-            ),
+            controls: mapsControls,
+            tools: [["googleMaps": [:]]],
             supportsGoogleMaps: true
         )
 
@@ -273,16 +334,25 @@ final class GeminiRequestSupportTests: XCTestCase {
         let latLng = try XCTUnwrap(retrievalConfig["latLng"] as? [String: Any])
         XCTAssertEqual(latLng["latitude"] as? Double, GoogleMapsCoordinateFixture.latitude)
         XCTAssertEqual(latLng["longitude"] as? Double, GoogleMapsCoordinateFixture.longitude)
+        XCTAssertNil(config?["includeServerSideToolInvocations"])
+
+        let mixedConfig = try XCTUnwrap(
+            GeminiRequestSupport.toolConfig(
+                controls: mapsControls,
+                tools: [
+                    ["googleMaps": [:]],
+                    ["functionDeclarations": [["name": "lookup"]]]
+                ],
+                supportsGoogleMaps: true
+            )
+        )
+        XCTAssertEqual(mixedConfig["includeServerSideToolInvocations"] as? Bool, true)
+        XCTAssertNotNil(mixedConfig["retrievalConfig"])
 
         XCTAssertNil(
             GeminiRequestSupport.toolConfig(
-                controls: GenerationControls(
-                    googleMaps: GoogleMapsControls(
-                        enabled: true,
-                        latitude: GoogleMapsCoordinateFixture.latitude,
-                        longitude: GoogleMapsCoordinateFixture.longitude
-                    )
-                ),
+                controls: mapsControls,
+                tools: [["googleMaps": [:]]],
                 supportsGoogleMaps: false
             )
         )

@@ -100,6 +100,9 @@ final class GeminiAdapterTests: XCTestCase {
             XCTAssertEqual(functionContainer.count, 1)
             XCTAssertEqual(functionContainer.first?["name"] as? String, "tool_name")
 
+            let toolConfig = try XCTUnwrap(root["toolConfig"] as? [String: Any])
+            XCTAssertEqual(toolConfig["includeServerSideToolInvocations"] as? Bool, true)
+
             let response: [String: Any] = [
                 "candidates": [
                     [
