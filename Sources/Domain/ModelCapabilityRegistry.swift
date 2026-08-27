@@ -390,20 +390,28 @@ enum ModelCapabilityRegistry {
     private static let defaultGeminiReasoningEfforts: [ReasoningEffort] = [.minimal, .low, .medium, .high]
     private static let deepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-v4-flash",
+        "deepseek-v4-flash-0731",
         "deepseek-v4-pro",
+        "deepseek-v4-pro-0813",
     ]
     /// OpenCode Go GLM models whose `reasoning_effort` is restricted to `high`/`max`
     /// (Z.AI documents only these two for GLM-5.2; `max` is the native default).
     private static let opencodeGoGLMHighMaxReasoningEffortModelIDs: Set<String> = [
         "glm-5.2",
     ]
-    /// GLM-5.3 official band is `low`/`high`/`max` (default `max`). Thinking cannot
-    /// be disabled — `thinking.type: disabled` is rejected (z.ai/blog/glm-5.3).
-    /// Used on OpenCode Go (`glm-5.3`) and Zhipu / Z.AI Coding Plan (`glm-5.3`,
-    /// `glm-5.3[1m]`). Exact IDs only.
+    /// GLM-5.3 / GLM-5.3-Flash official band is `low`/`high`/`max` (default `max`).
+    /// Thinking cannot be disabled — `thinking.type: disabled` is rejected
+    /// (z.ai/blog/glm-5.3, docs.z.ai/guides/vlm/glm-5.3-flash). Exact IDs only.
     private static let glm53LowHighMaxReasoningEffortModelIDs: Set<String> = [
         "glm-5.3",
         "glm-5.3[1m]",
+        "glm-5.3-flash",
+        "z-ai/glm-5.3",
+        "z-ai/glm-5.3-flash",
+        "zai/glm-5.3",
+        "zai/glm-5.3-flash",
+        "zai-org/glm-5.3",
+        "zai-org/glm-5.3-flash",
     ]
     /// Ox Alpha on OpenRouter (`stealth/ox-alpha`): live `/models` supported_efforts
     /// are max/high/low (default max, mandatory=true). Exact ID only — the Go slug
@@ -435,10 +443,11 @@ enum ModelCapabilityRegistry {
         "deepseek/deepseek-v4-flash",
         "deepseek/deepseek-v4-pro",
     ]
-    /// DeepSeek V4 Pro 0813 GA on OpenRouter: live `/models` supported_efforts
+    /// DeepSeek V4 GA snapshots on OpenRouter: live `/models` supported_efforts
     /// are max/high/low (default high). Distinct from the April preview slug.
-    private static let openRouterDeepSeekV4Pro0813ReasoningEffortModelIDs: Set<String> = [
+    private static let openRouterDeepSeekV4GAReasoningEffortModelIDs: Set<String> = [
         "deepseek/deepseek-v4-pro-0813",
+        "deepseek/deepseek-v4-flash-0731",
     ]
     /// Open-weight Qwen3.8-2.4T-A95B + 27B on OpenRouter: xhigh/medium/low
     /// (default xhigh). Cloud Max is a different product (see below).
@@ -567,8 +576,9 @@ enum ModelCapabilityRegistry {
     private static let basetenDeepSeekV4Pro0813ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro-0813",
     ]
-    /// Baseten GLM 5.2 family: none/high/max only.
-    private static let basetenGLM52EffortModelIDs: Set<String> = [
+    /// Baseten GLM-5.2 family: none/high/max only. GLM-5.3-Flash is always-on
+    /// low/high/max via `glm53LowHighMaxReasoningEffortModelIDs`.
+    private static let basetenGLMEffortModelIDs: Set<String> = [
         "zai-org/glm-5.2",
         "zai-org/glm-5.2-fast",
     ]
@@ -627,6 +637,8 @@ enum ModelCapabilityRegistry {
         "accounts/fireworks/models/deepseek-v4-pro-0813",
         "accounts/fireworks/models/glm-5p2",
         "accounts/fireworks/routers/glm-5p2-fast",
+        "accounts/fireworks/models/glm-5p3",
+        "accounts/fireworks/routers/glm-5p3-fast",
         "claude-opus-4-6",
         "claude-opus-4-7",
         "claude-opus-4-8",
@@ -828,7 +840,8 @@ enum ModelCapabilityRegistry {
            openRouterHighBandEffortModelIDs.contains(lowerModelID)
             || openRouterMinimalMaxEffortModelIDs.contains(lowerModelID)
             || openRouterFullLadderEffortModelIDs.contains(lowerModelID)
-            || openRouterDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
+            || openRouterDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID)
+            || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
             || openRouterOxAlphaReasoningEffortModelIDs.contains(lowerModelID) {
             return true
         }
@@ -841,26 +854,47 @@ enum ModelCapabilityRegistry {
         switch providerType {
         case .together:
             if togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
-                || togetherDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID) {
+                || togetherDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID)
+                || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
             }
         case .deepinfra:
             if deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
-                || deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID) {
+                || deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
+                || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731"
+                || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
             }
         case .fireworks:
             if fireworksKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
                 || fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
+                || lowerModelID == "accounts/fireworks/models/glm-5p3"
+                || lowerModelID == "fireworks/glm-5p3"
+                || lowerModelID == "accounts/fireworks/routers/glm-5p3-fast"
+                || lowerModelID == "accounts/fireworks/models/deepseek-v4-flash-0731"
+                || lowerModelID == "fireworks/deepseek-v4-flash-0731"
                 || fireworksCanonicalModelID(lowerModelID)
                     .map({
                         fireworksKimiK3ReasoningEffortModelIDs.contains($0)
                             || fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains($0)
+                            || $0 == "glm-5p3"
+                            || $0 == "glm-5p3-fast"
+                            || $0 == "deepseek-v4-flash-0731"
                     }) == true {
                 return true
             }
         case .vercelAIGateway:
-            if vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID) {
+            if vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID)
+                || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
+                || lowerModelID == "deepseek/deepseek-v4-pro-0813"
+                || lowerModelID == "deepseek/deepseek-v4-flash-0731" {
+                return true
+            }
+        case .cloudflareAIGateway:
+            if lowerModelID == "moonshotai/kimi-k3-fast"
+                || lowerModelID == "z-ai/glm-5.3"
+                || lowerModelID == "deepseek/deepseek-v4-pro-0813"
+                || lowerModelID == "deepseek/deepseek-v4-flash-0731" {
                 return true
             }
         case .baseten:
@@ -868,12 +902,16 @@ enum ModelCapabilityRegistry {
                 || basetenInklingReasoningEffortModelIDs.contains(lowerModelID)
                 || basetenWideEffortModelIDs.contains(lowerModelID)
                 || basetenDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
-                || basetenGLM52EffortModelIDs.contains(lowerModelID) {
+                || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
+                || basetenGLMEffortModelIDs.contains(lowerModelID) {
                 return true
             }
         case .modal:
             if modalKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
-                || modalInklingReasoningEffortModelIDs.contains(lowerModelID) {
+                || modalInklingReasoningEffortModelIDs.contains(lowerModelID)
+                || lowerModelID == "zai-org/glm-5.3"
+                || lowerModelID == "deepseek-ai/deepseek-v4-pro-0813"
+                || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731" {
                 return true
             }
         case .runinfra:
@@ -977,7 +1015,9 @@ enum ModelCapabilityRegistry {
             return supportedAnthropicEfforts(lowerModelID: lowerModelID)
         case .deepseek where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
-        case .openrouter where openRouterDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID):
+        case .openrouter where openRouterDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
+        case .openrouter where glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
         case .openrouter where openRouterOxAlphaReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
@@ -1005,33 +1045,67 @@ enum ModelCapabilityRegistry {
             return [.none, .minimal, .low, .medium, .high, .max]
         case .openrouter where openRouterLowHighEffortModelIDs.contains(lowerModelID):
             return [.low, .high]
-        case .together where togetherDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID):
+        case .together where togetherDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID)
+            || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
         case .together where togetherDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
-        case .together where togetherQwen38TextReasoningEffortModelIDs.contains(lowerModelID):
+        case .together where togetherQwen38TextReasoningEffortModelIDs.contains(lowerModelID) || lowerModelID == "qwen/qwen3.8-27b":
             return [.low, .high, .xhigh]
         case .together where togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
-        case .deepinfra where deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID):
+        case .deepinfra where deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
+            || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731"
+            || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
-        case .deepinfra where deepInfraQwen38TextReasoningEffortModelIDs.contains(lowerModelID):
+        case .deepinfra where deepInfraQwen38TextReasoningEffortModelIDs.contains(lowerModelID) || lowerModelID == "qwen/qwen3.8-27b":
             return [.low, .medium, .xhigh]
         case .deepinfra where deepInfraDeepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .deepinfra where deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
         case .fireworks where fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
-            || fireworksCanonicalModelID(lowerModelID).map({ fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains($0) }) == true:
+            || lowerModelID == "accounts/fireworks/models/glm-5p3"
+            || lowerModelID == "fireworks/glm-5p3"
+            || lowerModelID == "accounts/fireworks/routers/glm-5p3-fast"
+            || lowerModelID == "accounts/fireworks/models/deepseek-v4-flash-0731"
+            || lowerModelID == "fireworks/deepseek-v4-flash-0731"
+            || fireworksCanonicalModelID(lowerModelID).map({
+                fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains($0)
+                    || $0 == "glm-5p3"
+                    || $0 == "glm-5p3-fast"
+                    || $0 == "deepseek-v4-flash-0731"
+            }) == true:
             return [.low, .high, .max]
         case .fireworks where fireworksQwen38TextReasoningEffortModelIDs.contains(lowerModelID)
-            || fireworksCanonicalModelID(lowerModelID).map({ fireworksQwen38TextReasoningEffortModelIDs.contains($0) }) == true:
+            || lowerModelID == "accounts/fireworks/models/qwen3p8-27b"
+            || lowerModelID == "fireworks/qwen3p8-27b"
+            || fireworksCanonicalModelID(lowerModelID).map({
+                fireworksQwen38TextReasoningEffortModelIDs.contains($0)
+                    || $0 == "qwen3p8-27b"
+            }) == true:
             return [.low, .medium, .xhigh]
         case .fireworks where fireworksKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
             || fireworksCanonicalModelID(lowerModelID).map({ fireworksKimiK3ReasoningEffortModelIDs.contains($0) }) == true:
             return [.none, .low, .medium, .high, .max]
-        case .vercelAIGateway where vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID):
+        case .vercelAIGateway where vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID)
+            || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
+            || lowerModelID == "deepseek/deepseek-v4-pro-0813"
+            || lowerModelID == "deepseek/deepseek-v4-flash-0731":
             return [.low, .high, .max]
+        case .vercelAIGateway where lowerModelID == "qwen/qwen3.8-2.4t-a95b" || lowerModelID == "qwen/qwen3.8-27b":
+            return [.low, .medium, .xhigh]
+        case .vercelAIGateway where lowerModelID == "qwen/qwen3.8-max":
+            return [.minimal, .low, .medium, .high, .xhigh]
+        case .cloudflareAIGateway where lowerModelID == "moonshotai/kimi-k3-fast"
+            || lowerModelID == "z-ai/glm-5.3"
+            || lowerModelID == "deepseek/deepseek-v4-pro-0813"
+            || lowerModelID == "deepseek/deepseek-v4-flash-0731":
+            return [.low, .high, .max]
+        case .cloudflareAIGateway where lowerModelID == "qwen/qwen3.8-2.4t-a95b" || lowerModelID == "qwen/qwen3.8-27b":
+            return [.low, .medium, .xhigh]
+        case .cloudflareAIGateway where lowerModelID == "qwen/qwen3.8-max":
+            return [.minimal, .low, .medium, .high, .xhigh]
         case .baseten where basetenKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .low, .high, .max]
         case .baseten where basetenInklingReasoningEffortModelIDs.contains(lowerModelID):
@@ -1040,11 +1114,18 @@ enum ModelCapabilityRegistry {
             return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
         case .baseten where basetenDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .low, .high, .max]
-        case .baseten where basetenGLM52EffortModelIDs.contains(lowerModelID):
+        case .baseten where glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
+        case .baseten where basetenGLMEffortModelIDs.contains(lowerModelID):
             return [.none, .high, .max]
+        case .baseten where lowerModelID == "qwen/qwen3.8-2.4t-a95b" || lowerModelID == "qwen/qwen3.8-27b":
+            return [.none, .low, .medium, .xhigh]
         case .baseten where basetenMercury2ReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .low, .medium, .high]
-        case .modal where modalKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
+        case .modal where modalKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
+            || lowerModelID == "zai-org/glm-5.3"
+            || lowerModelID == "deepseek-ai/deepseek-v4-pro-0813"
+            || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731":
             return [.none, .low, .high, .max]
         case .modal where modalInklingReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .minimal, .low, .medium, .high, .xhigh, .max]

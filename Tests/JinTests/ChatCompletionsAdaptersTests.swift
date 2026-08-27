@@ -384,6 +384,85 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         }
     }
 
+    func testFireworksAdapterDisablesDeepSeekV4Flash0731WithThinkingEnvelope() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "accounts/fireworks/models/deepseek-v4-flash-0731")
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "disabled")
+            XCTAssertNil(root["reasoning_effort"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_v4_flash_0731_off",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "accounts/fireworks/models/deepseek-v4-flash-0731",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testFireworksAdapterMapsDisabledGLM53ThinkingToLowEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "accounts/fireworks/models/glm-5p3")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "low")
+            XCTAssertNil(root["thinking"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_glm53_off",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "accounts/fireworks/models/glm-5p3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
     func testFireworksAdapterSendsQwen38XHighReasoningEffort() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -2636,7 +2715,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         )
         for try await _ in kimiStream {}
 
-        for modelID in ["ox-alpha-free", "glm-5.3"] {
+        for modelID in ["ox-alpha-free", "glm-5.3", "glm-5.3-flash"] {
             protocolType.requestHandler = { request in
                 let body = try XCTUnwrap(requestBodyData(request))
                 let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -2961,7 +3040,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     func testOpenCodeGoEndpointRoutingMatrixMatchesPublishedDocsTable() {
         // opencode.ai/docs/go publishes a per-model endpoint table. Every model must land on
         // exactly one of the three routes, matched by exact ID.
-        for id in ["grok-4.5", "hy3", "glm-5.3", "glm-5.2", "glm-5.1", "ox-alpha-free", "kimi-k3", "kimi-k2.7-code",
+        for id in ["grok-4.5", "hy3", "glm-5.3", "glm-5.3-flash", "glm-5.2", "glm-5.1", "ox-alpha-free", "kimi-k3", "kimi-k2.7-code",
                    "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "mimo-v2.5", "mimo-v2.5-pro"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /chat/completions")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /chat/completions")

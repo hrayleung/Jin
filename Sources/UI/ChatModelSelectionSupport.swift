@@ -187,7 +187,8 @@ enum ChatModelSelectionSupport {
                 ?? models.first(where: { $0.id.lowercased() == "glm-5" })?.id
                 ?? models.first(where: { $0.id.lowercased() == "glm-4.7" })?.id
         case .minimax, .minimaxCodingPlan:
-            return models.first(where: { $0.id == "MiniMax-M2.7" })?.id
+            return models.first(where: { $0.id == "MiniMax-M3" })?.id
+                ?? models.first(where: { $0.id == "MiniMax-M2.7" })?.id
                 ?? models.first(where: { $0.id == "MiniMax-M2.5" })?.id
         case .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI:
             return models.first(where: { $0.id == "mimo-v2.5-pro" })?.id

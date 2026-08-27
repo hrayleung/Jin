@@ -88,7 +88,10 @@ extension DeepSeekAdapter {
     }
 
     private func isV4ReasoningModel(_ lowerModelID: String) -> Bool {
-        lowerModelID == "deepseek-v4-flash" || lowerModelID == "deepseek-v4-pro"
+        lowerModelID == "deepseek-v4-flash"
+            || lowerModelID == "deepseek-v4-flash-0731"
+            || lowerModelID == "deepseek-v4-pro"
+            || lowerModelID == "deepseek-v4-pro-0813"
     }
 
     /// Official Chat Completions `reasoning_effort` is `low`/`high`/`max`

@@ -1093,12 +1093,14 @@ final class ModelCatalogTests: XCTestCase {
 
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "glm-5.3", provider: .zhipuCodingPlan))
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "glm-5.3[1m]", provider: .zhipuCodingPlan))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "glm-5.3-flash", provider: .zhipuCodingPlan))
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "glm-5.3-custom", provider: .zhipuCodingPlan))
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "glm-5.3-preview", provider: .zhipuCodingPlan))
 
         let seeded = ModelCatalog.seededModels(for: .zhipuCodingPlan)
         XCTAssertEqual(seeded.first?.id, "glm-5.3[1m]")
         XCTAssertTrue(seeded.contains(where: { $0.id == "glm-5.3" }))
+        XCTAssertTrue(seeded.contains(where: { $0.id == "glm-5.3-flash" }))
 
         let unknown = ModelCatalog.modelInfo(for: "glm-5.3-custom", provider: .zhipuCodingPlan)
         XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
@@ -1541,9 +1543,16 @@ final class ModelCatalogTests: XCTestCase {
             seeded,
             [
                 "moonshotai/Kimi-K3",
+                "moonshotai/Kimi-K2.7-Code",
                 "deepseek-ai/DeepSeek-V4-Pro-0813",
+                "deepseek-ai/DeepSeek-V4-Flash-0731",
                 "Qwen/Qwen3.8-2.4T-A95B",
+                "Qwen/Qwen3.8-27B",
+                "MiniMaxAI/MiniMax-M3",
+                "MiniMaxAI/MiniMax-M2.7",
                 "nvidia/NVIDIA-Nemotron-3.5-Lightning",
+                "zai-org/GLM-5.3",
+                "zai-org/GLM-5.3-Flash",
                 "zai-org/GLM-5.2",
                 "zai-org/GLM-5.1",
                 "Qwen/Qwen3.6-35B-A3B",
@@ -1840,6 +1849,18 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(
             for: .fireworks,
             modelID: "accounts/fireworks/models/deepseek-v4-pro-0813"
+        ))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .fireworks,
+            modelID: "accounts/fireworks/models/deepseek-v4-flash-0731"
+        ))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .fireworks,
+            modelID: "accounts/fireworks/models/glm-5p3"
+        ))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .fireworks,
+            modelID: "accounts/fireworks/routers/glm-5p3-fast"
         ))
     }
 
@@ -2608,5 +2629,74 @@ final class ModelCatalogTests: XCTestCase {
             XCTAssertNil(unknown.reasoningConfig, unknownID)
             XCTAssertFalse(ModelCatalog.isFullySupported(modelID: unknownID, provider: .opencodeGo), unknownID)
         }
+    }
+
+    func testGLM53FlashCatalogUsesExactProviderIDs() {
+        // docs.z.ai/guides/vlm/glm-5.3-flash (2026-08-26): first native multimodal
+        // GLM-5. Always-on low/high/max, 1M / 131K, image input. Video is listed in
+        // modality tables but not claimed (same policy as ox-alpha).
+
+        let zhipu = ModelCatalog.modelInfo(for: "glm-5.3-flash", provider: .zhipuCodingPlan)
+        XCTAssertEqual(zhipu.name, "GLM-5.3-Flash")
+        XCTAssertEqual(zhipu.contextWindow, 1_000_000)
+        XCTAssertEqual(zhipu.maxOutputTokens, 131_072)
+        XCTAssertEqual(zhipu.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertFalse(zhipu.capabilities.contains(.videoInput))
+        XCTAssertEqual(zhipu.reasoningConfig?.type, .effort)
+        XCTAssertEqual(zhipu.reasoningConfig?.defaultEffort, .max)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "glm-5.3-flash", provider: .zhipuCodingPlan))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .zhipuCodingPlan, modelID: "glm-5.3-flash"))
+
+        let go = ModelCatalog.modelInfo(for: "glm-5.3-flash", provider: .opencodeGo)
+        XCTAssertEqual(go.contextWindow, 1_000_000)
+        XCTAssertEqual(go.maxOutputTokens, 131_072)
+        XCTAssertTrue(go.capabilities.contains(.vision))
+        XCTAssertFalse(go.capabilities.contains(.videoInput))
+        XCTAssertFalse(go.capabilities.contains(.promptCaching))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "glm-5.3-flash", provider: .opencodeGo))
+        XCTAssertEqual(ModelCatalog.seededModels(for: .opencodeGo).first?.id, "glm-5.3")
+        XCTAssertTrue(ModelCatalog.seededModels(for: .opencodeGo).contains(where: { $0.id == "glm-5.3-flash" }))
+
+        let together = ModelCatalog.modelInfo(for: "zai-org/GLM-5.3-Flash", provider: .together)
+        XCTAssertEqual(together.name, "GLM-5.3-Flash")
+        XCTAssertEqual(together.contextWindow, 1_000_000)
+        XCTAssertEqual(together.maxOutputTokens, 131_072)
+        XCTAssertTrue(together.capabilities.contains(.vision))
+        XCTAssertFalse(together.capabilities.contains(.videoInput))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "zai-org/GLM-5.3-Flash", provider: .together))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .together, modelID: "zai-org/GLM-5.3-Flash"))
+
+        let deepinfra = ModelCatalog.modelInfo(for: "zai-org/GLM-5.3-Flash", provider: .deepinfra)
+        XCTAssertEqual(deepinfra.contextWindow, 1_048_576)
+        XCTAssertEqual(deepinfra.maxOutputTokens, 131_072)
+        XCTAssertTrue(deepinfra.capabilities.contains(.promptCaching))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "zai-org/GLM-5.3-Flash", provider: .deepinfra))
+
+        let openrouter = ModelCatalog.modelInfo(for: "z-ai/glm-5.3-flash", provider: .openrouter)
+        XCTAssertEqual(openrouter.contextWindow, 1_310_720)
+        XCTAssertEqual(openrouter.maxOutputTokens, 131_072)
+        XCTAssertTrue(openrouter.capabilities.contains(.vision))
+        XCTAssertFalse(openrouter.capabilities.contains(.videoInput))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "z-ai/glm-5.3-flash", provider: .openrouter))
+
+        let baseten = ModelCatalog.modelInfo(for: "zai-org/GLM-5.3-Flash", provider: .baseten)
+        XCTAssertEqual(baseten.contextWindow, 1_048_576)
+        XCTAssertEqual(baseten.maxOutputTokens, 131_072)
+        XCTAssertTrue(baseten.capabilities.contains(.vision))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "zai-org/GLM-5.3-Flash", provider: .baseten))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .baseten, modelID: "zai-org/GLM-5.3-Flash"))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .baseten, modelID: "zai-org/GLM-5.3-Flash"),
+            [.low, .high, .max]
+        )
+
+        let vercel = ModelCatalog.modelInfo(for: "zai/glm-5.3-flash", provider: .vercelAIGateway)
+        XCTAssertEqual(vercel.contextWindow, 1_000_000)
+        XCTAssertTrue(vercel.capabilities.contains(.vision))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "zai/glm-5.3-flash", provider: .vercelAIGateway))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "zai/glm-5.3-flash"))
+
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "zai-org/GLM-5.3-Fast", provider: .baseten))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "zai-org/GLM-5.3-Flash-custom", provider: .together))
     }
 }

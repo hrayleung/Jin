@@ -31,6 +31,8 @@ extension FireworksAdapter {
 
         let isMiniMaxM2FamilyModel = isFireworksMiniMaxM2FamilyModel(modelID)
         let isDeepSeekV4ProModel = isFireworksDeepSeekV4ProModel(modelID)
+        let isDeepSeekV4GAModel = isFireworksDeepSeekV4GAModel(modelID)
+        let isGLM53Model = isFireworksGLM53Model(modelID)
         var deepSeekV4ProThinkingDisabled = false
         if let reasoning = controls.reasoning {
             if isDeepSeekV4ProModel {
@@ -40,6 +42,27 @@ extension FireworksAdapter {
                 } else {
                     body["thinking"] = ["type": "enabled"]
                     body["reasoning_effort"] = mapDeepSeekV4ProReasoningEffort(reasoning.effort ?? .high)
+                }
+            } else if isDeepSeekV4GAModel {
+                // GA snapshots accept reasoning_effort low/high/max when thinking
+                // is on. Off is the official DeepSeek thinking envelope, not `none`.
+                if reasoning.enabled == false || reasoning.effort == .some(.none) {
+                    body["thinking"] = ["type": "disabled"]
+                } else {
+                    body["reasoning_effort"] = mapReasoningEffort(
+                        reasoning.effort ?? .high,
+                        modelID: modelID
+                    )
+                }
+            } else if isGLM53Model {
+                // GLM-5.3 rejects disabled thinking; Off becomes `low`.
+                if reasoning.enabled == false || reasoning.effort == .some(.none) {
+                    body["reasoning_effort"] = "low"
+                } else {
+                    body["reasoning_effort"] = mapReasoningEffort(
+                        reasoning.effort ?? .max,
+                        modelID: modelID
+                    )
                 }
             } else if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none {
                 if !isMiniMaxM2FamilyModel {

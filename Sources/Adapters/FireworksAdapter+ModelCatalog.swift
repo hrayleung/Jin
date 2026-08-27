@@ -87,7 +87,12 @@ extension FireworksAdapter {
             let suffix = String(lower.dropFirst(prefix.count))
             if suffix == "deepseek-v4-pro"
                 || suffix == "deepseek-v4-pro-0813"
-                || suffix == "qwen3p8-2p4t-a95b" {
+                || suffix == "deepseek-v4-flash-0731"
+                || suffix == "qwen3p8-2p4t-a95b"
+                || suffix == "glm-5p3"
+                || suffix == "minimax-m3"
+                || suffix == "kimi-k2p7-code"
+                || suffix == "nemotron-3-5-lightning" {
                 return "accounts/fireworks/models/\(suffix)"
             }
             return "fireworks/\(suffix)"
@@ -163,19 +168,28 @@ extension FireworksAdapter {
             extraCapabilities: [.vision],
             reasoning: true
         ),
+        "kimi-k2p7-code": FireworksFallbackSpec(name: "Kimi K2.7 Code", contextWindow: 262_144, extraCapabilities: [.vision], reasoning: true),
+        "kimi-k2p7-code-fast": FireworksFallbackSpec(name: "Kimi K2.7 Code Fast", contextWindow: 262_144, extraCapabilities: [.vision], reasoning: true),
         "kimi-k2p6": FireworksFallbackSpec(name: "Kimi K2.6", contextWindow: 262_100, extraCapabilities: [.vision], reasoning: true),
         "kimi-k2p5": FireworksFallbackSpec(name: "Kimi K2.5", contextWindow: 262_100, extraCapabilities: [.vision], reasoning: true),
         "qwen3-235b-a22b": FireworksFallbackSpec(name: "Qwen3 235B A22B", contextWindow: 131_100),
+        "qwen3p8-27b": FireworksFallbackSpec(name: "Qwen3.8 27B", contextWindow: 262_144, extraCapabilities: [.vision], reasoning: true),
         "qwen3-8b": FireworksFallbackSpec(name: "Qwen3 8B", contextWindow: 40_960),
         "llama-v3p3-70b-instruct": FireworksFallbackSpec(name: "Llama 3.3 70B Instruct", contextWindow: 131_072),
+        "minimax-m3": FireworksFallbackSpec(name: "MiniMax M3", contextWindow: 1_048_576, reasoning: true),
         "minimax-m2p7": FireworksFallbackSpec(name: "MiniMax M2.7", contextWindow: 196_608, reasoning: true),
         "minimax-m2p5": FireworksFallbackSpec(name: "MiniMax M2.5", contextWindow: 196_600, reasoning: true),
         "minimax-m2p1": FireworksFallbackSpec(name: "MiniMax M2.1", contextWindow: 204_800, reasoning: true),
         "minimax-m2": FireworksFallbackSpec(name: "MiniMax M2", contextWindow: 196_600, reasoning: true),
+        "glm-5p3": FireworksFallbackSpec(name: "GLM-5.3", contextWindow: 1_048_576, reasoning: true),
+        "glm-5p3-fast": FireworksFallbackSpec(name: "GLM-5.3 Fast", contextWindow: 1_048_576, reasoning: true),
         "glm-5p2": FireworksFallbackSpec(name: "GLM-5.2", contextWindow: 1_040_384, reasoning: true),
         "glm-5p1": FireworksFallbackSpec(name: "GLM-5.1", contextWindow: 202_752, reasoning: true),
         "glm-5": FireworksFallbackSpec(name: "GLM-5", contextWindow: 202_800, reasoning: true),
         "glm-4p7": FireworksFallbackSpec(name: "GLM-4.7", contextWindow: 202_800, reasoning: true),
+        "deepseek-v4-flash-0731": FireworksFallbackSpec(name: "DeepSeek V4 Flash 0731", contextWindow: 1_040_000, reasoning: true),
+        "nemotron-3-5-lightning": FireworksFallbackSpec(name: "Nemotron 3.5 Lightning", contextWindow: 1_000_000, reasoning: true),
+        "nemotron-3-ultra-nvfp4": FireworksFallbackSpec(name: "Nemotron 3 Ultra NVFP4", contextWindow: 1_000_000, reasoning: true),
     ]
 }
 

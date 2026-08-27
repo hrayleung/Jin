@@ -156,6 +156,9 @@ enum ModelSettingsResolver {
         if providerType == .runinfra {
             return !runinfraAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType == .baseten {
+            return !basetenAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
         return true
     }
 
@@ -238,13 +241,18 @@ enum ModelSettingsResolver {
         "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
         "thinkingmachines/inkling",
+        "meta/muse-spark-1.2",
         "qwen/qwen3.8-2.4t-a95b",
+        "zai-org/glm-5.3",
+        "zai-org/glm-5.3-flash",
     ]
 
     /// DeepInfra IDs whose thinking cannot be turned off. Exact-ID only.
     /// Qwen3.8-2.4T-A95B: HF card — thinking is always enabled.
     private static let deepInfraAlwaysOnReasoningModelIDs: Set<String> = [
         "qwen/qwen3.8-2.4t-a95b",
+        "zai-org/glm-5.3",
+        "zai-org/glm-5.3-flash",
     ]
 
     /// xAI models where reasoning is always-on ("Reasoning cannot be disabled" per
@@ -272,6 +280,7 @@ enum ModelSettingsResolver {
         "deepseek-v4-pro",
         "deepseek-v4-flash",
         "glm-5.3",
+        "glm-5.3-flash",
         "ox-alpha-free",
         "muse-spark-1.2",
         "muse-spark-1.2-contributor",
@@ -283,6 +292,7 @@ enum ModelSettingsResolver {
     private static let zhipuAlwaysOnReasoningModelIDs: Set<String> = [
         "glm-5.3",
         "glm-5.3[1m]",
+        "glm-5.3-flash",
     ]
 
     /// OpenRouter models whose live /models metadata reports reasoning.mandatory=true
@@ -296,9 +306,12 @@ enum ModelSettingsResolver {
         "sakana/fugu-ultra",
         "meta/muse-spark-1.1",
         "meta/muse-spark-1.2",
+        "meta/muse-spark-1.2-contributor",
         "qwen/qwen3.8-2.4t-a95b",
         "qwen/qwen3.8-max",
         "stealth/ox-alpha",
+        "z-ai/glm-5.3",
+        "z-ai/glm-5.3-flash",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /
@@ -312,6 +325,9 @@ enum ModelSettingsResolver {
         "meta/muse-spark-1.1",
         "meta/muse-spark-1.2",
         "meta/muse-spark-1.2-contributor",
+        "zai/glm-5.3",
+        "zai/glm-5.3-flash",
+        "qwen/qwen3.8-2.4t-a95b",
     ]
 
     /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list
@@ -336,6 +352,13 @@ enum ModelSettingsResolver {
         "inferact/qwen3.8-2.4t-a95b-nvfp4",
     ]
 
+    /// Baseten IDs whose thinking cannot be turned off. GLM-5.3-Flash rejects
+    /// disabled thinking (docs.z.ai/guides/vlm/glm-5.3-flash); models.dev `baseten`
+    /// effort values are low/high/max with no `none`.
+    private static let basetenAlwaysOnReasoningModelIDs: Set<String> = [
+        "zai-org/glm-5.3-flash",
+    ]
+
     private static func isSambaNovaAlwaysOnReasoningModel(_ modelID: String) -> Bool {
         sambaNovaAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
     }
@@ -345,9 +368,10 @@ enum ModelSettingsResolver {
     }
 
     /// Fireworks MiniMax M2 family plus Qwen3.8-2.4T (thinking cannot be disabled
-    /// on the HF weights). Preview DeepSeek V4 Pro stays disableable.
+    /// on the HF weights) and GLM-5.3 (official Z.ai rejects `thinking.type:
+    /// disabled`). Preview DeepSeek V4 Pro stays disableable.
     private static func isFireworksAlwaysOnReasoningModel(_ modelID: String) -> Bool {
-        if isFireworksMiniMaxM2FamilyModel(modelID) {
+        if isFireworksMiniMaxM2FamilyModel(modelID) || isFireworksGLM53Model(modelID) {
             return true
         }
         let lower = modelID.lowercased()

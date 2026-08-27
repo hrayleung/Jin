@@ -60,6 +60,21 @@ extension BasetenAdapter {
 
         let lower = modelID.lowercased()
 
+        if Self.glm53AlwaysOnEffortModelIDs.contains(lower) {
+            // GLM-5.3-Flash: always-on low/high/max. Off / none maps to `low`
+            // (docs.z.ai/guides/vlm/glm-5.3-flash rejects disabled thinking).
+            let requested = reasoning.enabled == false || reasoning.effort == .some(.none)
+                ? .low
+                : (reasoning.effort ?? .max)
+            let effort = ModelCapabilityRegistry.normalizedReasoningEffort(
+                requested,
+                for: .baseten,
+                modelID: modelID
+            )
+            body["reasoning_effort"] = mapEffortWireValue(effort == .none ? .low : effort)
+            return
+        }
+
         if Self.chatTemplateToggleModelIDs.contains(lower) {
             // Toggle models: only `enabled` controls thinking. A nil effort must not
             // be treated as disable (effort defaults to nil on ReasoningControls).
@@ -166,5 +181,10 @@ extension BasetenAdapter {
     private static let glm52EffortModelIDs: Set<String> = [
         "zai-org/glm-5.2",
         "zai-org/glm-5.2-fast",
+    ]
+
+    /// GLM-5.3-Flash: always-on `reasoning_effort` low/high/max (models.dev `baseten`).
+    private static let glm53AlwaysOnEffortModelIDs: Set<String> = [
+        "zai-org/glm-5.3-flash",
     ]
 }
