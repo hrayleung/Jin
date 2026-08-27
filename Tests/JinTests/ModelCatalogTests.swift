@@ -1850,6 +1850,18 @@ final class ModelCatalogTests: XCTestCase {
             for: .fireworks,
             modelID: "accounts/fireworks/models/deepseek-v4-pro-0813"
         ))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .fireworks,
+            modelID: "accounts/fireworks/models/deepseek-v4-flash-0731"
+        ))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .fireworks,
+            modelID: "accounts/fireworks/models/glm-5p3"
+        ))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .fireworks,
+            modelID: "accounts/fireworks/routers/glm-5p3-fast"
+        ))
     }
 
     func testOpenRouterLastWeekOpenModelsUseExactProviderIDs() {
