@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jin Version Release"
+  short_description: "Publish stable Jin releases"
+  default_prompt: "Use $jin-version-release to publish Jin v0.58.1 with the repo-specific Sparkle and GitHub release flow."
