@@ -149,6 +149,10 @@ enum ModelSettingsResolver {
             // library, 2026-08-12). Kimi K3 / Inkling stay toggleable via `none`.
             return !modalAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType == .makora {
+            // GPT-OSS 120B on Makora: reasoning always on (omp-makora-provider).
+            return !MakoraModelSupport.isAlwaysOnReasoningModel(modelID)
+        }
         return true
     }
 

@@ -42,6 +42,13 @@ enum ChatModelSelectionSupport {
         "Qwen/Qwen3.5-27B",
         "Qwen/Qwen3.5-9B",
     ]
+    static let preferredMakoraModelOrder: [String] = [
+        "moonshotai/Kimi-K3",
+        "deepseek-ai/DeepSeek-V4-Flash-0731",
+        "zai-org/GLM-5.2-NVFP4",
+        "zai-org/GLM-5.2-FP8",
+        "google/gemma-4-26B-A4B",
+    ]
     static let preferredTogetherModelOrder: [String] = [
         "moonshotai/Kimi-K3",
         "moonshotai/Kimi-K2.5",
@@ -254,6 +261,13 @@ enum ChatModelSelectionSupport {
             return models.first(where: { $0.id == "zyphra/ZAYA1-8B" })?.id
                 ?? models.first(where: { $0.id == "moonshotai/Kimi-K2.6" })?.id
                 ?? models.first(where: { $0.id == "deepseek-ai/DeepSeek-V3.2" })?.id
+        case .makora:
+            for preferredID in preferredMakoraModelOrder {
+                if let modelID = models.first(where: { $0.id == preferredID })?.id {
+                    return modelID
+                }
+            }
+            return nil
         case .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq, .cohere, .mistral, .xai, .vertexai:
             return nil
         }

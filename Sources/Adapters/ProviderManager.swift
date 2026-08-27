@@ -97,6 +97,9 @@ actor ProviderManager {
         case .modal:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return ModalAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+        case .makora:
+            let apiKey = requiredAPIKey(from: credentials, for: config.type)
+            return MakoraAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
         case .morphllm:
             let apiKey = requiredAPIKey(from: credentials, for: config.type)
             return MorphLLMAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)

@@ -784,7 +784,7 @@ enum ModelCapabilityRegistry {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .xai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .perplexity, .modal, .morphllm, .opencodeGo,
-             .zyphra, .meta, .none:
+             .zyphra, .makora, .meta, .none:
             return .openAICompatible
         }
     }
@@ -1260,7 +1260,7 @@ enum ModelCapabilityRegistry {
             return routerWebSearchModelIDs.contains(lowerModelID)
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
-             .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .zyphra, .kimiForCoding, .none:
+             .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .zyphra, .makora, .kimiForCoding, .none:
             return false
         }
     }
@@ -1516,7 +1516,7 @@ enum ModelCapabilityRegistry {
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .baseten,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm,
-             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .router, .zyphra, .meta, .kimiForCoding, .none:
+             .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .opencodeGo, .router, .zyphra, .makora, .meta, .kimiForCoding, .none:
             return false
         }
     }
@@ -1549,7 +1549,7 @@ enum ModelCapabilityRegistry {
              .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .perplexity,
              .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo,
-             .router, .zyphra, .meta, .kimiForCoding, .none:
+             .router, .zyphra, .makora, .meta, .kimiForCoding, .none:
             return false
         }
     }

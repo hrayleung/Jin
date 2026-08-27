@@ -48,6 +48,7 @@ extension ModelCatalog {
         .sambanova: sambaNovaRecords,
         .databricks: databricksRecords,
         .modal: modalRecords,
+        .makora: makoraRecords,
         .morphllm: morphLLMRecords,
         .opencodeGo: opencodeGoRecords,
         .router: routerRecords,

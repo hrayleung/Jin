@@ -176,7 +176,7 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                 case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter, .groq,
                      .cohere, .mistral, .deepinfra, .together, .baseten, .gemini, .vertexai, .deepseek,
                      .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic,
-                     .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .meta, .kimiForCoding, .none:
+                     .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .zyphra, .makora, .meta, .kimiForCoding, .none:
                     EmptyView()
                 }
             }

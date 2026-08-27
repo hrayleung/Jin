@@ -75,6 +75,7 @@ enum ProviderType: String, Codable, CaseIterable {
     case mimoTokenPlanOpenAI
     case mistral
     case modal
+    case makora
     case morphllm
     case openai
     case openaiCompatible
@@ -126,6 +127,7 @@ enum ProviderType: String, Codable, CaseIterable {
         case .sambanova: return "SambaNova"
         case .databricks: return "Databricks"
         case .modal: return "Modal"
+        case .makora: return "Makora"
         case .morphllm: return "MorphLLM"
         case .gemini: return "Gemini (AI Studio)"
         case .vertexai: return "Vertex AI"
@@ -204,6 +206,7 @@ enum ProviderType: String, Codable, CaseIterable {
         // `us-west` for us-east / ca-central / eu-west / ap-south, or paste an
         // Auto Endpoint's own URL.
         case .modal: return "https://inference.us-west.modal.direct/v1"
+        case .makora: return "https://inference.makora.com/v1"
         case .morphllm: return "https://api.morphllm.com/v1"
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta"
         case .vertexai: return nil
