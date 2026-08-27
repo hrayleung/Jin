@@ -36,6 +36,7 @@ enum DefaultProviderSeeds {
             sambaNova,
             databricks,
             modal,
+            makora,
             morphLLM,
             opencodeGo,
             router,
@@ -355,6 +356,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .modal),
             baseURL: ProviderType.modal.defaultBaseURL,
             models: []
+        )
+    }
+
+    static var makora: ProviderConfig {
+        ProviderConfig(
+            id: "makora",
+            name: "Makora",
+            type: .makora,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .makora),
+            baseURL: ProviderType.makora.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .makora)
         )
     }
 

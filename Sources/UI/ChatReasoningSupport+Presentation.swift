@@ -15,7 +15,7 @@ extension ChatReasoningSupport {
         case .openai, .openaiWebSocket, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .xai, .deepseek,
              .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo,
-             .router, .zyphra, .meta, .none:
+             .router, .zyphra, .makora, .meta, .none:
             return "Reasoning: \(label)"
         }
     }

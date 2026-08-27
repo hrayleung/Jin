@@ -52,7 +52,7 @@ extension ChatAuxiliaryControlSupport {
         // applies without Jin sending anything.
         case .githubCopilot, .openaiCompatible, .vercelAIGateway, .openrouter, .perplexity, .groq, .cohere,
              .mistral, .deepinfra, .together, .baseten, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .fireworks,
-             .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .router, .zyphra:
+             .cerebras, .sambanova, .databricks, .modal, .morphllm, .opencodeGo, .router, .zyphra, .makora:
             return nil
         }
     }

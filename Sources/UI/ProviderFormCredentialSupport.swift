@@ -21,7 +21,7 @@ extension ProviderFormSupport {
         case .githubCopilot, .openai, .openaiWebSocket, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
              .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .xai,
              .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,
-             .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .router, .gemini, .zyphra, .meta, .kimiForCoding:
+             .fireworks, .cerebras, .sambanova, .databricks, .morphllm, .opencodeGo, .router, .gemini, .zyphra, .makora, .meta, .kimiForCoding:
             return .apiKey
         case .modal:
             return .proxyTokenPair
@@ -100,6 +100,8 @@ extension ProviderFormSupport {
             return "Ramp Router at `https://api.router.com/v1` (key from app.router.com/keys — keep the `/v1`). Router is Responses-only: Jin sends every model to `POST /v1/responses`; there is no Chat Completions endpoint. Model IDs are account-scoped and are *not* the labels in Router's docs table — use Fetch Models, which reads Router's per-model limits, input modalities, and reasoning bands directly. Anthropic models are `claude-…`, Fireworks-hosted open models are `accounts/fireworks/…`. Web search is available on the OpenAI-served models. Router has no file-upload API, so PDFs are sent as extracted text."
         case .opencodeGo:
             return "OpenCode Go at `https://opencode.ai/zen/go/v1` (Zen API key from the OpenCode console). Jin follows OpenCode's per-model endpoint table: Claude, MiniMax, and Qwen use `/messages`; GPT-5.6 Luna and Muse Spark (`muse-spark-1.2`, `muse-spark-1.2-contributor`) use `/responses`; other models use `/chat/completions`. Contributor-tier prompts and completions may be used to train Meta models."
+        case .makora:
+            return "Makora inference at `https://inference.makora.com/v1` (API key from inference.makora.com). OpenAI-compatible Chat Completions on vLLM: Jin rewrites thinking to `chat_template_kwargs` / `include_reasoning` because official DeepSeek `thinking: { type }` is ignored. Seeded models match the current makora.com lineup (Kimi K3, DeepSeek V4 Flash 0731, GLM 5.2 FP8/NVFP4, Gemma 4 26B A4B). Use Fetch Models for the live `/v1/models` list. One Llama 3.3 70B FP8 SKU still uses a per-slug endpoint."
         default:
             return nil
         }

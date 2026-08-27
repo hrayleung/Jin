@@ -168,6 +168,9 @@ enum LobeProviderIconCatalog {
         LobeProviderIcon(id: "LLaVA", docsSlug: "llava", filename: "llava.svg"),
         LobeProviderIcon(id: "LmStudio", docsSlug: "lm-studio", filename: "lmstudio.svg"),
         LobeProviderIcon(id: "LobeHub", docsSlug: "lobe-hub", filename: "lobehub.svg"),
+        // Not a Lobe icon — Makora has no lobe-icons entry. Bundled PNGs are a
+        // monochrome M from Makora's own mark (makora.com), black on light / white on dark.
+        LobeProviderIcon(id: "Makora", docsSlug: "makora", filename: "makora.svg"),
         LobeProviderIcon(id: "Menlo", docsSlug: "menlo", filename: "menlo.svg"),
         LobeProviderIcon(id: "Meta", docsSlug: "meta", filename: "meta.svg"),
         LobeProviderIcon(id: "MetaAI", docsSlug: "meta-ai", filename: "metaai.svg"),
@@ -317,6 +320,8 @@ enum LobeProviderIconCatalog {
             return "Dbrx"
         case .modal:
             return "Modal"
+        case .makora:
+            return "Makora"
         case .morphllm:
             return "Morph"
         case .opencodeGo:
