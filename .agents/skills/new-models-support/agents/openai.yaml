@@ -1,0 +1,4 @@
+interface:
+  display_name: "Jin New Models Support"
+  short_description: "Discover and fully support newly released models"
+  default_prompt: "Use $new-models-support to search official provider docs for newly released model IDs and add complete Jin catalog, capability, adapter, UI, and test support without guessing."
