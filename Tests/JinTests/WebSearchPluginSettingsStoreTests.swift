@@ -111,6 +111,22 @@ final class WebSearchPluginSettingsStoreTests: XCTestCase {
         XCTAssertEqual(settings.perplexityLanguage, "en")
     }
 
+    func testLoadCarriesTinyFishPreferences() {
+        defaults.set("  tf-key  ", forKey: AppPreferenceKeys.pluginWebSearchTinyFishAPIKey)
+        defaults.set("US", forKey: AppPreferenceKeys.pluginWebSearchTinyFishLocation)
+        defaults.set("en", forKey: AppPreferenceKeys.pluginWebSearchTinyFishLanguage)
+        defaults.set("news", forKey: AppPreferenceKeys.pluginWebSearchTinyFishDomainType)
+        defaults.set(true, forKey: AppPreferenceKeys.pluginWebSearchTinyFishFetchPages)
+
+        let settings = WebSearchPluginSettingsStore.load(defaults: defaults)
+
+        XCTAssertEqual(settings.apiKey(for: .tinyfish), "tf-key")
+        XCTAssertEqual(settings.tinyfishLocation, "US")
+        XCTAssertEqual(settings.tinyfishLanguage, "en")
+        XCTAssertEqual(settings.tinyfishDomainType, "news")
+        XCTAssertTrue(settings.tinyfishFetchPages)
+    }
+
     func testLoadCarriesNewJinaPreferences() {
         defaults.set("DE", forKey: AppPreferenceKeys.pluginWebSearchJinaCountry)
         defaults.set("de-DE", forKey: AppPreferenceKeys.pluginWebSearchJinaLocale)

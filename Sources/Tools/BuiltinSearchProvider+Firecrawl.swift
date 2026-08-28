@@ -75,6 +75,14 @@ extension BuiltinSearchToolHub {
             body["country"] = country
         }
 
+        if let location = settings.firecrawlLocation?.trimmedNonEmpty {
+            body["location"] = location
+        }
+
+        if settings.firecrawlSafe {
+            body["safe"] = true
+        }
+
         // Native domain filters (mutually exclusive per Firecrawl docs). Prefer include.
         let domainFilters = firecrawlDomainFilters(
             includeDomains: args.includeDomains,
@@ -155,12 +163,19 @@ extension BuiltinSearchToolHub {
 
     /// Pure recency-window mapper duplicated as a `nonisolated static` so the body builder can
     /// remain test-callable without crossing actor isolation.
-    nonisolated static func firecrawlRecencyTBS(recencyDays: Int) -> String {
+    /// Common buckets stay on Firecrawl's `qdr:*` shortcuts; longer windows use a precise
+    /// `cdr:1,cd_min:MM/DD/YYYY,cd_max:MM/DD/YYYY` range (docs.firecrawl.dev/features/search).
+    nonisolated static func firecrawlRecencyTBS(recencyDays: Int, now: Date = Date()) -> String {
         switch recencyDays {
         case ...1: return "qdr:d"
         case ...7: return "qdr:w"
         case ...31: return "qdr:m"
-        default: return "qdr:y"
+        default:
+            let calendar = utcGregorianCalendar()
+            let start = calendar.date(byAdding: .day, value: -max(1, recencyDays), to: now) ?? now
+            let min = utcDateString(start, format: "MM/dd/yyyy")
+            let max = utcDateString(now, format: "MM/dd/yyyy")
+            return "cdr:1,cd_min:\(min),cd_max:\(max)"
         }
     }
 

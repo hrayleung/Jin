@@ -56,6 +56,18 @@ struct WebSearchAdvancedProviderSettingsView: View {
     @Binding var perplexityCountry: String
     @Binding var perplexityLanguage: String
 
+    @Binding var tinyfishLocation: String
+    @Binding var tinyfishLanguage: String
+    @Binding var tinyfishDomainTypeRaw: String
+    @Binding var tinyfishFetchPages: Bool
+
+    @Binding var firecrawlLocation: String
+    @Binding var firecrawlSafe: Bool
+
+    @Binding var tavilyLanguage: String
+    @Binding var tavilyFilterByLanguage: Bool
+    @Binding var tavilySafeSearch: Bool
+
     var body: some View {
         providerSettings
     }
@@ -75,6 +87,8 @@ struct WebSearchAdvancedProviderSettingsView: View {
             tavilySettings
         case .perplexity:
             perplexitySettings
+        case .tinyfish:
+            tinyfishSettings
         }
     }
 
@@ -89,7 +103,7 @@ struct WebSearchAdvancedProviderSettingsView: View {
 
         JinSettingsPickerRow("Category", selection: $exaCategory) {
             Text("Any").tag("")
-            ForEach(ExaCategory.allCases, id: \.self) { value in
+            ForEach(ExaCategory.publicCases, id: \.self) { value in
                 Text(exaCategoryLabel(for: value)).tag(value.rawValue)
             }
         }
@@ -168,6 +182,16 @@ struct WebSearchAdvancedProviderSettingsView: View {
             usesMonospacedFont: true
         )
 
+        JinSettingsTextFieldRow(
+            "Location",
+            prompt: "e.g. Germany",
+            supportingText: "Geo-targeted results. Works best with Country.",
+            text: $firecrawlLocation,
+            usesMonospacedFont: true
+        )
+
+        JinSettingsToggleRow("Filter unsafe content", isOn: $firecrawlSafe)
+
         JinSettingsToggleRow("Web results", isOn: firecrawlSourceBinding(for: .web))
         JinSettingsToggleRow("News results", isOn: firecrawlSourceBinding(for: .news))
         JinSettingsToggleRow("Image results", isOn: firecrawlSourceBinding(for: .images))
@@ -190,6 +214,26 @@ struct WebSearchAdvancedProviderSettingsView: View {
             "Auto-tune parameters",
             supportingText: "Tavily may override depth and topic.",
             isOn: $tavilyAutoParameters
+        )
+
+        JinSettingsTextFieldRow(
+            "Language",
+            prompt: "e.g. en",
+            supportingText: "ISO 639-1 code or English name. Boosts matching results.",
+            text: $tavilyLanguage,
+            usesMonospacedFont: true
+        )
+
+        JinSettingsToggleRow(
+            "Strict language filter",
+            supportingText: "Drop results that do not match Language.",
+            isOn: $tavilyFilterByLanguage
+        )
+
+        JinSettingsToggleRow(
+            "Safe search",
+            supportingText: "Not available for Fast or Ultra-fast depth.",
+            isOn: $tavilySafeSearch
         )
     }
 
@@ -224,6 +268,36 @@ struct WebSearchAdvancedProviderSettingsView: View {
             prompt: "e.g. en",
             text: $perplexityLanguage,
             usesMonospacedFont: true
+        )
+    }
+
+    @ViewBuilder
+    private var tinyfishSettings: some View {
+        JinSettingsPickerRow("Domain type", selection: $tinyfishDomainTypeRaw) {
+            ForEach(TinyFishDomainType.allCases, id: \.self) { value in
+                Text(value.displayName).tag(value == .web ? "" : value.rawValue)
+            }
+        }
+
+        JinSettingsTextFieldRow(
+            "Location",
+            prompt: "e.g. US",
+            supportingText: "ISO country code. Auto-resolves with Language.",
+            text: $tinyfishLocation,
+            usesMonospacedFont: true
+        )
+
+        JinSettingsTextFieldRow(
+            "Language",
+            prompt: "e.g. en",
+            text: $tinyfishLanguage,
+            usesMonospacedFont: true
+        )
+
+        JinSettingsToggleRow(
+            "Fetch page content",
+            supportingText: "Read top result pages via TinyFish Fetch.",
+            isOn: $tinyfishFetchPages
         )
     }
 
@@ -305,6 +379,8 @@ struct JinaProviderObservers: ViewModifier {
 struct FirecrawlProviderObservers: ViewModifier {
     let firecrawlExtractContent: Bool
     let firecrawlCountry: String
+    let firecrawlLocation: String
+    let firecrawlSafe: Bool
     let firecrawlSourcesRaw: String
     let onChange: () -> Void
 
@@ -312,6 +388,8 @@ struct FirecrawlProviderObservers: ViewModifier {
         content
             .onChange(of: firecrawlExtractContent) { _, _ in onChange() }
             .onChange(of: firecrawlCountry) { _, _ in onChange() }
+            .onChange(of: firecrawlLocation) { _, _ in onChange() }
+            .onChange(of: firecrawlSafe) { _, _ in onChange() }
             .onChange(of: firecrawlSourcesRaw) { _, _ in onChange() }
     }
 }
@@ -321,6 +399,9 @@ struct TavilyProviderObservers: ViewModifier {
     let tavilyTopic: String
     let tavilyCountry: String
     let tavilyAutoParameters: Bool
+    let tavilyLanguage: String
+    let tavilyFilterByLanguage: Bool
+    let tavilySafeSearch: Bool
     let onChange: () -> Void
 
     func body(content: Content) -> some View {
@@ -329,6 +410,9 @@ struct TavilyProviderObservers: ViewModifier {
             .onChange(of: tavilyTopic) { _, _ in onChange() }
             .onChange(of: tavilyCountry) { _, _ in onChange() }
             .onChange(of: tavilyAutoParameters) { _, _ in onChange() }
+            .onChange(of: tavilyLanguage) { _, _ in onChange() }
+            .onChange(of: tavilyFilterByLanguage) { _, _ in onChange() }
+            .onChange(of: tavilySafeSearch) { _, _ in onChange() }
     }
 }
 
@@ -341,6 +425,22 @@ struct PerplexityProviderObservers: ViewModifier {
         content
             .onChange(of: perplexityCountry) { _, _ in onChange() }
             .onChange(of: perplexityLanguage) { _, _ in onChange() }
+    }
+}
+
+struct TinyFishProviderObservers: ViewModifier {
+    let tinyfishLocation: String
+    let tinyfishLanguage: String
+    let tinyfishDomainTypeRaw: String
+    let tinyfishFetchPages: Bool
+    let onChange: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: tinyfishLocation) { _, _ in onChange() }
+            .onChange(of: tinyfishLanguage) { _, _ in onChange() }
+            .onChange(of: tinyfishDomainTypeRaw) { _, _ in onChange() }
+            .onChange(of: tinyfishFetchPages) { _, _ in onChange() }
     }
 }
 
@@ -359,7 +459,8 @@ private func exaSearchTypeLabel(for value: ExaSearchType) -> String {
 private func exaCategoryLabel(for value: ExaCategory) -> String {
     switch value {
     case .company: return "Company"
-    case .publication: return "Publication"
+    case .researchPaper: return "Research paper"
+    case .publication: return "Research paper"
     case .news: return "News"
     case .personalSite: return "Personal site"
     case .financialReport: return "Financial report"

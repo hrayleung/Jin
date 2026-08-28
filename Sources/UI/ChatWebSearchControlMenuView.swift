@@ -95,10 +95,15 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                 Divider()
                 Toggle("Include raw snippets", isOn: builtinSearchIncludeRawBinding)
 
-                if effectiveSearchPluginProvider == .jina {
+                switch effectiveSearchPluginProvider {
+                case .jina:
                     Toggle("Fetch pages via Reader", isOn: builtinSearchFetchPageBinding)
-                } else if effectiveSearchPluginProvider == .firecrawl {
+                case .tinyfish:
+                    Toggle("Fetch page content", isOn: builtinSearchFetchPageBinding)
+                case .firecrawl:
                     Toggle("Extract markdown", isOn: builtinSearchFirecrawlExtractBinding)
+                case .exa, .brave, .tavily, .perplexity:
+                    EmptyView()
                 }
             } else {
                 switch providerType {

@@ -38,7 +38,7 @@ final class WebSearchPluginSettingsSupportTests: XCTestCase {
     func testConfiguredProviderPresentationSummaries() {
         XCTAssertEqual(
             WebSearchPluginSettingsSupport.configuredCountText([.exa, .brave]),
-            "2/6"
+            "2/7"
         )
         XCTAssertEqual(
             WebSearchPluginSettingsSupport.configuredProviderNamesText([.exa, .brave]),

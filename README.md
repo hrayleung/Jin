@@ -108,7 +108,7 @@ All plugins are optional and configured in **Settings > Plugins**.
 
 | Plugin | Services |
 |--------|----------|
-| Web Search | Exa, Brave Search, Jina Search, Firecrawl, Tavily, Perplexity Search |
+| Web Search | TinyFish, Exa, Brave Search, Jina Search, Firecrawl, Tavily, Perplexity Search |
 | Text-to-Speech | OpenAI, OpenRouter, Groq, Mistral, ElevenLabs, Xiaomi MiMo |
 | Speech-to-Text | OpenAI, OpenRouter, Groq, Mistral, ElevenLabs |
 | PDF OCR | Mistral OCR, MinerU, DeepSeek (via DeepInfra), OpenRouter OCR, Firecrawl OCR — used as fallback when the active model can't natively ingest PDFs |

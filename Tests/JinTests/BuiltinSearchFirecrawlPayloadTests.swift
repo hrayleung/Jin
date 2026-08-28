@@ -147,6 +147,19 @@ final class BuiltinSearchFirecrawlPayloadTests: XCTestCase {
         XCTAssertNil(body["lang"], "Firecrawl v2 search schema has no lang field.")
     }
 
+    func testFirecrawlBodyEmitsLocationAndSafeSearchWhenSet() {
+        let settings = makeSettings(firecrawlLocation: "Germany", firecrawlSafe: true)
+
+        let body = BuiltinSearchToolHub.makeFirecrawlRequestBody(
+            args: makeArgs(query: "swift"),
+            settings: settings,
+            overrides: nil
+        )
+
+        XCTAssertEqual(body["location"] as? String, "Germany")
+        XCTAssertEqual(body["safe"] as? Bool, true)
+    }
+
     func testFirecrawlBodyMapsRecencyDaysToTBS() {
         let body = BuiltinSearchToolHub.makeFirecrawlRequestBody(
             args: makeArgs(query: "swift", recencyDays: 7),
@@ -155,6 +168,12 @@ final class BuiltinSearchFirecrawlPayloadTests: XCTestCase {
         )
 
         XCTAssertEqual(body["tbs"] as? String, "qdr:w")
+    }
+
+    func testFirecrawlRecencyTBSUsesCustomDateRangeBeyondOneMonth() {
+        let now = ISO8601DateFormatter().date(from: "2026-05-09T12:00:00Z")!
+        let tbs = BuiltinSearchToolHub.firecrawlRecencyTBS(recencyDays: 90, now: now)
+        XCTAssertEqual(tbs, "cdr:1,cd_min:02/08/2026,cd_max:05/09/2026")
     }
 
     // MARK: - Result mapping
@@ -209,6 +228,8 @@ final class BuiltinSearchFirecrawlPayloadTests: XCTestCase {
         braveCountry: String? = nil,
         firecrawlCountry: String? = nil,
         firecrawlLanguage: String? = nil,
+        firecrawlLocation: String? = nil,
+        firecrawlSafe: Bool = false,
         firecrawlSources: [FirecrawlSourceKind] = [],
         firecrawlExtractContent: Bool = false
     ) -> WebSearchPluginSettings {
@@ -242,7 +263,9 @@ final class BuiltinSearchFirecrawlPayloadTests: XCTestCase {
             tavilyCountry: nil,
             tavilyAutoParameters: false,
             perplexityCountry: nil,
-            perplexityLanguage: nil
+            perplexityLanguage: nil,
+            firecrawlLocation: firecrawlLocation,
+            firecrawlSafe: firecrawlSafe
         )
     }
 }

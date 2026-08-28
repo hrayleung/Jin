@@ -106,6 +106,7 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
     case firecrawl
     case tavily
     case perplexity
+    case tinyfish
 
     var id: String { rawValue }
 
@@ -117,6 +118,7 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
         case .firecrawl: return "Firecrawl"
         case .tavily: return "Tavily"
         case .perplexity: return "Perplexity Search"
+        case .tinyfish: return "TinyFish"
         }
     }
 
@@ -128,6 +130,7 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
         case .firecrawl: return "FC"
         case .tavily: return "TV"
         case .perplexity: return "PPLX"
+        case .tinyfish: return "TF"
         }
     }
 
@@ -139,6 +142,7 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
         case .firecrawl: return URL(string: "https://www.firecrawl.dev/")
         case .tavily: return URL(string: "https://app.tavily.com/")
         case .perplexity: return URL(string: "https://docs.perplexity.ai/")
+        case .tinyfish: return URL(string: "https://agent.tinyfish.ai/api-keys")
         }
     }
 }
@@ -191,24 +195,72 @@ enum ExaSearchType: String, Codable, CaseIterable, Sendable {
 /// Exa per-request category filter. Validated against Exa's documented allowlist.
 enum ExaCategory: String, Codable, CaseIterable, Sendable {
     case company
-    /// Scholarly publications (papers, preprints, journals). Replaces legacy `"research paper"`.
+    /// Academic papers, arXiv, and journals. Documented wire value is `research paper`.
+    case researchPaper = "research paper"
+    /// Legacy stored value. `resolved` and `wireValue` map it to `research paper`.
     case publication
     case news
     case personalSite = "personal site"
     case financialReport = "financial report"
     case people
 
+    /// Categories Exa currently documents on `/search`.
+    static let publicCases: [ExaCategory] = [
+        .company, .researchPaper, .news, .personalSite, .financialReport, .people
+    ]
+
+    /// Value sent on the wire. Never emits retired types such as `publication`.
+    var wireValue: String {
+        switch self {
+        case .publication:
+            return ExaCategory.researchPaper.rawValue
+        default:
+            return rawValue
+        }
+    }
+
     static func resolved(from rawValue: String?) -> ExaCategory? {
         guard let value = rawValue?.trimmedNonEmpty?.lowercased() else {
             return nil
         }
 
-        // Exa replaced `research paper` with `publication`.
         switch value {
-        case "research paper", "research_paper", "researchpaper":
-            return .publication
+        case "research paper", "research_paper", "researchpaper", "publication":
+            return .researchPaper
         default:
             return ExaCategory(rawValue: value)
+        }
+    }
+}
+
+/// TinyFish Search `domain_type`. Documented values: `web`, `news`, `research_paper`.
+enum TinyFishDomainType: String, Codable, CaseIterable, Sendable {
+    case web
+    case news
+    case researchPaper = "research_paper"
+
+    var displayName: String {
+        switch self {
+        case .web: return "Web"
+        case .news: return "News"
+        case .researchPaper: return "Research papers"
+        }
+    }
+
+    static func resolved(from rawValue: String?) -> TinyFishDomainType? {
+        guard let value = rawValue?.trimmedNonEmpty?.lowercased() else {
+            return nil
+        }
+
+        switch value {
+        case "web":
+            return .web
+        case "news":
+            return .news
+        case "research_paper", "research paper", "researchpaper":
+            return .researchPaper
+        default:
+            return TinyFishDomainType(rawValue: value)
         }
     }
 }
