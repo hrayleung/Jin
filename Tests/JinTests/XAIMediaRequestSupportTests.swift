@@ -49,6 +49,44 @@ final class XAIMediaRequestSupportTests: XCTestCase {
         XCTAssertNil(components.body["resolution"])
     }
 
+    func testImagineImage20SendsResolutionAndLowMediumQuality() {
+        let components = XAIMediaRequestSupport.imageRequestComponents(
+            modelID: "grok-imagine-image-2.0",
+            prompt: "A watercolor lighthouse",
+            imageURL: nil,
+            controls: XAIImageGenerationControls(
+                aspectRatio: .ratio16x9,
+                resolution: .res2k,
+                quality: .low
+            )
+        )
+
+        XCTAssertEqual(components.body["model"] as? String, "grok-imagine-image-2.0")
+        XCTAssertEqual(components.body["aspect_ratio"] as? String, "16:9")
+        XCTAssertEqual(components.body["resolution"] as? String, "2k")
+        XCTAssertEqual(components.body["quality"] as? String, "low")
+    }
+
+    func testImagineImage20OmitsUndocumentedHighQuality() {
+        let components = XAIMediaRequestSupport.imageRequestComponents(
+            modelID: "grok-imagine-image-2.0",
+            prompt: "A watercolor lighthouse",
+            imageURL: nil,
+            controls: XAIImageGenerationControls(quality: .high)
+        )
+        XCTAssertNil(components.body["quality"])
+    }
+
+    func testLegacyImagineImageOmitsQuality() {
+        let components = XAIMediaRequestSupport.imageRequestComponents(
+            modelID: "grok-imagine-image",
+            prompt: "A city skyline",
+            imageURL: nil,
+            controls: XAIImageGenerationControls(quality: .low)
+        )
+        XCTAssertNil(components.body["quality"])
+    }
+
     func testVideoGenerationComponentsClampDurationAndIncludeSupportedControls() {
         let components = XAIMediaRequestSupport.videoRequestComponents(
             modelID: "grok-imagine-video",

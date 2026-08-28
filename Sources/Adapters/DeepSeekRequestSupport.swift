@@ -10,7 +10,7 @@ extension DeepSeekAdapter {
     ) throws -> URLRequest {
         var body: [String: Any] = [
             "model": modelID,
-            "messages": translateMessages(messages),
+            "messages": try translateMessages(messages, modelID: modelID),
             "stream": streaming
         ]
 
@@ -90,8 +90,13 @@ extension DeepSeekAdapter {
     private func isV4ReasoningModel(_ lowerModelID: String) -> Bool {
         lowerModelID == "deepseek-v4-flash"
             || lowerModelID == "deepseek-v4-flash-0731"
+            || lowerModelID == "deepseek-v4-flash-vision-exp"
             || lowerModelID == "deepseek-v4-pro"
             || lowerModelID == "deepseek-v4-pro-0813"
+    }
+
+    private func isVisionModel(_ lowerModelID: String) -> Bool {
+        lowerModelID == "deepseek-v4-flash-vision-exp"
     }
 
     /// Official Chat Completions `reasoning_effort` is `low`/`high`/`max`
@@ -108,14 +113,20 @@ extension DeepSeekAdapter {
         }
     }
 
-    private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
+    private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {
+        try translateMessagesToOpenAIFormat(messages) { message in
+            try translateNonToolMessage(message, modelID: modelID)
+        }
     }
 
-    private func translateNonToolMessage(_ message: Message) -> [String: Any] {
+    private func translateNonToolMessage(_ message: Message, modelID: String) throws -> [String: Any] {
+        let visionEnabled = isVisionModel(modelID.lowercased())
         let split = splitContentParts(
             message.content,
-            imageUnsupportedMessage: "[Image attachment omitted: this provider does not support vision in Jin yet]"
+            includeImages: visionEnabled && message.role == .user,
+            imageUnsupportedMessage: visionEnabled && message.role == .user
+                ? nil
+                : "[Image attachment omitted: this provider does not support vision in Jin yet]"
         )
 
         var dict: [String: Any] = [
@@ -123,8 +134,18 @@ extension DeepSeekAdapter {
         ]
 
         switch message.role {
-        case .system, .user:
+        case .system:
             dict["content"] = split.visible
+
+        case .user:
+            if visionEnabled, split.hasRichUserContent {
+                dict["content"] = try translateUserContentPartsToOpenAIFormat(
+                    message.content,
+                    audioPartBuilder: nil
+                )
+            } else {
+                dict["content"] = split.visible
+            }
 
         case .assistant:
             let hasToolCalls = (message.toolCalls?.isEmpty == false)

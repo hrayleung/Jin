@@ -1746,6 +1746,19 @@ final class ModelSettingsResolverTests: XCTestCase {
             ModelSettingsResolver.resolve(model: xaiProLegacy, providerType: .xai).contextWindow,
             32_768
         )
+
+        let xaiImage20Legacy = ModelInfo(
+            id: "grok-imagine-image-2.0",
+            name: "Grok Imagine Image 2.0",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedImage20 = ModelSettingsResolver.resolve(model: xaiImage20Legacy, providerType: .xai)
+        XCTAssertEqual(resolvedImage20.contextWindow, 32_768)
+        XCTAssertEqual(resolvedImage20.capabilities, [.imageGeneration])
+        XCTAssertNil(resolvedImage20.reasoningConfig)
     }
 
     func testResolverInfersRecentXAICatalogMetadataForLegacyPersistedModels() {
@@ -2226,6 +2239,22 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolvedPro.capabilities.contains(.promptCaching))
         XCTAssertEqual(resolvedPro.reasoningConfig?.type, .effort)
         XCTAssertEqual(resolvedPro.reasoningConfig?.defaultEffort, .high)
+
+        let legacyVision = ModelInfo(
+            id: "deepseek-v4-flash-vision-exp",
+            name: "deepseek-v4-flash-vision-exp",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedVision = ModelSettingsResolver.resolve(model: legacyVision, providerType: .deepseek)
+        XCTAssertEqual(resolvedVision.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedVision.maxOutputTokens, 384_000)
+        XCTAssertTrue(resolvedVision.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedVision.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolvedVision.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedVision.reasoningConfig?.defaultEffort, .high)
     }
 
     func testResolverInfersOpenRouterDeepSeekV4CatalogMetadataForLegacyPersistedModels() {

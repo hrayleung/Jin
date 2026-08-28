@@ -9,7 +9,7 @@ struct XAIImageGenerationControls: Codable {
     var resolution: XAIImageResolution?
     /// Deprecated: kept for backwards compatibility with older persisted controls.
     var size: XAIImageSize?
-    /// Deprecated: currently unsupported by xAI image APIs.
+    /// Documented only for `grok-imagine-image-2.0` (`low` / `medium`).
     var quality: XAIImageQuality?
     /// Deprecated: currently unsupported by xAI image APIs.
     var style: XAIImageStyle?
@@ -60,6 +60,8 @@ enum XAIAspectRatio: String, Codable, CaseIterable {
     case ratio9x19_5 = "9:19.5"
     case ratio20x9 = "20:9"
     case ratio9x20 = "9:20"
+    case ratio21x9 = "21:9"
+    case ratio5x2 = "5:2"
     case auto = "auto"
 
     var displayName: String { rawValue }

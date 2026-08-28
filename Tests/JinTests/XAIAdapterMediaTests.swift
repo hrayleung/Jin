@@ -404,6 +404,7 @@ final class XAIAdapterMediaTests: XCTestCase {
 
     func testXAIImageGenerationModelIDsRouteToImageGenerationEndpoint() async throws {
         let imageModelIDs = [
+            "grok-imagine-image-2.0",
             "grok-imagine-image",
             "grok-imagine-image-quality",
             "grok-imagine-image-pro",

@@ -22,8 +22,15 @@ extension ChatControlNormalizationSupport {
                 controls.imageGeneration = nil
                 controls.openaiImageGeneration = nil
                 if var xaiImage = controls.xaiImageGeneration {
-                    xaiImage.quality = nil
                     xaiImage.style = nil
+                    if XAIModelSupport.supportsImageQualityControl(lowerModelID) {
+                        if let quality = xaiImage.quality,
+                           !XAIModelSupport.supportedImageQualities(for: lowerModelID).contains(quality) {
+                            xaiImage.quality = nil
+                        }
+                    } else {
+                        xaiImage.quality = nil
+                    }
                     if xaiImage.aspectRatio != nil {
                         xaiImage.size = nil
                     }

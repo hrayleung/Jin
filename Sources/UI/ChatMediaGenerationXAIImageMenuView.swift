@@ -3,13 +3,16 @@ import SwiftUI
 struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
     let isConfigured: Bool
     let supportsResolution: Bool
+    let supportsQuality: Bool
     let currentCount: Int?
     let selectedAspectRatio: XAIAspectRatio?
     let currentResolution: XAIImageResolution?
+    let currentQuality: XAIImageQuality?
     let menuItemLabel: (String, Bool) -> MenuItemLabel
     let onSetCount: (Int?) -> Void
     let onSetAspectRatio: (XAIAspectRatio?) -> Void
     let onSetResolution: (XAIImageResolution?) -> Void
+    let onSetQuality: (XAIImageQuality?) -> Void
     let onReset: () -> Void
 
     var body: some View {
@@ -69,6 +72,24 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
             .id("xai-image-resolution-\(currentResolution?.rawValue ?? "default")")
         }
 
+        if supportsQuality {
+            Menu(qualityMenuTitle) {
+                Button {
+                    onSetQuality(nil)
+                } label: {
+                    menuItemLabel("Default", currentQuality == nil)
+                }
+                ForEach(XAIModelSupport.image2QualityOptions, id: \.self) { quality in
+                    Button {
+                        onSetQuality(quality)
+                    } label: {
+                        menuItemLabel(quality.displayName, currentQuality == quality)
+                    }
+                }
+            }
+            .id("xai-image-quality-\(currentQuality?.rawValue ?? "default")")
+        }
+
         if isConfigured {
             Divider()
             Button("Reset", role: .destructive, action: onReset)
@@ -93,6 +114,13 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
         ChatAuxiliaryControlSupport.nestedMenuTitle(
             "Resolution",
             current: currentResolution?.displayName
+        )
+    }
+
+    private var qualityMenuTitle: String {
+        ChatAuxiliaryControlSupport.nestedMenuTitle(
+            "Quality",
+            current: currentQuality?.displayName
         )
     }
 }

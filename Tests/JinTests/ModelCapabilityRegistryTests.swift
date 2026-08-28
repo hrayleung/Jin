@@ -664,6 +664,20 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .deepseek, modelID: "deepseek-v4-flash"),
             [.low, .high, .max]
         )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .deepseek,
+                modelID: "deepseek-v4-flash-vision-exp"
+            ),
+            [.low, .high, .max]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .deepseek,
+                modelID: "deepseek-v4-flash-vision-exp-custom"
+            ),
+            [.low, .medium, .high]
+        )
         // OpenRouter 0813 is not the April preview high/xhigh band.
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(
