@@ -1664,7 +1664,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(pro.reasoningConfig?.defaultEffort, .high)
     }
 
-    func testDeepSeekVisionExpSendsImageURLAndV4Thinking() async throws {
+    func testDeepSeekVisionExpSendsImageURLOnUserMessages() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -1678,7 +1678,8 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         protocolType.requestHandler = { request in
             let body = try XCTUnwrap(requestBodyData(request))
-            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
             XCTAssertEqual(root["model"] as? String, "deepseek-v4-flash-vision-exp")
             let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
             XCTAssertEqual(thinking["type"] as? String, "enabled")
@@ -1688,14 +1689,14 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertEqual(messages.count, 1)
             let content = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
             XCTAssertEqual(content[0]["type"] as? String, "text")
+            XCTAssertEqual(content[0]["text"] as? String, "What is in this image?")
             XCTAssertEqual(content[1]["type"] as? String, "image_url")
             let imageURL = try XCTUnwrap(content[1]["image_url"] as? [String: Any])
-            let url = try XCTUnwrap(imageURL["url"] as? String)
-            XCTAssertTrue(url.hasPrefix("data:image/png;base64,"))
+            XCTAssertEqual(imageURL["url"] as? String, "https://example.com/image.jpg")
 
             let response: [String: Any] = [
                 "id": "cmpl_ds_vision",
-                "choices": [["message": ["role": "assistant", "content": "a cat"], "finish_reason": "stop"]]
+                "choices": [["message": ["role": "assistant", "content": "A cat"], "finish_reason": "stop"]]
             ]
             let data = try JSONSerialization.data(withJSONObject: response)
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
@@ -1708,7 +1709,11 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                     role: .user,
                     content: [
                         .text("What is in this image?"),
-                        .image(ImageContent(mimeType: "image/png", data: Data([0x89, 0x50])))
+                        .image(ImageContent(
+                            mimeType: "image/jpeg",
+                            data: nil,
+                            url: URL(string: "https://example.com/image.jpg")
+                        ))
                     ]
                 )
             ],
@@ -1717,10 +1722,11 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             tools: [],
             streaming: false
         )
+
         for try await _ in stream {}
     }
 
-    func testDeepSeekFlashStillOmitsImages() async throws {
+    func testDeepSeekFlashOmitsImagesInsteadOfSendingVisionBlocks() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -1734,12 +1740,14 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         protocolType.requestHandler = { request in
             let body = try XCTUnwrap(requestBodyData(request))
-            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
             XCTAssertEqual(root["model"] as? String, "deepseek-v4-flash")
             let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 1)
             let content = try XCTUnwrap(messages[0]["content"] as? String)
-            XCTAssertTrue(content.contains("does not support vision"))
-            XCTAssertFalse(content.contains("image_url"))
+            XCTAssertTrue(content.contains("What is in this image?"))
+            XCTAssertTrue(content.contains("Image attachment omitted"))
 
             let response: [String: Any] = [
                 "id": "cmpl_ds_no_vision",
@@ -1756,7 +1764,11 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                     role: .user,
                     content: [
                         .text("What is in this image?"),
-                        .image(ImageContent(mimeType: "image/png", data: Data([0x89, 0x50])))
+                        .image(ImageContent(
+                            mimeType: "image/jpeg",
+                            data: nil,
+                            url: URL(string: "https://example.com/image.jpg")
+                        ))
                     ]
                 )
             ],
@@ -1765,6 +1777,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             tools: [],
             streaming: false
         )
+
         for try await _ in stream {}
     }
 

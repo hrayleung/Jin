@@ -9,7 +9,18 @@ extension ChatAuxiliaryControlSupport {
         controls: GenerationControls,
         settings: WebSearchPluginSettings
     ) -> Bool {
-        controls.searchPlugin?.fetchPageContent ?? settings.jinaReadPages
+        if let override = controls.searchPlugin?.fetchPageContent {
+            return override
+        }
+        let provider = controls.searchPlugin?.provider ?? settings.defaultProvider
+        switch provider {
+        case .jina:
+            return settings.jinaReadPages
+        case .tinyfish:
+            return settings.tinyfishFetchPages
+        case .exa, .brave, .firecrawl, .tavily, .perplexity:
+            return false
+        }
     }
 
     static func builtinSearchFirecrawlExtractValue(

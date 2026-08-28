@@ -102,6 +102,8 @@ actor BuiltinSearchToolHub {
             output = try await searchTavily(resolved, route: route)
         case .perplexity:
             output = try await searchPerplexity(resolved, route: route)
+        case .tinyfish:
+            output = try await searchTinyFish(resolved, route: route)
         }
 
         let text = prettyJSONString(from: output)
@@ -155,7 +157,7 @@ actor BuiltinSearchToolHub {
             ?? false
         let fetchPages = firstBool(in: raw, keys: ["fetch_page_content", "fetchPageContent"])
             ?? route.overrides?.fetchPageContent
-            ?? route.settings.jinaReadPages
+            ?? defaultFetchPageContent(for: route)
 
         let includeDomains = firstStringArray(in: raw, keys: ["include_domains", "includeDomains"])
         let excludeDomains = firstStringArray(in: raw, keys: ["exclude_domains", "excludeDomains"])
@@ -169,6 +171,17 @@ actor BuiltinSearchToolHub {
             includeDomains: includeDomains,
             excludeDomains: excludeDomains
         )
+    }
+
+    private func defaultFetchPageContent(for route: ToolRoute) -> Bool {
+        switch route.provider {
+        case .jina:
+            return route.settings.jinaReadPages
+        case .tinyfish:
+            return route.settings.tinyfishFetchPages
+        case .exa, .brave, .firecrawl, .tavily, .perplexity:
+            return false
+        }
     }
 
     private static let defaultParameterSchema = ParameterSchema(
@@ -190,7 +203,10 @@ actor BuiltinSearchToolHub {
                 items: PropertySchema(type: "string")
             ),
             "include_raw_content": PropertySchema(type: "boolean", description: "Include extra raw page content/snippets when supported."),
-            "fetch_page_content": PropertySchema(type: "boolean", description: "For Jina: fetch each result page via Reader for richer snippets.")
+            "fetch_page_content": PropertySchema(
+                type: "boolean",
+                description: "Fetch each result page for richer snippets (Jina Reader, TinyFish Fetch)."
+            )
         ],
         required: ["query"]
     )

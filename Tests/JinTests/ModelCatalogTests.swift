@@ -2147,6 +2147,54 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(unknown.contextWindow, 128_000)
         XCTAssertNil(unknown.maxOutputTokens)
         XCTAssertNil(unknown.reasoningConfig)
+
+        let vision = ModelCatalog.modelInfo(for: "deepseek-v4-flash-vision-exp", provider: .deepseek)
+        XCTAssertEqual(vision.name, "DeepSeek V4 Flash Vision (Exp)")
+        XCTAssertEqual(vision.contextWindow, 1_000_000)
+        XCTAssertEqual(vision.maxOutputTokens, 384_000)
+        XCTAssertEqual(
+            vision.capabilities,
+            [.streaming, .toolCalling, .vision, .reasoning, .promptCaching]
+        )
+        XCTAssertEqual(vision.reasoningConfig?.type, .effort)
+        XCTAssertEqual(vision.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "deepseek-v4-flash-vision-exp", provider: .deepseek))
+        XCTAssertFalse(
+            ModelCatalog.seededModels(for: .deepseek).contains { $0.id == "deepseek-v4-flash-vision-exp" }
+        )
+
+        let visionCustom = ModelCatalog.modelInfo(
+            for: "deepseek-v4-flash-vision-exp-custom",
+            provider: .deepseek
+        )
+        XCTAssertEqual(visionCustom.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(visionCustom.contextWindow, 128_000)
+        XCTAssertNil(visionCustom.maxOutputTokens)
+        XCTAssertNil(visionCustom.reasoningConfig)
+        XCTAssertFalse(
+            ModelCatalog.isFullySupported(
+                modelID: "deepseek-v4-flash-vision-exp-custom",
+                provider: .deepseek
+            )
+        )
+    }
+
+    func testXAIGrokImagineImage20CatalogUsesDocsVerifiedExactMetadata() {
+        let image20 = ModelCatalog.modelInfo(for: "grok-imagine-image-2.0", provider: .xai)
+        XCTAssertEqual(image20.name, "Grok Imagine Image 2.0")
+        XCTAssertEqual(image20.contextWindow, 32_768)
+        XCTAssertNil(image20.maxOutputTokens)
+        XCTAssertEqual(image20.capabilities, [.imageGeneration])
+        XCTAssertNil(image20.reasoningConfig)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "grok-imagine-image-2.0", provider: .xai))
+        XCTAssertTrue(ModelCatalog.seededModels(for: .xai).contains { $0.id == "grok-imagine-image-2.0" })
+
+        let custom = ModelCatalog.modelInfo(for: "grok-imagine-image-2.0-custom", provider: .xai)
+        XCTAssertEqual(custom.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(custom.contextWindow, 128_000)
+        XCTAssertNil(custom.maxOutputTokens)
+        XCTAssertNil(custom.reasoningConfig)
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-imagine-image-2.0-custom", provider: .xai))
     }
 
     func testDeepSeekV4FlashVisionExpCatalogIsExactIDOnly() {

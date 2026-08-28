@@ -55,7 +55,8 @@ final class BuiltinSearchPerplexityPayloadTests: XCTestCase {
             settings: makeSettings(),
             overrides: nil
         )
-        XCTAssertNil(withoutRaw["search_context_size"])
+        XCTAssertEqual(withoutRaw["search_context_size"] as? String, "low",
+                       "Omit-default is now high; send low for compact citations.")
         XCTAssertNil(withoutRaw["max_tokens"])
     }
 

@@ -32,6 +32,16 @@ struct WebSearchPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.pluginWebSearchTavilyAutoParameters) private var tavilyAutoParameters = false
     @AppStorage(AppPreferenceKeys.pluginWebSearchPerplexityCountry) private var perplexityCountry = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchPerplexityLanguage) private var perplexityLanguage = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchTinyFishAPIKey) private var tinyfishAPIKey = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchTinyFishLocation) private var tinyfishLocation = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchTinyFishLanguage) private var tinyfishLanguage = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchTinyFishDomainType) private var tinyfishDomainTypeRaw = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchTinyFishFetchPages) private var tinyfishFetchPages = false
+    @AppStorage(AppPreferenceKeys.pluginWebSearchFirecrawlLocation) private var firecrawlLocation = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchFirecrawlSafe) private var firecrawlSafe = false
+    @AppStorage(AppPreferenceKeys.pluginWebSearchTavilyLanguage) private var tavilyLanguage = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchTavilyFilterByLanguage) private var tavilyFilterByLanguage = false
+    @AppStorage(AppPreferenceKeys.pluginWebSearchTavilySafeSearch) private var tavilySafeSearch = false
 
     @State private var isExaKeyVisible = false
     @State private var isBraveKeyVisible = false
@@ -39,6 +49,7 @@ struct WebSearchPluginSettingsView: View {
     @State private var isFirecrawlKeyVisible = false
     @State private var isTavilyKeyVisible = false
     @State private var isPerplexityKeyVisible = false
+    @State private var isTinyFishKeyVisible = false
     @State private var credentialEditorProviderRaw = SearchPluginProvider.exa.rawValue
     @State private var hasInitializedCredentialEditorProvider = false
 
@@ -65,7 +76,8 @@ struct WebSearchPluginSettingsView: View {
             .jina: jinaAPIKey,
             .firecrawl: firecrawlAPIKey,
             .tavily: tavilyAPIKey,
-            .perplexity: perplexityAPIKey
+            .perplexity: perplexityAPIKey,
+            .tinyfish: tinyfishAPIKey
         ]
     }
 
@@ -93,6 +105,8 @@ struct WebSearchPluginSettingsView: View {
             .modifier(FirecrawlProviderObservers(
                 firecrawlExtractContent: firecrawlExtractContent,
                 firecrawlCountry: firecrawlCountry,
+                firecrawlLocation: firecrawlLocation,
+                firecrawlSafe: firecrawlSafe,
                 firecrawlSourcesRaw: firecrawlSourcesRaw,
                 onChange: notifyCredentialsChanged
             ))
@@ -101,11 +115,21 @@ struct WebSearchPluginSettingsView: View {
                 tavilyTopic: tavilyTopic,
                 tavilyCountry: tavilyCountry,
                 tavilyAutoParameters: tavilyAutoParameters,
+                tavilyLanguage: tavilyLanguage,
+                tavilyFilterByLanguage: tavilyFilterByLanguage,
+                tavilySafeSearch: tavilySafeSearch,
                 onChange: notifyCredentialsChanged
             ))
             .modifier(PerplexityProviderObservers(
                 perplexityCountry: perplexityCountry,
                 perplexityLanguage: perplexityLanguage,
+                onChange: notifyCredentialsChanged
+            ))
+            .modifier(TinyFishProviderObservers(
+                tinyfishLocation: tinyfishLocation,
+                tinyfishLanguage: tinyfishLanguage,
+                tinyfishDomainTypeRaw: tinyfishDomainTypeRaw,
+                tinyfishFetchPages: tinyfishFetchPages,
                 onChange: notifyCredentialsChanged
             ))
             .onAppear {
@@ -126,6 +150,7 @@ struct WebSearchPluginSettingsView: View {
             .onChange(of: firecrawlAPIKey) { _, _ in notifyCredentialsChanged() }
             .onChange(of: tavilyAPIKey) { _, _ in notifyCredentialsChanged() }
             .onChange(of: perplexityAPIKey) { _, _ in notifyCredentialsChanged() }
+            .onChange(of: tinyfishAPIKey) { _, _ in notifyCredentialsChanged() }
     }
 
     private var formContent: some View {
@@ -219,7 +244,16 @@ struct WebSearchPluginSettingsView: View {
             tavilyCountry: $tavilyCountry,
             tavilyAutoParameters: $tavilyAutoParameters,
             perplexityCountry: $perplexityCountry,
-            perplexityLanguage: $perplexityLanguage
+            perplexityLanguage: $perplexityLanguage,
+            tinyfishLocation: $tinyfishLocation,
+            tinyfishLanguage: $tinyfishLanguage,
+            tinyfishDomainTypeRaw: $tinyfishDomainTypeRaw,
+            tinyfishFetchPages: $tinyfishFetchPages,
+            firecrawlLocation: $firecrawlLocation,
+            firecrawlSafe: $firecrawlSafe,
+            tavilyLanguage: $tavilyLanguage,
+            tavilyFilterByLanguage: $tavilyFilterByLanguage,
+            tavilySafeSearch: $tavilySafeSearch
         )
     }
 
@@ -237,6 +271,8 @@ struct WebSearchPluginSettingsView: View {
             return $tavilyAPIKey
         case .perplexity:
             return $perplexityAPIKey
+        case .tinyfish:
+            return $tinyfishAPIKey
         }
     }
 
@@ -254,6 +290,8 @@ struct WebSearchPluginSettingsView: View {
             return $isTavilyKeyVisible
         case .perplexity:
             return $isPerplexityKeyVisible
+        case .tinyfish:
+            return $isTinyFishKeyVisible
         }
     }
 

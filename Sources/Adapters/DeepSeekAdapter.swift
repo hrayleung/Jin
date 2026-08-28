@@ -5,8 +5,10 @@ import Foundation
 /// Docs:
 /// - Base URL: https://api.deepseek.com
 /// - Endpoint: POST /chat/completions
-/// - Models: `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp`, `deepseek-v4-flash`, `deepseek-v4-flash-vision-exp`, `deepseek-v4-pro`, ...
+/// - Models: `deepseek-chat`, `deepseek-reasoner`, `deepseek-v3.2-exp`, `deepseek-v4-flash`,
+///   `deepseek-v4-flash-vision-exp`, `deepseek-v4-pro`, ...
 ///   Official IDs stay unsuffixed; current versions are V4-Flash-0731 / V4-Pro-0813.
+///   Vision is exact-ID (`deepseek-v4-flash-vision-exp`) only.
 actor DeepSeekAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [.streaming, .toolCalling, .reasoning]

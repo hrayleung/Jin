@@ -782,9 +782,9 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
     }
 
     func testBuiltinSearchFetchPageValueFallsBackToSettingsAndStoresExplicitValue() {
-        let settings = makeWebSearchPluginSettings(jinaReadPages: true)
+        let settings = makeWebSearchPluginSettings(jinaReadPages: true, defaultProvider: .jina)
 
-        let defaults = GenerationControls()
+        let defaults = GenerationControls(searchPlugin: SearchPluginControls(provider: .jina))
         XCTAssertTrue(
             ChatAuxiliaryControlSupport.builtinSearchFetchPageValue(
                 controls: defaults,
@@ -803,6 +803,18 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
             )
         )
         XCTAssertEqual(disabled.searchPlugin?.fetchPageContent, false)
+    }
+
+    func testBuiltinSearchFetchPageValueUsesTinyFishSettingWhenTinyFishIsSelected() {
+        let settings = makeWebSearchPluginSettings(jinaReadPages: true, defaultProvider: .tinyfish)
+
+        XCTAssertFalse(
+            ChatAuxiliaryControlSupport.builtinSearchFetchPageValue(
+                controls: GenerationControls(searchPlugin: SearchPluginControls(provider: .tinyfish)),
+                settings: settings
+            ),
+            "TinyFish must not inherit Jina's read-pages default."
+        )
     }
 
     func testBuiltinSearchFirecrawlExtractValueFallsBackToSettingsAndStoresExplicitValue() {
@@ -1737,11 +1749,12 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
 
     private func makeWebSearchPluginSettings(
         jinaReadPages: Bool = true,
-        firecrawlExtractContent: Bool = true
+        firecrawlExtractContent: Bool = true,
+        defaultProvider: SearchPluginProvider = .exa
     ) -> WebSearchPluginSettings {
         WebSearchPluginSettings(
             isEnabled: true,
-            defaultProvider: .exa,
+            defaultProvider: defaultProvider,
             defaultMaxResults: 8,
             defaultRecencyDays: nil,
             exaAPIKey: "",

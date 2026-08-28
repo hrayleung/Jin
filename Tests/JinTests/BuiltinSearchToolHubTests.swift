@@ -128,6 +128,25 @@ final class BuiltinSearchToolHubTests: XCTestCase {
         XCTAssertEqual(routes.provider(for: tool.name), .brave)
     }
 
+    func testToolDefinitionsFallbackToTinyFishWhenOnlyTinyFishIsConfigured() async throws {
+        configurePluginDefaults(defaultProvider: .exa, exaKey: "", tinyfishKey: "tf-key")
+
+        let controls = GenerationControls(
+            webSearch: WebSearchControls(enabled: true),
+            searchPlugin: nil
+        )
+
+        let (definitions, routes) = await BuiltinSearchToolHub.shared.toolDefinitions(
+            for: controls,
+            useBuiltinSearch: true,
+            defaults: defaults
+        )
+
+        XCTAssertEqual(definitions.count, 1)
+        let tool = try XCTUnwrap(definitions.first)
+        XCTAssertEqual(routes.provider(for: tool.name), .tinyfish)
+    }
+
     func testToolDefinitionsFallbackToPerplexityWhenOnlyPerplexityIsConfigured() async throws {
         configurePluginDefaults(defaultProvider: .exa, exaKey: "", perplexityKey: "pplx-key")
 
@@ -179,6 +198,38 @@ final class BuiltinSearchToolHubTests: XCTestCase {
         XCTAssertTrue(rows.isEmpty)
     }
 
+    func testTinyFishSearchReturnsEmptyResultWhenMaxResultsIsZero() async throws {
+        configurePluginDefaults(defaultProvider: .tinyfish, tinyfishKey: "tf-key")
+
+        let controls = GenerationControls(
+            webSearch: WebSearchControls(enabled: true),
+            searchPlugin: SearchPluginControls(provider: .tinyfish, maxResults: 0)
+        )
+
+        let (definitions, routes) = await BuiltinSearchToolHub.shared.toolDefinitions(
+            for: controls,
+            useBuiltinSearch: true,
+            defaults: defaults
+        )
+
+        let tool = try XCTUnwrap(definitions.first)
+        let result = try await BuiltinSearchToolHub.shared.executeTool(
+            functionName: tool.name,
+            arguments: [
+                "query": AnyCodable("swift")
+            ],
+            routes: routes
+        )
+
+        XCTAssertFalse(result.isError)
+        let data = Data(result.text.utf8)
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["provider"] as? String, SearchPluginProvider.tinyfish.rawValue)
+        XCTAssertEqual(json["resultCount"] as? Int, 0)
+        let rows = try XCTUnwrap(json["results"] as? [[String: Any]])
+        XCTAssertTrue(rows.isEmpty)
+    }
+
     func testJinaSearchReturnsEmptyResultWhenMaxResultsIsZero() async throws {
         configurePluginDefaults(defaultProvider: .jina, jinaKey: "jina-key")
 
@@ -217,7 +268,8 @@ final class BuiltinSearchToolHubTests: XCTestCase {
         braveKey: String = "",
         jinaKey: String = "",
         firecrawlKey: String = "",
-        perplexityKey: String = ""
+        perplexityKey: String = "",
+        tinyfishKey: String = ""
     ) {
         defaults.set(true, forKey: AppPreferenceKeys.pluginWebSearchEnabled)
         defaults.set(defaultProvider.rawValue, forKey: AppPreferenceKeys.pluginWebSearchDefaultProvider)
@@ -227,6 +279,7 @@ final class BuiltinSearchToolHubTests: XCTestCase {
         defaults.set(jinaKey, forKey: AppPreferenceKeys.pluginWebSearchJinaAPIKey)
         defaults.set(firecrawlKey, forKey: AppPreferenceKeys.pluginWebSearchFirecrawlAPIKey)
         defaults.set(perplexityKey, forKey: AppPreferenceKeys.pluginWebSearchPerplexityAPIKey)
+        defaults.set(tinyfishKey, forKey: AppPreferenceKeys.pluginWebSearchTinyFishAPIKey)
     }
 
     func testExaSearchTypeLegacyKeywordMapsToFast() {
@@ -242,11 +295,13 @@ final class BuiltinSearchToolHubTests: XCTestCase {
         XCTAssertFalse(ExaSearchType.publicCases.contains(.neural))
     }
 
-    func testExaCategoryLegacyResearchPaperMapsToPublication() {
-        XCTAssertEqual(ExaCategory.resolved(from: "research paper"), .publication)
-        XCTAssertEqual(ExaCategory.resolved(from: "research_paper"), .publication)
-        XCTAssertEqual(ExaCategory.resolved(from: "publication"), .publication)
+    func testExaCategoryLegacyPublicationMapsToResearchPaper() {
+        XCTAssertEqual(ExaCategory.resolved(from: "research paper"), .researchPaper)
+        XCTAssertEqual(ExaCategory.resolved(from: "research_paper"), .researchPaper)
+        XCTAssertEqual(ExaCategory.resolved(from: "publication"), .researchPaper)
         XCTAssertEqual(ExaCategory.publication.rawValue, "publication")
+        XCTAssertEqual(ExaCategory.publication.wireValue, "research paper")
+        XCTAssertFalse(ExaCategory.publicCases.contains(.publication))
     }
 
     func testExaSearchTypeIncludesNewDeepVariants() {

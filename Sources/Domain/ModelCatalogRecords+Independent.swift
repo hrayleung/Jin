@@ -661,6 +661,19 @@ extension ModelCatalog {
                contextWindow: 256_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        // Grok Imagine Image 2.0 (verified 2026-08-27):
+        // https://docs.x.ai/developers/models/grok-imagine-image-2.0.md
+        // https://docs.x.ai/developers/model-capabilities/images/generation.md
+        // Flagship Imagine image model. `/v1/images/generations` + `/images/edits`.
+        // n=1–10, aspect_ratio (incl. auto), resolution 1k/2k, quality low|medium
+        // (default medium; only this ID accepts `quality`). Context window is
+        // unpublished on the model page; catalog keeps the same 32,768 placeholder
+        // as other Imagine Image IDs.
+        Record(id: "grok-imagine-image-2.0", displayName: "Grok Imagine Image 2.0",
+               capabilities: [.imageGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         Record(id: "grok-imagine-image", displayName: "Grok Imagine Image",
                capabilities: [.imageGeneration],
                contextWindow: 32_768,
@@ -755,11 +768,12 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
-        // Experimental vision twin of V4 Flash. Official Models & Pricing +
-        // Vision guide (2026-08-28): same 1M / 384K / low-high-max thinking as
-        // Flash; JPEG/PNG/GIF/WebP in user messages only. Do not seed.
+        // Official Models & Pricing + Vision guide (2026-08-27):
         // https://api-docs.deepseek.com/quick_start/pricing
         // https://api-docs.deepseek.com/guides/vision
+        // Experimental vision ID. 1M context / 384K max output, thinking default
+        // high with low/high/max (same table as V4 Flash/Pro). Images only on user
+        // messages (JPEG/PNG/GIF/WebP). Not seeded.
         Record(id: "deepseek-v4-flash-vision-exp", displayName: "DeepSeek V4 Flash Vision (Exp)",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_000_000,

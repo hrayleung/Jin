@@ -46,7 +46,7 @@ final class BuiltinSearchExaPayloadTests: XCTestCase {
             overrides: nil
         )
 
-        XCTAssertEqual(body["category"] as? String, "publication")
+        XCTAssertEqual(body["category"] as? String, "research paper")
     }
 
     func testExaBodyOverrideCategoryWinsOverSettings() {
@@ -103,14 +103,14 @@ final class BuiltinSearchExaPayloadTests: XCTestCase {
         XCTAssertNil(contents["text"])
     }
 
-    func testExaBodyMapsLegacyResearchPaperCategoryToPublication() {
+    func testExaBodyMapsLegacyPublicationCategoryToResearchPaper() {
         let body = BuiltinSearchToolHub.makeExaRequestBody(
             args: makeArgs(),
-            settings: makeSettings(exaCategory: "research paper"),
+            settings: makeSettings(exaCategory: "publication"),
             overrides: nil
         )
 
-        XCTAssertEqual(body["category"] as? String, "publication")
+        XCTAssertEqual(body["category"] as? String, "research paper")
     }
 
     func testExaBodyNeverEmitsRetiredNeuralType() {
