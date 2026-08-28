@@ -12,7 +12,7 @@ enum AttachmentPromptRenderer {
         let isPDF = mimeType == "application/pdf"
         let kind = isPDF ? "PDF" : "File"
         let header = "\(kind): \(filename) (\(mimeType))"
-        let note = "The following text was extracted from the \(kind.lowercased()). Treat it as the \(kind.lowercased())'s contents (formatting may be imperfect)."
+        let note = "Extracted \(kind.lowercased()) text (formatting may be imperfect)."
 
         return "\(header)\n\n\(note)\n\n\(trimmedExtracted)"
     }

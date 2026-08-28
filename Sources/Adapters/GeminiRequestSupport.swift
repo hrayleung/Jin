@@ -53,7 +53,7 @@ enum GeminiRequestSupport {
         }
 
         return """
-        Google Maps grounding is enabled for this request. A current user location bias is already provided through toolConfig.retrievalConfig.latLng as latitude \(formattedCoordinate(latitude)) and longitude \(formattedCoordinate(longitude)). For requests like "near me", "nearby", "here", or equivalent local intent in any language, use Google Maps grounding with that provided location and do not ask the user for their location unless the coordinates are missing.
+        Google Maps grounding is enabled. Location bias is already in toolConfig.retrievalConfig.latLng as latitude \(formattedCoordinate(latitude)) and longitude \(formattedCoordinate(longitude)). For "near me", "nearby", "here", or equivalent local intent in any language, use that location and do not ask the user for their location unless the coordinates are missing.
         """
     }
 

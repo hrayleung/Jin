@@ -70,7 +70,7 @@ actor BuiltinSearchToolHub {
         let definition = ToolDefinition(
             id: "builtin:\(provider.rawValue):web_lookup",
             name: Self.defaultToolName,
-            description: "Search the web and return structured citations with title, url, snippet, and optional publish time.",
+            description: "Web search. Returns title, url, snippet, and optional publish time.",
             parameters: Self.defaultParameterSchema,
             source: .builtin
         )
@@ -186,26 +186,26 @@ actor BuiltinSearchToolHub {
 
     private static let defaultParameterSchema = ParameterSchema(
         properties: [
-            "query": PropertySchema(type: "string", description: "What to search for."),
+            "query": PropertySchema(type: "string", description: "Search query."),
             "max_results": PropertySchema(
                 type: "integer",
-                description: "Maximum number of results to return (provider-specific limits apply, e.g. Tavily 0-20)."
+                description: "Max results (provider limits apply)."
             ),
             "recency_days": PropertySchema(type: "integer", description: "Prefer results from the last N days."),
             "include_domains": PropertySchema(
                 type: "array",
-                description: "Optional allowlist of domains.",
+                description: "Optional domain allowlist.",
                 items: PropertySchema(type: "string")
             ),
             "exclude_domains": PropertySchema(
                 type: "array",
-                description: "Optional blocklist of domains.",
+                description: "Optional domain blocklist.",
                 items: PropertySchema(type: "string")
             ),
-            "include_raw_content": PropertySchema(type: "boolean", description: "Include extra raw page content/snippets when supported."),
+            "include_raw_content": PropertySchema(type: "boolean", description: "Include extra page snippets when supported."),
             "fetch_page_content": PropertySchema(
                 type: "boolean",
-                description: "Fetch each result page for richer snippets (Jina Reader, TinyFish Fetch)."
+                description: "Fetch result pages for richer snippets (Jina, TinyFish)."
             )
         ],
         required: ["query"]

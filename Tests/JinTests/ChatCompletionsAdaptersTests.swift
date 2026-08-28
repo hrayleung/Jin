@@ -1168,7 +1168,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
             XCTAssertEqual(messages.count, 1)
             XCTAssertEqual(messages[0]["role"] as? String, "assistant")
-            XCTAssertEqual(messages[0]["content"] as? String, "<think>think</think>\nanswer")
+            XCTAssertEqual(messages[0]["content"] as? String, "answer")
             XCTAssertNil(messages[0]["reasoning"])
 
             let response: [String: Any] = [
@@ -1212,6 +1212,62 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .contentDelta(.text(let content)) = events[2] else { return XCTFail("Expected contentDelta") }
         XCTAssertEqual(content, "OK")
         guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
+    }
+
+    func testCerebrasAdapterReplaysThinkingOnlyWhenClearThinkingIsDisabled() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "c",
+            name: "Cerebras",
+            type: .cerebras,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages[0]["content"] as? String, "<think>think</think>\nanswer")
+            XCTAssertEqual(root["clear_thinking"] as? Bool, false)
+
+            let response: [String: Any] = [
+                "id": "cmpl_456",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "OK"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = CerebrasAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .assistant, content: [.text("answer"), .thinking(ThinkingBlock(text: "think"))])
+            ],
+            modelID: "zai-glm-4.7",
+            controls: GenerationControls(
+                providerSpecific: ["clear_thinking": AnyCodable(false)]
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var events: [StreamEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+        XCTAssertFalse(events.isEmpty)
     }
 
     func testCerebrasAdapterFetchModelsUsesCatalogMetadataWhenKnown() async throws {
@@ -5611,6 +5667,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
             XCTAssertEqual(root["model"] as? String, "qwen/qwen3.8-27b")
             XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertEqual(
+                root["max_tokens"] as? Int,
+                OpenAICompatibleRequestSupport.groqTPMSafeDefaultMaxTokens
+            )
             XCTAssertNil(root["reasoning"])
             XCTAssertNil(root["include_reasoning"])
 

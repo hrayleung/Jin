@@ -8,9 +8,13 @@ extension CerebrasAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
+        // Cerebras `clear_thinking` defaults to true. Only replay prior thinking
+        // in assistant content when the user explicitly preserves it.
+        let includeThinkingInHistory = (controls.providerSpecific["clear_thinking"]?.value as? Bool) == false
+
         var body: [String: Any] = [
             "model": modelID,
-            "messages": translateMessages(messages),
+            "messages": translateMessages(messages, includeThinkingInHistory: includeThinkingInHistory),
             "stream": streaming
         ]
 
@@ -44,11 +48,13 @@ extension CerebrasAdapter {
         )
     }
 
-    private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
+    private func translateMessages(_ messages: [Message], includeThinkingInHistory: Bool) -> [[String: Any]] {
+        translateMessagesToOpenAIFormat(messages) { message in
+            translateNonToolMessage(message, includeThinkingInHistory: includeThinkingInHistory)
+        }
     }
 
-    private func translateNonToolMessage(_ message: Message) -> [String: Any] {
+    private func translateNonToolMessage(_ message: Message, includeThinkingInHistory: Bool) -> [String: Any] {
         let split = splitContentParts(
             message.content,
             imageUnsupportedMessage: "[Image attachment omitted: this provider does not support vision in Jin yet]"
@@ -64,7 +70,8 @@ extension CerebrasAdapter {
 
         case .assistant:
             let hasToolCalls = (message.toolCalls?.isEmpty == false)
-            let content = assistantContent(visible: split.visible, thinking: split.thinking)
+            let thinking = includeThinkingInHistory ? split.thinking : ""
+            let content = assistantContent(visible: split.visible, thinking: thinking)
             if content.isEmpty, hasToolCalls {
                 dict["content"] = NSNull()
             } else {

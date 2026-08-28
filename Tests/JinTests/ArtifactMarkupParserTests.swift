@@ -72,7 +72,9 @@ final class ArtifactMarkupParserTests: XCTestCase {
         XCTAssertNotNil(prompt)
         XCTAssertTrue(prompt?.contains("<jinArtifact") == true)
         XCTAssertTrue(prompt?.contains("application/vnd.jin.react") == true)
+        XCTAssertTrue(prompt?.contains("ArtifactApp") == true)
         XCTAssertTrue(prompt?.contains("Base prompt.") == true)
+        XCTAssertLessThanOrEqual(ArtifactMarkupParser.modelInstructions.count, 600)
     }
 
     func testAppendingInstructionsTrimsDisabledPromptAndDropsBlankPrompt() {

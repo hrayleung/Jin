@@ -19,7 +19,8 @@ final class OpenAICompatibleRequestSupportTests: XCTestCase {
         OpenAICompatibleRequestSupport.applyMaxTokens(
             to: &body,
             controls: controls,
-            providerType: .openaiCompatible
+            providerType: .openaiCompatible,
+            modelID: "some-model"
         )
 
         XCTAssertEqual(body["temperature"] as? Double, 0.7)
@@ -45,7 +46,8 @@ final class OpenAICompatibleRequestSupportTests: XCTestCase {
         OpenAICompatibleRequestSupport.applyMaxTokens(
             to: &body,
             controls: controls,
-            providerType: .mimoTokenPlanOpenAI
+            providerType: .mimoTokenPlanOpenAI,
+            modelID: "some-model"
         )
 
         XCTAssertNil(body["temperature"])
@@ -201,5 +203,47 @@ final class OpenAICompatibleRequestSupportTests: XCTestCase {
             modelID: "gpt-5.2"
         )
         XCTAssertEqual(openAIOnlyBody["service_tier"] as? String, "priority")
+    }
+
+    func testGroqUsesTPMSafeDefaultWhenMaxTokensIsUnset() {
+        var body: [String: Any] = [:]
+        OpenAICompatibleRequestSupport.applyMaxTokens(
+            to: &body,
+            controls: GenerationControls(),
+            providerType: .groq,
+            modelID: "qwen/qwen3.8-27b"
+        )
+
+        XCTAssertEqual(
+            body["max_tokens"] as? Int,
+            OpenAICompatibleRequestSupport.groqTPMSafeDefaultMaxTokens
+        )
+    }
+
+    func testGroqReplacesCatalogMaximumWithTPMSafeDefault() {
+        XCTAssertEqual(
+            OpenAICompatibleRequestSupport.resolvedMaxTokens(
+                requested: 16_384,
+                providerType: .groq,
+                modelID: "qwen/qwen3.8-27b"
+            ),
+            OpenAICompatibleRequestSupport.groqTPMSafeDefaultMaxTokens
+        )
+        XCTAssertEqual(
+            OpenAICompatibleRequestSupport.resolvedMaxTokens(
+                requested: 2_048,
+                providerType: .groq,
+                modelID: "qwen/qwen3.8-27b"
+            ),
+            2_048
+        )
+        XCTAssertEqual(
+            OpenAICompatibleRequestSupport.resolvedMaxTokens(
+                requested: 16_384,
+                providerType: .openaiCompatible,
+                modelID: "qwen/qwen3.8-27b"
+            ),
+            16_384
+        )
     }
 }

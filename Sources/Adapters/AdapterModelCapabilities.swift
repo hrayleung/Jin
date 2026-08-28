@@ -287,9 +287,9 @@ func googleFileFallbackText(_ file: FileContent, providerName: String) -> String
 
     let note: String
     if googleSpreadsheetMIMETypes.contains(mimeType) {
-        note = "\(providerName) does not provide .xlsx/.xls attachments as mounted local files in Jin. The model must work from extracted contents instead of opening the original filename from Python."
+        note = "\(providerName) does not provide .xlsx/.xls attachments as mounted local files in Jin. Use extracted contents instead of opening the original filename from Python."
     } else {
-        note = "\(providerName) received extracted document contents instead of a mounted local file. Do not try to open the original filename from Python."
+        note = "\(providerName) received extracted document contents, not a mounted local file. Do not open the original filename from Python."
     }
 
     return """
