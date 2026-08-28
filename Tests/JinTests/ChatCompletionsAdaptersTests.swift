@@ -1664,6 +1664,110 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(pro.reasoningConfig?.defaultEffort, .high)
     }
 
+    func testDeepSeekVisionExpSendsImageURLAndV4Thinking() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "ds",
+            name: "DeepSeek",
+            type: .deepseek,
+            apiKey: "ignored",
+            baseURL: "https://api.deepseek.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "deepseek-v4-flash-vision-exp")
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 1)
+            let content = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
+            XCTAssertEqual(content[0]["type"] as? String, "text")
+            XCTAssertEqual(content[1]["type"] as? String, "image_url")
+            let imageURL = try XCTUnwrap(content[1]["image_url"] as? [String: Any])
+            let url = try XCTUnwrap(imageURL["url"] as? String)
+            XCTAssertTrue(url.hasPrefix("data:image/png;base64,"))
+
+            let response: [String: Any] = [
+                "id": "cmpl_ds_vision",
+                "choices": [["message": ["role": "assistant", "content": "a cat"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = DeepSeekAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("What is in this image?"),
+                        .image(ImageContent(mimeType: "image/png", data: Data([0x89, 0x50])))
+                    ]
+                )
+            ],
+            modelID: "deepseek-v4-flash-vision-exp",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testDeepSeekFlashStillOmitsImages() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "ds",
+            name: "DeepSeek",
+            type: .deepseek,
+            apiKey: "ignored",
+            baseURL: "https://api.deepseek.com/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "deepseek-v4-flash")
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let content = try XCTUnwrap(messages[0]["content"] as? String)
+            XCTAssertTrue(content.contains("does not support vision"))
+            XCTAssertFalse(content.contains("image_url"))
+
+            let response: [String: Any] = [
+                "id": "cmpl_ds_no_vision",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = DeepSeekAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("What is in this image?"),
+                        .image(ImageContent(mimeType: "image/png", data: Data([0x89, 0x50])))
+                    ]
+                )
+            ],
+            modelID: "deepseek-v4-flash",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
     func testOpenRouterAdapterBuildsChatCompletionsRequestWithReasoningAndWebPlugin() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -5342,6 +5446,83 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testOpenAICompatibleGroqQwen38SendsTopLevelReasoningEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "groq",
+            name: "Groq",
+            type: .groq,
+            apiKey: "ignored",
+            baseURL: "https://api.groq.com/openai/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "qwen/qwen3.8-27b")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+            XCTAssertNil(root["reasoning"])
+            XCTAssertNil(root["include_reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_groq_qwen38",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "qwen/qwen3.8-27b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testOpenAICompatibleGroqQwen36OmitsEffortWhenThinkingOn() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "groq",
+            name: "Groq",
+            type: .groq,
+            apiKey: "ignored",
+            baseURL: "https://api.groq.com/openai/v1"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "qwen/qwen3.6-27b")
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_groq_qwen36",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "qwen/qwen3.6-27b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
     func testOpenAICompatibleGroqGPTOSSReasoningOffOmitsEffortAndDisablesInclusion() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -8856,6 +9037,33 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             streaming: false
         )
 
+        for try await _ in stream {}
+    }
+
+    func testModalAdapterOmitsNoneEffortForAlwaysOnGLM53Flash() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "zai-org/GLM-5.3-Flash")
+            XCTAssertNil(root["reasoning_effort"])
+            return try self.modalStubResponse(for: request)
+        }
+
+        let adapter = ModalAdapter(
+            providerConfig: makeModalProviderConfig(),
+            apiKey: "wk-abc.ws-def",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "zai-org/GLM-5.3-Flash",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
         for try await _ in stream {}
     }
 

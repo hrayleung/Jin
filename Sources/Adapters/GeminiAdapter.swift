@@ -211,5 +211,5 @@ actor GeminiAdapter: LLMProviderAdapter {
 // Content translation and event parsing: GeminiContentTranslation.swift
 // Model catalog: GeminiAdapter+ModelCatalog.swift
 // Request construction: GeminiAdapter+RequestSupport.swift
-// Video generation: GeminiVideoGeneration.swift
+// Video generation: GeminiVideoGeneration.swift, GeminiOmniVideoGeneration.swift
 // DTOs: GeminiAdapterResponseTypes.swift

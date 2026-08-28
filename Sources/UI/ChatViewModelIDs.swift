@@ -30,6 +30,8 @@ extension ChatView {
     static let googleVideoGenerationModelIDs: Set<String> = [
         "veo-2",
         "veo-3",
+        "gemini-omni-1.1-flash",
+        "gemini-omni-flash-preview",
     ]
 
     static let openAIAudioInputModelIDs: Set<String> = [

@@ -551,6 +551,26 @@ extension ModelCatalog {
                contextWindow: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: false),
+        // Together serverless table (docs.together.ai/docs/serverless-models,
+        // 2026-08-28): 1,000,000 context. Tools/reasoning/max-output unpublished
+        // on that table → conservative chat surface only.
+        Record(id: "Qwen/Qwen3.6-Plus", displayName: "Qwen3.6 Plus",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 1_000_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "Qwen/Qwen3.7-Plus", displayName: "Qwen3.7 Plus",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 1_000_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Together serverless table: 524,288 context. Do not copy Inkling's
+        // vision/audio/always-on band onto this smaller slug.
+        Record(id: "thinkingmachines/Inkling-Small", displayName: "Inkling Small",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 524_288,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
         Record(id: "zai-org/GLM-4.7", displayName: "GLM-4.7",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 202_752,
@@ -731,6 +751,17 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: true),
         Record(id: "deepseek-v4-flash-0731", displayName: "DeepSeek V4 Flash 0731",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Experimental vision twin of V4 Flash. Official Models & Pricing +
+        // Vision guide (2026-08-28): same 1M / 384K / low-high-max thinking as
+        // Flash; JPEG/PNG/GIF/WebP in user messages only. Do not seed.
+        // https://api-docs.deepseek.com/quick_start/pricing
+        // https://api-docs.deepseek.com/guides/vision
+        Record(id: "deepseek-v4-flash-vision-exp", displayName: "DeepSeek V4 Flash Vision (Exp)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_000_000,
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
@@ -1324,6 +1355,26 @@ extension ModelCatalog {
                contextWindow: 131_072,
                maxOutputTokens: 8_192,
                reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Groq Chat API (console.groq.com/docs/model/qwen/qwen3.8-27b + /docs/models
+        // reasoning_effort, 2026-08-28): 131,042 context / 16,384 max output, tool
+        // use. Effort is none/low/medium/high (default none); `high` is Groq's
+        // label for native xhigh. Do not send `xhigh`/`max`.
+        Record(id: "qwen/qwen3.8-27b", displayName: "Qwen3.8 27B",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 131_042,
+               maxOutputTokens: 16_384,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
+               isFullySupported: true, isSeeded: true),
+        // Groq Chat API (console.groq.com/docs/model/qwen/qwen3.6-27b + /docs/models
+        // reasoning_effort, 2026-08-28): 131,072 / 16,384. Qwen3 on Groq supports
+        // `none` to disable and omitting/`default` for the model default — treat
+        // as a toggle, not the 3.8 low/medium/high band.
+        Record(id: "qwen/qwen3.6-27b", displayName: "Qwen3.6 27B",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 131_072,
+               maxOutputTokens: 16_384,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: false),
     ]
 
@@ -2152,6 +2203,19 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: false),
+        // GLM-5.3-Flash (Modal Shared Endpoint, library 2026-08-28):
+        // modal.com/library/zai/glm-5-3-flash + /endpoints?model=zai-org/GLM-5.3-Flash.
+        // Specs on that page: 1M context, text+image+video modalities, cached-prompt
+        // pricing, OpenAI-compatible. Video is listed — not claimed (no live frame
+        // probe). maxOutputTokens is not published on the Modal card → nil.
+        // Effort band is not on the Modal page; use the official Flash band
+        // low/high/max, always-on (docs.z.ai/guides/vlm/glm-5.3-flash) so we do
+        // not send `none`.
+        Record(id: "zai-org/GLM-5.3-Flash", displayName: "GLM-5.3-Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: false),
         Record(id: "deepseek-ai/DeepSeek-V4-Pro-0813", displayName: "DeepSeek V4 Pro 0813",

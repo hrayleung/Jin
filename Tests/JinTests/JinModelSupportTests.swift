@@ -165,11 +165,31 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "Qwen/Qwen3.5-397B-A17B-custom"))
     }
 
+    func testGroqQwen38UsesExactFullySupportedID() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .groq, modelID: "qwen/qwen3.8-27b"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .groq, modelID: "qwen/qwen3.6-27b"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .groq, modelID: "qwen/qwen3.8-27b-custom"))
+        let qwen38 = ModelCatalog.modelInfo(for: "qwen/qwen3.8-27b", provider: .groq)
+        XCTAssertEqual(qwen38.contextWindow, 131_042)
+        XCTAssertEqual(qwen38.maxOutputTokens, 16_384)
+        XCTAssertEqual(qwen38.reasoningConfig?.type, .effort)
+        XCTAssertEqual(qwen38.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .groq, modelID: "qwen/qwen3.8-27b"),
+            [.none, .low, .medium, .high]
+        )
+        let qwen36 = ModelCatalog.modelInfo(for: "qwen/qwen3.6-27b", provider: .groq)
+        XCTAssertEqual(qwen36.contextWindow, 131_072)
+        XCTAssertEqual(qwen36.reasoningConfig?.type, .toggle)
+    }
+
     func testModalUsesExactMatchForFullySupportedTag() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .modal, modelID: "moonshotai/Kimi-K3"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .modal, modelID: "Qwen/Qwen3.8-2.4T-A95B"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .modal, modelID: "thinkingmachines/Inkling-NVFP4"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .modal, modelID: "zai-org/GLM-5.3-Flash"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .modal, modelID: "qwen3.8-max"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .modal, modelID: "zai-org/GLM-5.3-Flash-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .modal, modelID: "Qwen/Qwen3.8-2.4T-A95B-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .modal, modelID: "thinkingmachines/inkling"))
     }
@@ -476,13 +496,24 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-chat"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-reasoner"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v3.2-exp"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-flash-vision-exp"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-pro-custom"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .deepseek, modelID: "deepseek-v4-flash-vision-exp-custom"))
 
         let seeded = Set(ModelCatalog.seededModels(for: .deepseek).map(\.id))
         XCTAssertTrue(seeded.contains("deepseek-v4-flash"))
         XCTAssertTrue(seeded.contains("deepseek-v4-pro"))
         XCTAssertFalse(seeded.contains("deepseek-chat"))
         XCTAssertFalse(seeded.contains("deepseek-reasoner"))
+        XCTAssertFalse(seeded.contains("deepseek-v4-flash-vision-exp"))
+    }
+
+    func testGeminiOmniFlashFullySupportedOnGeminiAPIOnly() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-omni-1.1-flash"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-omni-1.1-flash-custom"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-omni-flash-preview"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-omni-1.1-flash"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "google/gemini-omni-1.1-flash"))
     }
 
     func testGPT56AliasAndProModeSupport() {

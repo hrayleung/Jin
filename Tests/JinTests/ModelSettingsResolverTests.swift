@@ -158,6 +158,93 @@ final class ModelSettingsResolverTests: XCTestCase {
         )
     }
 
+    func testDeepSeekV4FlashVisionExpLegacyPersistedModelUsesCatalog() {
+        let legacyModel = ModelInfo(
+            id: "deepseek-v4-flash-vision-exp",
+            name: "DeepSeek V4 Flash Vision",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .deepseek)
+        XCTAssertEqual(resolved.contextWindow, 1_000_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 384_000)
+        XCTAssertTrue(resolved.capabilities.contains(.vision))
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolved.capabilities.contains(.promptCaching))
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolved.reasoningCanDisable)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .deepseek,
+                modelID: "deepseek-v4-flash-vision-exp"
+            ),
+            [.low, .high, .max]
+        )
+    }
+
+    func testGroqQwen38LegacyPersistedModelUsesCatalog() {
+        let legacyModel = ModelInfo(
+            id: "qwen/qwen3.8-27b",
+            name: "Qwen3.8 27B",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .groq)
+        XCTAssertEqual(resolved.contextWindow, 131_042)
+        XCTAssertEqual(resolved.maxOutputTokens, 16_384)
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+        XCTAssertTrue(resolved.reasoningCanDisable)
+    }
+
+    func testModalGLM53FlashLegacyPersistedModelUsesCatalog() {
+        let legacyModel = ModelInfo(
+            id: "zai-org/GLM-5.3-Flash",
+            name: "GLM-5.3-Flash",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .modal)
+        XCTAssertEqual(resolved.contextWindow, 1_048_576)
+        XCTAssertNil(resolved.maxOutputTokens)
+        XCTAssertTrue(resolved.capabilities.contains(.vision))
+        XCTAssertTrue(resolved.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolved.capabilities.contains(.promptCaching))
+        XCTAssertFalse(resolved.capabilities.contains(.videoInput))
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .max)
+        XCTAssertFalse(resolved.reasoningCanDisable)
+    }
+
+    func testGeminiOmniFlashLegacyPersistedModelUsesCatalog() {
+        let legacyModel = ModelInfo(
+            id: "gemini-omni-1.1-flash",
+            name: "Omni Flash",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacyModel, providerType: .gemini)
+        XCTAssertEqual(resolved.contextWindow, 1_048_576)
+        XCTAssertNil(resolved.maxOutputTokens)
+        XCTAssertEqual(resolved.capabilities, [.videoGeneration])
+        XCTAssertNil(resolved.reasoningConfig)
+        XCTAssertFalse(resolved.capabilities.contains(.videoInput))
+    }
+
     func testAnthropicCatalogCarriesDocsVerifiedContextAndMaxOutput() {
         let fable5 = ModelCatalog.modelInfo(for: "claude-fable-5", provider: .anthropic)
         let resolvedFable5 = ModelSettingsResolver.resolve(model: fable5, providerType: .anthropic)

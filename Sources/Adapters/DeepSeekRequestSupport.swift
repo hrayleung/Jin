@@ -10,7 +10,7 @@ extension DeepSeekAdapter {
     ) throws -> URLRequest {
         var body: [String: Any] = [
             "model": modelID,
-            "messages": translateMessages(messages),
+            "messages": try translateMessages(messages, modelID: modelID),
             "stream": streaming
         ]
 
@@ -90,6 +90,7 @@ extension DeepSeekAdapter {
     private func isV4ReasoningModel(_ lowerModelID: String) -> Bool {
         lowerModelID == "deepseek-v4-flash"
             || lowerModelID == "deepseek-v4-flash-0731"
+            || lowerModelID == "deepseek-v4-flash-vision-exp"
             || lowerModelID == "deepseek-v4-pro"
             || lowerModelID == "deepseek-v4-pro-0813"
     }
@@ -108,14 +109,34 @@ extension DeepSeekAdapter {
         }
     }
 
-    private func translateMessages(_ messages: [Message]) -> [[String: Any]] {
-        translateMessagesToOpenAIFormat(messages, translateNonToolMessage: translateNonToolMessage)
+    private func isVisionModel(_ modelID: String) -> Bool {
+        modelID.lowercased() == "deepseek-v4-flash-vision-exp"
     }
 
-    private func translateNonToolMessage(_ message: Message) -> [String: Any] {
+    private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {
+        try translateMessagesToOpenAIFormat(messages) { message in
+            try translateNonToolMessage(message, modelID: modelID)
+        }
+    }
+
+    private func translateNonToolMessage(_ message: Message, modelID: String) throws -> [String: Any] {
+        let visionEnabled = isVisionModel(modelID)
+        // Images on system/assistant 400; only the vision ID accepts image_url at all.
+        if visionEnabled, message.role == .user {
+            let parts = try translateUserContentPartsToOpenAIFormat(message.content)
+            if parts.contains(where: { ($0["type"] as? String) == "image_url" }) {
+                return [
+                    "role": message.role.rawValue,
+                    "content": parts
+                ]
+            }
+        }
+
         let split = splitContentParts(
             message.content,
-            imageUnsupportedMessage: "[Image attachment omitted: this provider does not support vision in Jin yet]"
+            imageUnsupportedMessage: visionEnabled
+                ? nil
+                : "[Image attachment omitted: this provider does not support vision in Jin yet]"
         )
 
         var dict: [String: Any] = [

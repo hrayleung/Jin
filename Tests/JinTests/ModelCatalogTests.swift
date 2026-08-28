@@ -1385,6 +1385,21 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertFalse(qwen397.capabilities.contains(.reasoning))
         XCTAssertNil(qwen397.reasoningConfig)
 
+        let qwen36Plus = ModelCatalog.modelInfo(for: "Qwen/Qwen3.6-Plus", provider: .together)
+        XCTAssertEqual(qwen36Plus.contextWindow, 1_000_000)
+        XCTAssertEqual(qwen36Plus.capabilities, [.streaming, .toolCalling])
+        XCTAssertNil(qwen36Plus.reasoningConfig)
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3.6-Plus-custom"))
+
+        let qwen37Plus = ModelCatalog.modelInfo(for: "Qwen/Qwen3.7-Plus", provider: .together)
+        XCTAssertEqual(qwen37Plus.contextWindow, 1_000_000)
+        XCTAssertEqual(qwen37Plus.capabilities, [.streaming, .toolCalling])
+
+        let inklingSmall = ModelCatalog.modelInfo(for: "thinkingmachines/Inkling-Small", provider: .together)
+        XCTAssertEqual(inklingSmall.contextWindow, 524_288)
+        XCTAssertEqual(inklingSmall.capabilities, [.streaming, .toolCalling])
+        XCTAssertFalse(inklingSmall.capabilities.contains(.vision))
+
         let qwen235 = ModelCatalog.modelInfo(
             for: "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
             provider: .together
@@ -2132,6 +2147,52 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(unknown.contextWindow, 128_000)
         XCTAssertNil(unknown.maxOutputTokens)
         XCTAssertNil(unknown.reasoningConfig)
+    }
+
+    func testDeepSeekV4FlashVisionExpCatalogIsExactIDOnly() {
+        let vision = ModelCatalog.modelInfo(for: "deepseek-v4-flash-vision-exp", provider: .deepseek)
+        XCTAssertEqual(vision.name, "DeepSeek V4 Flash Vision (Exp)")
+        XCTAssertEqual(vision.contextWindow, 1_000_000)
+        XCTAssertEqual(vision.maxOutputTokens, 384_000)
+        XCTAssertEqual(
+            vision.capabilities,
+            [.streaming, .toolCalling, .vision, .reasoning, .promptCaching]
+        )
+        XCTAssertEqual(vision.reasoningConfig?.type, .effort)
+        XCTAssertEqual(vision.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(ModelCatalog.seededModels(for: .deepseek).contains { $0.id == "deepseek-v4-flash-vision-exp" })
+
+        let custom = ModelCatalog.modelInfo(for: "deepseek-v4-flash-vision-exp-custom", provider: .deepseek)
+        XCTAssertEqual(custom.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(custom.contextWindow, 128_000)
+        XCTAssertNil(custom.maxOutputTokens)
+        XCTAssertNil(custom.reasoningConfig)
+        XCTAssertFalse(custom.capabilities.contains(.vision))
+    }
+
+    func testGeminiOmniFlashCatalogIsGeminiAPIOnly() {
+        let omni = ModelCatalog.modelInfo(for: "gemini-omni-1.1-flash", provider: .gemini)
+        XCTAssertEqual(omni.name, "Gemini Omni Flash")
+        XCTAssertEqual(omni.contextWindow, 1_048_576)
+        XCTAssertNil(omni.maxOutputTokens)
+        XCTAssertEqual(omni.capabilities, [.videoGeneration])
+        XCTAssertNil(omni.reasoningConfig)
+        XCTAssertFalse(omni.capabilities.contains(.videoInput))
+        XCTAssertFalse(ModelCatalog.seededModels(for: .gemini).contains { $0.id == "gemini-omni-1.1-flash" })
+
+        let preview = ModelCatalog.modelInfo(for: "gemini-omni-flash-preview", provider: .gemini)
+        XCTAssertEqual(preview.capabilities, [.videoGeneration])
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-omni-flash-preview"))
+
+        let custom = ModelCatalog.modelInfo(for: "gemini-omni-1.1-flash-custom", provider: .gemini)
+        XCTAssertEqual(custom.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(custom.contextWindow, 128_000)
+        XCTAssertNil(custom.maxOutputTokens)
+        XCTAssertNil(custom.reasoningConfig)
+
+        let vertex = ModelCatalog.modelInfo(for: "gemini-omni-1.1-flash", provider: .vertexai)
+        XCTAssertEqual(vertex.capabilities, [.streaming, .toolCalling])
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-omni-1.1-flash"))
     }
 
     func testNewOpenRouterModelsExposeVerifiedCatalogMetadata() {

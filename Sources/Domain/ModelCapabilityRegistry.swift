@@ -391,6 +391,7 @@ enum ModelCapabilityRegistry {
     private static let deepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-v4-flash",
         "deepseek-v4-flash-0731",
+        "deepseek-v4-flash-vision-exp",
         "deepseek-v4-pro",
         "deepseek-v4-pro-0813",
     ]
@@ -910,6 +911,7 @@ enum ModelCapabilityRegistry {
             if modalKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
                 || modalInklingReasoningEffortModelIDs.contains(lowerModelID)
                 || lowerModelID == "zai-org/glm-5.3"
+                || lowerModelID == "zai-org/glm-5.3-flash"
                 || lowerModelID == "deepseek-ai/deepseek-v4-pro-0813"
                 || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731" {
                 return true
@@ -1013,6 +1015,12 @@ enum ModelCapabilityRegistry {
             return defaultGeminiReasoningEfforts
         case .anthropic, .claudeManagedAgents:
             return supportedAnthropicEfforts(lowerModelID: lowerModelID)
+        case .groq where lowerModelID == "qwen/qwen3.8-27b":
+            // Groq Chat API: none/low/medium/high (default none). `high` is native xhigh.
+            return [.none, .low, .medium, .high]
+        case .groq where lowerModelID == "qwen/qwen3.6-27b":
+            // Groq: `none` disables; omit/`default` uses the model default.
+            return [.none]
         case .deepseek where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
         case .openrouter where openRouterDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID):
@@ -1122,6 +1130,10 @@ enum ModelCapabilityRegistry {
             return [.none, .low, .medium, .xhigh]
         case .baseten where basetenMercury2ReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .low, .medium, .high]
+        case .modal where lowerModelID == "zai-org/glm-5.3-flash":
+            // Official Flash band; Modal does not publish an effort matrix.
+            // `none` is rejected on the native weights.
+            return [.low, .high, .max]
         case .modal where modalKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
             || lowerModelID == "zai-org/glm-5.3"
             || lowerModelID == "deepseek-ai/deepseek-v4-pro-0813"

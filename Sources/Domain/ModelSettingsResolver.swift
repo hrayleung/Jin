@@ -342,6 +342,7 @@ enum ModelSettingsResolver {
     /// multimodal and toggleable).
     private static let modalAlwaysOnReasoningModelIDs: Set<String> = [
         "qwen/qwen3.8-2.4t-a95b",
+        "zai-org/glm-5.3-flash",
     ]
 
     /// RunInfra IDs whose thinking cannot be turned off. Exact-ID only.

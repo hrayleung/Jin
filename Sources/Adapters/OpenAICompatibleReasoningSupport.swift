@@ -63,6 +63,16 @@ enum OpenAICompatibleReasoningSupport {
             return false
         }
 
+        if isGroqQwenReasoningModel(providerConfig: providerConfig, modelID: modelID) {
+            applyGroqQwenReasoning(
+                to: &body,
+                reasoning: reasoning,
+                providerConfig: providerConfig,
+                modelID: modelID
+            )
+            return false
+        }
+
         if isCloudflareKimiK26Model(providerConfig: providerConfig, modelID: modelID) {
             let isDisabled = reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none
             mergeChatTemplateKwargs(
@@ -137,6 +147,21 @@ enum OpenAICompatibleReasoningSupport {
                 providerConfig: providerConfig,
                 modelID: modelID
             )
+            return
+        }
+
+        if isGroqQwenReasoningModel(providerConfig: providerConfig, modelID: modelID) {
+            body.removeValue(forKey: "reasoning")
+            guard let reasoning = controls.reasoning else {
+                body.removeValue(forKey: "reasoning_effort")
+                return
+            }
+            applyGroqQwenReasoning(
+                to: &body,
+                reasoning: reasoning,
+                providerConfig: providerConfig,
+                modelID: modelID
+            )
         }
     }
 
@@ -154,6 +179,14 @@ enum OpenAICompatibleReasoningSupport {
     private static let groqGPTOSSReasoningModelIDs: Set<String> = [
         "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
+    ]
+
+    private static let groqQwen38ReasoningModelIDs: Set<String> = [
+        "qwen/qwen3.8-27b",
+    ]
+
+    private static let groqQwen36ReasoningModelIDs: Set<String> = [
+        "qwen/qwen3.6-27b",
     ]
 
     private static func applyMistralReasoningEffort(
@@ -189,6 +222,51 @@ enum OpenAICompatibleReasoningSupport {
             providerConfig: providerConfig,
             modelID: modelID
         )
+    }
+
+    private static func isGroqQwenReasoningModel(providerConfig: ProviderConfig, modelID: String) -> Bool {
+        guard providerConfig.type == .groq else { return false }
+        let lower = modelID.lowercased()
+        return groqQwen38ReasoningModelIDs.contains(lower)
+            || groqQwen36ReasoningModelIDs.contains(lower)
+    }
+
+    /// Groq Chat Completions `reasoning_effort` for Qwen3 (console.groq.com/docs/models).
+    /// 3.6: `none` off, omit/`default` on. 3.8: none/low/medium/high (high = native xhigh).
+    private static func applyGroqQwenReasoning(
+        to body: inout [String: Any],
+        reasoning: ReasoningControls,
+        providerConfig: ProviderConfig,
+        modelID: String
+    ) {
+        body.removeValue(forKey: "reasoning")
+        body.removeValue(forKey: "include_reasoning")
+        let lower = modelID.lowercased()
+        let isExplicitlyOff = reasoning.enabled == false || reasoning.effort == ReasoningEffort.none
+
+        if groqQwen36ReasoningModelIDs.contains(lower) {
+            if isExplicitlyOff {
+                body["reasoning_effort"] = "none"
+            } else {
+                body.removeValue(forKey: "reasoning_effort")
+            }
+            return
+        }
+
+        if isExplicitlyOff {
+            body["reasoning_effort"] = "none"
+            return
+        }
+
+        let effort = reasoning.effort ?? .none
+        switch effort {
+        case .low, .medium, .high:
+            body["reasoning_effort"] = effort.rawValue
+        case .xhigh, .max:
+            body["reasoning_effort"] = "high"
+        case .none, .minimal:
+            body["reasoning_effort"] = "none"
+        }
     }
 
     // MARK: - Anthropic-Style Reasoning

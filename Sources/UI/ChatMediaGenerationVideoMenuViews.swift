@@ -1,9 +1,12 @@
 import SwiftUI
 
 struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
-    let isVeo3: Bool
+    let productLabel: String
+    let showsDuration: Bool
+    let showsPersonGeneration: Bool
+    let availableAspectRatios: [GoogleVideoAspectRatio]
     let availableResolutions: [GoogleVideoResolution]
-    let isVertexProvider: Bool
+    let showsGenerateAudio: Bool
     let isConfigured: Bool
     let currentDurationSeconds: Int?
     let currentAspectRatio: GoogleVideoAspectRatio?
@@ -18,27 +21,29 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
     let onReset: () -> Void
 
     var body: some View {
-        Text("Google Veo")
+        Text(productLabel)
             .font(.caption)
             .foregroundStyle(.secondary)
 
         Divider()
 
-        Menu(durationMenuTitle) {
-            Button {
-                onSetDurationSeconds(nil)
-            } label: {
-                menuItemLabel("Default", currentDurationSeconds == nil)
-            }
-            ForEach([4, 6, 8], id: \.self) { seconds in
+        if showsDuration {
+            Menu(durationMenuTitle) {
                 Button {
-                    onSetDurationSeconds(seconds)
+                    onSetDurationSeconds(nil)
                 } label: {
-                    menuItemLabel("\(seconds)s", currentDurationSeconds == seconds)
+                    menuItemLabel("Default", currentDurationSeconds == nil)
+                }
+                ForEach([4, 6, 8], id: \.self) { seconds in
+                    Button {
+                        onSetDurationSeconds(seconds)
+                    } label: {
+                        menuItemLabel("\(seconds)s", currentDurationSeconds == seconds)
+                    }
                 }
             }
+            .id("google-video-duration-\(currentDurationSeconds.map(String.init) ?? "default")")
         }
-        .id("google-video-duration-\(currentDurationSeconds.map(String.init) ?? "default")")
 
         Menu(aspectMenuTitle) {
             Button {
@@ -46,7 +51,7 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
             } label: {
                 menuItemLabel("Default (16:9)", currentAspectRatio == nil)
             }
-            ForEach(GoogleVideoAspectRatio.allCases, id: \.self) { ratio in
+            ForEach(availableAspectRatios, id: \.self) { ratio in
                 Button {
                     onSetAspectRatio(ratio)
                 } label: {
@@ -56,7 +61,7 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
         }
         .id("google-video-aspect-\(currentAspectRatio?.rawValue ?? "default")")
 
-        if isVeo3 {
+        if !availableResolutions.isEmpty {
             Menu(resolutionMenuTitle) {
                 Button {
                     onSetResolution(nil)
@@ -74,23 +79,25 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
             .id("google-video-resolution-\(currentResolution?.rawValue ?? "default")")
         }
 
-        Menu(personGenerationMenuTitle) {
-            Button {
-                onSetPersonGeneration(nil)
-            } label: {
-                menuItemLabel("Default", currentPersonGeneration == nil)
-            }
-            ForEach(GoogleVideoPersonGeneration.allCases, id: \.self) { personGeneration in
+        if showsPersonGeneration {
+            Menu(personGenerationMenuTitle) {
                 Button {
-                    onSetPersonGeneration(personGeneration)
+                    onSetPersonGeneration(nil)
                 } label: {
-                    menuItemLabel(personGeneration.displayName, currentPersonGeneration == personGeneration)
+                    menuItemLabel("Default", currentPersonGeneration == nil)
+                }
+                ForEach(GoogleVideoPersonGeneration.allCases, id: \.self) { personGeneration in
+                    Button {
+                        onSetPersonGeneration(personGeneration)
+                    } label: {
+                        menuItemLabel(personGeneration.displayName, currentPersonGeneration == personGeneration)
+                    }
                 }
             }
+            .id("google-video-person-\(currentPersonGeneration?.rawValue ?? "default")")
         }
-        .id("google-video-person-\(currentPersonGeneration?.rawValue ?? "default")")
 
-        if isVertexProvider, isVeo3 {
+        if showsGenerateAudio {
             Toggle("Generate audio", isOn: generateAudioBinding)
         }
 

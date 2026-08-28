@@ -49,13 +49,10 @@ extension ChatControlNormalizationSupport {
                 controls.openRouterVideoGeneration = nil
                 controls.togetherVideoGeneration = nil
             case .gemini, .vertexai:
-                if let resolution = controls.googleVideoGeneration?.resolution,
-                   !GoogleVideoGenerationCore.supportedResolutions(for: lowerModelID).contains(resolution) {
-                    controls.googleVideoGeneration?.resolution = nil
-                }
-                if controls.googleVideoGeneration?.isEmpty == true {
-                    controls.googleVideoGeneration = nil
-                }
+                controls.googleVideoGeneration = GoogleVideoGenerationCore.sanitizedGoogleVideoControls(
+                    controls.googleVideoGeneration,
+                    modelID: lowerModelID
+                )
                 controls.xaiVideoGeneration = nil
                 controls.openRouterVideoGeneration = nil
                 controls.togetherVideoGeneration = nil

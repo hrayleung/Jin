@@ -21,6 +21,7 @@ final class ModalProviderIntegrationTests: XCTestCase {
             "moonshotai/Kimi-K3",
             "Qwen/Qwen3.8-2.4T-A95B",
             "thinkingmachines/Inkling-NVFP4",
+            "zai-org/GLM-5.3-Flash",
         ]
         for id in knownIDs {
             XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .modal), id)
@@ -139,8 +140,50 @@ final class ModalProviderIntegrationTests: XCTestCase {
         }
     }
 
+    func testGLM53FlashCatalogMetadataIsExactIDAndAlwaysOn() {
+        let info = ModelCatalog.modelInfo(for: "zai-org/GLM-5.3-Flash", provider: .modal)
+        XCTAssertEqual(info.name, "GLM-5.3-Flash")
+        XCTAssertEqual(info.contextWindow, 1_048_576)
+        XCTAssertNil(info.maxOutputTokens)
+        XCTAssertEqual(
+            info.capabilities,
+            [.streaming, .toolCalling, .vision, .reasoning, .promptCaching]
+        )
+        XCTAssertFalse(info.capabilities.contains(.videoInput))
+        XCTAssertFalse(info.capabilities.contains(.nativePDF))
+        XCTAssertEqual(info.reasoningConfig?.type, .effort)
+        XCTAssertEqual(info.reasoningConfig?.defaultEffort, .max)
+
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .modal,
+                modelID: "zai-org/GLM-5.3-Flash"
+            ),
+            [.low, .high, .max]
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                for: .modal,
+                modelID: "zai-org/GLM-5.3-Flash"
+            )
+        )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(
+                for: .modal,
+                modelID: "zai-org/GLM-5.3-Flash"
+            )
+        )
+
+        let custom = ModelCatalog.modelInfo(for: "zai-org/GLM-5.3-Flash-custom", provider: .modal)
+        XCTAssertEqual(custom.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(custom.contextWindow, 128_000)
+        XCTAssertNil(custom.maxOutputTokens)
+        XCTAssertNil(custom.reasoningConfig)
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .modal, modelID: "zai-org/GLM-5.3-Flash-custom"))
+    }
+
     func testModalHasNoServerSideToolSurfaces() {
-        for id in ["moonshotai/Kimi-K3", "Qwen/Qwen3.8-2.4T-A95B", "thinkingmachines/Inkling-NVFP4"] {
+        for id in ["moonshotai/Kimi-K3", "Qwen/Qwen3.8-2.4T-A95B", "thinkingmachines/Inkling-NVFP4", "zai-org/GLM-5.3-Flash"] {
             XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .modal, modelID: id), id)
             XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .modal, modelID: id), id)
             XCTAssertFalse(ModelCapabilityRegistry.supportsGoogleMaps(for: .modal, modelID: id), id)
