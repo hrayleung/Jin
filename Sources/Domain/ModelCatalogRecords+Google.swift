@@ -54,6 +54,30 @@ extension ModelCatalog {
                isFullySupported: false, isSeeded: false),
     ]
 
+    // Gemini Omni Flash (AI Studio / Gemini API only). Interactions API, not Veo
+    // `:predictLongRunning`. Verified 2026-08-28:
+    // https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash
+    // https://ai.google.dev/gemini-api/docs/omni
+    // https://ai.google.dev/gemini-api/docs/models
+    // Output is video (3–10s, 360p/720p/1080p/4K). Do not claim `.videoInput`
+    // (media-generation records keep that bit off). Vertex AI generative-ai does
+    // not publish these IDs — Gemini Enterprise Agent Platform slugs are a
+    // different product surface.
+    private static let geminiOmniVideoRecords: [Record] = [
+        Record(id: "gemini-omni-1.1-flash", displayName: "Gemini Omni Flash",
+               capabilities: [.videoGeneration],
+               contextWindow: 1_048_576,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Preview predecessor (2026-06-30). Still listed on the model card;
+        // Interactions shape for this exact ID is not re-verified — catalog only.
+        Record(id: "gemini-omni-flash-preview", displayName: "Gemini Omni Flash (Preview)",
+               capabilities: [.videoGeneration],
+               contextWindow: 1_048_576,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+    ]
+
 
     // MARK: Gemini (AI Studio)
 
@@ -215,7 +239,7 @@ extension ModelCatalog {
                contextWindow: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
-    ] + veoVideoRecords
+    ] + geminiOmniVideoRecords + veoVideoRecords
 
     // MARK: Vertex AI
 

@@ -175,9 +175,15 @@ extension ChatView {
         switch providerType {
         case .gemini, .vertexai:
             GoogleVideoGenerationMenuView(
-                isVeo3: GoogleVideoGenerationCore.isVeo3OrLater(activeModelID),
+                productLabel: GoogleVideoGenerationCore.isOmniFlashModel(activeModelID)
+                    ? "Gemini Omni Flash"
+                    : "Google Veo",
+                showsDuration: GoogleVideoGenerationCore.supportsDurationControl(activeModelID),
+                showsPersonGeneration: GoogleVideoGenerationCore.supportsPersonGenerationControl(activeModelID),
+                availableAspectRatios: GoogleVideoGenerationCore.supportedAspectRatios(for: activeModelID),
                 availableResolutions: GoogleVideoGenerationCore.supportedResolutions(for: activeModelID),
-                isVertexProvider: providerType == .vertexai,
+                showsGenerateAudio: providerType == .vertexai
+                    && GoogleVideoGenerationCore.isVeo3OrLater(activeModelID),
                 isConfigured: isVideoGenerationConfigured,
                 currentDurationSeconds: controls.googleVideoGeneration?.durationSeconds,
                 currentAspectRatio: controls.googleVideoGeneration?.aspectRatio,

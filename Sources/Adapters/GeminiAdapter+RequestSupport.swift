@@ -89,7 +89,7 @@ extension GeminiAdapter {
     }
 
     func isVideoGenerationModel(_ modelID: String) -> Bool {
-        GoogleVideoGenerationCore.isVideoGenerationModel(modelID)
+        GoogleVideoGenerationCore.isGeminiAPIVideoGenerationModel(modelID)
     }
 
     func supportsFunctionCalling(_ modelID: String) -> Bool {

@@ -54,6 +54,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         "minimax-m2.5",
         "minimax-m2.5-free",
         "qwen3.8-max",
+        "qwen3.8-flash",
         "qwen3.7-max",
         "qwen3.7-plus",
         "qwen3.6-plus",

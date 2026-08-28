@@ -279,6 +279,7 @@ enum ModelSettingsResolver {
         "grok-4.5",
         "deepseek-v4-pro",
         "deepseek-v4-flash",
+        "deepseek-v4-flash-vision-exp",
         "glm-5.3",
         "glm-5.3-flash",
         "ox-alpha-free",
@@ -342,6 +343,7 @@ enum ModelSettingsResolver {
     /// multimodal and toggleable).
     private static let modalAlwaysOnReasoningModelIDs: Set<String> = [
         "qwen/qwen3.8-2.4t-a95b",
+        "zai-org/glm-5.3-flash",
     ]
 
     /// RunInfra IDs whose thinking cannot be turned off. Exact-ID only.

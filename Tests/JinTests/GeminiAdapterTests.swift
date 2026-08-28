@@ -2243,6 +2243,107 @@ final class GeminiAdapterTests: XCTestCase {
         XCTAssertTrue(ModelCapabilityRegistry.supportsGoogleMaps(for: .vertexai, modelID: "gemini-3.5-flash-lite"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .vertexai, modelID: "gemini-3.5-flash-lite"))
     }
+
+    func testGeminiOmniFlashUsesInteractionsAPINotVeoPredict() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "g",
+            name: "Gemini",
+            type: .gemini,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        let videoBytes = Data([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70])
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://example.com/interactions")
+            XCTAssertFalse(request.url?.absoluteString.contains("predictLongRunning") == true)
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "gemini-omni-1.1-flash")
+            XCTAssertEqual(root["background"] as? Bool, false)
+            XCTAssertEqual(root["store"] as? Bool, false)
+            XCTAssertEqual(root["stream"] as? Bool, false)
+            XCTAssertNil(root["instances"])
+
+            let format = try XCTUnwrap(root["response_format"] as? [String: Any])
+            XCTAssertEqual(format["type"] as? String, "video")
+            XCTAssertEqual(format["aspect_ratio"] as? String, "9:16")
+            XCTAssertEqual(format["resolution"] as? String, "1080p")
+            XCTAssertEqual(format["delivery"] as? String, "uri")
+
+            let input = try XCTUnwrap(root["input"] as? [[String: Any]])
+            XCTAssertEqual(input.last?["type"] as? String, "text")
+            XCTAssertEqual(input.last?["text"] as? String, "A marble rolling on a track")
+            XCTAssertEqual(input.first?["type"] as? String, "image")
+            XCTAssertEqual(input.first?["mime_type"] as? String, "image/png")
+
+            let response: [String: Any] = [
+                "id": "v1_omni_test",
+                "status": "completed",
+                "model": "gemini-omni-1.1-flash",
+                "object": "interaction",
+                "steps": [
+                    [
+                        "type": "model_output",
+                        "content": [
+                            [
+                                "type": "video",
+                                "mime_type": "video/mp4",
+                                "data": videoBytes.base64EncodedString()
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                data
+            )
+        }
+
+        let adapter = GeminiAdapter(
+            providerConfig: providerConfig,
+            apiKey: "test-key",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .image(ImageContent(mimeType: "image/png", data: Data([0x89, 0x50]))),
+                        .text("A marble rolling on a track")
+                    ]
+                )
+            ],
+            modelID: "gemini-omni-1.1-flash",
+            controls: GenerationControls(
+                googleVideoGeneration: GoogleVideoGenerationControls(
+                    durationSeconds: 8,
+                    aspectRatio: .ratio9x16,
+                    resolution: .res1080p,
+                    negativePrompt: "blurry",
+                    personGeneration: .allowAdult,
+                    seed: 7
+                )
+            ),
+            tools: [],
+            streaming: false
+        )
+
+        var sawVideo = false
+        for try await event in stream {
+            if case .contentDelta(.video) = event {
+                sawVideo = true
+            }
+        }
+        XCTAssertTrue(sawVideo)
+    }
 }
 
 // MARK: - URLProtocol stubbing

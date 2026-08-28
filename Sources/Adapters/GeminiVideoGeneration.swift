@@ -7,6 +7,14 @@ extension GeminiAdapter {
         modelID: String,
         controls: GenerationControls
     ) throws -> AsyncThrowingStream<StreamEvent, Error> {
+        if GoogleVideoGenerationCore.isOmniFlashModel(modelID) {
+            return try makeOmniFlashVideoGenerationStream(
+                messages: messages,
+                modelID: modelID,
+                controls: controls
+            )
+        }
+
         guard let prompt = GoogleVideoGenerationCore.extractPrompt(from: messages) else {
             throw LLMError.invalidRequest(message: "Video generation requires a text prompt.")
         }
