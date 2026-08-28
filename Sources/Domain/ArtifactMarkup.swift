@@ -234,30 +234,26 @@ enum ArtifactMarkupParser {
         parse(text, hidesTrailingIncompleteArtifact: hidesTrailingIncompleteArtifact).visibleText
     }
 
+    /// Injected into the system prompt only when Artifacts is enabled for the chat.
+    static let modelInstructions = """
+When you need a renderable Jin artifact, wrap it in <jinArtifact artifact_id="stable-id" title="Short Title" contentType="TYPE">...</jinArtifact>.
+Types: text/html, application/vnd.jin.react, application/vnd.jin.echarts.option+json.
+Reuse artifact_id when revising the same artifact. Keep chat text outside the tag.
+React: define a top-level component named ArtifactApp. ECharts: JSON only.
+SVG, Mermaid, and Markdown: use fenced code blocks, not artifacts.
+"""
+
     static func appendingInstructions(to systemPrompt: String?, enabled: Bool) -> String? {
         guard enabled else {
             return systemPrompt?.trimmedNonEmpty
         }
 
         let base = systemPrompt?.trimmedNonEmpty
-        let instructions = """
-When you need to return a renderable artifact for Jin, wrap it in a <jinArtifact> block.
-
-Artifact protocol:
-- Use exactly: <jinArtifact artifact_id="stable-id" title="Short Title" contentType="SUPPORTED_TYPE"> ... </jinArtifact>
-- Supported contentType values: text/html, application/vnd.jin.react, application/vnd.jin.echarts.option+json
-- Reuse the same artifact_id when revising the same artifact in later replies
-- Keep normal conversational text outside the artifact tag
-- React artifacts must define a top-level component named ArtifactApp
-- ECharts artifacts must contain JSON only
-- For SVG, Mermaid, or Markdown content, use regular code blocks instead of artifacts
-"""
-
         guard let base else {
-            return instructions
+            return modelInstructions
         }
 
-        return "\(base)\n\n\(instructions)"
+        return "\(base)\n\n\(modelInstructions)"
     }
 
     private static func parsedArtifact(fromOpeningTag openingTag: String, content: String) -> ParsedArtifact? {

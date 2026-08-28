@@ -14,13 +14,38 @@ struct MCPToolInfo: Identifiable, Sendable {
         title?.trimmedNonEmpty ?? name
     }
 
+    /// Cap model-facing MCP descriptions so verbose server schemas don't dominate the request.
+    static let maxModelFacingDescriptionLength = 400
+
     /// Description shown to the model. Prefer the human title when it adds information.
     var modelFacingDescription: String {
+        let combined: String
         if let title = title?.trimmedNonEmpty, title != name {
-            if description.isEmpty { return title }
-            return "\(title). \(description)"
+            if description.isEmpty {
+                combined = title
+            } else if description.hasPrefix(title) {
+                combined = description
+            } else {
+                combined = "\(title). \(description)"
+            }
+        } else {
+            combined = description
         }
-        return description
+        return Self.compactModelFacingText(combined)
+    }
+
+    static func compactModelFacingText(_ text: String) -> String {
+        let collapsed = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        guard collapsed.count > maxModelFacingDescriptionLength else {
+            return collapsed
+        }
+
+        let budget = maxModelFacingDescriptionLength - 1
+        let prefix = collapsed.prefix(budget)
+        if let lastSpace = prefix.lastIndex(of: " "), lastSpace > prefix.startIndex {
+            return String(prefix[..<lastSpace]) + "…"
+        }
+        return String(prefix) + "…"
     }
 
     init(name: String, description: String, inputSchema: ParameterSchema, title: String? = nil) {

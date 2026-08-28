@@ -40,7 +40,8 @@ extension OpenAICompatibleAdapter {
         OpenAICompatibleRequestSupport.applyMaxTokens(
             to: &body,
             controls: controls,
-            providerType: providerConfig.type
+            providerType: providerConfig.type,
+            modelID: modelID
         )
 
         OpenAICompatibleRequestSupport.applyOpenAIServiceTier(

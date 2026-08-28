@@ -18,15 +18,9 @@ actor ConversationTitleGenerator {
     private static let minimumLanguageDetectionConfidenceMargin = 0.25
 
     static let defaultPromptTemplate = """
-You are writing a short title for a chat conversation. The title appears in a sidebar list, so it must let the user instantly recall what the chat is about.
-
-CRITICAL: Write the title in \(languagePlaceholder). Do not translate, do not transliterate, do not mix in any other language.
-
-Other rules:
-- Be specific to the topic. Mention the concrete subject, technology, or question. Avoid generic words like question, discussion, help, or chat.
-- Hard limit: \(maxCharactersPlaceholder) characters. Keep it tight and scannable.
-- Plain text only. No surrounding quotes, no ending punctuation, no emoji, no prefix label, no Markdown.
-
+Write a short sidebar chat title in \(languagePlaceholder). Do not translate, transliterate, or mix languages.
+Be specific to the topic (subject, technology, or question). Avoid generic words like question, discussion, help, or chat.
+Hard limit: \(maxCharactersPlaceholder) characters. Plain text only: no quotes, ending punctuation, emoji, prefix label, or Markdown.
 Output the title text and nothing else.
 """
 

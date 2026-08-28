@@ -16,18 +16,18 @@ final class GenerationControlsResolverTests: XCTestCase {
         XCTAssertEqual(resolved.maxTokens, 2048)
     }
 
-    func testResolvedForRequestFallsBackToModelMaximumWhenAssistantLeavesUnset() {
+    func testResolvedForRequestDoesNotReserveModelMaximumWhenUnset() {
         let base = GenerationControls()
 
         let resolved = GenerationControlsResolver.resolvedForRequest(
             base: base,
             assistantTemperature: 0.1,
             assistantMaxOutputTokens: nil,
-            modelMaxOutputTokens: 128_000
+            modelMaxOutputTokens: 16_384
         )
 
         XCTAssertEqual(resolved.temperature, 0.1)
-        XCTAssertEqual(resolved.maxTokens, 128_000)
+        XCTAssertNil(resolved.maxTokens)
     }
 
     func testResolvedForRequestKeepsExplicitOverrides() {
@@ -44,5 +44,19 @@ final class GenerationControlsResolverTests: XCTestCase {
 
         XCTAssertEqual(resolved.temperature, 0.7)
         XCTAssertEqual(resolved.maxTokens, 512)
+    }
+
+    func testResolvedForRequestClampsExplicitMaxTokensToModelMaximum() {
+        var base = GenerationControls()
+        base.maxTokens = 32_000
+
+        let resolved = GenerationControlsResolver.resolvedForRequest(
+            base: base,
+            assistantTemperature: nil,
+            assistantMaxOutputTokens: nil,
+            modelMaxOutputTokens: 16_384
+        )
+
+        XCTAssertEqual(resolved.maxTokens, 16_384)
     }
 }

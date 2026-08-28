@@ -20,13 +20,46 @@ enum OpenAICompatibleRequestSupport {
         }
     }
 
+    /// Groq on_demand TPM is often 8,000 and pre-reserves `max_tokens`.
+    /// Omitting the field (or sending the catalog maximum of 16,384) makes
+    /// even a two-word prompt fail with Requested ~16438.
+    static let groqTPMSafeDefaultMaxTokens = 4_096
+
     static func applyMaxTokens(
         to body: inout [String: Any],
         controls: GenerationControls,
-        providerType: ProviderType
+        providerType: ProviderType,
+        modelID: String
     ) {
-        guard let maxTokens = controls.maxTokens else { return }
+        guard let maxTokens = resolvedMaxTokens(
+            requested: controls.maxTokens,
+            providerType: providerType,
+            modelID: modelID
+        ) else {
+            return
+        }
         body[providerType == .mimoTokenPlanOpenAI ? "max_completion_tokens" : "max_tokens"] = maxTokens
+    }
+
+    static func resolvedMaxTokens(
+        requested: Int?,
+        providerType: ProviderType,
+        modelID: String
+    ) -> Int? {
+        guard providerType == .groq else {
+            return requested
+        }
+
+        let catalogMax = ModelCatalog.entry(for: modelID, provider: .groq)?.maxOutputTokens
+        let shouldUseSafeDefault = requested == nil
+            || (catalogMax != nil && requested == catalogMax)
+        if shouldUseSafeDefault {
+            if let catalogMax {
+                return min(groqTPMSafeDefaultMaxTokens, catalogMax)
+            }
+            return groqTPMSafeDefaultMaxTokens
+        }
+        return requested
     }
 
     static func applyOpenAIServiceTier(

@@ -38,6 +38,10 @@ final class ConversationTitleGeneratorTests: XCTestCase {
         )
     }
 
+    func testDefaultPromptTemplateStaysCompact() {
+        XCTAssertLessThanOrEqual(ConversationTitleGenerator.defaultPromptTemplate.count, 500)
+    }
+
     func testDefaultPromptTemplateAvoidsCJKCharacters() {
         // Inline CJK examples bias small models like Gemini Flash Lite toward Chinese output
         // even for English conversations. The template must remain script-neutral.
