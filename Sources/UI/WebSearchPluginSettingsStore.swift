@@ -40,6 +40,19 @@ struct WebSearchPluginSettings: Sendable {
     var perplexityCountry: String?
     var perplexityLanguage: String?
 
+    var tinyfishAPIKey: String = ""
+    var tinyfishLocation: String? = nil
+    var tinyfishLanguage: String? = nil
+    var tinyfishDomainType: String? = nil
+    var tinyfishFetchPages: Bool = false
+
+    var firecrawlLocation: String? = nil
+    var firecrawlSafe: Bool = false
+
+    var tavilyLanguage: String? = nil
+    var tavilyFilterByLanguage: Bool = false
+    var tavilySafeSearch: Bool = false
+
     func apiKey(for provider: SearchPluginProvider) -> String {
         switch provider {
         case .exa:
@@ -54,6 +67,8 @@ struct WebSearchPluginSettings: Sendable {
             return tavilyAPIKey
         case .perplexity:
             return perplexityAPIKey
+        case .tinyfish:
+            return tinyfishAPIKey
         }
     }
 
@@ -121,7 +136,17 @@ enum WebSearchPluginSettingsStore {
             tavilyCountry: trimmedPreference(AppPreferenceKeys.pluginWebSearchTavilyCountry),
             tavilyAutoParameters: defaults.bool(forKey: AppPreferenceKeys.pluginWebSearchTavilyAutoParameters),
             perplexityCountry: trimmedPreference(AppPreferenceKeys.pluginWebSearchPerplexityCountry),
-            perplexityLanguage: trimmedPreference(AppPreferenceKeys.pluginWebSearchPerplexityLanguage)
+            perplexityLanguage: trimmedPreference(AppPreferenceKeys.pluginWebSearchPerplexityLanguage),
+            tinyfishAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchTinyFishAPIKey) ?? "",
+            tinyfishLocation: trimmedPreference(AppPreferenceKeys.pluginWebSearchTinyFishLocation),
+            tinyfishLanguage: trimmedPreference(AppPreferenceKeys.pluginWebSearchTinyFishLanguage),
+            tinyfishDomainType: trimmedPreference(AppPreferenceKeys.pluginWebSearchTinyFishDomainType),
+            tinyfishFetchPages: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchTinyFishFetchPages) as? Bool ?? false,
+            firecrawlLocation: trimmedPreference(AppPreferenceKeys.pluginWebSearchFirecrawlLocation),
+            firecrawlSafe: defaults.bool(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlSafe),
+            tavilyLanguage: trimmedPreference(AppPreferenceKeys.pluginWebSearchTavilyLanguage),
+            tavilyFilterByLanguage: defaults.bool(forKey: AppPreferenceKeys.pluginWebSearchTavilyFilterByLanguage),
+            tavilySafeSearch: defaults.bool(forKey: AppPreferenceKeys.pluginWebSearchTavilySafeSearch)
         )
     }
 

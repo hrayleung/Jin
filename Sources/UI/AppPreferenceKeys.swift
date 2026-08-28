@@ -86,6 +86,16 @@ enum AppPreferenceKeys {
     static let pluginWebSearchTavilyAutoParameters = "pluginWebSearchTavilyAutoParameters"
     static let pluginWebSearchPerplexityCountry = "pluginWebSearchPerplexityCountry"
     static let pluginWebSearchPerplexityLanguage = "pluginWebSearchPerplexityLanguage"
+    static let pluginWebSearchTinyFishAPIKey = "pluginWebSearchTinyFishAPIKey"
+    static let pluginWebSearchTinyFishLocation = "pluginWebSearchTinyFishLocation"
+    static let pluginWebSearchTinyFishLanguage = "pluginWebSearchTinyFishLanguage"
+    static let pluginWebSearchTinyFishDomainType = "pluginWebSearchTinyFishDomainType"
+    static let pluginWebSearchTinyFishFetchPages = "pluginWebSearchTinyFishFetchPages"
+    static let pluginWebSearchFirecrawlLocation = "pluginWebSearchFirecrawlLocation"
+    static let pluginWebSearchFirecrawlSafe = "pluginWebSearchFirecrawlSafe"
+    static let pluginWebSearchTavilyLanguage = "pluginWebSearchTavilyLanguage"
+    static let pluginWebSearchTavilyFilterByLanguage = "pluginWebSearchTavilyFilterByLanguage"
+    static let pluginWebSearchTavilySafeSearch = "pluginWebSearchTavilySafeSearch"
 
     // Cloudflare R2 Upload
     static let cloudflareR2AccountID = "cloudflareR2AccountID"

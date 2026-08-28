@@ -11,6 +11,7 @@ extension BuiltinSearchToolHub {
         var request = URLRequest(url: try validatedURL("https://api.exa.ai/search"))
         request.httpMethod = "POST"
         request.addValue("Bearer \(route.apiKey)", forHTTPHeaderField: "Authorization")
+        request.addValue(route.apiKey, forHTTPHeaderField: "x-api-key")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let maxResults = args.maxResults.clamped(to: Self.exaMaxResultsRange)
@@ -63,7 +64,7 @@ extension BuiltinSearchToolHub {
 
         let category = ExaCategory.resolved(from: overrides?.exaCategory ?? settings.exaCategory)
         if let category {
-            body["category"] = category.rawValue
+            body["category"] = category.wireValue
         }
         let usesEntityCategory = category == .company || category == .people
 

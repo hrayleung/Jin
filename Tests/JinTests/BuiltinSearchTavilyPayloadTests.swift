@@ -157,6 +157,44 @@ final class BuiltinSearchTavilyPayloadTests: XCTestCase {
         XCTAssertEqual(BuiltinSearchToolHub.tavilyDepthValue("garbage"), "basic")
     }
 
+    func testTavilyBodyEmitsLanguageAndStrictFilterTogether() {
+        let body = BuiltinSearchToolHub.makeTavilyRequestBody(
+            args: makeArgs(),
+            settings: makeSettings(tavilyLanguage: "fr", tavilyFilterByLanguage: true),
+            overrides: nil
+        )
+
+        XCTAssertEqual(body["language"] as? String, "fr")
+        XCTAssertEqual(body["filter_by_language"] as? Bool, true)
+    }
+
+    func testTavilyBodyOmitsLanguageFilterWithoutLanguage() {
+        let body = BuiltinSearchToolHub.makeTavilyRequestBody(
+            args: makeArgs(),
+            settings: makeSettings(tavilyFilterByLanguage: true),
+            overrides: nil
+        )
+
+        XCTAssertNil(body["language"])
+        XCTAssertNil(body["filter_by_language"], "filter_by_language requires language or the API returns 400.")
+    }
+
+    func testTavilyBodyEmitsSafeSearchExceptOnFastDepths() {
+        let basic = BuiltinSearchToolHub.makeTavilyRequestBody(
+            args: makeArgs(),
+            settings: makeSettings(tavilySearchDepth: "basic", tavilySafeSearch: true),
+            overrides: nil
+        )
+        XCTAssertEqual(basic["safe_search"] as? Bool, true)
+
+        let fast = BuiltinSearchToolHub.makeTavilyRequestBody(
+            args: makeArgs(),
+            settings: makeSettings(tavilySearchDepth: "fast", tavilySafeSearch: true),
+            overrides: nil
+        )
+        XCTAssertNil(fast["safe_search"])
+    }
+
     // MARK: - Fixtures
 
     private func makeArgs(
@@ -177,7 +215,10 @@ final class BuiltinSearchTavilyPayloadTests: XCTestCase {
         tavilyCountry: String? = nil,
         tavilyAutoParameters: Bool = false,
         tavilySearchDepth: String? = nil,
-        tavilyTopic: String? = nil
+        tavilyTopic: String? = nil,
+        tavilyLanguage: String? = nil,
+        tavilyFilterByLanguage: Bool = false,
+        tavilySafeSearch: Bool = false
     ) -> WebSearchPluginSettings {
         WebSearchPluginSettings(
             isEnabled: true,
@@ -209,7 +250,10 @@ final class BuiltinSearchTavilyPayloadTests: XCTestCase {
             tavilyCountry: tavilyCountry,
             tavilyAutoParameters: tavilyAutoParameters,
             perplexityCountry: nil,
-            perplexityLanguage: nil
+            perplexityLanguage: nil,
+            tavilyLanguage: tavilyLanguage,
+            tavilyFilterByLanguage: tavilyFilterByLanguage,
+            tavilySafeSearch: tavilySafeSearch
         )
     }
 }

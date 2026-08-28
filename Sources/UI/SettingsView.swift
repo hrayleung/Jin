@@ -34,7 +34,7 @@ struct SettingsView: View {
     }
 
     static let availablePlugins: [PluginDescriptor] = [
-        PluginDescriptor(id: "web_search_builtin", name: "Web Search", systemImage: "globe", summary: "Use Exa/Brave/Jina/Firecrawl as built-in search tools."),
+        PluginDescriptor(id: "web_search_builtin", name: "Web Search", systemImage: "globe", summary: "Use TinyFish, Exa, Brave, Jina, Firecrawl, Tavily, or Perplexity as built-in search tools."),
         PluginDescriptor(id: "text_to_speech", name: "Text to Speech", systemImage: "speaker.wave.2", summary: "Play assistant replies aloud."),
         PluginDescriptor(id: "speech_to_text", name: "Speech to Text", systemImage: "mic", summary: "Dictate messages by voice."),
         PluginDescriptor(id: "mistral_ocr", name: "Mistral OCR", systemImage: "doc.text.magnifyingglass", summary: "OCR PDFs when native PDF isn't available."),

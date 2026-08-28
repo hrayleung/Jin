@@ -89,10 +89,25 @@ extension BuiltinSearchToolHub {
             body["auto_parameters"] = true
         }
 
+        if let language = settings.tavilyLanguage?.trimmedNonEmpty {
+            body["language"] = language
+            if settings.tavilyFilterByLanguage {
+                body["filter_by_language"] = true
+            }
+        }
+
         // chunks_per_source is documented for advanced, basic, and fast (not ultra-fast).
         if let depth = body["search_depth"] as? String,
            depth == "advanced" || depth == "basic" || depth == "fast" {
             body["chunks_per_source"] = 3
+        }
+
+        // safe_search is not supported for fast or ultra-fast.
+        if settings.tavilySafeSearch {
+            let depth = body["search_depth"] as? String
+            if depth != "fast", depth != "ultra-fast" {
+                body["safe_search"] = true
+            }
         }
 
         return body
