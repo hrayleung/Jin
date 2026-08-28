@@ -1787,6 +1787,24 @@ extension ModelCatalog {
                contextWindow: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
+        // LongCat-2.0 (live GET /zen/go/v1/models + opencode.ai/docs/go endpoint table,
+        // 2026-08-28): exact ID `longcat-2.0` on /zen/go/v1/chat/completions via
+        // @ai-sdk/openai-compatible — keep it out of `anthropicMessagesModelIDs` and
+        // `openAIResponsesModelIDs`. Native LongCat docs (longcat.chat/platform/docs):
+        // 1M context / 131,072 max output, text input only, temperature 0–1, thinking
+        // via `{"thinking":{"type":"enabled|disabled"}}`. That thinking object is an
+        // extra top-level field on stock OpenAI chat/completions; Go's gateway 400s
+        // unknown extras, so it is unverified here and we do not send it. `.reasoning`
+        // is claimed so streamed `reasoning_content` still renders; reasoningConfig
+        // stays nil so Jin never emits an unhonored effort/thinking control (same
+        // pattern as kimi-k2.7-code). No .vision/.videoInput/.nativePDF/.promptCaching.
+        // Seeded after glm-5.3 so the first-launch default is unchanged.
+        Record(id: "longcat-2.0", displayName: "LongCat-2.0",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         // Kimi K2.7 Code (live on the Go /models list since 2026-06-12; verified against
         // models.dev `opencode-go`): 262,144 context AND output, reasoning always-on with
         // NO effort control (empty reasoning_options — the gateway ignores reasoning_effort
@@ -1824,6 +1842,23 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: true),
         Record(id: "deepseek-v4-flash", displayName: "DeepSeek V4 Flash",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        // DeepSeek V4 Flash Vision Exp on Go (live GET /zen/go/v1/models +
+        // opencode.ai/docs/go endpoint + pricing tables, 2026-08-28). Exact ID
+        // `deepseek-v4-flash-vision-exp` on /zen/go/v1/chat/completions via
+        // @ai-sdk/openai-compatible — not /messages, not /responses. Go's own docs
+        // say images are converted into tokens and billed as input; that is the
+        // vision claim. 1M context / 384K output match api-docs.deepseek.com/guides/vision
+        // for this exact ID (Go does not publish a separate cap). Reasoning is the same
+        // always-on high/max band as Go's V4 Flash/Pro (`reasoning_effort` string; Off
+        // is a lie because omitting the field still thinks). Images are user-message
+        // `image_url` only. .videoInput is not claimed (no live colour-clip probe on
+        // this gateway). Seeded after glm-5.3 so the first-launch default is unchanged.
+        Record(id: "deepseek-v4-flash-vision-exp", displayName: "DeepSeek V4 Flash Vision Exp",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_000_000,
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
@@ -1884,6 +1919,26 @@ extension ModelCatalog {
         // OpenCode Go's first-launch default (preferredModelID = models.first) is unchanged.
         Record(id: "qwen3.8-max", displayName: "Qwen3.8 Max",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 10_000),
+               isFullySupported: true, isSeeded: true),
+        // Qwen3.8 Flash (live GET /zen/go/v1/models + opencode.ai/docs/go endpoint table,
+        // 2026-08-28). Exact ID `qwen3.8-flash` on /zen/go/v1/messages via
+        // @ai-sdk/anthropic — must also be listed in
+        // OpenCodeGoAdapter.anthropicMessagesModelIDs; adding the catalog row alone
+        // would send every request to /chat/completions. 1,000,000 context / 131,072
+        // output is the Go-side row on models.dev `opencode-go` (Alibaba's fetched
+        // Model Studio overview lists the ID under text generation and does not publish
+        // a context table). Reasoning is the Anthropic thinking-budget shape of this
+        // route (toggleable; not in opencodeGoAlwaysOnReasoningModelIDs).
+        // .vision is deliberately not claimed: help.aliyun.com/zh/model-studio/models
+        // lists qwen3.8-flash under 文本生成 and omits it from 图像与视频理解 (qwen3.8-max is
+        // on that vision list). .videoInput is not claimed either — /messages has no
+        // video block, same as qwen3.8-max. Seeded after glm-5.3 so the first-launch
+        // default is unchanged.
+        Record(id: "qwen3.8-flash", displayName: "Qwen3.8 Flash",
+               capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_000_000,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 10_000),

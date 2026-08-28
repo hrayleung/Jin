@@ -70,7 +70,14 @@ extension OpenCodeGoAdapter {
         // unsupported value — `reasoning_content` still streams back in the response.
         // GLM-5.3 and Ox Alpha Free cannot disable thinking, so a disabled/legacy Off
         // control is sent as `low` rather than omitted (default max).
-        if Self.usesAlwaysOnLowHighMaxReasoningEffort(modelID) {
+        // LongCat-2.0's native thinking object is unverified on Go (extra top-level
+        // fields 400). Do not emit `reasoning_effort` either — models.dev only lists a
+        // toggle, and the catalog has no effort config.
+        let omitReasoningEffort = modelID.lowercased() == "longcat-2.0"
+
+        if omitReasoningEffort {
+            // Leave thinking to the gateway default.
+        } else if Self.usesAlwaysOnLowHighMaxReasoningEffort(modelID) {
             let effort: ReasoningEffort
             if let reasoning = controls.reasoning, reasoning.enabled, let requested = reasoning.effort, requested != ReasoningEffort.none {
                 effort = requested
@@ -132,15 +139,24 @@ extension OpenCodeGoAdapter {
 
     private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {
         let includeVideo = modelSupportsVideoInput(providerConfig: providerConfig, modelID: modelID)
+        let visionUserImagesOnly = modelID.lowercased() == "deepseek-v4-flash-vision-exp"
         return try translateMessagesToOpenAIFormat(messages) { message in
-            try translateNonToolMessage(message, includeVideo: includeVideo)
+            try translateNonToolMessage(
+                message,
+                includeVideo: includeVideo,
+                includeImages: !visionUserImagesOnly || message.role == .user
+            )
         }
     }
 
-    private func translateNonToolMessage(_ message: Message, includeVideo: Bool) throws -> [String: Any] {
+    private func translateNonToolMessage(
+        _ message: Message,
+        includeVideo: Bool,
+        includeImages: Bool
+    ) throws -> [String: Any] {
         let split = splitContentParts(
             message.content,
-            includeImages: true,
+            includeImages: includeImages,
             includeAudio: true,
             includeVideo: includeVideo
         )
@@ -204,7 +220,7 @@ extension OpenCodeGoAdapter {
             // and never emit the invalid `low`/`medium` strings for it. The model's selectable
             // efforts are already restricted to [.high, .max] in ModelCapabilityRegistry.
             return (effort == .max || effort == .xhigh) ? "max" : "high"
-        case "deepseek-v4-pro", "deepseek-v4-flash":
+        case "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp":
             // Official DeepSeek V4 OpenAI format is low/high/max. On V4 Pro, xhigh/max
             // map to max and everything else maps to high (api-docs.deepseek.com
             // thinking_mode, 2026-08). The Go UI band is already [.high, .max].

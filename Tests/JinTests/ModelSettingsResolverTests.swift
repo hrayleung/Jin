@@ -1541,6 +1541,18 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertFalse(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "deepseek-v4-flash")
         )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(
+                for: .opencodeGo,
+                modelID: "deepseek-v4-flash-vision-exp"
+            )
+        )
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "longcat-2.0")
+        )
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "qwen3.8-flash")
+        )
         // Official DeepSeek can send thinking.type=disabled, so Off stays available there.
         XCTAssertTrue(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .deepseek, modelID: "deepseek-v4-pro")
@@ -1633,6 +1645,65 @@ final class ModelSettingsResolverTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "deepseek-v4-flash"),
             [.high, .max]
         )
+
+        let visionLegacy = ModelInfo(
+            id: "deepseek-v4-flash-vision-exp",
+            name: "DeepSeek V4 Flash Vision Exp",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedVision = ModelSettingsResolver.resolve(model: visionLegacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedVision.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedVision.maxOutputTokens, 384_000)
+        XCTAssertTrue(resolvedVision.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedVision.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedVision.capabilities.contains(.promptCaching))
+        XCTAssertFalse(resolvedVision.capabilities.contains(.videoInput))
+        XCTAssertEqual(resolvedVision.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedVision.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(resolvedVision.reasoningCanDisable)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .opencodeGo,
+                modelID: "deepseek-v4-flash-vision-exp"
+            ),
+            [.high, .max]
+        )
+    }
+
+    func testResolverInfersOpenCodeGoLongCatAndQwen38FlashMetadataForLegacyPersistedModels() {
+        let longcatLegacy = ModelInfo(
+            id: "longcat-2.0",
+            name: "longcat-2.0",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedLongcat = ModelSettingsResolver.resolve(model: longcatLegacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedLongcat.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedLongcat.maxOutputTokens, 131_072)
+        XCTAssertEqual(resolvedLongcat.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertNil(resolvedLongcat.reasoningConfig)
+        XCTAssertFalse(resolvedLongcat.capabilities.contains(.vision))
+
+        let flashLegacy = ModelInfo(
+            id: "qwen3.8-flash",
+            name: "qwen3.8-flash",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedFlash = ModelSettingsResolver.resolve(model: flashLegacy, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedFlash.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedFlash.maxOutputTokens, 131_072)
+        XCTAssertEqual(resolvedFlash.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.type, .budget)
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.defaultBudget, 10_000)
+        XCTAssertTrue(resolvedFlash.reasoningCanDisable)
     }
 
     func testResolverInfersOpenCodeGoGrok46MetadataForLegacyPersistedModels() {

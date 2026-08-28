@@ -371,8 +371,10 @@ final class JinModelSupportTests: XCTestCase {
     func testOpenCodeGoDeepSeekV4ModelsUseExactFullySupportedIDs() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-pro"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-flash-vision-exp"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-pro-custom"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-flash-preview"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "deepseek-v4-flash-vision-exp-custom"))
     }
 
     func testOpenCodeGoGLM52ModelUsesExactFullySupportedIDs() {
@@ -390,10 +392,10 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testOpenCodeGoAugust2026ModelsUseExactFullySupportedIDs() {
-        for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "hy3", "muse-spark-1.2", "muse-spark-1.2-contributor"] {
+        for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "hy3", "muse-spark-1.2", "muse-spark-1.2-contributor", "longcat-2.0", "qwen3.8-flash"] {
             XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: id), id)
         }
-        for id in ["gpt-5.6-luna-pro", "gpt-5.6-sol", "grok-4.6-custom", "grok-4.6-fast", "grok-4.5-fast", "hy3-custom", "muse-spark-1.1"] {
+        for id in ["gpt-5.6-luna-pro", "gpt-5.6-sol", "grok-4.6-custom", "grok-4.6-fast", "grok-4.5-fast", "hy3-custom", "muse-spark-1.1", "longcat-2.0-custom", "qwen3.8-flash-preview"] {
             XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: id), id)
         }
     }

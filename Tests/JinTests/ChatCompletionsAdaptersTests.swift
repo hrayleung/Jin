@@ -3103,10 +3103,10 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     func testOpenCodeGoRoutesMiniMaxAndQwenToAnthropicMessagesEndpoint() {
         // OpenCode Go serves MiniMax + Qwen via the Anthropic /messages endpoint
         // (@ai-sdk/anthropic); DeepSeek/GLM/Kimi/MiMo/Hy3 use OpenAI /chat/completions.
-        for id in ["minimax-m3", "minimax-m2.7", "qwen3.8-max", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "claude-opus-4-8"] {
+        for id in ["minimax-m3", "minimax-m2.7", "qwen3.8-max", "qwen3.8-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "claude-opus-4-8"] {
             XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /messages")
         }
-        for id in ["deepseek-v4-pro", "glm-5", "kimi-k3", "kimi-k2.6", "kimi-k2.7-code", "mimo-v2.5-pro", "hy3-preview"] {
+        for id in ["deepseek-v4-pro", "deepseek-v4-flash-vision-exp", "glm-5", "kimi-k3", "kimi-k2.6", "kimi-k2.7-code", "mimo-v2.5-pro", "hy3-preview", "longcat-2.0"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /chat/completions")
         }
         // Routing is exact-ID, not prefix: unknown minimax-/qwen IDs must NOT auto-route.
@@ -3158,7 +3158,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         // opencode.ai/docs/go publishes a per-model endpoint table. Every model must land on
         // exactly one of the three routes, matched by exact ID.
         for id in ["grok-4.5", "hy3", "glm-5.3", "glm-5.3-flash", "glm-5.2", "glm-5.1", "ox-alpha-free", "kimi-k3", "kimi-k2.7-code",
-                   "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "mimo-v2.5", "mimo-v2.5-pro"] {
+                   "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp", "mimo-v2.5", "mimo-v2.5-pro", "longcat-2.0"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /chat/completions")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /chat/completions")
         }
@@ -3167,7 +3167,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("Grok-4.6"))
         XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("grok-4.6"))
         XCTAssertFalse(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint("grok-4.6"))
-        for id in ["minimax-m3", "minimax-m2.7", "minimax-m2.5", "qwen3.8-max", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus"] {
+        for id in ["minimax-m3", "minimax-m2.7", "minimax-m2.5", "qwen3.8-max", "qwen3.8-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus"] {
             XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /messages")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /messages")
         }
@@ -3201,7 +3201,9 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         // near-miss sibling must not inherit its route.
         XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("qwen3.8-max"))
         XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("Qwen3.8-Max"))
-        for id in ["qwen3.8-max-preview", "qwen3.8-plus", "qwen3.8"] {
+        XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("qwen3.8-flash"))
+        XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("Qwen3.8-Flash"))
+        for id in ["qwen3.8-max-preview", "qwen3.8-plus", "qwen3.8", "qwen3.8-flash-preview"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) must not prefix-match")
         }
     }
@@ -3245,6 +3247,139 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             controls: GenerationControls(reasoning: ReasoningControls(enabled: true, budgetTokens: 10_000)),
             tools: [],
             streaming: true
+        )
+        for try await _ in stream {}
+    }
+
+    func testOpenCodeGoAdapterSendsQwen38FlashOverAnthropicMessagesWithThinkingBudget() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/messages")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "test-key")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "qwen3.8-flash")
+            let thinking = try XCTUnwrap(root["thinking"] as? [String: Any])
+            XCTAssertEqual(thinking["type"] as? String, "enabled")
+            XCTAssertEqual(thinking["budget_tokens"] as? Int, 10_000)
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["reasoning"])
+
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                Data("data: [DONE]\n\n".utf8)
+            )
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "qwen3.8-flash",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, budgetTokens: 10_000)),
+            tools: [],
+            streaming: true
+        )
+        for try await _ in stream {}
+    }
+
+    func testOpenCodeGoAdapterSendsDeepSeekV4FlashVisionExpImageURLOnChatCompletions() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+        let imageData = Data([0x89, 0x50, 0x4E, 0x47])
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            XCTAssertNil(request.value(forHTTPHeaderField: "x-api-key"))
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "deepseek-v4-flash-vision-exp")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "max")
+            XCTAssertNil(root["reasoning"])
+            XCTAssertNil(root["thinking"])
+
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 1)
+            let userContent = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
+            XCTAssertEqual(userContent[0]["type"] as? String, "text")
+            let image = try XCTUnwrap(userContent.first { ($0["type"] as? String) == "image_url" })
+            let imagePayload = try XCTUnwrap(image["image_url"] as? [String: Any])
+            XCTAssertEqual(imagePayload["url"] as? String, mediaDataURI(mimeType: "image/png", data: imageData))
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_deepseek_vision",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("describe this"),
+                        .image(ImageContent(mimeType: "image/png", data: imageData))
+                    ]
+                )
+            ],
+            modelID: "deepseek-v4-flash-vision-exp",
+            controls: GenerationControls(
+                maxTokens: 2048,
+                reasoning: ReasoningControls(enabled: true, effort: .max)
+            ),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testOpenCodeGoAdapterOmitsReasoningEffortForLongCat20() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "longcat-2.0")
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["reasoning"])
+            XCTAssertNil(root["thinking"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_longcat",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "longcat-2.0",
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .high)
+            ),
+            tools: [],
+            streaming: false
         )
         for try await _ in stream {}
     }

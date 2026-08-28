@@ -350,6 +350,20 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "glm-5.3-custom"),
             [.low, .high, .max]
         )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .opencodeGo,
+                modelID: "deepseek-v4-flash-vision-exp"
+            ),
+            [.high, .max]
+        )
+        XCTAssertNotEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .opencodeGo,
+                modelID: "deepseek-v4-flash-vision-exp-custom"
+            ),
+            [.high, .max]
+        )
     }
 
     func testResponsesOnlyReasoningControlsAreLimitedToNativeOpenAI() {
