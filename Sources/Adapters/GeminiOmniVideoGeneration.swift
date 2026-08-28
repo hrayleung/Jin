@@ -97,6 +97,28 @@ enum GeminiOmniVideoRequestSupport {
         return nil
     }
 
+    /// Gemini Files IDs are only trusted from relative `files/…` paths or the
+    /// adapter's Gemini API host. A response URI like `https://evil.example/files/x`
+    /// must not be rewritten onto the user's Gemini key.
+    static func geminiFileID(fromURI uri: String, apiBaseURL: String) -> String? {
+        let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("files/") {
+            return fileID(fromURI: trimmed)
+        }
+        guard let url = URL(string: trimmed), isTrustedGeminiAPIURL(url, apiBaseURL: apiBaseURL) else {
+            return nil
+        }
+        return fileID(fromURI: trimmed)
+    }
+
+    static func isTrustedGeminiAPIURL(_ url: URL, apiBaseURL: String) -> Bool {
+        guard let host = url.host?.lowercased(), !host.isEmpty else { return false }
+        if let apiHost = URL(string: apiBaseURL)?.host?.lowercased(), host == apiHost {
+            return true
+        }
+        return host == "generativelanguage.googleapis.com"
+    }
+
     private static func videoPayload(fromContentItems value: Any?) -> (mimeType: String, data: Data?, uri: String?)? {
         if let object = value as? [String: Any] {
             return videoPayload(fromItem: object)
@@ -273,7 +295,7 @@ extension GeminiAdapter {
     }
 
     private func downloadOmniVideo(uri: String, mimeType: String) async throws -> (mimeType: String, localURL: URL) {
-        if let fileID = GeminiOmniVideoRequestSupport.fileID(fromURI: uri) {
+        if let fileID = GeminiOmniVideoRequestSupport.geminiFileID(fromURI: uri, apiBaseURL: baseURL) {
             try await waitForOmniFileActive(fileID: fileID)
             let downloadURL = try validatedURL("\(baseURL)/files/\(fileID):download?alt=media")
             let (localURL, downloadedMIME) = try await VideoAttachmentUtility.downloadToLocal(
@@ -287,10 +309,20 @@ extension GeminiAdapter {
         guard let url = URL(string: uri) else {
             throw LLMError.decodingError(message: "Invalid Gemini Omni Flash video URI: \(uri)")
         }
+        guard RemoteMediaURLPolicy.isAllowedForAutomaticFetch(url) else {
+            throw LLMError.invalidRequest(
+                message: "Gemini Omni Flash returned a video URI that is not allowed for automatic download."
+            )
+        }
+        // Never attach the Gemini API key to a response-controlled host.
+        let authHeader: (key: String, value: String)? =
+            GeminiOmniVideoRequestSupport.isTrustedGeminiAPIURL(url, apiBaseURL: baseURL)
+            ? (key: "x-goog-api-key", value: apiKey)
+            : nil
         let (localURL, downloadedMIME) = try await VideoAttachmentUtility.downloadToLocal(
             from: url,
             networkManager: networkManager,
-            authHeader: (key: "x-goog-api-key", value: apiKey)
+            authHeader: authHeader
         )
         return (downloadedMIME.isEmpty ? mimeType : downloadedMIME, localURL)
     }

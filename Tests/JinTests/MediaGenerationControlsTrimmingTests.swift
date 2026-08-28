@@ -131,6 +131,36 @@ final class MediaGenerationControlsTrimmingTests: XCTestCase {
         XCTAssertNil(GeminiOmniVideoRequestSupport.fileID(fromURI: ""))
     }
 
+    func testGeminiOmniOnlyTreatsTrustedHostsAsGeminiFiles() {
+        let apiBase = "https://generativelanguage.googleapis.com/v1beta"
+        XCTAssertEqual(
+            GeminiOmniVideoRequestSupport.geminiFileID(fromURI: "files/xyz", apiBaseURL: apiBase),
+            "xyz"
+        )
+        XCTAssertEqual(
+            GeminiOmniVideoRequestSupport.geminiFileID(
+                fromURI: "https://generativelanguage.googleapis.com/v1beta/files/abc-123:download?alt=media",
+                apiBaseURL: apiBase
+            ),
+            "abc-123"
+        )
+        XCTAssertNil(
+            GeminiOmniVideoRequestSupport.geminiFileID(
+                fromURI: "https://evil.example/files/abc-123",
+                apiBaseURL: apiBase
+            )
+        )
+        XCTAssertFalse(
+            GeminiOmniVideoRequestSupport.isTrustedGeminiAPIURL(
+                URL(string: "https://evil.example/files/abc-123")!,
+                apiBaseURL: apiBase
+            )
+        )
+        XCTAssertFalse(
+            RemoteMediaURLPolicy.isAllowedForAutomaticFetch(URL(string: "http://127.0.0.1/video.mp4")!)
+        )
+    }
+
     func testGoogleMapsControlsTreatBlankLanguageCodeAsEmpty() {
         XCTAssertTrue(GoogleMapsControls(languageCode: " \n\t ").isEmpty)
         XCTAssertFalse(GoogleMapsControls(languageCode: " en_US ").isEmpty)
