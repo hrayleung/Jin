@@ -460,6 +460,19 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
                isFullySupported: true, isSeeded: false),
+        // Qwen3.8 Flash (OpenRouter live /models, 2026-08-29). 1,000,000 / 131,072,
+        // tools, cached-input. `reasoning` + `include_reasoning` with
+        // supports_max_tokens and NO reasoning_effort → toggle only (do not copy
+        // Max's xhigh effort band). Architecture lists image+video; Alibaba Model
+        // Studio files this ID under text generation and omits it from 图像与视频理解,
+        // and .videoInput requires a live colour-clip probe, so neither .vision nor
+        // .videoInput is claimed.
+        Record(id: "qwen/qwen3.8-flash", displayName: "Qwen: Qwen3.8 Flash",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
         // DeepSeek V4 Pro 0813 GA (OpenRouter live /models, 2026-08-12). Distinct
         // from the April preview `deepseek/deepseek-v4-pro` (high/xhigh). Efforts
         // max/high/low, default high, not mandatory.
@@ -471,6 +484,15 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
         Record(id: "deepseek/deepseek-v4-flash-0731", displayName: "DeepSeek: DeepSeek V4 Flash 0731",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // DeepSeek V4 Flash Vision Exp (OpenRouter live /models, 2026-08-29).
+        // Same 1,048,576 / 384,000 and max/high/low (default high) band as the 0731
+        // text snapshot, plus image input. .videoInput is not claimed (no live probe).
+        Record(id: "deepseek/deepseek-v4-flash-vision-exp", displayName: "DeepSeek: DeepSeek V4 Flash Vision Exp",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
@@ -1197,6 +1219,15 @@ extension ModelCatalog {
                contextWindow: 262144,
                maxOutputTokens: 262144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
+               isFullySupported: true, isSeeded: false),
+        // Tencent Hy4 preview (OpenRouter live /models, 2026-08-29): 1,048,576 / 64,000,
+        // text-only, tools, cached-input. Reasoning default-ENABLED with efforts
+        // high/low/none (default high). Distinct from Hy3's 262k window and none default.
+        Record(id: "tencent/hy4-preview", displayName: "Tencent: Hy4 preview",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 64_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         // Poolside Laguna XS 2.1 (created 2026-07-02): reasoning is a plain toggle —
         // no reasoning_effort in supported_parameters.

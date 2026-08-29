@@ -570,16 +570,27 @@ final class ModelCatalogTests: XCTestCase {
         let hy3Preview = ModelCatalog.modelInfo(for: "hy3-preview", provider: .opencodeGo)
         XCTAssertEqual(hy3Preview.reasoningConfig?.defaultEffort, .high)
 
+        let hy4 = ModelCatalog.modelInfo(for: "hy4-preview", provider: .opencodeGo)
+        XCTAssertEqual(hy4.name, "Hy4 Preview")
+        XCTAssertEqual(hy4.contextWindow, 1_000_000)
+        XCTAssertEqual(hy4.maxOutputTokens, 64_000)
+        XCTAssertEqual(hy4.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(hy4.reasoningConfig?.type, .effort)
+        XCTAssertEqual(hy4.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(hy4.capabilities.contains(.vision))
+        XCTAssertFalse(hy4.capabilities.contains(.nativePDF))
+        XCTAssertFalse(hy4.capabilities.contains(.videoInput))
+
         // All three are seeded, and glm-5.3 is OpenCode Go's first-launch default.
         let seeded = ModelCatalog.seededModels(for: .opencodeGo)
         XCTAssertEqual(seeded.first?.id, "glm-5.3")
-        for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "hy3"] {
+        for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "hy3", "hy4-preview"] {
             XCTAssertTrue(seeded.contains(where: { $0.id == id }), "\(id) should be seeded")
             XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .opencodeGo), id)
         }
 
         // Near-miss IDs must fall back to the conservative default entry, not prefix-match.
-        for id in ["gpt-5.6-luna-pro", "grok-4.6-custom", "grok-4.6-fast", "grok-4.5-fast", "hy3-custom"] {
+        for id in ["gpt-5.6-luna-pro", "grok-4.6-custom", "grok-4.6-fast", "grok-4.5-fast", "hy3-custom", "hy4-preview-custom", "hy4"] {
             let unknown = ModelCatalog.modelInfo(for: id, provider: .opencodeGo)
             XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
             XCTAssertEqual(unknown.contextWindow, 128_000, id)
@@ -2445,6 +2456,143 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "gpt-5.6", provider: .openai))
     }
 
+    func testOpenAIDaybreakCatalogUsesDocsVerifiedExactMetadata() {
+        let expected: ModelCapability = [
+            .streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution,
+        ]
+
+        let cyber = ModelCatalog.modelInfo(for: "gpt-5.6-cyber", provider: .openai)
+        XCTAssertEqual(cyber.name, "GPT-5.6 Cyber")
+        XCTAssertEqual(cyber.capabilities, expected)
+        XCTAssertEqual(cyber.contextWindow, 400_000)
+        XCTAssertEqual(cyber.maxOutputTokens, 128_000)
+        XCTAssertEqual(cyber.reasoningConfig?.type, .effort)
+        XCTAssertEqual(cyber.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "gpt-5.6-cyber", provider: .openai))
+
+        let red = ModelCatalog.modelInfo(for: "gpt-daybreak-red-latest", provider: .openai)
+        XCTAssertEqual(red.name, "Daybreak Red")
+        XCTAssertEqual(red.capabilities, expected)
+        XCTAssertEqual(red.contextWindow, 400_000)
+        XCTAssertEqual(red.maxOutputTokens, 128_000)
+        XCTAssertEqual(red.reasoningConfig?.type, .effort)
+        XCTAssertEqual(red.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "gpt-daybreak-red-latest", provider: .openai))
+
+        let blue = ModelCatalog.modelInfo(for: "gpt-daybreak-blue-latest", provider: .openai)
+        XCTAssertEqual(blue.name, "Daybreak Blue")
+        XCTAssertEqual(blue.capabilities, expected)
+        XCTAssertEqual(blue.contextWindow, 1_050_000)
+        XCTAssertEqual(blue.maxOutputTokens, 128_000)
+        XCTAssertEqual(blue.reasoningConfig?.type, .effort)
+        XCTAssertEqual(blue.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "gpt-daybreak-blue-latest", provider: .openai))
+
+        let seeded = Set(ModelCatalog.seededModels(for: .openai).map(\.id))
+        XCTAssertFalse(seeded.contains("gpt-5.6-cyber"))
+        XCTAssertFalse(seeded.contains("gpt-daybreak-red-latest"))
+        XCTAssertFalse(seeded.contains("gpt-daybreak-blue-latest"))
+
+        for unknownID in [
+            "gpt-5.6-cyber-custom",
+            "gpt-daybreak-red-latest-custom",
+            "gpt-daybreak-blue-latest-custom",
+        ] {
+            let unknown = ModelCatalog.modelInfo(for: unknownID, provider: .openai)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], unknownID)
+            XCTAssertEqual(unknown.contextWindow, 128_000, unknownID)
+            XCTAssertNil(unknown.maxOutputTokens, unknownID)
+            XCTAssertNil(unknown.reasoningConfig, unknownID)
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: unknownID, provider: .openai), unknownID)
+        }
+
+        // No gateway slug was published for Daybreak; compound IDs stay unknown.
+        let cloudflare = ModelCatalog.modelInfo(for: "openai/gpt-5.6-cyber", provider: .cloudflareAIGateway)
+        XCTAssertEqual(cloudflare.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(cloudflare.contextWindow, 128_000)
+        XCTAssertNil(cloudflare.reasoningConfig)
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "openai/gpt-5.6-cyber", provider: .cloudflareAIGateway))
+    }
+
+    func testHy4AndAugust2026HostedCopiesUseDocsVerifiedExactMetadata() {
+        let expectedHy4: ModelCapability = [.streaming, .toolCalling, .reasoning, .promptCaching]
+
+        let openRouterHy4 = ModelCatalog.modelInfo(for: "tencent/hy4-preview", provider: .openrouter)
+        XCTAssertEqual(openRouterHy4.name, "Tencent: Hy4 preview")
+        XCTAssertEqual(openRouterHy4.capabilities, expectedHy4)
+        XCTAssertEqual(openRouterHy4.contextWindow, 1_048_576)
+        XCTAssertEqual(openRouterHy4.maxOutputTokens, 64_000)
+        XCTAssertEqual(openRouterHy4.reasoningConfig?.type, .effort)
+        XCTAssertEqual(openRouterHy4.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(openRouterHy4.capabilities.contains(.vision))
+        XCTAssertFalse(openRouterHy4.capabilities.contains(.videoInput))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "tencent/hy4-preview", provider: .openrouter))
+
+        let vercelHy4 = ModelCatalog.modelInfo(for: "tencent/hy4-preview", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelHy4.name, "Tencent Hy4 Preview")
+        XCTAssertEqual(vercelHy4.capabilities, expectedHy4)
+        XCTAssertEqual(vercelHy4.contextWindow, 1_024_000)
+        XCTAssertEqual(vercelHy4.maxOutputTokens, 64_000)
+        XCTAssertEqual(vercelHy4.reasoningConfig?.type, .effort)
+        XCTAssertEqual(vercelHy4.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(vercelHy4.capabilities.contains(.nativePDF))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "tencent/hy4-preview", provider: .vercelAIGateway))
+
+        let flash = ModelCatalog.modelInfo(for: "qwen/qwen3.8-flash", provider: .openrouter)
+        XCTAssertEqual(flash.name, "Qwen: Qwen3.8 Flash")
+        XCTAssertEqual(flash.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(flash.contextWindow, 1_000_000)
+        XCTAssertEqual(flash.maxOutputTokens, 131_072)
+        XCTAssertEqual(flash.reasoningConfig?.type, .toggle)
+        XCTAssertNil(flash.reasoningConfig?.defaultEffort)
+        XCTAssertFalse(flash.capabilities.contains(.vision))
+        XCTAssertFalse(flash.capabilities.contains(.videoInput))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "qwen/qwen3.8-flash", provider: .openrouter))
+
+        let vercelFlash = ModelCatalog.modelInfo(for: "alibaba/qwen3.8-flash", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelFlash.name, "Qwen 3.8 Flash")
+        XCTAssertEqual(vercelFlash.contextWindow, 991_000)
+        XCTAssertEqual(vercelFlash.maxOutputTokens, 128_000)
+        XCTAssertTrue(vercelFlash.capabilities.contains(.vision))
+        XCTAssertFalse(vercelFlash.capabilities.contains(.videoInput))
+        XCTAssertFalse(vercelFlash.capabilities.contains(.nativePDF))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "alibaba/qwen3.8-flash", provider: .vercelAIGateway))
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .vercelAIGateway, modelID: "alibaba/qwen3.8-flash"))
+
+        let vision = ModelCatalog.modelInfo(for: "deepseek/deepseek-v4-flash-vision-exp", provider: .openrouter)
+        XCTAssertEqual(vision.name, "DeepSeek: DeepSeek V4 Flash Vision Exp")
+        XCTAssertEqual(vision.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertEqual(vision.contextWindow, 1_048_576)
+        XCTAssertEqual(vision.maxOutputTokens, 384_000)
+        XCTAssertEqual(vision.reasoningConfig?.type, .effort)
+        XCTAssertEqual(vision.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(vision.capabilities.contains(.videoInput))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "deepseek/deepseek-v4-flash-vision-exp", provider: .openrouter))
+
+        let vercelVision = ModelCatalog.modelInfo(for: "deepseek/deepseek-v4-flash-vision-exp", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelVision.contextWindow, 1_000_000)
+        XCTAssertEqual(vercelVision.maxOutputTokens, 384_000)
+        XCTAssertTrue(vercelVision.capabilities.contains(.vision))
+        XCTAssertFalse(vercelVision.capabilities.contains(.nativePDF))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "deepseek/deepseek-v4-flash-vision-exp", provider: .vercelAIGateway))
+
+        for (provider, id) in [
+            (ProviderType.openrouter, "tencent/hy4-preview-custom"),
+            (.openrouter, "qwen/qwen3.8-flash-custom"),
+            (.openrouter, "deepseek/deepseek-v4-flash-vision-exp-custom"),
+            (.vercelAIGateway, "tencent/hy4"),
+            (.vercelAIGateway, "qwen/qwen3.8-flash"),
+            (.opencodeGo, "hy4-preview-fast"),
+        ] {
+            let unknown = ModelCatalog.modelInfo(for: id, provider: provider)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
+            XCTAssertEqual(unknown.contextWindow, 128_000, id)
+            XCTAssertNil(unknown.maxOutputTokens, id)
+            XCTAssertNil(unknown.reasoningConfig, id)
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: provider), id)
+        }
+    }
+
     func testXAIGrok46CatalogUsesDocsVerifiedExactMetadata() {
         let grok46 = ModelCatalog.modelInfo(for: "grok-4.6", provider: .xai)
 
@@ -2578,13 +2726,23 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(vercelInkling.reasoningConfig?.defaultEffort, .high)
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "thinkingmachines/inkling", provider: .vercelAIGateway))
 
-        // Near-miss IDs fall back to conservative defaults.
-        for (provider, id) in [(ProviderType.together, "thinkingmachines/Inkling-Small"), (.vercelAIGateway, "thinkingmachines/inkling-small")] {
-            let unknown = ModelCatalog.modelInfo(for: id, provider: provider)
-            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
-            XCTAssertEqual(unknown.contextWindow, 128_000, id)
-            XCTAssertNil(unknown.reasoningConfig, id)
-        }
+        // Together catalogs Inkling Small as its own exact slug (524,288, no vision).
+        // Vercel does not publish `inkling-small`; that gateway ID stays unknown.
+        let togetherInklingSmall = ModelCatalog.modelInfo(
+            for: "thinkingmachines/Inkling-Small",
+            provider: .together
+        )
+        XCTAssertEqual(togetherInklingSmall.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(togetherInklingSmall.contextWindow, 524_288)
+        XCTAssertNil(togetherInklingSmall.reasoningConfig)
+
+        let vercelInklingSmall = ModelCatalog.modelInfo(
+            for: "thinkingmachines/inkling-small",
+            provider: .vercelAIGateway
+        )
+        XCTAssertEqual(vercelInklingSmall.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(vercelInklingSmall.contextWindow, 128_000)
+        XCTAssertNil(vercelInklingSmall.reasoningConfig)
     }
 
     func testOpenCodeGoKimiK3CatalogUsesExactProviderIDs() {

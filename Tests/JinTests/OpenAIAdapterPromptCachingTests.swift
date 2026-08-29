@@ -999,6 +999,61 @@ final class OpenAIAdapterPromptCachingTests: XCTestCase {
         XCTAssertTrue(sawText)
         XCTAssertTrue(sawMessageEnd)
     }
+
+    func testOpenAIAdapterOmitsSamplingForDaybreakAliases() async throws {
+        let emptyResponse: [String: Any] = [
+            "id": "resp_daybreak",
+            "output": [
+                [
+                    "type": "message",
+                    "content": [["type": "output_text", "text": "ok"]]
+                ]
+            ]
+        ]
+        let emptyData = try JSONSerialization.data(withJSONObject: emptyResponse)
+
+        for (modelID, reasoningEnabled) in [
+            ("gpt-daybreak-red-latest", true),
+            ("gpt-daybreak-red-latest", false),
+            ("gpt-daybreak-blue-latest", true),
+            ("gpt-daybreak-blue-latest", false),
+            ("gpt-5.6-cyber", true),
+            ("gpt-5.6-cyber", false),
+        ] as [(String, Bool)] {
+            let (configuration, protocolType) = makeOpenAIMockedSessionConfiguration()
+            let networkManager = NetworkManager(configuration: configuration)
+            let providerConfig = ProviderConfig(
+                id: "openai",
+                name: "OpenAI",
+                type: .openai,
+                apiKey: "ignored",
+                baseURL: "https://example.com"
+            )
+
+            protocolType.requestHandler = { request in
+                let body = try XCTUnwrap(openAIRequestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(root["model"] as? String, modelID)
+                XCTAssertNil(root["temperature"], modelID)
+                XCTAssertNil(root["top_p"], modelID)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, emptyData)
+            }
+
+            let adapter = OpenAIAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: modelID,
+                controls: GenerationControls(
+                    temperature: 0.1,
+                    topP: 0.9,
+                    reasoning: ReasoningControls(enabled: reasoningEnabled, effort: reasoningEnabled ? .medium : ReasoningEffort.none)
+                ),
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+    }
 }
 
 private final class OpenAIPromptCachingMockURLProtocol: URLProtocol {

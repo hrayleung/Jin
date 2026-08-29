@@ -39,6 +39,36 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Daybreak (invitation-only; do not seed). Verified 2026-08-29 against
+        // https://developers.openai.com/api/docs/models/gpt-5.6-cyber
+        // https://developers.openai.com/api/docs/models/gpt-daybreak-red-latest
+        // https://developers.openai.com/api/docs/models/gpt-daybreak-blue-latest.
+        // Pages list Chat Completions and Responses. They document streaming,
+        // function calling, image input, web_search, prompt caching, code_interpreter,
+        // and "Reasoning token support". They do not list reasoning.effort values,
+        // reasoning.mode=pro, text.verbosity, or reasoning.context (unlike Sol/Terra/Luna),
+        // so those registry sets stay off and isFullySupported stays false.
+        // nativePDF follows file-inputs.md: vision models accept PDF input_file.
+        Record(id: "gpt-5.6-cyber", displayName: "GPT-5.6 Cyber",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 400_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: false, isSeeded: false),
+        // Alias snapshot of gpt-5.6-cyber (same 400k / 128k page).
+        Record(id: "gpt-daybreak-red-latest", displayName: "Daybreak Red",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 400_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: false, isSeeded: false),
+        // Alias snapshot of gpt-5.6-sol (1,050,000 / 128,000 on the Blue page).
+        Record(id: "gpt-daybreak-blue-latest", displayName: "Daybreak Blue",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: false, isSeeded: false),
         Record(id: "gpt-5.5", displayName: "GPT-5.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_050_000,
@@ -918,6 +948,16 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        // Live ai-gateway.vercel.sh/v1/models (2026-08-29): 1,000,000 / 384,000,
+        // text+image, tools, implicit-caching. `reasoning` + `include_reasoning`
+        // with no published effort values (do not copy OpenRouter's max/high/low).
+        // .nativePDF stays off on this gateway.
+        Record(id: "deepseek/deepseek-v4-flash-vision-exp", displayName: "DeepSeek V4 Flash Vision Exp",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
 
         // Zhipu / Z.ai. Vercel AI Gateway IDs use the `zai/` prefix (models.dev
         // `vercel`), not OpenRouter's `z-ai/`.
@@ -952,6 +992,18 @@ extension ModelCatalog {
                contextWindow: 262_144,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
+        // Live ai-gateway.vercel.sh/v1/models (2026-08-29) publishes this as
+        // `alibaba/qwen3.8-flash` (not `qwen/…`). 991,000 / 128,000, text+image
+        // (PDF is listed but gateway native PDF stays off), tools, implicit-caching.
+        // `reasoning` + `include_reasoning` with no effort values — default
+        // low/medium/high band, same as other Vercel rows that omit efforts.
+        // No video in Vercel's modalities.
+        Record(id: "alibaba/qwen3.8-flash", displayName: "Qwen 3.8 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 991_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
 
         // MiniMax
@@ -988,6 +1040,17 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+
+        // Tencent Hy4 preview (live ai-gateway.vercel.sh/v1/models, 2026-08-29):
+        // 1,024,000 / 64,000, text-only, tools, implicit-caching. `reasoning` +
+        // `include_reasoning` with no published effort values — default band.
+        // .nativePDF stays off on this gateway.
+        Record(id: "tencent/hy4-preview", displayName: "Tencent Hy4 Preview",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_024_000,
+               maxOutputTokens: 64_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
 
         // Anthropic

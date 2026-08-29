@@ -342,6 +342,13 @@ private let openAIResponsesSamplingAllowedModelIDs: Set<String> = [
     "gpt-5.1",
 ]
 
+/// GPT-5.6 Daybreak aliases whose IDs do not contain `gpt-5`.
+/// Exact IDs only — they share Sol/Cyber's Responses sampling rejection.
+private let openAIResponsesSamplingDeniedExactModelIDs: Set<String> = [
+    "gpt-daybreak-red-latest",
+    "gpt-daybreak-blue-latest",
+]
+
 func supportsOpenAIResponsesSamplingParameters(
     modelID: String,
     reasoningEnabled: Bool,
@@ -365,6 +372,10 @@ func supportsOpenAIResponsesSamplingParameters(
         canonical = String(lower.dropFirst("openai/".count))
     } else {
         canonical = lower
+    }
+
+    if openAIResponsesSamplingDeniedExactModelIDs.contains(canonical) {
+        return false
     }
 
     // Preserve prior behavior for non-GPT-5 models.
