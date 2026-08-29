@@ -342,7 +342,8 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "thinkingmachines/inkling-custom"))
 
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "thinkingmachines/Inkling"))
-        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "thinkingmachines/Inkling-Small"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "thinkingmachines/Inkling-Small"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "thinkingmachines/Inkling-Small-custom"))
 
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "moonshotai/kimi-k3"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "thinkingmachines/inkling"))

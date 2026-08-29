@@ -2726,13 +2726,23 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(vercelInkling.reasoningConfig?.defaultEffort, .high)
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "thinkingmachines/inkling", provider: .vercelAIGateway))
 
-        // Near-miss IDs fall back to conservative defaults.
-        for (provider, id) in [(ProviderType.together, "thinkingmachines/Inkling-Small"), (.vercelAIGateway, "thinkingmachines/inkling-small")] {
-            let unknown = ModelCatalog.modelInfo(for: id, provider: provider)
-            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
-            XCTAssertEqual(unknown.contextWindow, 128_000, id)
-            XCTAssertNil(unknown.reasoningConfig, id)
-        }
+        // Together catalogs Inkling Small as its own exact slug (524,288, no vision).
+        // Vercel does not publish `inkling-small`; that gateway ID stays unknown.
+        let togetherInklingSmall = ModelCatalog.modelInfo(
+            for: "thinkingmachines/Inkling-Small",
+            provider: .together
+        )
+        XCTAssertEqual(togetherInklingSmall.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(togetherInklingSmall.contextWindow, 524_288)
+        XCTAssertNil(togetherInklingSmall.reasoningConfig)
+
+        let vercelInklingSmall = ModelCatalog.modelInfo(
+            for: "thinkingmachines/inkling-small",
+            provider: .vercelAIGateway
+        )
+        XCTAssertEqual(vercelInklingSmall.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(vercelInklingSmall.contextWindow, 128_000)
+        XCTAssertNil(vercelInklingSmall.reasoningConfig)
     }
 
     func testOpenCodeGoKimiK3CatalogUsesExactProviderIDs() {
