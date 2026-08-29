@@ -138,6 +138,15 @@ final class AdapterUtilitiesTests: XCTestCase {
         XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-5.3-chat-latest", reasoningEnabled: false))
         XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-5.3-codex", reasoningEnabled: false))
         XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-5", reasoningEnabled: false))
+
+        // Daybreak aliases do not contain `gpt-5`, so they must be denied by exact ID.
+        for id in ["gpt-daybreak-red-latest", "gpt-daybreak-blue-latest", "GPT-Daybreak-Blue-Latest"] {
+            XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: id, reasoningEnabled: true), id)
+            XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: id, reasoningEnabled: false), id)
+        }
+        XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-5.6-cyber", reasoningEnabled: true))
+        XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-5.6-cyber", reasoningEnabled: false))
+        XCTAssertTrue(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-daybreak-red-latest-custom", reasoningEnabled: false))
     }
 
     func testMakeAuthorizedJSONRequestWithoutBodyOmitsContentType() throws {
