@@ -14,7 +14,7 @@ import Foundation
 /// - Muse Spark 1.2 / 1.2 Contributor → Meta-shaped **Responses** `/responses`
 ///   via `MetaAdapter` so encrypted reasoning is requested, persisted, and
 ///   replayed across tool continuations (see `usesMuseSparkResponsesEndpoint(_:)`)
-/// - DeepSeek, GLM, Kimi, MiMo, Grok 4.5, Hy3, Ox Alpha Free, … → OpenAI-compatible `/chat/completions`
+/// - DeepSeek, GLM, Kimi, MiMo, Grok 4.5, Hy3, Hy4 preview, Ox Alpha Free, … → OpenAI-compatible `/chat/completions`
 ///
 /// Docs: https://opencode.ai/docs/go/
 actor OpenCodeGoAdapter: LLMProviderAdapter {

@@ -392,12 +392,28 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testOpenCodeGoAugust2026ModelsUseExactFullySupportedIDs() {
-        for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "hy3", "muse-spark-1.2", "muse-spark-1.2-contributor", "longcat-2.0", "qwen3.8-flash"] {
+        for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "hy3", "hy4-preview", "muse-spark-1.2", "muse-spark-1.2-contributor", "longcat-2.0", "qwen3.8-flash"] {
             XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: id), id)
         }
-        for id in ["gpt-5.6-luna-pro", "gpt-5.6-sol", "grok-4.6-custom", "grok-4.6-fast", "grok-4.5-fast", "hy3-custom", "muse-spark-1.1", "longcat-2.0-custom", "qwen3.8-flash-preview"] {
+        for id in ["gpt-5.6-luna-pro", "gpt-5.6-sol", "grok-4.6-custom", "grok-4.6-fast", "grok-4.5-fast", "hy3-custom", "hy4-preview-custom", "hy4", "muse-spark-1.1", "longcat-2.0-custom", "qwen3.8-flash-preview"] {
             XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: id), id)
         }
+    }
+
+    func testAugust2026HostedCopiesUseExactFullySupportedIDs() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "tencent/hy4-preview"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "tencent/hy4-preview-custom"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "qwen/qwen3.8-flash"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "qwen/qwen3.8-flash-custom"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-flash-vision-exp"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-flash-vision-exp-custom"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "tencent/hy4-preview"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "tencent/hy4"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "alibaba/qwen3.8-flash"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "qwen/qwen3.8-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "deepseek/deepseek-v4-flash-vision-exp"))
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .vercelAIGateway, modelID: "tencent/hy4-preview"))
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .vercelAIGateway, modelID: "alibaba/qwen3.8-flash"))
     }
 
     func testGeminiProvider3Point1PreviewIsMarkedAsFullySupported() {
@@ -527,6 +543,18 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openai, modelID: "gpt-5.6"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleVerbosity(for: .openai, modelID: "gpt-5.6-terra"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsOpenAIStyleProMode(for: .openai, modelID: "gpt-5.5"))
+    }
+
+    func testOpenAIDaybreakModelsAreCatalogRecognizedButNotFullySupported() {
+        for id in ["gpt-5.6-cyber", "gpt-daybreak-red-latest", "gpt-daybreak-blue-latest"] {
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openai, modelID: id), id)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openaiWebSocket, modelID: id), id)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openai, modelID: "\(id)-custom"), id)
+            XCTAssertFalse(
+                JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "openai/\(id)"),
+                id
+            )
+        }
     }
 
     func testClaudeFable5CodeExecutionCapability() {

@@ -335,6 +335,9 @@ enum ModelCapabilityRegistry {
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
+        "gpt-5.6-cyber",
+        "gpt-daybreak-red-latest",
+        "gpt-daybreak-blue-latest",
         "gpt-5.5",
         "gpt-5.5-2026-04-23",
         "gpt-5.5-pro",
@@ -440,6 +443,11 @@ enum ModelCapabilityRegistry {
         "hy3",
         "hy3-preview",
     ]
+    /// OpenCode Go Hy4 preview: only `high` is a verified wire value. Disable by
+    /// omitting `reasoning_effort` (HF `no_think`). Do not inherit Hy3's `low`.
+    private static let opencodeGoHy4ReasoningEffortModelIDs: Set<String> = [
+        "hy4-preview",
+    ]
     private static let openRouterDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek/deepseek-v4-flash",
         "deepseek/deepseek-v4-pro",
@@ -449,6 +457,7 @@ enum ModelCapabilityRegistry {
     private static let openRouterDeepSeekV4GAReasoningEffortModelIDs: Set<String> = [
         "deepseek/deepseek-v4-pro-0813",
         "deepseek/deepseek-v4-flash-0731",
+        "deepseek/deepseek-v4-flash-vision-exp",
     ]
     /// Open-weight Qwen3.8-2.4T-A95B + 27B on OpenRouter: xhigh/medium/low
     /// (default xhigh). Cloud Max is a different product (see below).
@@ -470,6 +479,7 @@ enum ModelCapabilityRegistry {
     private static let openRouterLowHighEffortModelIDs: Set<String> = [
         "tencent/hy3",
         "tencent/hy3:free",
+        "tencent/hy4-preview",
     ]
     /// Gemini 3.1 Flash Lite Image on OpenRouter accepts only minimal/high
     /// (matches the native gemini31FlashImageEffortModelIDs band).
@@ -1180,6 +1190,8 @@ enum ModelCapabilityRegistry {
             return [.high, .max]
         case .opencodeGo where opencodeGoHy3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high]
+        case .opencodeGo where opencodeGoHy4ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.high]
         case .opencodeGo where xAIAlwaysOnStandardEffortWithXHighModelIDs.contains(lowerModelID):
             // grok-4.6 on Go: always-on low/medium/high/xhigh (docs.x.ai/developers/grok-4-6).
             // Distinct from grok-4.5, which rejects xhigh. Exact ID via the shared set.

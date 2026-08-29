@@ -3106,7 +3106,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for id in ["minimax-m3", "minimax-m2.7", "qwen3.8-max", "qwen3.8-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "claude-opus-4-8"] {
             XCTAssertTrue(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /messages")
         }
-        for id in ["deepseek-v4-pro", "deepseek-v4-flash-vision-exp", "glm-5", "kimi-k3", "kimi-k2.6", "kimi-k2.7-code", "mimo-v2.5-pro", "hy3-preview", "longcat-2.0"] {
+        for id in ["deepseek-v4-pro", "deepseek-v4-flash-vision-exp", "glm-5", "kimi-k3", "kimi-k2.6", "kimi-k2.7-code", "mimo-v2.5-pro", "hy3-preview", "hy4-preview", "longcat-2.0"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) should route to /chat/completions")
         }
         // Routing is exact-ID, not prefix: unknown minimax-/qwen IDs must NOT auto-route.
@@ -3157,7 +3157,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     func testOpenCodeGoEndpointRoutingMatrixMatchesPublishedDocsTable() {
         // opencode.ai/docs/go publishes a per-model endpoint table. Every model must land on
         // exactly one of the three routes, matched by exact ID.
-        for id in ["grok-4.5", "hy3", "glm-5.3", "glm-5.3-flash", "glm-5.2", "glm-5.1", "ox-alpha-free", "kimi-k3", "kimi-k2.7-code",
+        for id in ["grok-4.5", "hy3", "hy4-preview", "glm-5.3", "glm-5.3-flash", "glm-5.2", "glm-5.1", "ox-alpha-free", "kimi-k3", "kimi-k2.7-code",
                    "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp", "mimo-v2.5", "mimo-v2.5-pro", "longcat-2.0"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /chat/completions")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /chat/completions")
@@ -3645,6 +3645,70 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         let stream = try await adapter.sendMessage(
             messages: [Message(role: .user, content: [.text("hi")])],
             modelID: "hy3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testOpenCodeGoAdapterMapsHy4PreviewEffortsToHighOnly() async throws {
+        for effort in [ReasoningEffort.low, .medium, .high] {
+            let (configuration, protocolType) = makeMockedSessionConfiguration()
+            let networkManager = NetworkManager(configuration: configuration)
+            let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+            protocolType.requestHandler = { request in
+                XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/zen/go/v1/chat/completions")
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(root["model"] as? String, "hy4-preview")
+                XCTAssertEqual(root["reasoning_effort"] as? String, "high")
+                XCTAssertNil(root["reasoning"])
+
+                let response: [String: Any] = [
+                    "id": "cmpl_opencode_hy4",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+                let data = try JSONSerialization.data(withJSONObject: response)
+                return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+            }
+
+            let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: "hy4-preview",
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort)),
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+    }
+
+    func testOpenCodeGoAdapterOmitsReasoningEffortForHy4PreviewWhenReasoningDisabled() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["reasoning"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_opencode_hy4_off",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "hy4-preview",
             controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
             tools: [],
             streaming: false

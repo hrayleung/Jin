@@ -1987,6 +1987,23 @@ extension ModelCatalog {
                maxOutputTokens: 64_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // Hy4 preview (live GET /zen/go/v1/models + opencode.ai/docs/go endpoint table,
+        // 2026-08-29). Exact ID `hy4-preview` on /zen/go/v1/chat/completions via
+        // @ai-sdk/openai-compatible — must NOT join `anthropicMessagesModelIDs` or
+        // `openAIResponsesModelIDs`. Text-only (Tencent HF card + Go docs; no image
+        // input). 1,000,000 context is Tencent's published Context Length on
+        // huggingface.co/tencent/Hy4-preview; 64,000 max output is the cap TokenHub
+        // and every live gateway publish for this ID (Go `/models` itself has no
+        // limit fields). Reasoning defaults to high; disable by omitting
+        // `reasoning_effort` (HF: `no_think`). Do not reuse Hy3's low/high band —
+        // sending `low` is unverified on Go. Seeded after glm-5.3 so the
+        // first-launch default is unchanged.
+        Record(id: "hy4-preview", displayName: "Hy4 Preview",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 64_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         // Catalog-only — recognized when fetched via the API
         // .videoInput dropped: qwen3.5-plus is in `anthropicMessagesModelIDs`, and the
         // Anthropic /messages translation replaces a .video part with an

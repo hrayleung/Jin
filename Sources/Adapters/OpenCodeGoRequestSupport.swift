@@ -229,6 +229,10 @@ extension OpenCodeGoAdapter {
             // Hy3 accepts only `low`/`high`; the shared mapper would emit an invalid "medium"
             // for an effort inherited from another model that bypassed the registry's clamp.
             return (effort == .minimal || effort == .low) ? "low" : "high"
+        case "hy4-preview":
+            // Hy4 preview on Go: only `high` is a verified wire value. `low` is Hy3's
+            // extra rung and is unverified here; fold everything enabled to `high`.
+            return "high"
         default:
             return mapReasoningEffortNoneDisabled(effort)
         }

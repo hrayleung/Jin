@@ -264,7 +264,7 @@ final class ModelCapabilityRegistryTests: XCTestCase {
 
         // The 2026-08 additions are not MiMo IDs — the Go gateway hosts no web-search tool
         // for them.
-        for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "hy3", "muse-spark-1.2", "muse-spark-1.2-contributor"] {
+        for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "hy3", "hy4-preview", "muse-spark-1.2", "muse-spark-1.2-contributor"] {
             XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: id), id)
         }
     }
@@ -278,6 +278,18 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "hy3-preview"),
             [.low, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "hy4-preview"),
+            [.high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.normalizedReasoningEffort(.low, for: .opencodeGo, modelID: "hy4-preview"),
+            .high
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "hy4-preview-custom"),
+            [.low, .medium, .high]
         )
         // Grok 4.6's reasoning is always-on with low/medium/high/xhigh (docs.x.ai).
         XCTAssertEqual(
@@ -638,6 +650,30 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-5.6-custom"))
     }
 
+    func testOpenAIDaybreakKeepsConservativeEffortBandAndDocumentedCodeInterpreter() {
+        for id in ["gpt-5.6-cyber", "gpt-daybreak-red-latest", "gpt-daybreak-blue-latest"] {
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .openai, modelID: id),
+                [.low, .medium, .high],
+                id
+            )
+            XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: id), id)
+            XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .openai, modelID: id), id)
+            XCTAssertFalse(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openai, modelID: id), id)
+            XCTAssertFalse(ModelCapabilityRegistry.supportsOpenAIStyleProMode(for: .openai, modelID: id), id)
+            XCTAssertFalse(ModelCapabilityRegistry.supportsOpenAIStyleVerbosity(for: .openai, modelID: id), id)
+            XCTAssertFalse(
+                ModelCapabilityRegistry.supportsOpenAIStyleReasoningContext(for: .openai, modelID: id),
+                id
+            )
+        }
+        XCTAssertFalse(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-5.6-cyber-custom"))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openai, modelID: "gpt-5.6-cyber-custom"),
+            [.low, .medium, .high]
+        )
+    }
+
     func testNewOpenRouterEffortBandsUseExactIDs() {
         // Sakana Fugu Ultra only accepts the high/xhigh/max band.
         XCTAssertEqual(
@@ -650,13 +686,24 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             [.minimal, .high]
         )
         // Tencent Hy3 only accepts low/high (none = reasoning disabled).
-        for id in ["tencent/hy3", "tencent/hy3:free"] {
+        for id in ["tencent/hy3", "tencent/hy3:free", "tencent/hy4-preview"] {
             XCTAssertEqual(
                 ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: id),
                 [.low, .high],
                 id
             )
         }
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .openrouter,
+                modelID: "deepseek/deepseek-v4-flash-vision-exp"
+            ),
+            [.low, .high, .max]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "tencent/hy4-preview-custom"),
+            [.low, .medium, .high]
+        )
         // Thinking Machines Inkling accepts the full none…max band except xhigh
         // (OpenRouter supported_efforts, verified 2026-07-18).
         XCTAssertEqual(

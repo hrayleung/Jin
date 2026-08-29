@@ -1522,6 +1522,9 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "hy3")
         )
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "hy4-preview")
+        )
         XCTAssertFalse(
             ModelSettingsResolver.defaultReasoningCanDisable(
                 for: .opencodeGo,
@@ -2566,6 +2569,104 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(resolved.capabilities.contains(.reasoning))
         XCTAssertFalse(resolved.reasoningCanDisable)
         XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .xhigh)
+    }
+
+    func testResolverInfersOpenAIDaybreakCatalogMetadataForLegacyPersistedModels() {
+        let expected: ModelCapability = [
+            .streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution,
+        ]
+
+        let staleCyber = ModelInfo(
+            id: "gpt-5.6-cyber",
+            name: "gpt-5.6-cyber",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedCyber = ModelSettingsResolver.resolve(model: staleCyber, providerType: .openai)
+        XCTAssertEqual(resolvedCyber.contextWindow, 400_000)
+        XCTAssertEqual(resolvedCyber.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedCyber.capabilities, expected)
+        XCTAssertEqual(resolvedCyber.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedCyber.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertTrue(resolvedCyber.supportsWebSearch)
+
+        let staleBlue = ModelInfo(
+            id: "gpt-daybreak-blue-latest",
+            name: "Daybreak Blue",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedBlue = ModelSettingsResolver.resolve(model: staleBlue, providerType: .openai)
+        XCTAssertEqual(resolvedBlue.contextWindow, 1_050_000)
+        XCTAssertEqual(resolvedBlue.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedBlue.capabilities, expected)
+        XCTAssertEqual(resolvedBlue.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedBlue.reasoningConfig?.defaultEffort, .medium)
+    }
+
+    func testResolverInfersHy4AndAugust2026HostedCopyCatalogMetadataForLegacyPersistedModels() {
+        let staleGo = ModelInfo(
+            id: "hy4-preview",
+            name: "hy4-preview",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedGo = ModelSettingsResolver.resolve(model: staleGo, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedGo.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedGo.maxOutputTokens, 64_000)
+        XCTAssertEqual(resolvedGo.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(resolvedGo.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedGo.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolvedGo.reasoningCanDisable)
+
+        let staleOR = ModelInfo(
+            id: "tencent/hy4-preview",
+            name: "Hy4",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedOR = ModelSettingsResolver.resolve(model: staleOR, providerType: .openrouter)
+        XCTAssertEqual(resolvedOR.contextWindow, 1_048_576)
+        XCTAssertEqual(resolvedOR.maxOutputTokens, 64_000)
+        XCTAssertEqual(resolvedOR.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedOR.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolvedOR.capabilities.contains(.promptCaching))
+
+        let staleFlash = ModelInfo(
+            id: "qwen/qwen3.8-flash",
+            name: "Qwen3.8 Flash",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedFlash = ModelSettingsResolver.resolve(model: staleFlash, providerType: .openrouter)
+        XCTAssertEqual(resolvedFlash.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedFlash.maxOutputTokens, 131_072)
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.type, .toggle)
+        XCTAssertFalse(resolvedFlash.capabilities.contains(.vision))
+
+        let staleVercel = ModelInfo(
+            id: "alibaba/qwen3.8-flash",
+            name: "flash",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 32_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedVercel = ModelSettingsResolver.resolve(model: staleVercel, providerType: .vercelAIGateway)
+        XCTAssertEqual(resolvedVercel.contextWindow, 991_000)
+        XCTAssertEqual(resolvedVercel.maxOutputTokens, 128_000)
+        XCTAssertTrue(resolvedVercel.capabilities.contains(.vision))
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .vercelAIGateway, modelID: "alibaba/qwen3.8-flash"))
     }
 
 }
