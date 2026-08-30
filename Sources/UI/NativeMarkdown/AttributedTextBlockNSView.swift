@@ -93,6 +93,12 @@ final class JinMessageTextView: NSTextView {
 
     // MARK: - Storage-mutation reentrancy guard
 
+    /// Single-click candidate for the inline-math copy popover. Set in
+    /// `mouseDown` only when the press is unmodified, clickCount == 1, and
+    /// lands inside a `.jinInlineMathSource` glyph; cleared on drag-past-slop
+    /// or `mouseUp`. Nil-cost when the user is selecting prose.
+    private var latexClickCandidate: LatexSourceCopy.ClickCandidate?
+
     /// Depth of text-storage edits this view is currently performing.
     ///
     /// A storage edit is NOT a leaf operation. `endEditing` fans the change
@@ -206,6 +212,7 @@ final class JinMessageTextView: NSTextView {
         // this one's notification fan-out.
         lastAppliedSource = scrubbed
         invalidateHeightCache()
+        LatexSourceCopyPanel.dismissIfPresented(from: self)
         withStorageMutation {
             textStorage.setAttributedString(scrubbed)
         }
@@ -368,6 +375,7 @@ final class JinMessageTextView: NSTextView {
 
     deinit {
         JinTextViewCensus.decrement()
+        LatexSourceCopyPanel.dismissDetached(from: self)
     }
 
     /// Customizes the pasteboard write so inline math copies as LaTeX and the
@@ -882,6 +890,13 @@ final class JinMessageTextView: NSTextView {
         return didResign
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            LatexSourceCopyPanel.dismissIfPresented(from: self)
+        }
+    }
+
     override func mouseDown(with event: NSEvent) {
         // Only one message-text selection at a time. Without this, selecting
         // in cell B leaves cell A's inactive gray highlight behind.
@@ -891,7 +906,76 @@ final class JinMessageTextView: NSTextView {
         if acceptsFirstResponder, window?.firstResponder !== self {
             window?.makeFirstResponder(self)
         }
-        super.mouseDown(with: event)
+        if event.clickCount > 1 {
+            latexClickCandidate = nil
+            LatexSourceCopyPanel.dismissIfPresented(from: self)
+            super.mouseDown(with: event)
+            return
+        }
+        latexClickCandidate = LatexSourceCopy.clickCandidate(
+            event: event,
+            hit: latexHit(at: convert(event.locationInWindow, from: nil))
+        )
+        // A math click must not start a text selection — that was why some
+        // formulas only "copied" via drag-select and never opened the panel.
+        // Drag-select still works when the press is on prose.
+        if latexClickCandidate == nil {
+            super.mouseDown(with: event)
+        }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        if let candidate = latexClickCandidate {
+            let dist = LatexSourceCopy.dragDistanceSquared(
+                from: candidate.downPointInWindow,
+                to: event.locationInWindow
+            )
+            if dist > LatexSourceCopy.clickSlop * LatexSourceCopy.clickSlop {
+                latexClickCandidate = nil
+            }
+        }
+        super.mouseDragged(with: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let candidate = latexClickCandidate
+        latexClickCandidate = nil
+        super.mouseUp(with: event)
+        guard let candidate else { return }
+        let dist = LatexSourceCopy.dragDistanceSquared(
+            from: candidate.downPointInWindow,
+            to: event.locationInWindow
+        )
+        guard LatexSourceCopy.isClick(
+            dragDistanceSquared: dist,
+            clickCount: event.clickCount,
+            modifierFlags: event.modifierFlags
+        ) else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        guard let hit = latexHit(at: point), hit.charIndex == candidate.charIndex else { return }
+        clearSelectionHighlightIfNeeded()
+        LatexSourceCopyPanel.present(
+            source: hit.source,
+            relativeTo: hit.rectInView,
+            of: self,
+            charIndex: hit.charIndex
+        )
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        if latexHit(at: point) != nil {
+            NSCursor.pointingHand.set()
+        } else {
+            super.cursorUpdate(with: event)
+        }
+    }
+
+    /// Cheap, layout-only. Skipped during a storage mutation because the
+    /// layout manager may not have been notified of the edit yet.
+    private func latexHit(at point: NSPoint) -> LatexSourceCopy.Hit? {
+        guard !isMutatingTextStorage else { return nil }
+        return LatexSourceCopy.inlineMathHit(at: point, in: self)
     }
 
     override func setSelectedRange(_ charRange: NSRange, affinity: NSSelectionAffinity, stillSelecting: Bool) {
@@ -934,6 +1018,17 @@ final class JinMessageTextView: NSTextView {
 
     override func menu(for event: NSEvent) -> NSMenu? {
         let menu = super.menu(for: event) ?? NSMenu()
+
+        let point = convert(event.locationInWindow, from: nil)
+        if let hit = latexHit(at: point) {
+            let item = NSMenuItem(title: "Copy LaTeX", action: #selector(jinCopyInlineLatex(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = hit.source
+            item.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+            menu.insertItem(item, at: 0)
+            menu.insertItem(.separator(), at: 1)
+        }
+
         guard let aggregator else { return menu }
 
         if let blockID {
@@ -953,8 +1048,11 @@ final class JinMessageTextView: NSTextView {
             customItems.append(NSMenuItem.separator())
         }
 
+        // Copy LaTeX (if any) is already at 0; insert quote/highlight after it
+        // so the math action stays the first item when the click is on a formula.
+        let insertionIndex = menu.items.first?.title == "Copy LaTeX" ? 2 : 0
         for item in customItems.reversed() {
-            menu.insertItem(item, at: 0)
+            menu.insertItem(item, at: min(insertionIndex, menu.items.count))
         }
         return menu
     }
@@ -963,6 +1061,11 @@ final class JinMessageTextView: NSTextView {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
         return item
+    }
+
+    @objc private func jinCopyInlineLatex(_ sender: NSMenuItem) {
+        guard let source = sender.representedObject as? String, !source.isEmpty else { return }
+        PasteboardSupport.writeString(source)
     }
 
     @objc private func jinQuoteSelection(_ sender: Any?) {

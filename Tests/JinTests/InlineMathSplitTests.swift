@@ -28,6 +28,13 @@ final class InlineMathSplitTests: XCTestCase {
         XCTAssertEqual(mathInners("当 $x > 0$ 时递增"), ["x > 0"])
     }
 
+    func testSubscriptNodesStillSplit() {
+        XCTAssertEqual(
+            mathInners("已知 $(x_0, y_0), (x_1, y_1)$ 两点"),
+            ["(x_0, y_0), (x_1, y_1)"]
+        )
+    }
+
     func testParenDelimitedFormulaSplits() {
         XCTAssertEqual(mathInners("函数 \\(g(x) = e^x\\) 恒为正"), ["g(x) = e^x"])
     }

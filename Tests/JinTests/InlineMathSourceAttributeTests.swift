@@ -97,7 +97,32 @@ final class InlineMathSourceAttributeTests: XCTestCase {
             )
         } else {
             XCTAssertEqual(result.string, "$x^2$")
+            XCTAssertEqual(
+                result.attribute(.jinInlineMathSource, at: 0, effectiveRange: nil) as? String,
+                "$x^2$"
+            )
         }
+    }
+
+    func testParseFailureFallbackStillCarriesSourceForClick() {
+        // Commands SwiftMath does not know degrade to raw text; the copy
+        // popover still needs the delimited source on the run.
+        let original = "$(x_0, y_0), (x_1, y_1), \\dots, (x_n, y_n)$"
+        let inner = String(original.dropFirst().dropLast())
+        let result = InlineMath.attributedString(
+            inner: inner,
+            original: original,
+            font: font,
+            color: .black
+        )
+        XCTAssertEqual(
+            result.attribute(.jinInlineMathSource, at: 0, effectiveRange: nil) as? String,
+            original
+        )
+        XCTAssertEqual(
+            result.attribute(.jinInlineMathSource, at: result.length - 1, effectiveRange: nil) as? String,
+            original
+        )
     }
 
     /// The attachment cache must key on the delimited `original`, not bare
