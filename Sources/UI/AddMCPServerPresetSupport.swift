@@ -40,6 +40,13 @@ enum AddMCPServerPresetSupport {
         case .tinyfish:
             applyIdentity(id: "tinyfish", name: "TinyFish", iconID: "tinyfish", to: &draft)
             applyHTTP(endpoint: "https://agent.tinyfish.ai/mcp", authentication: .oauth, to: &draft)
+        case .parallel:
+            applyIdentity(id: "parallel", name: "Parallel Search", iconID: "parallel", to: &draft)
+            applyHTTP(
+                endpoint: "https://search.parallel.ai/mcp",
+                authentication: .none,
+                to: &draft
+            )
         case .exaHTTP:
             applyIdentity(id: "exa", name: "Exa", iconID: "exa", to: &draft)
             applyHTTP(

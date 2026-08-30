@@ -29,6 +29,10 @@ enum ToolSearchActivityFactory {
         if let trimmedQuery = query.trimmedNonEmpty {
             args["query"] = AnyCodable(trimmedQuery)
         }
+        if let queries = stringArrayArgument(call.arguments["search_queries"] ?? call.arguments["searchQueries"]),
+           !queries.isEmpty {
+            args["queries"] = AnyCodable(queries)
+        }
 
         if let providerOverride {
             args["provider"] = AnyCodable(providerOverride.rawValue)
@@ -98,6 +102,19 @@ enum ToolSearchActivityFactory {
             status: isError ? .failed : .completed,
             arguments: args
         )
+    }
+
+    private static func stringArrayArgument(_ value: AnyCodable?) -> [String]? {
+        guard let raw = value?.value else { return nil }
+        if let values = raw as? [String] {
+            let trimmed = values.compactMap { $0.trimmedNonEmpty }
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        if let values = raw as? [Any] {
+            let trimmed = values.compactMap { ($0 as? String)?.trimmedNonEmpty }
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return nil
     }
 
     static func isSearchToolName(_ toolName: String) -> Bool {

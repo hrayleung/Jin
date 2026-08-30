@@ -5,20 +5,26 @@ enum SearchActivityPresentationBuilder {
     struct Output: Equatable {
         let queries: [String]
         let sources: [SearchSource]
+        let engineProvider: SearchPluginProvider?
     }
 
     static func build(from activities: [SearchActivity]) -> Output {
         var queriesByKey: OrderedDictionary<String, String> = [:]
         var sourceByID: OrderedDictionary<String, SearchSource> = [:]
+        var engineProvider: SearchPluginProvider?
 
         for activity in activities {
             appendQueries(from: activity, to: &queriesByKey)
             appendSources(from: activity, to: &sourceByID)
+            if engineProvider == nil {
+                engineProvider = activity.searchPluginProvider
+            }
         }
 
         return Output(
             queries: Array(queriesByKey.values),
-            sources: Array(sourceByID.values)
+            sources: Array(sourceByID.values),
+            engineProvider: engineProvider
         )
     }
 

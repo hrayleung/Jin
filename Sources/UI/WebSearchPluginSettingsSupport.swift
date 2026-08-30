@@ -44,11 +44,4 @@ enum WebSearchPluginSettingsSupport {
     static func configuredProviderNamesText(_ providers: [SearchPluginProvider]) -> String {
         providers.map(\.displayName).joined(separator: " · ")
     }
-
-    static func initialCredentialEditorProvider(
-        configuredProviders: [SearchPluginProvider],
-        defaultProvider: SearchPluginProvider
-    ) -> SearchPluginProvider {
-        configuredProviders.first ?? defaultProvider
-    }
 }

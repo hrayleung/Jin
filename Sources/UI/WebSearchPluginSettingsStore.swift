@@ -53,6 +53,11 @@ struct WebSearchPluginSettings: Sendable {
     var tavilyFilterByLanguage: Bool = false
     var tavilySafeSearch: Bool = false
 
+    var parallelAPIKey: String = ""
+    var parallelSearchMode: ParallelSearchMode? = nil
+    var parallelLocation: String? = nil
+    var parallelExtractPages: Bool = false
+
     func apiKey(for provider: SearchPluginProvider) -> String {
         switch provider {
         case .exa:
@@ -69,6 +74,8 @@ struct WebSearchPluginSettings: Sendable {
             return perplexityAPIKey
         case .tinyfish:
             return tinyfishAPIKey
+        case .parallel:
+            return parallelAPIKey
         }
     }
 
@@ -146,7 +153,13 @@ enum WebSearchPluginSettingsStore {
             firecrawlSafe: defaults.bool(forKey: AppPreferenceKeys.pluginWebSearchFirecrawlSafe),
             tavilyLanguage: trimmedPreference(AppPreferenceKeys.pluginWebSearchTavilyLanguage),
             tavilyFilterByLanguage: defaults.bool(forKey: AppPreferenceKeys.pluginWebSearchTavilyFilterByLanguage),
-            tavilySafeSearch: defaults.bool(forKey: AppPreferenceKeys.pluginWebSearchTavilySafeSearch)
+            tavilySafeSearch: defaults.bool(forKey: AppPreferenceKeys.pluginWebSearchTavilySafeSearch),
+            parallelAPIKey: trimmedPreference(AppPreferenceKeys.pluginWebSearchParallelAPIKey) ?? "",
+            parallelSearchMode: ParallelSearchMode.resolved(
+                from: trimmedPreference(AppPreferenceKeys.pluginWebSearchParallelSearchMode)
+            ),
+            parallelLocation: trimmedPreference(AppPreferenceKeys.pluginWebSearchParallelLocation),
+            parallelExtractPages: defaults.object(forKey: AppPreferenceKeys.pluginWebSearchParallelExtractPages) as? Bool ?? false
         )
     }
 

@@ -104,6 +104,8 @@ actor BuiltinSearchToolHub {
             output = try await searchPerplexity(resolved, route: route)
         case .tinyfish:
             output = try await searchTinyFish(resolved, route: route)
+        case .parallel:
+            output = try await searchParallel(resolved, route: route)
         }
 
         let text = prettyJSONString(from: output)
@@ -129,6 +131,8 @@ actor BuiltinSearchToolHub {
         let fetchPageContent: Bool
         let includeDomains: [String]
         let excludeDomains: [String]
+        let objective: String?
+        let searchQueries: [String]
     }
 
     private func resolveArguments(_ arguments: [String: AnyCodable], route: ToolRoute) throws -> ResolvedArguments {
@@ -161,6 +165,8 @@ actor BuiltinSearchToolHub {
 
         let includeDomains = firstStringArray(in: raw, keys: ["include_domains", "includeDomains"])
         let excludeDomains = firstStringArray(in: raw, keys: ["exclude_domains", "excludeDomains"])
+        let objective = firstString(in: raw, keys: ["objective"])
+        let searchQueries = firstStringArray(in: raw, keys: ["search_queries", "searchQueries"])
 
         return ResolvedArguments(
             query: query,
@@ -169,7 +175,9 @@ actor BuiltinSearchToolHub {
             includeRawContent: includeRaw,
             fetchPageContent: fetchPages,
             includeDomains: includeDomains,
-            excludeDomains: excludeDomains
+            excludeDomains: excludeDomains,
+            objective: objective,
+            searchQueries: searchQueries
         )
     }
 
@@ -179,6 +187,8 @@ actor BuiltinSearchToolHub {
             return route.settings.jinaReadPages
         case .tinyfish:
             return route.settings.tinyfishFetchPages
+        case .parallel:
+            return route.settings.parallelExtractPages
         case .exa, .brave, .firecrawl, .tavily, .perplexity:
             return false
         }
@@ -187,6 +197,15 @@ actor BuiltinSearchToolHub {
     private static let defaultParameterSchema = ParameterSchema(
         properties: [
             "query": PropertySchema(type: "string", description: "Search query."),
+            "objective": PropertySchema(
+                type: "string",
+                description: "Natural-language search goal. Used by Parallel together with search_queries."
+            ),
+            "search_queries": PropertySchema(
+                type: "array",
+                description: "1-5 keyword queries of 3-6 words each. Used by Parallel. Do not use site: operators.",
+                items: PropertySchema(type: "string")
+            ),
             "max_results": PropertySchema(
                 type: "integer",
                 description: "Max results (provider limits apply)."
@@ -205,7 +224,7 @@ actor BuiltinSearchToolHub {
             "include_raw_content": PropertySchema(type: "boolean", description: "Include extra page snippets when supported."),
             "fetch_page_content": PropertySchema(
                 type: "boolean",
-                description: "Fetch result pages for richer snippets (Jina, TinyFish)."
+                description: "Fetch result pages for richer snippets (Jina, TinyFish, Parallel Extract)."
             )
         ],
         required: ["query"]

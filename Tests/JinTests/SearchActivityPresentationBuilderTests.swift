@@ -21,6 +21,29 @@ final class SearchActivityPresentationBuilderTests: XCTestCase {
         )
 
         XCTAssertEqual(output.queries, ["SwiftUI", "MCP"])
+        XCTAssertNil(output.engineProvider)
+    }
+
+    func testBuildCapturesFirstSearchPluginProvider() {
+        let output = SearchActivityPresentationBuilder.build(
+            from: [
+                activity(
+                    id: "one",
+                    arguments: [
+                        "provider": AnyCodable("parallel"),
+                        "query": AnyCodable("swift")
+                    ]
+                ),
+                activity(
+                    id: "two",
+                    arguments: [
+                        "provider": AnyCodable("exa")
+                    ]
+                )
+            ]
+        )
+
+        XCTAssertEqual(output.engineProvider, .parallel)
     }
 
     func testBuildExtractsSingleURLAndSourceArraySources() {

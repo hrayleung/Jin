@@ -224,7 +224,9 @@ final class BuiltinSearchExaPayloadTests: XCTestCase {
             includeRawContent: includeRawContent,
             fetchPageContent: false,
             includeDomains: includeDomains,
-            excludeDomains: excludeDomains
+            excludeDomains: excludeDomains,
+            objective: nil,
+            searchQueries: []
         )
     }
 

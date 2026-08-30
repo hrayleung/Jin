@@ -68,6 +68,10 @@ struct WebSearchAdvancedProviderSettingsView: View {
     @Binding var tavilyFilterByLanguage: Bool
     @Binding var tavilySafeSearch: Bool
 
+    @Binding var parallelSearchModeRaw: String
+    @Binding var parallelLocation: String
+    @Binding var parallelExtractPages: Bool
+
     var body: some View {
         providerSettings
     }
@@ -89,6 +93,8 @@ struct WebSearchAdvancedProviderSettingsView: View {
             perplexitySettings
         case .tinyfish:
             tinyfishSettings
+        case .parallel:
+            parallelSettings
         }
     }
 
@@ -301,6 +307,33 @@ struct WebSearchAdvancedProviderSettingsView: View {
         )
     }
 
+    @ViewBuilder
+    private var parallelSettings: some View {
+        JinSettingsPickerRow(
+            "Search mode",
+            supportingText: ParallelSearchMode.resolved(from: parallelSearchModeRaw)?.supportingText,
+            selection: $parallelSearchModeRaw
+        ) {
+            ForEach(ParallelSearchMode.publicCases, id: \.self) { value in
+                Text(parallelSearchModeLabel(for: value)).tag(value.rawValue)
+            }
+        }
+
+        JinSettingsTextFieldRow(
+            "Location",
+            prompt: "e.g. US",
+            supportingText: "ISO 3166-1 alpha-2 country code. Use GB for the United Kingdom.",
+            text: $parallelLocation,
+            usesMonospacedFont: true
+        )
+
+        JinSettingsToggleRow(
+            "Extract result pages",
+            supportingText: "Follow Search with Parallel Extract for richer markdown excerpts.",
+            isOn: $parallelExtractPages
+        )
+    }
+
     // MARK: - Firecrawl sources binding
 
     private func firecrawlSourceBinding(for kind: FirecrawlSourceKind) -> Binding<Bool> {
@@ -441,6 +474,27 @@ struct TinyFishProviderObservers: ViewModifier {
             .onChange(of: tinyfishLanguage) { _, _ in onChange() }
             .onChange(of: tinyfishDomainTypeRaw) { _, _ in onChange() }
             .onChange(of: tinyfishFetchPages) { _, _ in onChange() }
+    }
+}
+
+struct ParallelProviderObservers: ViewModifier {
+    let parallelSearchModeRaw: String
+    let parallelLocation: String
+    let parallelExtractPages: Bool
+    let onChange: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: parallelSearchModeRaw) { _, _ in onChange() }
+            .onChange(of: parallelLocation) { _, _ in onChange() }
+            .onChange(of: parallelExtractPages) { _, _ in onChange() }
+    }
+}
+
+private func parallelSearchModeLabel(for value: ParallelSearchMode) -> String {
+    switch value {
+    case .fast: return "Fast (recommended)"
+    case .turbo, .basic, .advanced: return value.displayName
     }
 }
 

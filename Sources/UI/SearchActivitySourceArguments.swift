@@ -14,6 +14,11 @@ extension SearchActivity {
         return value.trimmedNonEmpty
     }
 
+    var searchPluginProvider: SearchPluginProvider? {
+        guard let raw = stringArgument("provider") else { return nil }
+        return SearchPluginProvider(rawValue: raw)
+    }
+
     func stringArrayArgument(_ key: String) -> [String] {
         if let values = arguments[key]?.value as? [String] {
             return values.compactMap { $0.trimmedNonEmpty }

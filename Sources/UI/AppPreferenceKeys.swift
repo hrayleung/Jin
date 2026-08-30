@@ -96,6 +96,10 @@ enum AppPreferenceKeys {
     static let pluginWebSearchTavilyLanguage = "pluginWebSearchTavilyLanguage"
     static let pluginWebSearchTavilyFilterByLanguage = "pluginWebSearchTavilyFilterByLanguage"
     static let pluginWebSearchTavilySafeSearch = "pluginWebSearchTavilySafeSearch"
+    static let pluginWebSearchParallelAPIKey = "pluginWebSearchParallelAPIKey"
+    static let pluginWebSearchParallelSearchMode = "pluginWebSearchParallelSearchMode"
+    static let pluginWebSearchParallelLocation = "pluginWebSearchParallelLocation"
+    static let pluginWebSearchParallelExtractPages = "pluginWebSearchParallelExtractPages"
 
     // Cloudflare R2 Upload
     static let cloudflareR2AccountID = "cloudflareR2AccountID"

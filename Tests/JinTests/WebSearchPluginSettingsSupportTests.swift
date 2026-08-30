@@ -38,7 +38,7 @@ final class WebSearchPluginSettingsSupportTests: XCTestCase {
     func testConfiguredProviderPresentationSummaries() {
         XCTAssertEqual(
             WebSearchPluginSettingsSupport.configuredCountText([.exa, .brave]),
-            "2/7"
+            "2/8"
         )
         XCTAssertEqual(
             WebSearchPluginSettingsSupport.configuredProviderNamesText([.exa, .brave]),
@@ -47,23 +47,6 @@ final class WebSearchPluginSettingsSupportTests: XCTestCase {
         XCTAssertEqual(
             WebSearchPluginSettingsSupport.configuredProviderNamesText([]),
             ""
-        )
-    }
-
-    func testInitialCredentialEditorProviderPrefersFirstConfiguredProvider() {
-        XCTAssertEqual(
-            WebSearchPluginSettingsSupport.initialCredentialEditorProvider(
-                configuredProviders: [.brave, .jina],
-                defaultProvider: .exa
-            ),
-            .brave
-        )
-        XCTAssertEqual(
-            WebSearchPluginSettingsSupport.initialCredentialEditorProvider(
-                configuredProviders: [],
-                defaultProvider: .tavily
-            ),
-            .tavily
         )
     }
 

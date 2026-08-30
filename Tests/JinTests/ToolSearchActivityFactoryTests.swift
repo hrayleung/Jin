@@ -47,6 +47,28 @@ final class ToolSearchActivityFactoryTests: XCTestCase {
         XCTAssertEqual(activity.arguments["provider"]?.value as? String, SearchPluginProvider.exa.rawValue)
     }
 
+    func testActivityForToolCallStartCapturesParallelSearchQueries() throws {
+        let activity = try XCTUnwrap(
+            ToolSearchActivityFactory.activityForToolCallStart(
+                call: ToolCall(
+                    id: "call_p",
+                    name: "web_lookup",
+                    arguments: [
+                        "query": AnyCodable("paperman"),
+                        "search_queries": AnyCodable(["paperman cc intro", "paperman cc app"])
+                    ]
+                ),
+                providerOverride: .parallel
+            )
+        )
+
+        XCTAssertEqual(activity.arguments["provider"]?.value as? String, SearchPluginProvider.parallel.rawValue)
+        XCTAssertEqual(activity.arguments["queries"]?.value as? [String], [
+            "paperman cc intro",
+            "paperman cc app"
+        ])
+    }
+
     func testActivityForToolCallStartDropsBlankQueryAndSkipsNonSearchTools() throws {
         let searchActivity = try XCTUnwrap(
             ToolSearchActivityFactory.activityForToolCallStart(

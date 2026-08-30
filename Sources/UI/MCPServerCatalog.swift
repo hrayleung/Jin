@@ -58,6 +58,7 @@ enum AddMCPServerPreset: String, CaseIterable, Identifiable {
     case custom = "Custom"
     case importJSON = "Import JSON"
     case tinyfish = "TinyFish"
+    case parallel = "Parallel Search"
     case exaHTTP = "Exa (Native HTTP)"
     case tavily = "Tavily"
     case firecrawlLocal = "Firecrawl (Local via npx)"
@@ -93,6 +94,20 @@ enum MCPServerCatalog {
             ),
             docs: "https://docs.tinyfish.ai/mcp-integration",
             terms: ["tinyfish", "agentql", "search", "fetch", "browser", "web"]
+        ),
+        item(
+            .parallel,
+            title: "Parallel Search",
+            summary: "LLM-optimized web search and page extract.",
+            category: .search,
+            iconID: "parallel",
+            badge: "HTTP",
+            credential: .bearerToken(
+                title: "API key",
+                help: "Optional for light use. Sent as Authorization: Bearer for higher rate limits. Get a key at platform.parallel.ai."
+            ),
+            docs: "https://docs.parallel.ai/integrations/mcp/search-mcp",
+            terms: ["parallel", "search", "extract", "web"]
         ),
         item(
             .exaHTTP,

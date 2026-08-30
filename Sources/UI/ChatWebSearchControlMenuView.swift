@@ -100,6 +100,8 @@ struct WebSearchControlMenuView<MenuItemLabel: View>: View {
                     Toggle("Fetch pages via Reader", isOn: builtinSearchFetchPageBinding)
                 case .tinyfish:
                     Toggle("Fetch page content", isOn: builtinSearchFetchPageBinding)
+                case .parallel:
+                    Toggle("Extract result pages", isOn: builtinSearchFetchPageBinding)
                 case .firecrawl:
                     Toggle("Extract markdown", isOn: builtinSearchFirecrawlExtractBinding)
                 case .exa, .brave, .tavily, .perplexity:
