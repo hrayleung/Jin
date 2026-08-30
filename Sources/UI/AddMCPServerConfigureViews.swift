@@ -50,7 +50,7 @@ struct AddMCPServerConfigureSection: View {
                 JinSettingsCard {
                     MCPHTTPAuthViews(
                         serverID: id.isEmpty ? (catalogItem?.preset.rawValue ?? "draft") : id,
-                        endpoint: endpoint,
+                        endpoint: $endpoint,
                         httpAuthKind: $httpAuthKind,
                         bearerToken: $bearerToken,
                         authHeaderName: $authHeaderName,
@@ -375,6 +375,7 @@ struct AddMCPServerConfigureSection: View {
         bearerToken = fields.bearerToken
         authHeaderName = fields.headerName
         authHeaderValue = fields.headerValue
+        endpoint = MCPParallelSearchEndpoint.aligned(endpoint, to: httpAuthKind)
     }
 
     private func labeledField(

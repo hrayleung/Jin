@@ -113,6 +113,40 @@ final class MCPServerTransportDraftSupportTests: XCTestCase {
         XCTAssertFalse(http.streaming)
     }
 
+    func testBuildHTTPTransportRewritesParallelOAuthOntoTheOAuthEndpoint() throws {
+        let transport = try MCPServerTransportDraftSupport.buildTransport(
+            from: buildRequest(
+                transportKind: .http,
+                endpoint: MCPParallelSearchEndpoint.anonymousURL,
+                httpAuthentication: .oauth
+            )
+        )
+
+        guard case .http(let http) = transport else {
+            return XCTFail("Expected HTTP transport")
+        }
+
+        XCTAssertEqual(http.endpoint.absoluteString, MCPParallelSearchEndpoint.oauthURL)
+        XCTAssertEqual(http.authentication, .oauth)
+    }
+
+    func testBuildHTTPTransportRewritesParallelAnonymousAuthOntoThePublicEndpoint() throws {
+        let transport = try MCPServerTransportDraftSupport.buildTransport(
+            from: buildRequest(
+                transportKind: .http,
+                endpoint: "https://search.parallel.ai/mcp-oauth?mode=fast",
+                httpAuthentication: MCPHTTPAuthentication.none
+            )
+        )
+
+        guard case .http(let http) = transport else {
+            return XCTFail("Expected HTTP transport")
+        }
+
+        XCTAssertEqual(http.endpoint.absoluteString, "https://search.parallel.ai/mcp?mode=fast")
+        XCTAssertEqual(http.authentication, .none)
+    }
+
     func testBuildHTTPTransportReportsEndpointAndAuthenticationErrors() {
         XCTAssertThrowsError(
             try MCPServerTransportDraftSupport.buildTransport(

@@ -111,7 +111,7 @@ enum MCPServerTransportDraftSupport {
 
         return .http(
             MCPHTTPTransportConfig(
-                endpoint: endpoint,
+                endpoint: MCPParallelSearchEndpoint.aligned(endpoint, authentication: authentication),
                 streaming: request.httpStreaming,
                 authentication: authentication,
                 additionalHeaders: MCPServerFormSupport.headers(from: request.headerPairs)

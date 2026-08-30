@@ -94,8 +94,28 @@ final class AddMCPServerPresetSupportTests: XCTestCase {
         XCTAssertEqual(draft.name, "Parallel Search")
         XCTAssertEqual(draft.iconID, "parallel")
         XCTAssertEqual(draft.transportKind, .http)
-        XCTAssertEqual(draft.endpoint, "https://search.parallel.ai/mcp")
-        XCTAssertEqual(draft.httpAuthentication, .none)
+        XCTAssertEqual(draft.endpoint, MCPParallelSearchEndpoint.oauthURL)
+        XCTAssertEqual(draft.httpAuthentication, .oauth)
+    }
+
+    func testParallelCatalogUsesOAuthSignIn() {
+        XCTAssertEqual(
+            MCPServerCatalog.item(for: .parallel)?.credential,
+            .oauth(
+                help: "Sign in with your Parallel account. You can also switch to a Bearer API key, or None for anonymous light use."
+            )
+        )
+    }
+
+    func testApplyingParallelOAuthCredentialRewritesAnonymousEndpoint() {
+        var draft = AddMCPServerPresetSupport.applyingPreset(.parallel, to: .blank)
+        draft.endpoint = MCPParallelSearchEndpoint.anonymousURL
+        draft.httpAuthentication = .none
+
+        let updated = AddMCPServerPresetSupport.applyingCredential("", for: .parallel, to: draft)
+
+        XCTAssertEqual(updated.httpAuthentication, .oauth)
+        XCTAssertEqual(updated.endpoint, MCPParallelSearchEndpoint.oauthURL)
     }
 
     func testTinyFishPresetFillsOfficialHTTPEndpointAndIcon() {
