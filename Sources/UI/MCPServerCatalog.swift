@@ -102,9 +102,8 @@ enum MCPServerCatalog {
             category: .search,
             iconID: "parallel",
             badge: "HTTP",
-            credential: .bearerToken(
-                title: "API key",
-                help: "Optional for light use. Sent as Authorization: Bearer for higher rate limits. Get a key at platform.parallel.ai."
+            credential: .oauth(
+                help: "Sign in with your Parallel account. You can also switch to a Bearer API key, or None for anonymous light use."
             ),
             docs: "https://docs.parallel.ai/integrations/mcp/search-mcp",
             terms: ["parallel", "search", "extract", "web"]

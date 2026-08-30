@@ -53,7 +53,7 @@ struct MCPServerConfigFormView: View {
                         JinSettingsCard {
                             MCPHTTPAuthViews(
                                 serverID: server.id,
-                                endpoint: endpoint,
+                                endpoint: $endpoint,
                                 httpAuthKind: $httpAuthKind,
                                 bearerToken: $bearerToken,
                                 authHeaderName: $authHeaderName,
@@ -464,6 +464,7 @@ struct MCPServerConfigFormView: View {
         bearerToken = fields.bearerToken
         authHeaderName = fields.headerName
         authHeaderValue = fields.headerValue
+        endpoint = MCPParallelSearchEndpoint.aligned(endpoint, to: httpAuthKind)
     }
 
     private func setToolEnabled(_ tool: MCPToolInfo, _ isEnabled: Bool) {

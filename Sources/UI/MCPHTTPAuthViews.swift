@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MCPHTTPAuthViews: View {
     let serverID: String
-    let endpoint: String
+    @Binding var endpoint: String
     @Binding var httpAuthKind: MCPHTTPAuthentication.FormKind
     @Binding var bearerToken: String
     @Binding var authHeaderName: String
@@ -43,11 +43,16 @@ struct MCPHTTPAuthViews: View {
             case .bearerToken:
                 VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
                     tokenField(
-                        title: "Bearer token",
+                        title: isParallelSearchMCP ? "API key" : "Bearer token",
                         text: $bearerToken,
                         isRevealed: $isBearerTokenVisible
                     )
-                    if MCPHTTPAuthentication.FormKind.isGitHubRemoteMCP(endpoint) {
+                    if isParallelSearchMCP {
+                        Text("Sent as Authorization: Bearer. Get a key at platform.parallel.ai.")
+                            .font(.caption)
+                            .foregroundStyle(JinSemanticColor.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else if MCPHTTPAuthentication.FormKind.isGitHubRemoteMCP(endpoint) {
                         Text("GitHub’s remote MCP uses a personal access token. Create one at github.com/settings/tokens.")
                             .font(.caption)
                             .foregroundStyle(JinSemanticColor.textSecondary)
@@ -66,9 +71,14 @@ struct MCPHTTPAuthViews: View {
                     )
                 }
             case .none:
-                Text("This server doesn’t need credentials.")
+                Text(
+                    isParallelSearchMCP
+                        ? "Parallel Search works without an account at lower rate limits. Sign in or add an API key for higher limits."
+                        : "This server doesn’t need credentials."
+                )
                     .font(.caption)
                     .foregroundStyle(JinSemanticColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let authenticationError {
@@ -78,11 +88,16 @@ struct MCPHTTPAuthViews: View {
         }
         .onAppear {
             coerceAuthKindIfNeeded()
+            alignParallelEndpointIfNeeded()
             refreshStatus()
         }
         .onChange(of: serverID) { _, _ in refreshStatus() }
         .onChange(of: endpoint) { _, _ in
             coerceAuthKindIfNeeded()
+            refreshStatus()
+        }
+        .onChange(of: httpAuthKind) { _, _ in
+            alignParallelEndpointIfNeeded()
             refreshStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: .mcpOAuthStatusDidChange)) { _ in
@@ -168,7 +183,14 @@ struct MCPHTTPAuthViews: View {
     }
 
     private var oauthHelpText: String {
-        "Opens your browser and uses the official MCP OAuth 2.1 flow (PKCE). Tokens stay on this Mac."
+        if isParallelSearchMCP {
+            return "Opens your browser and signs in with Parallel. Tokens stay on this Mac. For anonymous light use, switch Method to None."
+        }
+        return "Opens your browser and uses the official MCP OAuth 2.1 flow (PKCE). Tokens stay on this Mac."
+    }
+
+    private var isParallelSearchMCP: Bool {
+        MCPParallelSearchEndpoint.isSearchMCP(endpoint)
     }
 
     private func coerceAuthKindIfNeeded() {
@@ -199,8 +221,16 @@ struct MCPHTTPAuthViews: View {
         signedInExpiry = session?.expiresAt
     }
 
+    private func alignParallelEndpointIfNeeded() {
+        let aligned = MCPParallelSearchEndpoint.aligned(endpoint, to: httpAuthKind)
+        if aligned != endpoint {
+            endpoint = aligned
+        }
+    }
+
     private func signIn() async {
         signInError = nil
+        alignParallelEndpointIfNeeded()
         guard let url = MCPServerFormSupport.parsedEndpoint(endpoint) else {
             signInError = MCPOAuthError.missingEndpoint.localizedDescription
             return

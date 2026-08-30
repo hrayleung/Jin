@@ -43,8 +43,8 @@ enum AddMCPServerPresetSupport {
         case .parallel:
             applyIdentity(id: "parallel", name: "Parallel Search", iconID: "parallel", to: &draft)
             applyHTTP(
-                endpoint: "https://search.parallel.ai/mcp",
-                authentication: .none,
+                endpoint: MCPParallelSearchEndpoint.oauthURL,
+                authentication: .oauth,
                 to: &draft
             )
         case .exaHTTP:
@@ -171,6 +171,10 @@ enum AddMCPServerPresetSupport {
             draft.args = replacingFilesystemPath(in: draft.args, with: value)
         }
 
+        draft.endpoint = MCPParallelSearchEndpoint.aligned(
+            draft.endpoint,
+            authentication: draft.httpAuthentication
+        )
         return draft
     }
 

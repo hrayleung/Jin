@@ -281,6 +281,7 @@ struct AddMCPServerView: View {
         bearerToken = fields.bearerToken
         authHeaderName = fields.headerName
         authHeaderValue = fields.headerValue
+        endpoint = MCPParallelSearchEndpoint.aligned(endpoint, to: httpAuthKind)
     }
 
     private var presetDraft: AddMCPServerPresetSupport.Draft {
