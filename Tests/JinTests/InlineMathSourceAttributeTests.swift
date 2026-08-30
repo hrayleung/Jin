@@ -81,6 +81,60 @@ final class InlineMathSourceAttributeTests: XCTestCase {
         )
     }
 
+    /// A SwiftMath fallback is the visible `$…$` text tagged with
+    /// `.jinInlineMathSource` (no attachment). Expansion must not treat each
+    /// UTF-16 unit as a glyph and repeat the whole source.
+    func testFallbackRawRunDoesNotRepeatOnExpand() {
+        let original = "$(x_0, y_0)$"
+        let fallback = NSMutableAttributedString(string: original, attributes: [.font: font])
+        fallback.addAttribute(
+            .jinInlineMathSource,
+            value: original,
+            range: NSRange(location: 0, length: fallback.length)
+        )
+        let composed = NSMutableAttributedString(string: "a ", attributes: [.font: font])
+        composed.append(fallback)
+        XCTAssertEqual(
+            JinMessageTextView.latexExpandedPlainString(from: composed),
+            "a $(x_0, y_0)$"
+        )
+    }
+
+    func testAdjacentIdenticalFallbackRunsDoNotExplode() {
+        let original = "$x$"
+        func fallback() -> NSAttributedString {
+            let s = NSMutableAttributedString(string: original, attributes: [.font: font])
+            s.addAttribute(
+                .jinInlineMathSource,
+                value: original,
+                range: NSRange(location: 0, length: s.length)
+            )
+            return s
+        }
+        let composed = NSMutableAttributedString()
+        composed.append(fallback())
+        composed.append(fallback())
+        XCTAssertEqual(
+            JinMessageTextView.latexExpandedPlainString(from: composed),
+            "$x$$x$"
+        )
+    }
+
+    func testPartialFallbackSelectionKeepsSelectedCharacters() {
+        let original = "$(x_0)$"
+        let fallback = NSMutableAttributedString(string: original, attributes: [.font: font])
+        fallback.addAttribute(
+            .jinInlineMathSource,
+            value: original,
+            range: NSRange(location: 0, length: fallback.length)
+        )
+        let slice = fallback.attributedSubstring(from: NSRange(location: 2, length: 3)) // `x_0`
+        XCTAssertEqual(
+            JinMessageTextView.latexExpandedPlainString(from: slice),
+            "x_0"
+        )
+    }
+
     // MARK: - InlineMath wiring (depends on SwiftMath rendering)
 
     func testRenderedInlineMathCarriesDelimitedSource() {

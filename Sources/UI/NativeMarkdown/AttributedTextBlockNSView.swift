@@ -451,8 +451,13 @@ final class JinMessageTextView: NSTextView {
     /// source, inheriting the glyph's text attributes minus the attachment.
     /// Non-math runs pass through verbatim. A coalesced run of N identical
     /// adjacent glyphs (TextKit merges equal `.jinInlineMathSource` values)
-    /// expands to its source repeated N times — one per glyph. Shared by the
-    /// copy path (this view) and the quote path (`SelectionAggregator`).
+    /// expands to its source repeated N times — one per glyph.
+    ///
+    /// Parse-failure fallbacks are the same attribute on the already-visible
+    /// `$…$` characters (no attachment). Those runs must be preserved as-is;
+    /// repeating `source` `range.length` times would duplicate the formula
+    /// once per UTF-16 unit on copy/quote. Shared by the copy path (this view)
+    /// and the quote path (`SelectionAggregator`).
     static func latexExpandedAttributedString(from attributed: NSAttributedString) -> NSAttributedString {
         let result = NSMutableAttributedString()
         let full = NSRange(location: 0, length: attributed.length)
@@ -461,11 +466,27 @@ final class JinMessageTextView: NSTextView {
                 result.append(attributed.attributedSubstring(from: range))
                 return
             }
-            var attrs = attributed.attributes(at: range.location, effectiveRange: nil)
-            attrs.removeValue(forKey: .attachment)
-            attrs.removeValue(forKey: .jinInlineMathSource)
-            let expanded = String(repeating: source, count: max(1, range.length))
-            result.append(NSAttributedString(string: expanded, attributes: attrs))
+            let hasAttachment = attributed.attribute(
+                .attachment,
+                at: range.location,
+                effectiveRange: nil
+            ) != nil
+            if hasAttachment {
+                var attrs = attributed.attributes(at: range.location, effectiveRange: nil)
+                attrs.removeValue(forKey: .attachment)
+                attrs.removeValue(forKey: .jinInlineMathSource)
+                let expanded = String(repeating: source, count: max(1, range.length))
+                result.append(NSAttributedString(string: expanded, attributes: attrs))
+            } else {
+                let slice = NSMutableAttributedString(
+                    attributedString: attributed.attributedSubstring(from: range)
+                )
+                slice.removeAttribute(
+                    .jinInlineMathSource,
+                    range: NSRange(location: 0, length: slice.length)
+                )
+                result.append(slice)
+            }
         }
         return result
     }
