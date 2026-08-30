@@ -171,10 +171,26 @@ enum InlineMath {
         if let cached = cache.object(forKey: key) { return cached.value }
 
         let attachment = makeAttachment(inner: inner, original: original, font: font, color: resolvedColor)
-        let result = attachment?.string
-            ?? NSAttributedString(string: original, attributes: [.font: font, .foregroundColor: color])
+        let result = attachment?.string ?? fallbackString(original: original, font: font, color: color)
         cache.setObject(Box(result), forKey: key, cost: attachment?.bitmapCost ?? original.utf16.count * 2)
         return result
+    }
+
+    /// Parse-failure path: show the delimited source as selectable text, but
+    /// still tag it with `.jinInlineMathSource` so a click opens the copy
+    /// popover. Without the tag, SwiftMath-unknown commands (`\dots`, …)
+    /// render as raw `$…$` that can only be copied by drag-select.
+    private static func fallbackString(original: String, font: NSFont, color: NSColor) -> NSAttributedString {
+        let s = NSMutableAttributedString(
+            string: original,
+            attributes: [.font: font, .foregroundColor: color]
+        )
+        s.addAttribute(
+            .jinInlineMathSource,
+            value: original,
+            range: NSRange(location: 0, length: s.length)
+        )
+        return s
     }
 
     private static func makeAttachment(
