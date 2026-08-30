@@ -6,7 +6,7 @@ final class MCPIconResourcesTests: XCTestCase {
         let ids = Set(MCPIconCatalog.all.map(\.id))
         let required = [
             "mcp", "tinyfish", "exa", "tavily", "firecrawl",
-            "playwright", "github", "notion", "linear", "context7"
+            "playwright", "github", "notion", "linear", "context7", "parallel"
         ]
 
         XCTAssertGreaterThan(

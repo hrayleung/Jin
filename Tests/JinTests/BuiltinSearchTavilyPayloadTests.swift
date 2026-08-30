@@ -207,7 +207,9 @@ final class BuiltinSearchTavilyPayloadTests: XCTestCase {
             includeRawContent: false,
             fetchPageContent: false,
             includeDomains: [],
-            excludeDomains: []
+            excludeDomains: [],
+            objective: nil,
+            searchQueries: []
         )
     }
 

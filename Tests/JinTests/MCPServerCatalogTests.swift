@@ -6,6 +6,7 @@ final class MCPServerCatalogTests: XCTestCase {
         let presets = Set(MCPServerCatalog.items.map(\.preset))
 
         XCTAssertTrue(presets.contains(.tinyfish))
+        XCTAssertTrue(presets.contains(.parallel))
         XCTAssertTrue(presets.contains(.exaHTTP))
         XCTAssertTrue(presets.contains(.firecrawlLocal))
         XCTAssertTrue(presets.contains(.github))
@@ -15,7 +16,7 @@ final class MCPServerCatalogTests: XCTestCase {
 
     func testFilterByCategoryAndSearch() {
         let search = MCPServerCatalog.filtered(query: "", category: .search)
-        XCTAssertEqual(Set(search.map(\.preset)), [.exaHTTP, .tavily, .exaLocal])
+        XCTAssertEqual(Set(search.map(\.preset)), [.parallel, .exaHTTP, .tavily, .exaLocal])
 
         let tinyfish = MCPServerCatalog.filtered(query: "tinyfish", category: .all)
         XCTAssertEqual(tinyfish.map(\.preset), [.tinyfish])

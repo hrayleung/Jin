@@ -30,7 +30,7 @@ struct SearchActivityWebTimelineCollapsedSummaryRow: View {
             summaryRowContent
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text(content.presentation.sectionTitle))
+        .accessibilityLabel(Text(summaryAccessibilityLabel))
         .accessibilityValue(Text(isExpanded ? "Expanded" : "Collapsed"))
         .accessibilityHint(Text(isExpanded ? "Hides search sources" : "Shows search sources"))
     }
@@ -57,10 +57,17 @@ struct SearchActivityWebTimelineCollapsedSummaryRow: View {
 
     private var summaryTitleContent: some View {
         HStack(spacing: JinSpacing.small - 2) {
-            Text(content.presentation.sectionTitle)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(JinSemanticColor.textSecondary)
-                .lineLimit(1)
+            if content.presentation.showsSectionTitle {
+                Text(content.presentation.sectionTitle)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(JinSemanticColor.textSecondary)
+                    .lineLimit(1)
+            }
+
+            SearchActivityEngineIconView(
+                provider: content.presentation.engineProvider,
+                fallbackSystemImage: content.presentation.summarySystemImage
+            )
 
             if !content.presentation.sources.isEmpty {
                 SearchActivityWebTimelineSourceAvatarStrip(
@@ -69,6 +76,13 @@ struct SearchActivityWebTimelineCollapsedSummaryRow: View {
                 )
             }
         }
+    }
+
+    private var summaryAccessibilityLabel: String {
+        if let engineProvider = content.presentation.engineProvider {
+            return "\(content.presentation.sectionTitle), \(engineProvider.displayName)"
+        }
+        return content.presentation.sectionTitle
     }
 
     private var disclosureIndicator: some View {
@@ -102,8 +116,16 @@ struct SearchActivityWebTimelineExpandedPanel: View {
 
     private var panelHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small - 2) {
-            Text(content.presentation.sectionTitle)
-                .font(.headline)
+            if content.presentation.showsSectionTitle {
+                Text(content.presentation.sectionTitle)
+                    .font(.headline)
+            }
+
+            SearchActivityEngineIconView(
+                provider: content.presentation.engineProvider,
+                fallbackSystemImage: content.presentation.summarySystemImage
+            )
+            .offset(y: content.presentation.showsSectionTitle ? 1 : 0)
 
             if let contextLabel {
                 Text("(\(contextLabel))")

@@ -166,7 +166,9 @@ final class BuiltinSearchJinaRequestTests: XCTestCase {
             includeRawContent: includeRawContent,
             fetchPageContent: fetchPageContent,
             includeDomains: includeDomains,
-            excludeDomains: []
+            excludeDomains: [],
+            objective: nil,
+            searchQueries: []
         )
     }
 

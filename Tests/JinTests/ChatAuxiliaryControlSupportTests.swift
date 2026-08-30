@@ -817,6 +817,18 @@ final class ChatAuxiliaryControlSupportTests: XCTestCase {
         )
     }
 
+    func testBuiltinSearchFetchPageValueUsesParallelExtractSetting() {
+        var settings = makeWebSearchPluginSettings(defaultProvider: .parallel)
+        settings.parallelExtractPages = true
+
+        XCTAssertTrue(
+            ChatAuxiliaryControlSupport.builtinSearchFetchPageValue(
+                controls: GenerationControls(searchPlugin: SearchPluginControls(provider: .parallel)),
+                settings: settings
+            )
+        )
+    }
+
     func testBuiltinSearchFirecrawlExtractValueFallsBackToSettingsAndStoresExplicitValue() {
         let settings = makeWebSearchPluginSettings(firecrawlExtractContent: true)
 

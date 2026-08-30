@@ -120,6 +120,7 @@ final class SearchActivityTimelineSupportTests: XCTestCase {
         )
         XCTAssertEqual(web.displayKind, .web)
         XCTAssertEqual(web.sectionTitle, "Web Search")
+        XCTAssertFalse(web.showsSectionTitle)
         XCTAssertEqual(web.summarySystemImage, "magnifyingglass")
         XCTAssertEqual(web.sourceSummaryText, "Browsed 1 link")
 
@@ -128,6 +129,7 @@ final class SearchActivityTimelineSupportTests: XCTestCase {
         )
         XCTAssertEqual(maps.displayKind, .maps)
         XCTAssertEqual(maps.sectionTitle, "Google Maps")
+        XCTAssertTrue(maps.showsSectionTitle)
         XCTAssertEqual(maps.summarySystemImage, "map")
         XCTAssertEqual(maps.sourceSummaryText, "Cited 1 place source")
 
@@ -147,6 +149,7 @@ final class SearchActivityTimelineSupportTests: XCTestCase {
         )
         XCTAssertEqual(xOnly.displayKind, .x)
         XCTAssertEqual(xOnly.sectionTitle, "X Search")
+        XCTAssertTrue(xOnly.showsSectionTitle)
         XCTAssertEqual(xOnly.summarySystemImage, "at")
         XCTAssertEqual(xOnly.sourceSummaryText, "Browsed 1 link")
 

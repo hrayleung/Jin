@@ -91,7 +91,9 @@ final class BuiltinSearchPerplexityPayloadTests: XCTestCase {
             includeRawContent: includeRawContent,
             fetchPageContent: false,
             includeDomains: [],
-            excludeDomains: []
+            excludeDomains: [],
+            objective: nil,
+            searchQueries: []
         )
     }
 

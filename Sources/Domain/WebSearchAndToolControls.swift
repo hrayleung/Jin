@@ -107,6 +107,7 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
     case tavily
     case perplexity
     case tinyfish
+    case parallel
 
     var id: String { rawValue }
 
@@ -119,6 +120,7 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
         case .tavily: return "Tavily"
         case .perplexity: return "Perplexity Search"
         case .tinyfish: return "TinyFish"
+        case .parallel: return "Parallel"
         }
     }
 
@@ -131,8 +133,12 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
         case .tavily: return "TV"
         case .perplexity: return "PPLX"
         case .tinyfish: return "TF"
+        case .parallel: return "PAR"
         }
     }
+
+    /// Bundled `mcpIcons/{id}_{light|dark}.png` slug used in Web Search chrome.
+    var mcpIconID: String { rawValue }
 
     var signupURL: URL? {
         switch self {
@@ -143,6 +149,7 @@ enum SearchPluginProvider: String, Codable, CaseIterable, Identifiable, Sendable
         case .tavily: return URL(string: "https://app.tavily.com/")
         case .perplexity: return URL(string: "https://docs.perplexity.ai/")
         case .tinyfish: return URL(string: "https://agent.tinyfish.ai/api-keys")
+        case .parallel: return URL(string: "https://platform.parallel.ai")
         }
     }
 }
@@ -272,6 +279,43 @@ enum FirecrawlSourceKind: String, Codable, CaseIterable, Sendable {
     case images
 }
 
+/// Parallel Search API `mode` presets.
+/// https://docs.parallel.ai/search/modes — verified 2026-08-30.
+enum ParallelSearchMode: String, Codable, CaseIterable, Sendable {
+    case turbo
+    case fast
+    case basic
+    case advanced
+
+    /// Modes Parallel currently documents on `POST /v1/search`.
+    static let publicCases: [ParallelSearchMode] = [.turbo, .fast, .basic, .advanced]
+
+    var displayName: String {
+        switch self {
+        case .turbo: return "Turbo"
+        case .fast: return "Fast"
+        case .basic: return "Basic"
+        case .advanced: return "Advanced"
+        }
+    }
+
+    var supportingText: String {
+        switch self {
+        case .turbo: return "~250ms. Lowest latency and cost."
+        case .fast: return "~700ms. Recommended for most agents."
+        case .basic: return "~1s. Longer excerpts per source."
+        case .advanced: return "~3s. Highest quality. API default when omitted."
+        }
+    }
+
+    static func resolved(from rawValue: String?) -> ParallelSearchMode? {
+        guard let value = rawValue?.trimmedNonEmpty?.lowercased() else {
+            return nil
+        }
+        return ParallelSearchMode(rawValue: value)
+    }
+}
+
 /// Built-in web search controls (app plugin-backed).
 struct SearchPluginControls: Codable, Sendable {
     var preferJinSearch: Bool?
@@ -298,6 +342,9 @@ struct SearchPluginControls: Codable, Sendable {
     var tavilySearchDepth: String?  // "basic" | "fast" | "advanced" | "ultra_fast"
     var tavilyTopic: String?        // "general" | "news" | "finance"
 
+    // Parallel-specific
+    var parallelSearchMode: ParallelSearchMode?
+
     init(
         preferJinSearch: Bool? = nil,
         provider: SearchPluginProvider? = nil,
@@ -313,7 +360,8 @@ struct SearchPluginControls: Codable, Sendable {
         firecrawlExtractContent: Bool? = nil,
         firecrawlCountry: String? = nil,
         tavilySearchDepth: String? = nil,
-        tavilyTopic: String? = nil
+        tavilyTopic: String? = nil,
+        parallelSearchMode: ParallelSearchMode? = nil
     ) {
         self.preferJinSearch = preferJinSearch
         self.provider = provider
@@ -330,6 +378,7 @@ struct SearchPluginControls: Codable, Sendable {
         self.firecrawlCountry = firecrawlCountry
         self.tavilySearchDepth = tavilySearchDepth
         self.tavilyTopic = tavilyTopic
+        self.parallelSearchMode = parallelSearchMode
     }
 }
 

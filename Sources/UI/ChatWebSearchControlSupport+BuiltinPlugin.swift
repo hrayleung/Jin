@@ -18,6 +18,8 @@ extension ChatAuxiliaryControlSupport {
             return settings.jinaReadPages
         case .tinyfish:
             return settings.tinyfishFetchPages
+        case .parallel:
+            return settings.parallelExtractPages
         case .exa, .brave, .firecrawl, .tavily, .perplexity:
             return false
         }

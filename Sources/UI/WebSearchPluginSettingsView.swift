@@ -42,6 +42,10 @@ struct WebSearchPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.pluginWebSearchTavilyLanguage) private var tavilyLanguage = ""
     @AppStorage(AppPreferenceKeys.pluginWebSearchTavilyFilterByLanguage) private var tavilyFilterByLanguage = false
     @AppStorage(AppPreferenceKeys.pluginWebSearchTavilySafeSearch) private var tavilySafeSearch = false
+    @AppStorage(AppPreferenceKeys.pluginWebSearchParallelAPIKey) private var parallelAPIKey = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchParallelSearchMode) private var parallelSearchModeRaw = ParallelSearchMode.fast.rawValue
+    @AppStorage(AppPreferenceKeys.pluginWebSearchParallelLocation) private var parallelLocation = ""
+    @AppStorage(AppPreferenceKeys.pluginWebSearchParallelExtractPages) private var parallelExtractPages = false
 
     @State private var isExaKeyVisible = false
     @State private var isBraveKeyVisible = false
@@ -50,15 +54,10 @@ struct WebSearchPluginSettingsView: View {
     @State private var isTavilyKeyVisible = false
     @State private var isPerplexityKeyVisible = false
     @State private var isTinyFishKeyVisible = false
-    @State private var credentialEditorProviderRaw = SearchPluginProvider.exa.rawValue
-    @State private var hasInitializedCredentialEditorProvider = false
+    @State private var isParallelKeyVisible = false
 
     private var defaultProvider: SearchPluginProvider {
         WebSearchPluginSettingsSupport.provider(rawValue: defaultProviderRaw)
-    }
-
-    private var credentialEditorProvider: SearchPluginProvider {
-        WebSearchPluginSettingsSupport.provider(rawValue: credentialEditorProviderRaw)
     }
 
     private var configuredProviders: [SearchPluginProvider] {
@@ -77,7 +76,8 @@ struct WebSearchPluginSettingsView: View {
             .firecrawl: firecrawlAPIKey,
             .tavily: tavilyAPIKey,
             .perplexity: perplexityAPIKey,
-            .tinyfish: tinyfishAPIKey
+            .tinyfish: tinyfishAPIKey,
+            .parallel: parallelAPIKey
         ]
     }
 
@@ -132,8 +132,13 @@ struct WebSearchPluginSettingsView: View {
                 tinyfishFetchPages: tinyfishFetchPages,
                 onChange: notifyCredentialsChanged
             ))
+            .modifier(ParallelProviderObservers(
+                parallelSearchModeRaw: parallelSearchModeRaw,
+                parallelLocation: parallelLocation,
+                parallelExtractPages: parallelExtractPages,
+                onChange: notifyCredentialsChanged
+            ))
             .onAppear {
-                initializeCredentialEditorProviderIfNeeded()
                 normalizeLegacyExaPreferencesIfNeeded()
             }
     }
@@ -151,31 +156,42 @@ struct WebSearchPluginSettingsView: View {
             .onChange(of: tavilyAPIKey) { _, _ in notifyCredentialsChanged() }
             .onChange(of: perplexityAPIKey) { _, _ in notifyCredentialsChanged() }
             .onChange(of: tinyfishAPIKey) { _, _ in notifyCredentialsChanged() }
+            .onChange(of: parallelAPIKey) { _, _ in notifyCredentialsChanged() }
     }
 
     private var formContent: some View {
         JinSettingsPage {
-            JinSettingsToggleRow("Enable Web Search", isOn: $pluginEnabled)
+            JinSettingsSection(
+                "Jin Search",
+                detail: "When a chat uses Jin Search instead of a model’s native web search, these defaults apply."
+            ) {
+                JinSettingsToggleRow(
+                    "Enable",
+                    supportingText: configuredProviders.isEmpty
+                        ? "Add an API key below before chats can use Jin Search."
+                        : "\(WebSearchPluginSettingsSupport.configuredCountText(configuredProviders)) engines have keys.",
+                    isOn: $pluginEnabled
+                )
+            }
 
             defaultsSection
-
-            providerCredentialsSection
-
-            JinSettingsSection("\(defaultProvider.displayName) Options") {
-                providerAdvancedContent()
-            }
+            selectedEngineSection
         }
         .navigationTitle("Web Search")
     }
 
     private var defaultsSection: some View {
-        JinSettingsSection("Search Defaults") {
+        JinSettingsSection(
+            "Defaults",
+            detail: "Used when a chat does not override the engine, result count, or recency."
+        ) {
             JinSettingsPickerRow(
-                "Default search provider",
+                "Engine",
+                supportingText: "Keys and options below apply to this engine.",
                 selection: $defaultProviderRaw
             ) {
                 ForEach(SearchPluginProvider.allCases) { provider in
-                    Text(provider.displayName).tag(provider.rawValue)
+                    enginePickerLabel(provider).tag(provider.rawValue)
                 }
             }
 
@@ -186,10 +202,10 @@ struct WebSearchPluginSettingsView: View {
                 ),
                 in: 1...50
             ) {
-                Text("Default max results: \(effectiveDefaultMaxResults)")
+                Text("Max results: \(effectiveDefaultMaxResults)")
             }
 
-            JinSettingsPickerRow("Default recency", selection: $defaultRecencyDays) {
+            JinSettingsPickerRow("Recency", selection: $defaultRecencyDays) {
                 ForEach(WebSearchPluginSettingsSupport.recencyChoices) { choice in
                     Text(choice.label).tag(choice.value)
                 }
@@ -197,27 +213,35 @@ struct WebSearchPluginSettingsView: View {
         }
     }
 
-    private var providerCredentialsSection: some View {
-        JinSettingsSection("Search Providers") {
-            JinSettingsPickerRow("Provider", selection: $credentialEditorProviderRaw) {
-                ForEach(SearchPluginProvider.allCases) { provider in
-                    Text(provider.displayName).tag(provider.rawValue)
-                }
-            }
-
+    private var selectedEngineSection: some View {
+        JinSettingsSection(defaultProvider.displayName) {
             WebSearchAPIKeyRow(
-                label: "\(credentialEditorProvider.displayName) API Key",
-                text: apiKeyBinding(for: credentialEditorProvider),
-                isRevealed: keyVisibilityBinding(for: credentialEditorProvider),
+                label: "API Key",
+                text: apiKeyBinding(for: defaultProvider),
+                isRevealed: keyVisibilityBinding(for: defaultProvider),
                 onClear: {
-                    apiKeyBinding(for: credentialEditorProvider).wrappedValue = ""
-                    keyVisibilityBinding(for: credentialEditorProvider).wrappedValue = false
+                    apiKeyBinding(for: defaultProvider).wrappedValue = ""
+                    keyVisibilityBinding(for: defaultProvider).wrappedValue = false
                 }
             )
 
-            if let signupURL = credentialEditorProvider.signupURL {
-                Link("Get an API key on \(credentialEditorProvider.displayName)", destination: signupURL)
+            if let signupURL = defaultProvider.signupURL {
+                Link("Get an API key", destination: signupURL)
                     .font(.caption)
+            }
+
+            providerAdvancedContent()
+        }
+    }
+
+    private func enginePickerLabel(_ provider: SearchPluginProvider) -> some View {
+        HStack(spacing: JinSpacing.small) {
+            MCPIconView(iconID: provider.mcpIconID, fallbackSystemName: "magnifyingglass", size: 14)
+            Text(provider.displayName)
+            if WebSearchPluginSettingsSupport.hasConfiguredCredential(providerAPIKeys[provider] ?? "") {
+                Spacer(minLength: JinSpacing.small)
+                Text("Key")
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -253,7 +277,10 @@ struct WebSearchPluginSettingsView: View {
             firecrawlSafe: $firecrawlSafe,
             tavilyLanguage: $tavilyLanguage,
             tavilyFilterByLanguage: $tavilyFilterByLanguage,
-            tavilySafeSearch: $tavilySafeSearch
+            tavilySafeSearch: $tavilySafeSearch,
+            parallelSearchModeRaw: $parallelSearchModeRaw,
+            parallelLocation: $parallelLocation,
+            parallelExtractPages: $parallelExtractPages
         )
     }
 
@@ -273,6 +300,8 @@ struct WebSearchPluginSettingsView: View {
             return $perplexityAPIKey
         case .tinyfish:
             return $tinyfishAPIKey
+        case .parallel:
+            return $parallelAPIKey
         }
     }
 
@@ -292,17 +321,9 @@ struct WebSearchPluginSettingsView: View {
             return $isPerplexityKeyVisible
         case .tinyfish:
             return $isTinyFishKeyVisible
+        case .parallel:
+            return $isParallelKeyVisible
         }
-    }
-
-    private func initializeCredentialEditorProviderIfNeeded() {
-        guard !hasInitializedCredentialEditorProvider else { return }
-        hasInitializedCredentialEditorProvider = true
-
-        credentialEditorProviderRaw = WebSearchPluginSettingsSupport.initialCredentialEditorProvider(
-            configuredProviders: configuredProviders,
-            defaultProvider: defaultProvider
-        ).rawValue
     }
 
     /// Rewrites retired Exa AppStorage values so pickers show a valid selection.

@@ -53,8 +53,12 @@ struct SearchActivityPresentation: Equatable {
     let queries: [String]
     let sources: [SearchSource]
     let displayKind: DisplayKind
+    let engineProvider: SearchPluginProvider?
 
     var sectionTitle: String { displayKind.sectionTitle }
+    /// Web Search already has a magnifying-glass icon (and often an engine chip);
+    /// repeating the words next to them is noise. Keep titles for X / Maps / mixed.
+    var showsSectionTitle: Bool { displayKind != .web }
     var summarySystemImage: String { displayKind.summarySystemImage }
     var sourceSummaryText: String { displayKind.sourceSummaryText(count: sources.count) }
 
@@ -63,6 +67,7 @@ struct SearchActivityPresentation: Equatable {
         queries = output.queries
         sources = output.sources
         displayKind = Self.displayKind(for: sources)
+        engineProvider = output.engineProvider
     }
 
     private static func displayKind(for sources: [SearchSource]) -> DisplayKind {

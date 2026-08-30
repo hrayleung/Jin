@@ -127,6 +127,20 @@ final class WebSearchPluginSettingsStoreTests: XCTestCase {
         XCTAssertTrue(settings.tinyfishFetchPages)
     }
 
+    func testLoadCarriesParallelPreferences() {
+        defaults.set("  par-key  ", forKey: AppPreferenceKeys.pluginWebSearchParallelAPIKey)
+        defaults.set("turbo", forKey: AppPreferenceKeys.pluginWebSearchParallelSearchMode)
+        defaults.set("GB", forKey: AppPreferenceKeys.pluginWebSearchParallelLocation)
+        defaults.set(true, forKey: AppPreferenceKeys.pluginWebSearchParallelExtractPages)
+
+        let settings = WebSearchPluginSettingsStore.load(defaults: defaults)
+
+        XCTAssertEqual(settings.apiKey(for: .parallel), "par-key")
+        XCTAssertEqual(settings.parallelSearchMode, .turbo)
+        XCTAssertEqual(settings.parallelLocation, "GB")
+        XCTAssertTrue(settings.parallelExtractPages)
+    }
+
     func testLoadCarriesNewJinaPreferences() {
         defaults.set("DE", forKey: AppPreferenceKeys.pluginWebSearchJinaCountry)
         defaults.set("de-DE", forKey: AppPreferenceKeys.pluginWebSearchJinaLocale)

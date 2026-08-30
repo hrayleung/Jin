@@ -87,6 +87,17 @@ final class AddMCPServerPresetSupportTests: XCTestCase {
         )
     }
 
+    func testParallelPresetFillsOfficialSearchMCPEndpointAndIcon() {
+        let draft = AddMCPServerPresetSupport.applyingPreset(.parallel, to: self.draft(id: "", name: ""))
+
+        XCTAssertEqual(draft.id, "parallel")
+        XCTAssertEqual(draft.name, "Parallel Search")
+        XCTAssertEqual(draft.iconID, "parallel")
+        XCTAssertEqual(draft.transportKind, .http)
+        XCTAssertEqual(draft.endpoint, "https://search.parallel.ai/mcp")
+        XCTAssertEqual(draft.httpAuthentication, .none)
+    }
+
     func testTinyFishPresetFillsOfficialHTTPEndpointAndIcon() {
         let draft = AddMCPServerPresetSupport.applyingPreset(.tinyfish, to: self.draft(id: "", name: ""))
 
