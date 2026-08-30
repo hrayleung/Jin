@@ -36,6 +36,14 @@ final class MCPIconPickerSupportTests: XCTestCase {
             MCPIconPickerSupport.displayName(for: "tinyfish"),
             "TinyFish"
         )
+        XCTAssertEqual(
+            MCPIconPickerSupport.displayName(for: "perplexity"),
+            "Perplexity"
+        )
+        XCTAssertEqual(
+            MCPIconPickerSupport.displayName(for: "parallel"),
+            "Parallel"
+        )
     }
 
     func testFilteredIconsExcludesDefaultAndSearchesCaseInsensitively() {
