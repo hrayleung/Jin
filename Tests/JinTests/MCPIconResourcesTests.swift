@@ -5,8 +5,8 @@ final class MCPIconResourcesTests: XCTestCase {
     func testBundledCatalogIsNotTheThreeIconFallback() {
         let ids = Set(MCPIconCatalog.all.map(\.id))
         let required = [
-            "mcp", "tinyfish", "exa", "tavily", "firecrawl",
-            "playwright", "github", "notion", "linear", "context7", "parallel"
+            "mcp", "tinyfish", "exa", "brave", "jina", "tavily", "firecrawl",
+            "perplexity", "playwright", "github", "notion", "linear", "context7", "parallel"
         ]
 
         XCTAssertGreaterThan(
@@ -17,6 +17,28 @@ final class MCPIconResourcesTests: XCTestCase {
         for id in required {
             XCTAssertTrue(ids.contains(id), "Missing bundled MCP icon \(id)")
         }
+    }
+
+    func testBundledMCPIconsIncludeAllSearchPluginProviders() {
+        var missing: [String] = []
+
+        for provider in SearchPluginProvider.allCases {
+            guard let icon = MCPIconCatalog.icon(forID: provider.mcpIconID) else {
+                missing.append("catalog:\(provider.rawValue)")
+                continue
+            }
+            if icon.localPNGImage(useDarkMode: false) == nil {
+                missing.append("light:\(provider.rawValue)")
+            }
+            if icon.localPNGImage(useDarkMode: true) == nil {
+                missing.append("dark:\(provider.rawValue)")
+            }
+        }
+
+        XCTAssertTrue(
+            missing.isEmpty,
+            "Missing bundled search-plugin MCP icons: \(missing.joined(separator: ", "))"
+        )
     }
 
     func testBundledMCPIconsIncludeAllCatalogEntries() {

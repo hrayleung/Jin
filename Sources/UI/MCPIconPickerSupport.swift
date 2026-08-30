@@ -41,6 +41,8 @@ enum MCPIconPickerSupport {
         case "exa": return "Exa"
         case "tavily": return "Tavily"
         case "firecrawl": return "Firecrawl"
+        case "perplexity": return "Perplexity"
+        case "parallel": return "Parallel"
         case "elevenlabs": return "ElevenLabs"
         default: return iconID
         }
