@@ -3,6 +3,7 @@ import SwiftUI
 struct ChatCommands: Commands {
     @FocusedValue(\.chatActions) private var chatActions
     @FocusedValue(\.workspaceActions) private var workspaceActions
+    @FocusedValue(\.chatSelectionActions) private var chatSelectionActions
     @ObservedObject var shortcutsStore: AppShortcutsStore
 
     var body: some Commands {
@@ -28,6 +29,18 @@ struct ChatCommands: Commands {
         }
         .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .searchChats))
         .disabled(workspaceActions == nil)
+
+        Button(workspaceActions?.isChatSelectionModeActive == true ? "Done Selecting Chats" : "Select Chats") {
+            workspaceActions?.toggleChatSelectionMode()
+        }
+        .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .selectChats))
+        .disabled(workspaceActions == nil)
+
+        Button(chatSelectionActions?.allVisibleSelected == true ? "Deselect All Chats" : "Select All Chats") {
+            chatSelectionActions?.selectAllChats()
+        }
+        .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .selectAllChats))
+        .disabled(chatSelectionActions?.hasVisibleChats != true)
 
         Button("New Chat") {
             workspaceActions?.createNewChat()
@@ -87,6 +100,15 @@ struct ChatCommands: Commands {
         .disabled(!(chatActions?.canStopStreaming ?? false))
     }
 
+    /// How many chats the delete command would remove. A multi-selection wins;
+    /// otherwise it's the open chat, if there is one.
+    private var deletableChatCount: Int {
+        if let chatSelectionActions, chatSelectionActions.hasExplicitSelection {
+            return chatSelectionActions.selectedCount
+        }
+        return (workspaceActions?.canDeleteSelectedChat ?? false) ? 1 : 0
+    }
+
     @ViewBuilder
     private var conversationSection: some View {
         Button("Rename Chat") {
@@ -101,10 +123,16 @@ struct ChatCommands: Commands {
         .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .toggleStarChat))
         .disabled(!(workspaceActions?.canToggleSelectedChatStar ?? false))
 
-        Button("Delete Chat", role: .destructive) {
-            workspaceActions?.deleteSelectedChat()
+        // One key for both shapes: with a multi-selection it takes the whole
+        // set, otherwise it falls back to the chat that's open.
+        Button(ChatsSidebarSelectionSupport.deleteTitle(count: deletableChatCount), role: .destructive) {
+            if let chatSelectionActions, chatSelectionActions.hasExplicitSelection {
+                chatSelectionActions.deleteSelectedChats()
+            } else {
+                workspaceActions?.deleteSelectedChat()
+            }
         }
         .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .deleteChat))
-        .disabled(!(workspaceActions?.canDeleteSelectedChat ?? false))
+        .disabled(deletableChatCount == 0)
     }
 }

@@ -32,6 +32,53 @@ final class AppShortcutsStoreTests: XCTestCase {
         XCTAssertEqual(store.helpText("New Chat", for: .newChat), "New Chat (⌘N)")
     }
 
+    func testSelectChatsHasItsOwnBinding() {
+        let store = AppShortcutsStore(defaults: defaults)
+
+        XCTAssertEqual(store.binding(for: .selectChats), .command("l", modifiers: [.shift, .command]))
+        XCTAssertEqual(store.helpText("Select Chats", for: .selectChats), "Select Chats (⇧⌘L)")
+    }
+
+    /// ⌘A must stay with the system's text Select All, which reaches the first
+    /// responder through the Edit menu — a scene-level command claiming it
+    /// would break selecting text in the composer.
+    func testSelectAllChatsDoesNotClaimPlainCommandA() {
+        let store = AppShortcutsStore(defaults: defaults)
+        let binding = store.binding(for: .selectAllChats)
+
+        XCTAssertEqual(binding, .command("a", modifiers: [.option, .command]))
+        XCTAssertNotEqual(binding, .command("a"))
+        XCTAssertEqual(store.helpText("Select All", for: .selectAllChats), "Select All (⌥⌘A)")
+    }
+
+    /// A duplicate default is silently disabled by `normalizeConflictsIfNeeded`
+    /// at load, so a new action shipping with a taken binding would just leave
+    /// some other shortcut dead. Every default has to be unique and clear of
+    /// the reserved system ones.
+    func testEveryDefaultBindingIsUniqueAndUnreserved() {
+        let store = AppShortcutsStore(defaults: defaults)
+        var seen: [AppShortcutBinding: AppShortcutAction] = [:]
+
+        for action in AppShortcutAction.allCases {
+            guard let binding = action.defaultBinding else { continue }
+
+            if let existing = seen[binding] {
+                XCTFail("\(action) defaults to \(binding.displayLabel), already taken by \(existing).")
+            }
+            seen[binding] = action
+
+            XCTAssertNil(
+                store.fixedShortcutConflictMessage(for: binding),
+                "\(action) defaults to a binding reserved by the system."
+            )
+            XCTAssertEqual(
+                store.binding(for: action),
+                binding,
+                "\(action) lost its default binding at load, which means it collided with another action."
+            )
+        }
+    }
+
     func testConflictingAssignmentDisablesPreviousAction() {
         let store = AppShortcutsStore(defaults: defaults)
 

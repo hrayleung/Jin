@@ -22,6 +22,8 @@ enum AppShortcutSection: String, CaseIterable {
 enum AppShortcutAction: String, CaseIterable, Identifiable {
     case toggleChatList
     case searchChats
+    case selectChats
+    case selectAllChats
     case newChat
     case newAssistant
     case openAssistantSettings
@@ -41,7 +43,7 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
 
     var section: AppShortcutSection {
         switch self {
-        case .toggleChatList, .searchChats, .newChat, .newAssistant, .openAssistantSettings:
+        case .toggleChatList, .searchChats, .selectChats, .selectAllChats, .newChat, .newAssistant, .openAssistantSettings:
             return .workspace
         case .focusComposer, .openModelPicker, .attachFiles, .expandComposer, .toggleComposerVisibility, .stopGenerating:
             return .composer
@@ -56,6 +58,10 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
             return "Toggle Chat List"
         case .searchChats:
             return "Search Chats"
+        case .selectChats:
+            return "Select Chats"
+        case .selectAllChats:
+            return "Select All Chats"
         case .newChat:
             return "New Chat"
         case .newAssistant:
@@ -89,6 +95,10 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
             return "Show or hide the left chat sidebar."
         case .searchChats:
             return "Jump to the chat search field."
+        case .selectChats:
+            return "Turn multi-select on or off in the chat list, for batch delete and star."
+        case .selectAllChats:
+            return "Select every chat the list is currently showing (or deselect them again)."
         case .newChat:
             return "Create a new conversation."
         case .newAssistant:
@@ -122,6 +132,14 @@ enum AppShortcutAction: String, CaseIterable, Identifiable {
             return .command("b")
         case .searchChats:
             return .command("f")
+        case .selectChats:
+            return .command("l", modifiers: [.shift, .command])
+        case .selectAllChats:
+            // Deliberately not ⌘A: that is the system text Select All,
+            // dispatched through the Edit menu to the first responder, so a
+            // scene-level command claiming it would break selecting text in
+            // the composer. Rebindable in Settings for anyone who wants it.
+            return .command("a", modifiers: [.option, .command])
         case .newChat:
             return .command("n")
         case .newAssistant:

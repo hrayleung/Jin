@@ -126,12 +126,35 @@ struct DataSettingsView: View {
     }
 
     private func deleteAllChats() {
+        // Frozen at the moment the user confirmed. `conversations` is a live
+        // query and the attachment scan below can run for seconds, so without
+        // this a chat started in the main window meanwhile would be swept up
+        // by a deletion the user never agreed to.
+        let targetIDs = Set(conversations.map(\.id))
+        guard !targetIDs.isEmpty else { return }
+
         Task {
+            let container = modelContext.container
+            let attachmentsDirectory = try? AppDataLocations.attachmentsDirectoryURL()
+            let collector = AttachmentGarbageCollector(container: container)
+
+            // Collected before the delete and off the main thread: walking
+            // every message's blobs here would otherwise stall the UI for the
+            // whole library. The sweep re-verifies each candidate, so a list
+            // captured a moment early is safe.
+            var attachmentCandidates: Set<String> = []
+            if let attachmentsDirectory {
+                attachmentCandidates = await collector.allReferencedFilenames(
+                    attachmentsDirectory: attachmentsDirectory
+                )
+            }
+
             await MainActor.run {
-                for conversation in conversations {
+                for conversation in conversations where targetIDs.contains(conversation.id) {
                     modelContext.delete(conversation)
                 }
                 try? modelContext.save()
+                StoreCompaction.markPending()
                 let counts = SnapshotCoreCounts(
                     conversations: (try? modelContext.fetchCount(FetchDescriptor<ConversationEntity>())) ?? 0,
                     messages: (try? modelContext.fetchCount(FetchDescriptor<MessageEntity>())) ?? 0,
@@ -140,6 +163,16 @@ struct DataSettingsView: View {
                     mcpServers: (try? modelContext.fetchCount(FetchDescriptor<MCPServerConfigEntity>())) ?? 0
                 )
                 AppSnapshotManager.recordAcceptedCurrentState(counts)
+            }
+
+            if let attachmentsDirectory, !attachmentCandidates.isEmpty {
+                let removed = await collector.removeUnreferencedFiles(
+                    candidateFilenames: attachmentCandidates,
+                    attachmentsDirectory: attachmentsDirectory
+                )
+                if !removed.isEmpty {
+                    NSLog("Jin storage: removed %d orphaned attachment file(s).", removed.count)
+                }
             }
 
             // Refresh sizes after deletion

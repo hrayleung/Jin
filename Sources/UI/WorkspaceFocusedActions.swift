@@ -2,12 +2,14 @@ import SwiftUI
 
 struct WorkspaceFocusedActions {
     let isSidebarVisible: Bool
+    let isChatSelectionModeActive: Bool
     let canRenameSelectedChat: Bool
     let canToggleSelectedChatStar: Bool
     let canDeleteSelectedChat: Bool
     let selectedChatIsStarred: Bool
     let toggleSidebar: () -> Void
     let focusChatSearch: () -> Void
+    let toggleChatSelectionMode: () -> Void
     let createNewChat: () -> Void
     let createAssistant: () -> Void
     let openAssistantSettings: () -> Void

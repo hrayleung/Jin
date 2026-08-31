@@ -2,6 +2,10 @@ import Foundation
 
 extension AppSnapshotManager {
     private static let maximumAutomaticSnapshots = 10
+    static let stagingDirectoryPrefix = ".staging-"
+    /// Generous on purpose: a capture of a large library legitimately takes
+    /// minutes, and deleting a live staging bundle would corrupt that capture.
+    static let stagingStaleAge: TimeInterval = 3600
 
     static func buildSnapshotBundle(
         in bundleDirectory: URL,
@@ -83,14 +87,25 @@ extension AppSnapshotManager {
         isAutomatic: Bool = true,
         allowUnhealthy: Bool = false
     ) throws -> SnapshotSummary? {
+        pruneStaleStagingDirectories()
+
         let stagingDirectory = try makeStagingSnapshotDirectory()
+        // Staging holds a full copy of the store *and* every attachment. Any
+        // path out of here that isn't the successful move must delete it, or
+        // it becomes a permanent hidden duplicate of the whole library.
+        var stagingNeedsCleanup = true
+        defer {
+            if stagingNeedsCleanup {
+                try? FileManager.default.removeItem(at: stagingDirectory)
+            }
+        }
+
         guard let summary = try buildSnapshotBundle(
             in: stagingDirectory,
             reason: reason,
             isAutomatic: isAutomatic,
             allowUnhealthy: allowUnhealthy
         ) else {
-            try? FileManager.default.removeItem(at: stagingDirectory)
             return nil
         }
 
@@ -100,12 +115,54 @@ extension AppSnapshotManager {
             try FileManager.default.removeItem(at: finalDirectory)
         }
         try FileManager.default.moveItem(at: stagingDirectory, to: finalDirectory)
+        stagingNeedsCleanup = false
 
         let publishedSummary = SnapshotSummary(manifest: summary.manifest, directoryURL: finalDirectory)
         if isAutomatic {
             pruneAutomaticSnapshots()
         }
         return publishedSummary
+    }
+
+    /// Deletes staging bundles left behind by a capture that was killed
+    /// mid-copy.
+    ///
+    /// These are dot-prefixed, and `listSnapshots()` skips hidden files (they
+    /// have no manifest, so they aren't snapshots) — which means
+    /// `pruneAutomaticSnapshots` can never see them and they accumulate
+    /// forever, each one a full copy of the database and attachments.
+    ///
+    /// The age gate is what makes this safe: a capture in progress keeps
+    /// touching its staging directory as it copies files into it, so anything
+    /// untouched for an hour is certainly abandoned.
+    static func pruneStaleStagingDirectories(
+        now: Date = Date(),
+        fileManager: FileManager = .default
+    ) {
+        guard let snapshotsDirectory = try? AppDataLocations.snapshotsDirectoryURL(),
+              fileManager.fileExists(atPath: snapshotsDirectory.path),
+              let contents = try? fileManager.contentsOfDirectory(
+                  at: snapshotsDirectory,
+                  includingPropertiesForKeys: [.contentModificationDateKey],
+                  // Deliberately not `.skipsHiddenFiles`: the leaked
+                  // directories are exactly the hidden ones.
+                  options: []
+              ) else {
+            return
+        }
+
+        for url in contents where url.lastPathComponent.hasPrefix(stagingDirectoryPrefix) {
+            guard isStale(url, now: now, fileManager: fileManager) else { continue }
+            try? fileManager.removeItem(at: url)
+        }
+    }
+
+    static func isStale(_ url: URL, now: Date, fileManager: FileManager = .default) -> Bool {
+        let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            ?? (try? fileManager.attributesOfItem(atPath: url.path)[.modificationDate] as? Date)
+            ?? nil
+        guard let modified else { return false }
+        return now.timeIntervalSince(modified) > stagingStaleAge
     }
 
     static func latestHealthySnapshot() -> SnapshotSummary? {
@@ -148,7 +205,7 @@ extension AppSnapshotManager {
 
     private static func makeStagingSnapshotDirectory() throws -> URL {
         let stagingDirectory = try AppDataLocations.snapshotsDirectoryURL()
-            .appendingPathComponent(".staging-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("\(stagingDirectoryPrefix)\(UUID().uuidString)", isDirectory: true)
         if FileManager.default.fileExists(atPath: stagingDirectory.path) {
             try FileManager.default.removeItem(at: stagingDirectory)
         }

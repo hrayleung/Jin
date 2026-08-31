@@ -1,3 +1,4 @@
+import AppKit
 import SwiftData
 import SwiftUI
 
@@ -11,6 +12,8 @@ struct SidebarConversationItem: View {
     let searchSnippet: String?
     let searchQuery: String
     let isRegeneratingTitle: Bool
+    let selection: SidebarConversationSelectionState
+    let selectionActions: SidebarConversationSelectionActions
     let onToggleStar: () -> Void
     let onRename: () -> Void
     let onRegenerateTitle: () -> Void
@@ -22,45 +25,138 @@ struct SidebarConversationItem: View {
         let isStreaming = streamingStore.isStreaming(conversationID: conversation.id)
         let isStarred = conversation.isStarred == true
 
-        ConversationRowView(
-            title: conversation.title,
-            isStarred: isStarred,
-            subtitle: subtitle,
-            providerIconID: providerIconID,
-            activityDate: ConversationActivitySupport.activityDate(for: conversation),
-            isStreaming: isStreaming,
-            searchSnippet: searchSnippet,
-            searchQuery: searchQuery
-        )
-        .tag(conversation)
-        .contentShape(Rectangle())
-        .contextMenu {
-            Button {
-                onToggleStar()
-            } label: {
-                Label(isStarred ? "Unstar Chat" : "Star Chat", systemImage: isStarred ? "star.slash" : "star")
+        rowContent(isStarred: isStarred, isStreaming: isStreaming)
+            .tag(conversation.id)
+            .contentShape(Rectangle())
+            // In selection mode the List has no selection binding, so clicks
+            // reach this gesture instead of moving the row highlight.
+            .selectionModeTap(isActive: selection.isSelectionModeActive) { extendingRange in
+                selectionActions.toggle(extendingRange)
+            }
+            .contextMenu {
+                if selection.appliesToBatch {
+                    batchMenuItems
+                } else {
+                    singleChatMenuItems(isStarred: isStarred, isStreaming: isStreaming)
+                }
+            }
+    }
+
+    @ViewBuilder
+    private func rowContent(isStarred: Bool, isStreaming: Bool) -> some View {
+        HStack(spacing: JinSpacing.small) {
+            if selection.isSelectionModeActive {
+                Image(systemName: selection.isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(selection.isSelected ? Color.accentColor : Color.secondary.opacity(0.65))
+                    .accessibilityLabel(selection.isSelected ? "Selected" : "Not selected")
             }
 
-            Button {
-                onRename()
-            } label: {
-                Label("Rename Chat", systemImage: "pencil")
+            ConversationRowView(
+                title: conversation.title,
+                isStarred: isStarred,
+                subtitle: subtitle,
+                providerIconID: providerIconID,
+                activityDate: ConversationActivitySupport.activityDate(for: conversation),
+                isStreaming: isStreaming,
+                searchSnippet: searchSnippet,
+                searchQuery: searchQuery
+            )
+        }
+        .background {
+            // The List draws no highlight in selection mode (it has no
+            // selection binding there), so checked rows tint themselves.
+            if selection.isSelectionModeActive, selection.isSelected {
+                RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                    .fill(JinSemanticColor.selectedSurface)
+                    .padding(.horizontal, -JinSpacing.small)
             }
+        }
+    }
 
-            Button {
-                onRegenerateTitle()
-            } label: {
-                Label(isRegeneratingTitle ? "Regenerating Title…" : "Regenerate Title", systemImage: "wand.and.stars")
+    @ViewBuilder
+    private var batchMenuItems: some View {
+        Button {
+            selectionActions.batchStar()
+        } label: {
+            Label(
+                ChatsSidebarSelectionSupport.starTitle(
+                    shouldStar: selection.shouldStarBatch,
+                    count: selection.batchCount
+                ),
+                systemImage: selection.shouldStarBatch ? "star" : "star.slash"
+            )
+        }
+
+        Button {
+            selectionActions.clearSelection()
+        } label: {
+            Label("Deselect All", systemImage: "circle.dashed")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            selectionActions.batchDelete()
+        } label: {
+            Label(
+                ChatsSidebarSelectionSupport.deleteTitle(count: selection.batchCount),
+                systemImage: "trash"
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func singleChatMenuItems(isStarred: Bool, isStreaming: Bool) -> some View {
+        Button {
+            onToggleStar()
+        } label: {
+            Label(isStarred ? "Unstar Chat" : "Star Chat", systemImage: isStarred ? "star.slash" : "star")
+        }
+
+        Button {
+            onRename()
+        } label: {
+            Label("Rename Chat", systemImage: "pencil")
+        }
+
+        Button {
+            onRegenerateTitle()
+        } label: {
+            Label(isRegeneratingTitle ? "Regenerating Title…" : "Regenerate Title", systemImage: "wand.and.stars")
+        }
+        .disabled(isStreaming || isRegeneratingTitle)
+
+        Divider()
+
+        Button {
+            selectionActions.beginSelection()
+        } label: {
+            Label("Select Chats…", systemImage: "checklist")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            onDelete()
+        } label: {
+            Label("Delete Chat", systemImage: "trash")
+        }
+    }
+}
+
+private extension View {
+    /// Attaches the selection-mode tap only while selection mode is on, so
+    /// normal mode keeps the List's native click-to-open / ⌘-click / ⇧-click
+    /// handling untouched.
+    @ViewBuilder
+    func selectionModeTap(isActive: Bool, action: @escaping (Bool) -> Void) -> some View {
+        if isActive {
+            onTapGesture {
+                action(NSEvent.modifierFlags.contains(.shift))
             }
-            .disabled(isStreaming || isRegeneratingTitle)
-
-            Divider()
-
-            Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Label("Delete Chat", systemImage: "trash")
-            }
+        } else {
+            self
         }
     }
 }

@@ -128,18 +128,103 @@ extension ContentView {
     func deleteConversation(_ conversation: ConversationEntity) {
         streamingStore.cancel(conversationID: conversation.id)
         streamingStore.endSession(conversationID: conversation.id)
-        if isPersistedConversation(conversation) {
+
+        var attachmentCandidates: Set<String> = []
+        let wasPersisted = isPersistedConversation(conversation)
+        if wasPersisted {
+            // Must read the messages' attachment references before the
+            // cascade removes them.
+            attachmentCandidates = ConversationDeletionCleanup.captureAttachmentCandidates(for: [conversation])
             modelContext.delete(conversation)
+            // The background sweep reads the store on its own context, so the
+            // delete has to be durable before it starts.
+            try? modelContext.save()
         }
+
         if selectedConversation == conversation {
             selectedConversation = nil
         }
         conversationPendingDeletion = nil
+
+        if wasPersisted {
+            ConversationDeletionCleanup.finish(
+                attachmentCandidates: attachmentCandidates,
+                container: modelContext.container
+            )
+        }
+    }
+
+    /// Entry point for the sidebar's batch selection. A single chat routes
+    /// through the existing one-chat confirmation so the copy stays specific.
+    func requestDeleteConversations(_ targets: [ConversationEntity]) {
+        guard !targets.isEmpty else { return }
+        if targets.count == 1, let single = targets.first {
+            requestDeleteConversation(single)
+            return
+        }
+
+        conversationsPendingBatchDeletion = targets
+        conversationsPendingBatchDeletionTitles = targets.map(\.title)
+        showingDeleteConversationsConfirmation = true
+    }
+
+    func deletePendingConversations() {
+        let targets = conversationsPendingBatchDeletion
+        // Drop the references before deleting: the dialog's title / message
+        // builders re-run as it dismisses, and reading a title off a deleted
+        // model is a crash.
+        conversationsPendingBatchDeletion = []
+        guard !targets.isEmpty else { return }
+
+        let attachmentCandidates = ConversationDeletionCleanup.captureAttachmentCandidates(for: targets)
+
+        for conversation in targets {
+            streamingStore.cancel(conversationID: conversation.id)
+            streamingStore.endSession(conversationID: conversation.id)
+            if isPersistedConversation(conversation) {
+                modelContext.delete(conversation)
+            }
+            if selectedConversation == conversation {
+                selectedConversation = nil
+            }
+            if conversationPendingDeletion == conversation {
+                conversationPendingDeletion = nil
+                showingDeleteConversationConfirmation = false
+            }
+            if conversationPendingRename == conversation {
+                conversationPendingRename = nil
+                showingRenameConversationAlert = false
+            }
+        }
+        try? modelContext.save()
+        ConversationDeletionCleanup.finish(
+            attachmentCandidates: attachmentCandidates,
+            container: modelContext.container
+        )
+        isChatSelectionModeActive = false
+    }
+
+    func cancelPendingConversationsDeletion() {
+        conversationsPendingBatchDeletion = []
+    }
+
+    func setConversationsStarred(_ targets: [ConversationEntity], isStarred: Bool) {
+        guard !targets.isEmpty else { return }
+        for conversation in targets where (conversation.isStarred == true) != isStarred {
+            conversation.isStarred = isStarred
+        }
+        try? modelContext.save()
     }
 
     func deleteConversations(at offsets: IndexSet, in sourceList: [ConversationEntity]) {
-        for index in offsets {
-            let conversation = sourceList[index]
+        let targets = offsets.compactMap { index in
+            sourceList.indices.contains(index) ? sourceList[index] : nil
+        }
+        guard !targets.isEmpty else { return }
+
+        let attachmentCandidates = ConversationDeletionCleanup.captureAttachmentCandidates(for: targets)
+
+        for conversation in targets {
             streamingStore.cancel(conversationID: conversation.id)
             streamingStore.endSession(conversationID: conversation.id)
             modelContext.delete(conversation)
@@ -147,6 +232,11 @@ extension ContentView {
                 selectedConversation = nil
             }
         }
+        try? modelContext.save()
+        ConversationDeletionCleanup.finish(
+            attachmentCandidates: attachmentCandidates,
+            container: modelContext.container
+        )
     }
 
     func requestRenameConversation(_ conversation: ConversationEntity) {

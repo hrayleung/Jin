@@ -9,6 +9,7 @@ struct SidebarHeaderView: View {
     let titlebarTopInset: CGFloat
     let onNewChat: () -> Void
     let onHideSidebar: () -> Void
+    @Binding var isChatSelectionModeActive: Bool
     let shortcutsStore: AppShortcutsStore
 
     var body: some View {
@@ -31,9 +32,28 @@ struct SidebarHeaderView: View {
             Spacer(minLength: JinSpacing.small)
 
             // Sidebar toggle lives in the column toolbar (`MainSidebarToggleButton`)
-            // so it occupies the system title-bar slot. New Chat + Settings stay
-            // inline here because they're frequently used and a dedicated
-            // sidebar location keeps the chat-side toolbar lean.
+            // so it occupies the system title-bar slot. Select / New Chat /
+            // Settings stay inline here because they're frequently used and a
+            // dedicated sidebar location keeps the chat-side toolbar lean.
+            //
+            // Select is the discoverable entry to multi-select; ⌘-click and
+            // ⇧-click in the list work without it.
+            Button {
+                isChatSelectionModeActive.toggle()
+            } label: {
+                Image(systemName: isChatSelectionModeActive ? "checklist.checked" : "checklist")
+                    .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
+                    .foregroundStyle(isChatSelectionModeActive ? Color.accentColor : Color.primary)
+            }
+            .buttonStyle(JinIconButtonStyle(showBackground: false))
+            .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .selectChats))
+            .help(shortcutsStore.helpText(
+                isChatSelectionModeActive ? "Done Selecting Chats" : "Select Chats",
+                for: .selectChats
+            ))
+            .accessibilityLabel(isChatSelectionModeActive ? "Done selecting chats" : "Select chats")
+            .shortcutHint(.selectChats, placement: .overlayBottom)
+
             Button(action: onNewChat) {
                 Image(systemName: "square.and.pencil")
                     .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
