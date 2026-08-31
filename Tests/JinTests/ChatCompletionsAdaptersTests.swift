@@ -463,6 +463,45 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testFireworksAdapterMapsDisabledGLM53FlashThinkingToLowEffort() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(
+            id: "fw",
+            name: "Fireworks",
+            type: .fireworks,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(root["model"] as? String, "accounts/fireworks/models/glm-5p3-flash")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "low")
+            XCTAssertNil(root["thinking"])
+
+            let response: [String: Any] = [
+                "id": "cmpl_glm53_flash_off",
+                "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+            ]
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: response)
+            )
+        }
+
+        let adapter = FireworksAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "accounts/fireworks/models/glm-5p3-flash",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
     func testFireworksAdapterSendsQwen38XHighReasoningEffort() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -606,6 +645,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                         ["name": "accounts/fireworks/models/minimax-m2p1"],
                         ["name": "accounts/fireworks/models/qwen3-235b-a22b"],
                         ["name": "accounts/fireworks/models/glm-preview"],
+                        ["name": "accounts/fireworks/models/glm-5p3-flash"],
                         ["name": "accounts/fireworks/models/other"]
                     ]
                 ]
@@ -685,6 +725,16 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertFalse(glmPreview.capabilities.contains(.reasoning))
         XCTAssertNil(glmPreview.reasoningConfig)
         XCTAssertEqual(glmPreview.contextWindow, 128_000)
+
+        let glm53Flash = try XCTUnwrap(byID["accounts/fireworks/models/glm-5p3-flash"])
+        XCTAssertEqual(glm53Flash.name, "GLM-5.3-Flash")
+        XCTAssertEqual(glm53Flash.contextWindow, 1_040_000)
+        XCTAssertEqual(glm53Flash.maxOutputTokens, 131_072)
+        XCTAssertTrue(glm53Flash.capabilities.contains(.vision))
+        XCTAssertTrue(glm53Flash.capabilities.contains(.reasoning))
+        XCTAssertTrue(glm53Flash.capabilities.contains(.promptCaching))
+        XCTAssertEqual(glm53Flash.reasoningConfig?.defaultEffort, .max)
+        XCTAssertNil(byID["fireworks/glm-5p3-flash"])
 
         let other = try XCTUnwrap(byID["fireworks/other"])
         XCTAssertEqual(other.name, "fireworks/other")

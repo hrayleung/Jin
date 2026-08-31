@@ -1,4 +1,4 @@
 interface:
   display_name: "Jin New Models Support"
-  short_description: "Discover and fully support newly released models"
-  default_prompt: "Use $new-models-support to search official provider docs for newly released model IDs and add complete Jin catalog, capability, adapter, UI, and test support without guessing."
+  short_description: "Census every provider's official docs, then fully support new model IDs"
+  default_prompt: "Use $new-models-support. Search and fetch official docs for EVERY first-class provider before any catalog edit. Fill the per-provider census table. Add complete Jin support for new exact IDs (including hosted copies). Do not skip gateways like RunInfra or Fireworks."

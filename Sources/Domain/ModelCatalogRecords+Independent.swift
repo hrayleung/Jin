@@ -1082,6 +1082,26 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: false),
+        // GLM-5.3-Flash (Fireworks serverless, fireworks.ai/models/fireworks/glm-5p3-flash,
+        // created 2026-08-26). Exact IDs `accounts/fireworks/models/glm-5p3-flash`
+        // (seeded, same accounts/ prefix as glm-5p3) and `fireworks/glm-5p3-flash`
+        // (catalog-only short alias). Fireworks model page: 1040k context, tools,
+        // image input, serverless, cached-input pricing. Max output is unpublished
+        // on Fireworks; use the official 131,072 from docs.z.ai/guides/vlm/glm-5.3-flash.
+        // Always-on low/high/max (thinking.type disabled is rejected). Video is
+        // listed on Z.ai's modality table — not claimed (no live frame probe).
+        Record(id: "accounts/fireworks/models/glm-5p3-flash", displayName: "GLM-5.3-Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "fireworks/glm-5p3-flash", displayName: "GLM-5.3-Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: false),
         Record(id: "accounts/fireworks/models/deepseek-v4-flash-0731", displayName: "DeepSeek V4 Flash 0731",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 1_040_000,

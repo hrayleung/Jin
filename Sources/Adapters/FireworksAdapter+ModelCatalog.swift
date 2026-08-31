@@ -90,6 +90,7 @@ extension FireworksAdapter {
                 || suffix == "deepseek-v4-flash-0731"
                 || suffix == "qwen3p8-2p4t-a95b"
                 || suffix == "glm-5p3"
+                || suffix == "glm-5p3-flash"
                 || suffix == "minimax-m3"
                 || suffix == "kimi-k2p7-code"
                 || suffix == "nemotron-3-5-lightning" {
@@ -183,6 +184,12 @@ extension FireworksAdapter {
         "minimax-m2": FireworksFallbackSpec(name: "MiniMax M2", contextWindow: 196_600, reasoning: true),
         "glm-5p3": FireworksFallbackSpec(name: "GLM-5.3", contextWindow: 1_048_576, reasoning: true),
         "glm-5p3-fast": FireworksFallbackSpec(name: "GLM-5.3 Fast", contextWindow: 1_048_576, reasoning: true),
+        "glm-5p3-flash": FireworksFallbackSpec(
+            name: "GLM-5.3-Flash",
+            contextWindow: 1_040_000,
+            extraCapabilities: [.vision],
+            reasoning: true
+        ),
         "glm-5p2": FireworksFallbackSpec(name: "GLM-5.2", contextWindow: 1_040_384, reasoning: true),
         "glm-5p1": FireworksFallbackSpec(name: "GLM-5.1", contextWindow: 202_752, reasoning: true),
         "glm-5": FireworksFallbackSpec(name: "GLM-5", contextWindow: 202_800, reasoning: true),

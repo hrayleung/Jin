@@ -1285,6 +1285,24 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedUndocumentedV4Pro.contextWindow, 8_192)
         XCTAssertEqual(resolvedUndocumentedV4Pro.capabilities, [.streaming, .toolCalling])
         XCTAssertNil(resolvedUndocumentedV4Pro.reasoningConfig)
+
+        let flashLegacy = ModelInfo(
+            id: "accounts/fireworks/models/glm-5p3-flash",
+            name: "GLM-5.3-Flash",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 8_192,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedFlash = ModelSettingsResolver.resolve(model: flashLegacy, providerType: .fireworks)
+        XCTAssertEqual(resolvedFlash.contextWindow, 1_040_000)
+        XCTAssertEqual(resolvedFlash.maxOutputTokens, 131_072)
+        XCTAssertTrue(resolvedFlash.capabilities.contains(.vision))
+        XCTAssertTrue(resolvedFlash.capabilities.contains(.reasoning))
+        XCTAssertTrue(resolvedFlash.capabilities.contains(.promptCaching))
+        XCTAssertFalse(resolvedFlash.capabilities.contains(.videoInput))
+        XCTAssertEqual(resolvedFlash.reasoningConfig?.defaultEffort, .max)
+        XCTAssertFalse(resolvedFlash.reasoningCanDisable)
     }
 
     func testResolverInfersVerifiedKimiK26MetadataForLegacyPersistedModels() {

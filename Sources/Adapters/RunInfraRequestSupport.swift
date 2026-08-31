@@ -99,12 +99,21 @@ extension RunInfraAdapter {
 
     private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {
         let supportsVision = modelSupportsVision(modelID)
+        var remainingImages = supportsVision ? RunInfraVisionSupport.maxImagesPerRequest : 0
         return try translateMessagesToOpenAIFormat(messages) { message in
-            try self.translateNonToolMessage(message, supportsVision: supportsVision)
+            try self.translateNonToolMessage(
+                message,
+                supportsVision: supportsVision,
+                remainingImages: &remainingImages
+            )
         }
     }
 
-    private func translateNonToolMessage(_ message: Message, supportsVision: Bool) throws -> [String: Any] {
+    private func translateNonToolMessage(
+        _ message: Message,
+        supportsVision: Bool,
+        remainingImages: inout Int
+    ) throws -> [String: Any] {
         let split = splitContentParts(
             message.content,
             separator: "\n",
@@ -124,7 +133,10 @@ extension RunInfraAdapter {
 
         case .user:
             if supportsVision, split.hasRichUserContent {
-                dict["content"] = try translateUserContentPartsToOpenAIFormat(message.content)
+                dict["content"] = try translateVisionUserContent(
+                    message.content,
+                    remainingImages: &remainingImages
+                )
             } else {
                 dict["content"] = split.visible
             }
@@ -150,6 +162,53 @@ extension RunInfraAdapter {
         }
 
         return dict
+    }
+
+    /// Forwards inline images until the documented per-request cap, then notes extras
+    /// as text so the gateway does not 400 the whole completion.
+    private func translateVisionUserContent(
+        _ parts: [ContentPart],
+        remainingImages: inout Int
+    ) throws -> [[String: Any]] {
+        var out: [[String: Any]] = []
+        var omitted = 0
+
+        for part in parts {
+            switch part {
+            case .text(let text):
+                out.append(["type": "text", "text": text])
+            case .quote(let quote):
+                out.append(["type": "text", "text": quote.quotedText])
+            case .image(let image):
+                guard remainingImages > 0 else {
+                    omitted += 1
+                    continue
+                }
+                if let urlString = try imageToURLString(image) {
+                    remainingImages -= 1
+                    out.append([
+                        "type": "image_url",
+                        "image_url": ["url": urlString],
+                    ])
+                }
+            case .file(let file):
+                out.append([
+                    "type": "text",
+                    "text": AttachmentPromptRenderer.fallbackText(for: file),
+                ])
+            case .audio, .video, .thinking, .redactedThinking:
+                continue
+            }
+        }
+
+        if omitted > 0 {
+            out.append([
+                "type": "text",
+                "text": "[Omitted \(omitted) extra image(s): this RunInfra model accepts at most \(RunInfraVisionSupport.maxImagesPerRequest) images per request.]",
+            ])
+        }
+
+        return out
     }
 
     private func modelSupportsVision(_ modelID: String) -> Bool {

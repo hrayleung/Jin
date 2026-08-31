@@ -882,6 +882,8 @@ enum ModelCapabilityRegistry {
                 || lowerModelID == "accounts/fireworks/models/glm-5p3"
                 || lowerModelID == "fireworks/glm-5p3"
                 || lowerModelID == "accounts/fireworks/routers/glm-5p3-fast"
+                || lowerModelID == "accounts/fireworks/models/glm-5p3-flash"
+                || lowerModelID == "fireworks/glm-5p3-flash"
                 || lowerModelID == "accounts/fireworks/models/deepseek-v4-flash-0731"
                 || lowerModelID == "fireworks/deepseek-v4-flash-0731"
                 || fireworksCanonicalModelID(lowerModelID)
@@ -890,6 +892,7 @@ enum ModelCapabilityRegistry {
                             || fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains($0)
                             || $0 == "glm-5p3"
                             || $0 == "glm-5p3-fast"
+                            || $0 == "glm-5p3-flash"
                             || $0 == "deepseek-v4-flash-0731"
                     }) == true {
                 return true
@@ -1086,12 +1089,15 @@ enum ModelCapabilityRegistry {
             || lowerModelID == "accounts/fireworks/models/glm-5p3"
             || lowerModelID == "fireworks/glm-5p3"
             || lowerModelID == "accounts/fireworks/routers/glm-5p3-fast"
+            || lowerModelID == "accounts/fireworks/models/glm-5p3-flash"
+            || lowerModelID == "fireworks/glm-5p3-flash"
             || lowerModelID == "accounts/fireworks/models/deepseek-v4-flash-0731"
             || lowerModelID == "fireworks/deepseek-v4-flash-0731"
             || fireworksCanonicalModelID(lowerModelID).map({
                 fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains($0)
                     || $0 == "glm-5p3"
                     || $0 == "glm-5p3-fast"
+                    || $0 == "glm-5p3-flash"
                     || $0 == "deepseek-v4-flash-0731"
             }) == true:
             return [.low, .high, .max]

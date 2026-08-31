@@ -98,6 +98,7 @@ enum ChatModelSelectionSupport {
         "glm-5-3-flash",
         "deepseek-v4-pro",
         "qwen3-8-27b",
+        "qwen3-8-flash-next",
         "ornith-1-5-35b",
         "nemotron-3-5-lightning-30b",
         "qwen3-8-2-4t-a95b",
