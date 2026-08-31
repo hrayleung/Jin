@@ -18,6 +18,11 @@ enum AppSnapshotManager {
             let integrity = SQLiteDatabaseSupport.quickCheck(at: storeURL)
 
             if integrity.passed {
+                // The only point in the app's life where nothing holds the
+                // store open, so the only point a VACUUM can succeed. Gated on
+                // a flag a delete set, plus a "worth it" size threshold.
+                StoreCompaction.performPendingCompaction(storeURL: storeURL)
+
                 do {
                     let container = try PersistenceContainerFactory.makeContainer(storeURL: storeURL)
                     let currentCounts = PersistenceContainerFactory.fetchCoreCounts(in: container)

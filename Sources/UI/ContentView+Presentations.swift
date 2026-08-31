@@ -34,6 +34,26 @@ extension ContentView {
             } message: { conversation in
                 Text("This will permanently delete \u{201C}\(conversation.title)\u{201D}.")
             }
+            .confirmationDialog(
+                ChatsSidebarSelectionSupport.deleteConfirmationTitle(
+                    count: conversationsPendingBatchDeletionTitles.count
+                ),
+                isPresented: $showingDeleteConversationsConfirmation
+            ) {
+                Button(
+                    ChatsSidebarSelectionSupport.deleteTitle(count: conversationsPendingBatchDeletionTitles.count),
+                    role: .destructive
+                ) {
+                    deletePendingConversations()
+                }
+                Button("Cancel", role: .cancel) { cancelPendingConversationsDeletion() }
+            } message: {
+                Text(
+                    ChatsSidebarSelectionSupport.deleteConfirmationMessage(
+                        titles: conversationsPendingBatchDeletionTitles
+                    )
+                )
+            }
             .alert("Rename Chat", isPresented: $showingRenameConversationAlert, presenting: conversationPendingRename) { _ in
                 TextField("Chat title", text: $renameConversationDraftTitle)
                 Button("Cancel", role: .cancel) { conversationPendingRename = nil }
@@ -53,12 +73,14 @@ extension ContentView {
     var workspaceFocusedActions: WorkspaceFocusedActions {
         WorkspaceFocusedActions(
             isSidebarVisible: isSidebarVisible,
+            isChatSelectionModeActive: isChatSelectionModeActive,
             canRenameSelectedChat: selectedConversation != nil,
             canToggleSelectedChatStar: selectedConversation != nil,
             canDeleteSelectedChat: selectedConversation != nil,
             selectedChatIsStarred: selectedConversation?.isStarred == true,
             toggleSidebar: toggleSidebarVisibility,
             focusChatSearch: focusChatSearch,
+            toggleChatSelectionMode: toggleChatSelectionMode,
             createNewChat: createNewConversation,
             createAssistant: createAssistant,
             openAssistantSettings: openAssistantSettings,

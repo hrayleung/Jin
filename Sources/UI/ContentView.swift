@@ -29,6 +29,16 @@ struct ContentView: View {
     @State var showingDeleteAssistantConfirmation = false
     @State var conversationPendingDeletion: ConversationEntity?
     @State var showingDeleteConversationConfirmation = false
+    /// Batch delete. Titles are snapshotted alongside the entities so the
+    /// confirmation dialog never reads a property off a model the confirm
+    /// action already deleted.
+    @State var conversationsPendingBatchDeletion: [ConversationEntity] = []
+    @State var conversationsPendingBatchDeletionTitles: [String] = []
+    @State var showingDeleteConversationsConfirmation = false
+    /// Explicit multi-select mode for the chats list. The selected set itself
+    /// lives in `ChatsSidebarSectionView` so ⌘-clicking a row doesn't
+    /// re-evaluate `ChatView`.
+    @State var isChatSelectionModeActive = false
     @State var conversationPendingRename: ConversationEntity?
     @State var showingRenameConversationAlert = false
     @State var renameConversationDraftTitle = ""
@@ -151,6 +161,7 @@ struct ContentView: View {
                 selectedAssistantID: selectedAssistant?.id,
                 regeneratingConversationID: regeneratingConversationID,
                 selection: $selectedConversation,
+                isSelectionModeActive: $isChatSelectionModeActive,
                 onSelectConversation: selectConversation,
                 onToggleStar: toggleConversationStar,
                 onRename: requestRenameConversation,
@@ -158,7 +169,9 @@ struct ContentView: View {
                     Task { await regenerateConversationTitle(conversation) }
                 },
                 onDelete: requestDeleteConversation,
-                onDeleteAtOffsets: deleteConversations
+                onDeleteAtOffsets: deleteConversations,
+                onDeleteConversations: requestDeleteConversations,
+                onSetStarred: setConversationsStarred
             )
         }
         // No custom sidebar background. NavigationSplitView renders the
@@ -182,6 +195,7 @@ struct ContentView: View {
             onNewChat: createNewConversation,
             onHideSidebar: toggleSidebarVisibility,
             searchText: $searchText,
+            isChatSelectionModeActive: $isChatSelectionModeActive,
             searchFieldFocus: $isSidebarSearchFieldFocused
         )
     }
@@ -246,6 +260,16 @@ struct ContentView: View {
             }
             isSidebarSearchFieldFocused = true
         }
+    }
+
+    /// Toggling selection mode while the sidebar is collapsed would do nothing
+    /// visible, so reveal it first — same reasoning as `focusChatSearch`.
+    func toggleChatSelectionMode() {
+        let willActivate = !isChatSelectionModeActive
+        if willActivate, !isSidebarVisible {
+            applySidebarVisibility(MainSidebarVisibility.splitVisibility(isVisible: true))
+        }
+        isChatSelectionModeActive = willActivate
     }
 
     private func applySidebarVisibility(_ visibility: NavigationSplitViewVisibility) {

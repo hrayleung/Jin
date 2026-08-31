@@ -9,6 +9,7 @@ struct ContentViewSidebarPinnedChromeView: View {
     let onNewChat: () -> Void
     let onHideSidebar: () -> Void
     @Binding var searchText: String
+    @Binding var isChatSelectionModeActive: Bool
     var searchFieldFocus: FocusState<Bool>.Binding
 
     private var searchFieldIsActive: Bool {
@@ -27,6 +28,7 @@ struct ContentViewSidebarPinnedChromeView: View {
                 titlebarTopInset: titlebarTopInset,
                 onNewChat: onNewChat,
                 onHideSidebar: onHideSidebar,
+                isChatSelectionModeActive: $isChatSelectionModeActive,
                 shortcutsStore: shortcutsStore
             )
 

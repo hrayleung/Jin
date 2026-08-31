@@ -6,6 +6,24 @@ struct SQLiteIntegrityResult: Sendable {
     let detail: String
 }
 
+/// Page accounting for the store file. Deleting rows only moves their pages
+/// onto SQLite's free list — the file never shrinks and the old bytes stay
+/// readable until something overwrites them. `VACUUM` is what actually
+/// returns the space and drops the stale content.
+struct SQLiteSpaceStats: Sendable, Equatable {
+    let pageSize: Int64
+    let pageCount: Int64
+    let freeListCount: Int64
+
+    var totalBytes: Int64 { pageCount * pageSize }
+    var reclaimableBytes: Int64 { freeListCount * pageSize }
+
+    var freeFraction: Double {
+        guard pageCount > 0 else { return 0 }
+        return Double(freeListCount) / Double(pageCount)
+    }
+}
+
 enum SQLiteDatabaseSupport {
     static func onlineBackup(from sourceURL: URL, to destinationURL: URL) throws {
         let fileManager = FileManager.default
@@ -68,6 +86,56 @@ enum SQLiteDatabaseSupport {
         defer { sqlite3_close(database) }
         guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else { return }
         sqlite3_exec(database, "PRAGMA wal_checkpoint(TRUNCATE);", nil, nil, nil)
+    }
+
+    static func spaceStats(at databaseURL: URL) -> SQLiteSpaceStats? {
+        var database: OpaquePointer?
+        defer { sqlite3_close(database) }
+        guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            return nil
+        }
+
+        guard let pageSize = scalarValue(database, "PRAGMA page_size;"),
+              let pageCount = scalarValue(database, "PRAGMA page_count;"),
+              let freeListCount = scalarValue(database, "PRAGMA freelist_count;") else {
+            return nil
+        }
+
+        return SQLiteSpaceStats(pageSize: pageSize, pageCount: pageCount, freeListCount: freeListCount)
+    }
+
+    /// Rewrites the database, returning free pages to the filesystem.
+    ///
+    /// Must run with no other connection attached: SQLite needs a write lock
+    /// for the whole rebuild, so this is only safe before SwiftData opens its
+    /// container (see `AppSnapshotManager.evaluateCurrentStoreForStartup`).
+    static func vacuum(at databaseURL: URL) throws {
+        var database: OpaquePointer?
+        defer { sqlite3_close(database) }
+
+        guard sqlite3_open_v2(databaseURL.path, &database, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK else {
+            throw SQLiteError.openFailed(path: databaseURL.path, message: message(for: database))
+        }
+        sqlite3_busy_timeout(database, 10_000)
+
+        // Fold the WAL back into the main file first, otherwise VACUUM has to
+        // contend with it and can leave the reclaimed pages in the WAL.
+        sqlite3_exec(database, "PRAGMA wal_checkpoint(TRUNCATE);", nil, nil, nil)
+
+        guard sqlite3_exec(database, "VACUUM;", nil, nil, nil) == SQLITE_OK else {
+            throw SQLiteError.vacuumFailed(message: message(for: database))
+        }
+        sqlite3_exec(database, "PRAGMA wal_checkpoint(TRUNCATE);", nil, nil, nil)
+    }
+
+    private static func scalarValue(_ database: OpaquePointer?, _ sql: String) -> Int64? {
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
+              sqlite3_step(statement) == SQLITE_ROW else {
+            return nil
+        }
+        return sqlite3_column_int64(statement, 0)
     }
 
     static func quickCheck(at databaseURL: URL) -> SQLiteIntegrityResult {
@@ -142,6 +210,7 @@ enum SQLiteDatabaseSupport {
 enum SQLiteError: LocalizedError {
     case openFailed(path: String, message: String)
     case backupFailed(message: String)
+    case vacuumFailed(message: String)
 
     var errorDescription: String? {
         switch self {
@@ -149,6 +218,8 @@ enum SQLiteError: LocalizedError {
             return "Failed to open SQLite database at \(path): \(message)"
         case .backupFailed(let message):
             return "SQLite online backup failed: \(message)"
+        case .vacuumFailed(let message):
+            return "SQLite VACUUM failed: \(message)"
         }
     }
 }
