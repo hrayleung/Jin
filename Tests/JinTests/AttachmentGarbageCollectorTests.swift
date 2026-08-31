@@ -156,6 +156,51 @@ final class AttachmentGarbageCollectorTests: XCTestCase {
         XCTAssertEqual(referenced, [first.lastPathComponent, second.lastPathComponent])
     }
 
+    /// Offset paging is only sound while nothing is removed underneath it: a
+    /// message deleted mid-scan shifts later rows down one, so a row can slip
+    /// through unread, and an unread row may hold the last reference to a
+    /// candidate. The sweep abandons the round rather than guess.
+    @MainActor
+    func testMessageDeletedMidScanAbandonsTheRound() async throws {
+        let context = ModelContext(container)
+        let file = try makeFile(named: "\(UUID().uuidString).png")
+
+        let doomed = makeConversation(title: "Doomed", in: context)
+        try appendMessage(referencing: [file], to: doomed, in: context)
+
+        // Enough to need more than one batch, so the hook fires mid-scan.
+        let survivor = makeConversation(title: "Survivor", in: context)
+        for _ in 0..<400 {
+            try appendMessage(referencing: [], to: survivor, in: context)
+        }
+        try context.save()
+
+        let candidates = AttachmentCleanup.candidateFilenames(
+            for: [doomed],
+            attachmentsDirectory: attachmentsDirectory
+        )
+        context.delete(doomed)
+        try context.save()
+
+        // Stands in for another chat being deleted while the sweep runs. Uses
+        // its own context so it doesn't need the main actor the test is on.
+        let container = self.container!
+        let collector = AttachmentGarbageCollector(container: container) {
+            let scratch = ModelContext(container)
+            guard let victim = try? scratch.fetch(FetchDescriptor<MessageEntity>()).first else { return }
+            scratch.delete(victim)
+            try? scratch.save()
+        }
+
+        let removed = await collector.removeUnreferencedFiles(
+            candidateFilenames: candidates,
+            attachmentsDirectory: attachmentsDirectory
+        )
+
+        XCTAssertTrue(removed.isEmpty, "A row may have slipped through the shifted paging.")
+        XCTAssertTrue(exists(file), "Leaking a file is recoverable; deleting a referenced one is not.")
+    }
+
     /// A filename read back out of the store must never be able to reach
     /// outside the attachments directory.
     func testTraversalCandidatesAreIgnored() async throws {

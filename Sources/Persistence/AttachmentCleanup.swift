@@ -4,11 +4,18 @@ import Foundation
 /// user of.
 ///
 /// Attachment files are referenced only by URL inside `MessageEntity`'s JSON
-/// blobs, and `MessageMediaAssetPersistenceSupport.persistImageToDisk` names
-/// images by the SHA-256 of their bytes and reuses an existing file — so one
-/// file on disk can back messages in several different chats. Deleting a chat
-/// therefore can't delete its files outright; each one has to be proven
-/// unreferenced first.
+/// blobs. Deleting a chat can't delete the files it pointed at outright; each
+/// one is proven unreferenced against the surviving messages first.
+///
+/// That check is deliberately stronger than today's storage layout requires.
+/// Every writer that puts a file URL into a message mints a fresh UUID for it,
+/// so two chats can't currently share a file — but nothing enforces that.
+/// `MessageMediaAssetPersistenceSupport.persistImageToDisk` already names
+/// images by the SHA-256 of their bytes and hands back the existing file
+/// rather than writing a second copy; it just happens to serve "Open in
+/// Preview" and "Reveal in Finder" instead of message content. Wire a
+/// content-addressed path into a message and "the chat I deleted pointed at
+/// it, so remove it" would start destroying media another chat still shows.
 ///
 /// Only files the deleted messages actually pointed at are ever candidates. A
 /// blanket sweep of the directory would delete the composer's draft

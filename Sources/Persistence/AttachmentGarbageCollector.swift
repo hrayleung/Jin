@@ -8,17 +8,25 @@ import SwiftData
 /// means hundreds of megabytes, so it runs on its own contexts and in
 /// batches: each batch gets a fresh `ModelContext` that is dropped with the
 /// objects it faulted, keeping peak memory flat regardless of library size.
-/// It also stops the moment every candidate has been found referenced, which
-/// is the common case when a shared image is involved.
+/// It also stops the moment every candidate has been found referenced.
 actor AttachmentGarbageCollector {
     private static let batchSize = 200
 
     private let container: ModelContainer
     private let fileManager: FileManager
+    /// Test seam. The mid-scan guard below is the only thing standing between
+    /// a concurrent delete and removing a file a live message points at, and
+    /// there is no other way to interleave with a scan this fast.
+    private let onBatchScanned: (@Sendable () -> Void)?
 
-    init(container: ModelContainer, fileManager: FileManager = .default) {
+    init(
+        container: ModelContainer,
+        fileManager: FileManager = .default,
+        onBatchScanned: (@Sendable () -> Void)? = nil
+    ) {
         self.container = container
         self.fileManager = fileManager
+        self.onBatchScanned = onBatchScanned
     }
 
     /// Deletes the candidates no surviving message references.
@@ -84,13 +92,19 @@ actor AttachmentGarbageCollector {
         var remaining = candidates
         guard !remaining.isEmpty else { return [] }
 
+        let messageCountBeforeScan = messageCount()
         var offset = 0
         while !remaining.isEmpty {
             // A fresh context per batch: SwiftData keeps every fetched object
             // registered for the life of its context, so reusing one would
             // accumulate the whole message table in memory.
             let context = ModelContext(container)
-            var descriptor = FetchDescriptor<MessageEntity>()
+            var descriptor = FetchDescriptor<MessageEntity>(
+                // Explicit ascending order so paging is deterministic, and so
+                // messages saved while the scan runs land past the cursor
+                // instead of shifting rows underneath it.
+                sortBy: [SortDescriptor(\.timestamp, order: .forward)]
+            )
             descriptor.fetchLimit = Self.batchSize
             descriptor.fetchOffset = offset
 
@@ -105,9 +119,24 @@ actor AttachmentGarbageCollector {
             }
 
             offset += batch.count
+            onBatchScanned?()
             if batch.count < Self.batchSize { break }
         }
 
+        guard !remaining.isEmpty else { return [] }
+
+        // Offset paging can only be trusted if nothing was removed underneath
+        // it. A message deleted mid-scan shifts every later row down one, so a
+        // row can slip through unread — and an unread row is indistinguishable
+        // from one holding the last reference to a candidate. Leaking a file
+        // is recoverable; deleting one a live message points at is not, so a
+        // shrinking table abandons this round.
+        guard messageCount() >= messageCountBeforeScan else { return [] }
         return remaining
+    }
+
+    private func messageCount() -> Int {
+        let context = ModelContext(container)
+        return (try? context.fetchCount(FetchDescriptor<MessageEntity>())) ?? 0
     }
 }

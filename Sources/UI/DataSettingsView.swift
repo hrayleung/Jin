@@ -126,6 +126,13 @@ struct DataSettingsView: View {
     }
 
     private func deleteAllChats() {
+        // Frozen at the moment the user confirmed. `conversations` is a live
+        // query and the attachment scan below can run for seconds, so without
+        // this a chat started in the main window meanwhile would be swept up
+        // by a deletion the user never agreed to.
+        let targetIDs = Set(conversations.map(\.id))
+        guard !targetIDs.isEmpty else { return }
+
         Task {
             let container = modelContext.container
             let attachmentsDirectory = try? AppDataLocations.attachmentsDirectoryURL()
@@ -143,7 +150,7 @@ struct DataSettingsView: View {
             }
 
             await MainActor.run {
-                for conversation in conversations {
+                for conversation in conversations where targetIDs.contains(conversation.id) {
                     modelContext.delete(conversation)
                 }
                 try? modelContext.save()
