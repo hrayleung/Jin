@@ -23,6 +23,7 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
             "glm-5-3-flash",
             "deepseek-v4-pro",
             "qwen3-8-27b",
+            "qwen3-8-flash-next",
             "ornith-1-5-35b",
             "nemotron-3-5-lightning-30b",
             "qwen3-8-2-4t-a95b",
@@ -36,7 +37,7 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
             XCTAssertTrue(info.capabilities.contains(.toolCalling), id)
             XCTAssertTrue(info.capabilities.contains(.reasoning), id)
             XCTAssertTrue(info.capabilities.contains(.promptCaching), id)
-            XCTAssertFalse(info.capabilities.contains(.vision), id)
+            XCTAssertEqual(info.capabilities.contains(.vision), id == "qwen3-8-27b", id)
             XCTAssertEqual(info.maxOutputTokens, 32_768, id)
             XCTAssertFalse(
                 ModelCapabilityRegistry.supportsWebSearch(for: .runinfra, modelID: id),
@@ -50,7 +51,7 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(config.type, .runinfra)
         XCTAssertEqual(config.baseURL, "https://api.runinfra.ai/v1")
         XCTAssertEqual(config.models.map(\.id).first, "deepseek-v4-flash")
-        XCTAssertEqual(config.models.count, 7)
+        XCTAssertEqual(config.models.count, 8)
         XCTAssertTrue(DefaultProviderSeeds.allProviders().contains(where: { $0.id == "runinfra" }))
 
         let adapter = RunInfraAdapter(providerConfig: config, apiKey: "test-key")
@@ -91,12 +92,38 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
     func testQwen27BEffortBand() {
         let info = ModelCatalog.modelInfo(for: "qwen3-8-27b", provider: .runinfra)
         XCTAssertEqual(info.contextWindow, 262_144)
+        XCTAssertTrue(info.capabilities.contains(.vision))
         XCTAssertEqual(info.reasoningConfig?.type, .effort)
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .runinfra, modelID: "qwen3-8-27b"),
             [.none, .low, .medium, .xhigh]
         )
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .runinfra, modelID: "qwen3-8-27b"))
+        let alias = ModelCatalog.modelInfo(for: "Qwen/Qwen3.8-27B", provider: .runinfra)
+        XCTAssertTrue(alias.capabilities.contains(.vision))
+    }
+
+    func testQwen38FlashNextCatalogUsesExactLiveID() {
+        let info = ModelCatalog.modelInfo(for: "qwen3-8-flash-next", provider: .runinfra)
+        XCTAssertEqual(info.name, "Qwen3.8 Flash Next")
+        XCTAssertEqual(info.contextWindow, 262_144)
+        XCTAssertEqual(info.maxOutputTokens, 32_768)
+        XCTAssertEqual(
+            info.capabilities,
+            [.streaming, .toolCalling, .reasoning, .promptCaching]
+        )
+        XCTAssertFalse(info.capabilities.contains(.vision))
+        XCTAssertEqual(info.reasoningConfig?.type, .toggle)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "qwen3-8-flash-next", provider: .runinfra))
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .runinfra, modelID: "qwen3-8-flash-next")
+        )
+        XCTAssertFalse(
+            ModelCatalog.isFullySupported(modelID: "qwen3-8-flash-next-custom", provider: .runinfra)
+        )
+        XCTAssertFalse(
+            ModelCatalog.isFullySupported(modelID: "Qwen/Qwen3.8-Flash-Next", provider: .runinfra)
+        )
     }
 
     func testQwen24TThinkingCannotDisable() {
@@ -119,7 +146,7 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
     }
 
     func testToggleModels() {
-        for id in ["deepseek-v4-pro", "nemotron-3-5-lightning-30b", "ornith-1-5-35b", "glm-5-3-flash"] {
+        for id in ["deepseek-v4-pro", "nemotron-3-5-lightning-30b", "ornith-1-5-35b", "glm-5-3-flash", "qwen3-8-flash-next"] {
             let info = ModelCatalog.modelInfo(for: id, provider: .runinfra)
             XCTAssertEqual(info.reasoningConfig?.type, .toggle, id)
             XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .runinfra, modelID: id), id)
@@ -295,6 +322,82 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
             controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
             tools: [],
             streaming: true
+        )
+        for try await _ in stream {}
+    }
+
+    func testQwen27BForwardsInlineImageParts() async throws {
+        let (configuration, protocolType) = runinfraMakeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(runinfraRequestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "qwen3-8-27b")
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let content = try XCTUnwrap(messages.first?["content"] as? [[String: Any]])
+            XCTAssertTrue(content.contains(where: { $0["type"] as? String == "image_url" }))
+            return try runinfraOKResponse(url: request.url!)
+        }
+
+        let adapter = RunInfraAdapter(
+            providerConfig: DefaultProviderSeeds.runinfra,
+            apiKey: "test-key",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("describe"),
+                        .image(ImageContent(mimeType: "image/png", data: Data([0x89, 0x50]), url: nil)),
+                    ]
+                )
+            ],
+            modelID: "qwen3-8-27b",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
+    func testFlashNextOmitsImageParts() async throws {
+        let (configuration, protocolType) = runinfraMakeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(runinfraRequestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            XCTAssertEqual(root["model"] as? String, "qwen3-8-flash-next")
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let content = try XCTUnwrap(messages.first?["content"] as? String)
+            XCTAssertTrue(content.contains("Image attachment omitted"))
+            return try runinfraOKResponse(url: request.url!)
+        }
+
+        let adapter = RunInfraAdapter(
+            providerConfig: DefaultProviderSeeds.runinfra,
+            apiKey: "test-key",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(
+                    role: .user,
+                    content: [
+                        .text("describe"),
+                        .image(ImageContent(mimeType: "image/png", data: Data([0x89, 0x50]), url: nil)),
+                    ]
+                )
+            ],
+            modelID: "qwen3-8-flash-next",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
         )
         for try await _ in stream {}
     }

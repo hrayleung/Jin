@@ -219,18 +219,21 @@ func isFireworksDeepSeekV4ProModel(_ modelID: String) -> Bool {
     fireworksDeepSeekV4ProModelIDs.contains(modelID.lowercased())
 }
 
-/// Fireworks GLM-5.3 / GLM-5.3 Fast. Official Z.ai GLM-5.3 rejects
-/// `thinking.type: disabled`; Off maps to `reasoning_effort: low`.
+/// Fireworks GLM-5.3 / GLM-5.3 Fast / GLM-5.3-Flash. Official Z.ai GLM-5.3
+/// and GLM-5.3-Flash reject `thinking.type: disabled`; Off maps to
+/// `reasoning_effort: low`.
 func isFireworksGLM53Model(_ modelID: String) -> Bool {
     let lower = modelID.lowercased()
     if lower == "accounts/fireworks/models/glm-5p3"
         || lower == "fireworks/glm-5p3"
         || lower == "accounts/fireworks/routers/glm-5p3-fast"
-        || lower == "fireworks/glm-5p3-fast" {
+        || lower == "fireworks/glm-5p3-fast"
+        || lower == "accounts/fireworks/models/glm-5p3-flash"
+        || lower == "fireworks/glm-5p3-flash" {
         return true
     }
     guard let canonical = fireworksCanonicalModelID(lower) else { return false }
-    return canonical == "glm-5p3" || canonical == "glm-5p3-fast"
+    return canonical == "glm-5p3" || canonical == "glm-5p3-fast" || canonical == "glm-5p3-flash"
 }
 
 /// Fireworks DeepSeek V4 GA snapshots (`0813`, `flash-0731`). Enabled turns send

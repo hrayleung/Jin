@@ -4,33 +4,38 @@ extension ModelCatalog {
 
     // MARK: RunInfra Model APIs
 
-    // Official hosted catalog (runinfra.ai/docs + Model Library, verified 2026-08-27).
+    // Official hosted catalog (runinfra.ai/docs + Model Library, verified 2026-08-31).
     // Wire IDs are the short gateway slugs from GET /v1/models / the Model APIs
     // quickstart. Hugging Face repository IDs are accepted as aliases by the
     // gateway and are catalogued unseeded so Fetch/Add Model still gets exact-ID
-    // metadata. Chat Completions currently refuses image/audio/video parts on
-    // every live hosted model (400 hosted_parameter_not_supported) even when a
-    // library card mentions image input — vision stays off until the API contract
-    // lists it for that exact ID. Gateway output ceiling is 32,768 tokens per
-    // request. Automatic prefix caching is billed at the published cached-input
+    // metadata. Vision is claimed only for exact IDs the Chat Completions contract
+    // names (`qwen3-8-27b` accepts inline `image_url` / `input_image`, up to 8).
+    // `qwen3-8-flash-next` stays text-only until that page lists it. Gateway UI
+    // output ceiling stays 32,768; GET /v1/models may advertise a larger remaining-
+    // context cap. Automatic prefix caching is billed at the published cached-input
     // rate and is not request-controllable.
     static let runinfraRecords: [Record] = {
         let hostedMaxOutputTokens = 32_768
         let flashEfforts: [ReasoningEffort] = [.none, .low, .medium, .max]
         let qwen27BEfforts: [ReasoningEffort] = [.none, .low, .medium, .xhigh]
         let qwen24TEfforts: [ReasoningEffort] = [.low, .medium, .xhigh]
+        let hostedChat: ModelCapability = [.streaming, .toolCalling, .reasoning, .promptCaching]
+        let hostedVisionChat: ModelCapability = [
+            .streaming, .toolCalling, .vision, .reasoning, .promptCaching
+        ]
 
         func hosted(
             id: String,
             displayName: String,
             contextWindow: Int,
             reasoningConfig: ModelReasoningConfig?,
-            isSeeded: Bool
+            isSeeded: Bool,
+            capabilities: ModelCapability = hostedChat
         ) -> Record {
             Record(
                 id: id,
                 displayName: displayName,
-                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+                capabilities: capabilities,
                 contextWindow: contextWindow,
                 maxOutputTokens: hostedMaxOutputTokens,
                 reasoningConfig: reasoningConfig,
@@ -83,6 +88,23 @@ extension ModelCatalog {
                 displayName: "Qwen3.8 27B",
                 contextWindow: 262_144,
                 reasoningConfig: qwen27BReasoning,
+                isSeeded: true,
+                capabilities: hostedVisionChat
+            ),
+            // Live Model APIs quickstart (2026-08-31) + library page
+            // runinfra.ai/inference-api/qwen3-8-flash-next (2026-08-30). Served
+            // window is unpublished in crawlable HTML; use the HF native 262,144
+            // (Qwen/Qwen3.8-Flash-Next). Fetch overlays live `context_window`.
+            // Chat Completions names image parts only for `qwen3-8-27b`, so
+            // vision stays off. Effort band is unpublished for this exact ID —
+            // toggle only (`none` is still the documented off switch except on
+            // `qwen3-8-2-4t-a95b`). Hugging Face mapping is not yet in the
+            // published repository table, so no unseeded HF alias.
+            hosted(
+                id: "qwen3-8-flash-next",
+                displayName: "Qwen3.8 Flash Next",
+                contextWindow: 262_144,
+                reasoningConfig: toggleReasoning,
                 isSeeded: true
             ),
             hosted(
@@ -134,7 +156,8 @@ extension ModelCatalog {
                 displayName: "Qwen3.8 27B",
                 contextWindow: 262_144,
                 reasoningConfig: qwen27BReasoning,
-                isSeeded: false
+                isSeeded: false,
+                capabilities: hostedVisionChat
             ),
             hosted(
                 id: "ornith-ai/Ornith-1.5-35B-A3B",

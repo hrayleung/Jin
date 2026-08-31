@@ -370,8 +370,8 @@ enum ModelSettingsResolver {
     }
 
     /// Fireworks MiniMax M2 family plus Qwen3.8-2.4T (thinking cannot be disabled
-    /// on the HF weights) and GLM-5.3 (official Z.ai rejects `thinking.type:
-    /// disabled`). Preview DeepSeek V4 Pro stays disableable.
+    /// on the HF weights) and GLM-5.3 / GLM-5.3-Flash (official Z.ai rejects
+    /// `thinking.type: disabled`). Preview DeepSeek V4 Pro stays disableable.
     private static func isFireworksAlwaysOnReasoningModel(_ modelID: String) -> Bool {
         if isFireworksMiniMaxM2FamilyModel(modelID) || isFireworksGLM53Model(modelID) {
             return true

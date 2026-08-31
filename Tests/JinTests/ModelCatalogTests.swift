@@ -1963,6 +1963,37 @@ final class ModelCatalogTests: XCTestCase {
             for: .fireworks,
             modelID: "accounts/fireworks/routers/glm-5p3-fast"
         ))
+
+        let flash = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/glm-5p3-flash",
+            provider: .fireworks
+        )
+        XCTAssertEqual(flash.contextWindow, 1_040_000)
+        XCTAssertEqual(flash.maxOutputTokens, 131_072)
+        XCTAssertEqual(
+            flash.capabilities,
+            [.streaming, .toolCalling, .vision, .reasoning, .promptCaching]
+        )
+        XCTAssertFalse(flash.capabilities.contains(.videoInput))
+        XCTAssertEqual(flash.reasoningConfig?.type, .effort)
+        XCTAssertEqual(flash.reasoningConfig?.defaultEffort, .max)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .fireworks,
+                modelID: "fireworks/glm-5p3-flash"
+            ),
+            [.low, .high, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .fireworks,
+            modelID: "accounts/fireworks/models/glm-5p3-flash"
+        ))
+        XCTAssertTrue(ModelCatalog.seededModels(for: .fireworks).map(\.id).contains(
+            "accounts/fireworks/models/glm-5p3-flash"
+        ))
+        XCTAssertFalse(ModelCatalog.seededModels(for: .fireworks).map(\.id).contains(
+            "fireworks/glm-5p3-flash"
+        ))
     }
 
     func testOpenRouterLastWeekOpenModelsUseExactProviderIDs() {
@@ -3038,7 +3069,42 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "zai/glm-5.3-flash", provider: .vercelAIGateway))
         XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "zai/glm-5.3-flash"))
 
+        let fireworks = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/glm-5p3-flash",
+            provider: .fireworks
+        )
+        XCTAssertEqual(fireworks.contextWindow, 1_040_000)
+        XCTAssertEqual(fireworks.maxOutputTokens, 131_072)
+        XCTAssertEqual(
+            fireworks.capabilities,
+            [.streaming, .toolCalling, .vision, .reasoning, .promptCaching]
+        )
+        XCTAssertFalse(fireworks.capabilities.contains(.videoInput))
+        XCTAssertTrue(ModelCatalog.isFullySupported(
+            modelID: "accounts/fireworks/models/glm-5p3-flash",
+            provider: .fireworks
+        ))
+        XCTAssertTrue(ModelCatalog.isFullySupported(
+            modelID: "fireworks/glm-5p3-flash",
+            provider: .fireworks
+        ))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(
+            for: .fireworks,
+            modelID: "accounts/fireworks/models/glm-5p3-flash"
+        ))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .fireworks,
+                modelID: "accounts/fireworks/models/glm-5p3-flash"
+            ),
+            [.low, .high, .max]
+        )
+
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "zai-org/GLM-5.3-Fast", provider: .baseten))
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "zai-org/GLM-5.3-Flash-custom", provider: .together))
+        XCTAssertFalse(ModelCatalog.isFullySupported(
+            modelID: "accounts/fireworks/models/glm-5p3-flash-custom",
+            provider: .fireworks
+        ))
     }
 }

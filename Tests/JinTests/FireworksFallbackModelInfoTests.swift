@@ -46,6 +46,7 @@ final class FireworksFallbackModelInfoTests: XCTestCase {
         assertModel("glm-4p7", name: "GLM-4.7", window: 202_800, reasoning: true)
         assertModel("glm-5", name: "GLM-5", window: 202_800, reasoning: true)
         assertModel("glm-5p2", name: "GLM-5.2", window: 1_040_384, reasoning: true)
+        assertModel("glm-5p3-flash", name: "GLM-5.3-Flash", window: 1_040_000, vision: true, reasoning: true)
         assertModel("glm-5p1", name: "GLM-5.1", window: 202_752, reasoning: true)
         assertModel("qwen3-omni-30b-a3b-instruct", name: "fireworks/qwen3-omni-30b-a3b-instruct", window: 128_000, vision: true, audio: true)
         assertModel("qwen3-asr-4b", name: "fireworks/qwen3-asr-4b", window: 128_000, audio: true)
