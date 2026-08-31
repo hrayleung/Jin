@@ -142,6 +142,11 @@ extension ChatMessagePreparationSupport {
                 ? ClaudeManagedAgentRuntime.resolvedDisplayName(threadModelID: conversation.modelID, controls: resolvedManagedControls)
                 : resolvedModelID)
 
+        let maxVisionImagesPerRequest: Int? =
+            (providerTypeSnapshot == .runinfra && supportsVision)
+            ? RunInfraVisionSupport.maxImagesPerRequest
+            : nil
+
         return MessagePreparationProfile(
             modelName: modelName,
             supportsVideoGenerationControl: supportsVideoGen,
@@ -150,7 +155,8 @@ extension ChatMessagePreparationSupport {
             supportsNativePDF: nativePDFSupported,
             supportsVision: supportsVision,
             pdfProcessingMode: pdfMode,
-            firecrawlPDFParserMode: firecrawlPDFParserMode
+            firecrawlPDFParserMode: firecrawlPDFParserMode,
+            maxVisionImagesPerRequest: maxVisionImagesPerRequest
         )
     }
 }

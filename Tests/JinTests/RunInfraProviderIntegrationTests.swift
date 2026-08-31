@@ -364,6 +364,41 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testQwen27BCapsImagesAtDocumentedPerRequestLimit() async throws {
+        let (configuration, protocolType) = runinfraMakeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(runinfraRequestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let content = try XCTUnwrap(messages.first?["content"] as? [[String: Any]])
+            let imageCount = content.filter { $0["type"] as? String == "image_url" }.count
+            XCTAssertEqual(imageCount, RunInfraVisionSupport.maxImagesPerRequest)
+            let texts = content.compactMap { $0["text"] as? String }
+            XCTAssertTrue(texts.contains(where: { $0.contains("Omitted 1 extra image") }))
+            return try runinfraOKResponse(url: request.url!)
+        }
+
+        let images = (0..<9).map { _ in
+            ContentPart.image(ImageContent(mimeType: "image/png", data: Data([0x89, 0x50]), url: nil))
+        }
+        let adapter = RunInfraAdapter(
+            providerConfig: DefaultProviderSeeds.runinfra,
+            apiKey: "test-key",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("describe")] + images)],
+            modelID: "qwen3-8-27b",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
     func testFlashNextOmitsImageParts() async throws {
         let (configuration, protocolType) = runinfraMakeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

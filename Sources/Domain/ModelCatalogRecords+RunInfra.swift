@@ -10,6 +10,7 @@ extension ModelCatalog {
     // gateway and are catalogued unseeded so Fetch/Add Model still gets exact-ID
     // metadata. Vision is claimed only for exact IDs the Chat Completions contract
     // names (`qwen3-8-27b` accepts inline `image_url` / `input_image`, up to 8).
+    // Adapter + PDF rasterizer enforce that cap so 9+ page PDFs do not 400.
     // `qwen3-8-flash-next` stays text-only until that page lists it. Gateway UI
     // output ceiling stays 32,768; GET /v1/models may advertise a larger remaining-
     // context cap. Automatic prefix caching is billed at the published cached-input

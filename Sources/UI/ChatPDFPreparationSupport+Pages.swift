@@ -22,11 +22,17 @@ extension ChatMessagePreparationSupport {
             return document.pageCount
         }()
         let totalPages = max(1, pageCount)
+        let pageLimit: Int = {
+            if let cap = profile.maxVisionImagesPerRequest, cap > 0 {
+                return min(pageCount, cap)
+            }
+            return pageCount
+        }()
 
         var imageParts: [ContentPart] = []
-        imageParts.reserveCapacity(pageCount)
+        imageParts.reserveCapacity(pageLimit)
 
-        for pageIndex in 0..<pageCount {
+        for pageIndex in 0..<pageLimit {
             try Task.checkCancellation()
             await onStatusUpdate(
                 "Render PDF \(pdfOrdinal)/\(max(1, totalPDFCount)) (pages): \(attachment.filename) — page \(pageIndex + 1)/\(totalPages)"
@@ -46,7 +52,13 @@ extension ChatMessagePreparationSupport {
             )
         }
 
-        let body = "The PDF pages are attached as images for visual reading. Treat the images as the document's contents.\n\n[Note: Attached \(imageParts.count) page image(s).]"
+        let attachedNote: String
+        if pageLimit < pageCount {
+            attachedNote = "[Note: Attached the first \(pageLimit) of \(pageCount) page images (provider limit).]"
+        } else {
+            attachedNote = "[Note: Attached \(imageParts.count) page image(s).]"
+        }
+        let body = "The PDF pages are attached as images for visual reading. Treat the images as the document's contents.\n\n\(attachedNote)"
 
         return finalizedPDFOutput(
             body,
