@@ -99,12 +99,24 @@ extension RunInfraAdapter {
 
     private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {
         let supportsVision = modelSupportsVision(modelID)
-        var remainingImages = supportsVision ? RunInfraVisionSupport.maxImagesPerRequest : 0
+        var totalImages = 0
+        if supportsVision {
+            for message in messages where message.role == .user {
+                for part in message.content {
+                    if case .image = part {
+                        totalImages += 1
+                    }
+                }
+            }
+        }
+        var imagesToSkip = max(0, totalImages - RunInfraVisionSupport.maxImagesPerRequest)
+        var imagesToInclude = supportsVision ? RunInfraVisionSupport.maxImagesPerRequest : 0
         return try translateMessagesToOpenAIFormat(messages) { message in
             try self.translateNonToolMessage(
                 message,
                 supportsVision: supportsVision,
-                remainingImages: &remainingImages
+                imagesToSkip: &imagesToSkip,
+                imagesToInclude: &imagesToInclude
             )
         }
     }
@@ -112,7 +124,8 @@ extension RunInfraAdapter {
     private func translateNonToolMessage(
         _ message: Message,
         supportsVision: Bool,
-        remainingImages: inout Int
+        imagesToSkip: inout Int,
+        imagesToInclude: inout Int
     ) throws -> [String: Any] {
         let split = splitContentParts(
             message.content,
@@ -135,7 +148,8 @@ extension RunInfraAdapter {
             if supportsVision, split.hasRichUserContent {
                 dict["content"] = try translateVisionUserContent(
                     message.content,
-                    remainingImages: &remainingImages
+                    imagesToSkip: &imagesToSkip,
+                    imagesToInclude: &imagesToInclude
                 )
             } else {
                 dict["content"] = split.visible
@@ -164,11 +178,13 @@ extension RunInfraAdapter {
         return dict
     }
 
-    /// Forwards inline images until the documented per-request cap, then notes extras
-    /// as text so the gateway does not 400 the whole completion.
+    /// Forwards inline images until the documented per-request cap, prioritizing the newest
+    /// images across the conversation, and notes omitted extras as text so the gateway does not
+    /// 400 the whole completion.
     private func translateVisionUserContent(
         _ parts: [ContentPart],
-        remainingImages: inout Int
+        imagesToSkip: inout Int,
+        imagesToInclude: inout Int
     ) throws -> [[String: Any]] {
         var out: [[String: Any]] = []
         var omitted = 0
@@ -180,16 +196,21 @@ extension RunInfraAdapter {
             case .quote(let quote):
                 out.append(["type": "text", "text": quote.quotedText])
             case .image(let image):
-                guard remainingImages > 0 else {
+                if imagesToSkip > 0 {
+                    imagesToSkip -= 1
                     omitted += 1
-                    continue
-                }
-                if let urlString = try imageToURLString(image) {
-                    remainingImages -= 1
-                    out.append([
-                        "type": "image_url",
-                        "image_url": ["url": urlString],
-                    ])
+                } else if imagesToInclude > 0 {
+                    if let urlString = try imageToURLString(image) {
+                        imagesToInclude -= 1
+                        out.append([
+                            "type": "image_url",
+                            "image_url": ["url": urlString],
+                        ])
+                    } else {
+                        omitted += 1
+                    }
+                } else {
+                    omitted += 1
                 }
             case .file(let file):
                 out.append([

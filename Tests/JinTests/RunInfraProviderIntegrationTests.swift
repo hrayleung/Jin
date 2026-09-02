@@ -399,6 +399,65 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testQwen27BPrioritizesNewestImagesAcrossMultipleTurns() async throws {
+        let (configuration, protocolType) = runinfraMakeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(runinfraRequestBodyData(request))
+            let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let root = try XCTUnwrap(json)
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.count, 3)
+
+            // Turn 1 (historical): 8 images attached originally, oldest 1 is omitted to reserve budget for Turn 3
+            let turn1Content = try XCTUnwrap(messages[0]["content"] as? [[String: Any]])
+            let turn1Images = turn1Content.filter { $0["type"] as? String == "image_url" }
+            XCTAssertEqual(turn1Images.count, 7)
+            let turn1Texts = turn1Content.compactMap { $0["text"] as? String }
+            XCTAssertTrue(turn1Texts.contains(where: { $0.contains("Omitted 1 extra image") }))
+
+            // Turn 2 (assistant)
+            XCTAssertEqual(messages[1]["role"] as? String, "assistant")
+
+            // Turn 3 (latest turn): 1 image attached, must be preserved!
+            let turn3Content = try XCTUnwrap(messages[2]["content"] as? [[String: Any]])
+            let turn3Images = turn3Content.filter { $0["type"] as? String == "image_url" }
+            XCTAssertEqual(turn3Images.count, 1)
+            let turn3Texts = turn3Content.compactMap { $0["text"] as? String }
+            XCTAssertFalse(turn3Texts.contains(where: { $0.contains("Omitted") }))
+
+            // Total images across the request must equal exactly 8 (7 + 1)
+            let totalImages = turn1Images.count + turn3Images.count
+            XCTAssertEqual(totalImages, RunInfraVisionSupport.maxImagesPerRequest)
+
+            return try runinfraOKResponse(url: request.url!)
+        }
+
+        let historicalImages = (0..<8).map { _ in
+            ContentPart.image(ImageContent(mimeType: "image/png", data: Data([0x89, 0x50]), url: nil))
+        }
+        let latestImage = ContentPart.image(ImageContent(mimeType: "image/png", data: Data([0x89, 0x51]), url: nil))
+
+        let adapter = RunInfraAdapter(
+            providerConfig: DefaultProviderSeeds.runinfra,
+            apiKey: "test-key",
+            networkManager: networkManager
+        )
+        let stream = try await adapter.sendMessage(
+            messages: [
+                Message(role: .user, content: [.text("first turn")] + historicalImages),
+                Message(role: .assistant, content: [.text("received")]),
+                Message(role: .user, content: [.text("latest turn"), latestImage]),
+            ],
+            modelID: "qwen3-8-27b",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in stream {}
+    }
+
     func testFlashNextOmitsImageParts() async throws {
         let (configuration, protocolType) = runinfraMakeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
