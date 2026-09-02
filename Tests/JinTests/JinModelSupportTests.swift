@@ -667,6 +667,45 @@ final class JinModelSupportTests: XCTestCase {
 
         // Databricks new additions
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-claude-fable-5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-claude-fable-5-1"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-gemini-3-7-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-glm-5-3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-glm-5-3-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-grok-4-6"))
+
+        // Baseten GLM-5.3 additions
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .baseten, modelID: "zai-org/GLM-5.3"))
+        let basetenGLM53 = ModelCatalog.modelInfo(for: "zai-org/GLM-5.3", provider: .baseten)
+        XCTAssertEqual(basetenGLM53.contextWindow, 1_048_576)
+        XCTAssertEqual(basetenGLM53.maxOutputTokens, 262_144)
+        XCTAssertEqual(basetenGLM53.reasoningConfig?.defaultEffort, .max)
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .baseten, modelID: "zai-org/GLM-5.3"))
+
+        // OpenRouter Mercury 2.5 and Ling 3.0 additions
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "inception/mercury-2.5-preview"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "inclusionai/ling-3.0-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "inclusionai/ling-3.0-flash-fin"))
+        let mercury25 = ModelCatalog.modelInfo(for: "inception/mercury-2.5-preview", provider: .openrouter)
+        XCTAssertEqual(mercury25.contextWindow, 260_000)
+        XCTAssertEqual(mercury25.maxOutputTokens, 65_536)
+        XCTAssertEqual(mercury25.reasoningConfig?.defaultEffort, .high)
+        let ling3Flash = ModelCatalog.modelInfo(for: "inclusionai/ling-3.0-flash", provider: .openrouter)
+        XCTAssertEqual(ling3Flash.contextWindow, 262_144)
+        XCTAssertEqual(ling3Flash.reasoningConfig?.type, .toggle)
+
+        // Gemini 3.8 Flash across providers
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.8-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-3.8-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "google/gemini-3.8-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "google/gemini-3.8-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "google-ai-studio/gemini-3.8-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "google-vertex-ai/google/gemini-3.8-flash"))
+        let gemini38 = ModelCatalog.modelInfo(for: "gemini-3.8-flash", provider: .gemini)
+        XCTAssertEqual(gemini38.contextWindow, 1_048_576)
+        XCTAssertEqual(gemini38.maxOutputTokens, 65_536)
+        XCTAssertTrue(gemini38.capabilities.contains(.vision))
+        XCTAssertTrue(gemini38.capabilities.contains(.audio))
+        XCTAssertTrue(gemini38.capabilities.contains(.nativePDF))
+        XCTAssertTrue(gemini38.capabilities.contains(.codeExecution))
     }
 }

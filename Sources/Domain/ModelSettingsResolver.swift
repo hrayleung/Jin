@@ -377,6 +377,7 @@ enum ModelSettingsResolver {
     /// disabled thinking (docs.z.ai/guides/vlm/glm-5.3-flash); models.dev `baseten`
     /// effort values are low/high/max with no `none`.
     private static let basetenAlwaysOnReasoningModelIDs: Set<String> = [
+        "zai-org/glm-5.3",
         "zai-org/glm-5.3-flash",
     ]
 

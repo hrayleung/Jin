@@ -11,7 +11,7 @@ final class BasetenProviderIntegrationTests: XCTestCase {
 
     func testSeededModelsMatchOfficialCatalog() {
         let seeded = ModelCatalog.seededModels(for: .baseten)
-        XCTAssertEqual(seeded.count, 17)
+        XCTAssertEqual(seeded.count, 18)
         XCTAssertEqual(seeded.first?.id, "moonshotai/Kimi-K3")
 
         let expectedIDs = [
@@ -24,6 +24,7 @@ final class BasetenProviderIntegrationTests: XCTestCase {
             "deepseek-ai/DeepSeek-V4-Pro-0813",
             "deepseek-ai/DeepSeek-V4-Flash-0731",
             "zai-org/GLM-5.3-Flash",
+            "zai-org/GLM-5.3",
             "zai-org/GLM-5.2",
             "zai-org/GLM-5.2-Fast",
             "Qwen/Qwen3.8-2.4T-A95B",
@@ -119,7 +120,7 @@ final class BasetenProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(config.type, .baseten)
         XCTAssertEqual(config.baseURL, "https://inference.baseten.co/v1")
         XCTAssertEqual(config.models.first?.id, "moonshotai/Kimi-K3")
-        XCTAssertEqual(config.models.count, 17)
+        XCTAssertEqual(config.models.count, 18)
 
         let adapter = BasetenAdapter(providerConfig: config, apiKey: "test-key")
         let baseURL = await adapter.baseURL

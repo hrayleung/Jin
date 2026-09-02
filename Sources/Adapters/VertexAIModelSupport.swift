@@ -11,6 +11,7 @@ struct VertexAIModelSupport {
     let knownModels: [(id: String, name: String, contextWindow: Int)] = [
         ("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview", 1_048_576),
         ("gemini-3-flash-preview", "Gemini 3 Flash Preview", 1_048_576),
+        ("gemini-3.8-flash", "Gemini 3.8 Flash", 1_048_576),
         ("gemini-3.7-flash", "Gemini 3.7 Flash", 1_048_576),
         ("gemini-3.6-flash", "Gemini 3.6 Flash", 1_048_576),
         ("gemini-3.5-flash", "Gemini 3.5 Flash", 1_048_576),

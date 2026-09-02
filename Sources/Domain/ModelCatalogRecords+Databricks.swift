@@ -89,6 +89,12 @@ extension ModelCatalog {
         // MARK: Catalog-only — recognized when fetched from the workspace
 
         // Anthropic Claude
+        Record(id: "databricks-claude-fable-5-1", displayName: "Claude Fable 5.1",
+               capabilities: [.streaming, .toolCalling, .vision],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
         Record(id: "databricks-claude-fable-5", displayName: "Claude Fable 5",
                capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 1_000_000,
@@ -190,6 +196,27 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling],
                contextWindow: 262_144,
                reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+
+        // Zhipu GLM
+        Record(id: "databricks-glm-5-3", displayName: "GLM-5.3",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "databricks-glm-5-3-flash", displayName: "GLM-5.3-Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+
+        // xAI Grok
+        Record(id: "databricks-grok-4-6", displayName: "Grok 4.6",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 500_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
     ]
 }
