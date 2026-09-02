@@ -345,6 +345,9 @@ enum ModelSettingsResolver {
         "zai/glm-5.3",
         "zai/glm-5.3-flash",
         "qwen/qwen3.8-2.4t-a95b",
+        // Fable 5.1 is always-on adaptive thinking upstream; Off would emit
+        // `reasoning: {effort:"none"}` on the OpenAI-compatible gateway path.
+        "anthropic/claude-fable-5.1",
     ]
 
     /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list

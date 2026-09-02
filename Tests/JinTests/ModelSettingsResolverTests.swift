@@ -2542,10 +2542,29 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "qwen/qwen3.8-27b"))
 
         // Vercel AI Gateway twins of always-on upstream models.
-        for id in ["xai/grok-4.6", "xai/grok-4.5", "meta/muse-spark-1.1", "meta/muse-spark-1.2", "meta/muse-spark-1.2-contributor"] {
+        for id in ["xai/grok-4.6", "xai/grok-4.5", "meta/muse-spark-1.1", "meta/muse-spark-1.2", "meta/muse-spark-1.2-contributor", "anthropic/claude-fable-5.1"] {
             XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: id), id)
         }
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "openai/gpt-5.6-sol"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "anthropic/claude-fable-5.1-custom"))
+
+        // Legacy persisted Vercel Fable 5.1 row: catalog overlay must lock Off so a stored
+        // `enabled: false` cannot reach the OpenAI-compatible `effort: none` path.
+        let legacyVercelFable51 = ModelInfo(
+            id: "anthropic/claude-fable-5.1",
+            name: "Fable 5.1",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedVercelFable51 = ModelSettingsResolver.resolve(
+            model: legacyVercelFable51,
+            providerType: .vercelAIGateway
+        )
+        XCTAssertFalse(resolvedVercelFable51.reasoningCanDisable)
+        XCTAssertEqual(resolvedVercelFable51.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedVercelFable51.reasoningConfig?.defaultEffort, .high)
 
         // OpenRouter Muse Spark twins are always-on reasoning.
         for id in ["meta/muse-spark-1.1", "meta/muse-spark-1.2"] {
