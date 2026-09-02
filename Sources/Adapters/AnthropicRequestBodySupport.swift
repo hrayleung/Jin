@@ -84,10 +84,10 @@ enum AnthropicRequestBodySupport {
 
         if !thinkingEnabled {
             // `controls.reasoning == nil` means no preference was ever set (e.g. a fresh
-            // conversation) — leave `thinking` omitted so Sonnet 5 runs its own adaptive-on
-            // default. Only an explicit `enabled == false` means the user turned it off, which
-            // Sonnet 5 requires as an explicit `{type: "disabled"}` (unlike other adaptive
-            // models here, omitting `thinking` on Sonnet 5 does NOT disable it).
+            // conversation) — leave `thinking` omitted so models whose default is adaptive-on
+            // (Sonnet 5, Opus 5, Fable) keep thinking. Only an explicit `enabled == false`
+            // means the user turned it off. Opus 5 still needs `{type: "disabled"}` for that;
+            // Sonnet 5 / Fable 5 reject disabled (always-on), so the field is omitted.
             let explicitlyDisabled = controls.reasoning?.enabled == false
             if AnthropicModelLimits.supportsDeepSeekV4OutputConfigEffort(for: modelID)
                 || (explicitlyDisabled && AnthropicModelLimits.requiresExplicitThinkingDisabled(for: modelID)) {
@@ -97,14 +97,20 @@ enum AnthropicRequestBodySupport {
             return
         }
 
-        if providerSpecificThinking == nil {
-            if AnthropicModelLimits.supportsAdaptiveThinking(for: modelID) {
-                body["thinking"] = AnthropicThinkingConfigSupport.normalizedThinkingConfiguration(
-                    ["type": "adaptive"],
-                    reasoning: controls.reasoning,
-                    modelID: modelID
-                )
-            } else if AnthropicModelLimits.supportsDeepSeekV4OutputConfigEffort(for: modelID) {
+        // Always rewrite thinking for the *current* model. Mid-conversation switches
+        // leave the previous model's `providerSpecific["thinking"]` (often
+        // `{type:"enabled", budget_tokens:N}` from Haiku/Sonnet 4.5). Skipping that
+        // leftover would send `thinking.budget_tokens`, which Sonnet 5 / Fable / Opus 5
+        // reject as extra input.
+        if AnthropicModelLimits.supportsAdaptiveThinking(for: modelID) {
+            let base = providerSpecificThinking ?? ["type": "adaptive"]
+            body["thinking"] = AnthropicThinkingConfigSupport.normalizedThinkingConfiguration(
+                base,
+                reasoning: controls.reasoning,
+                modelID: modelID
+            )
+        } else if providerSpecificThinking == nil {
+            if AnthropicModelLimits.supportsDeepSeekV4OutputConfigEffort(for: modelID) {
                 body["thinking"] = ["type": "enabled"]
             } else {
                 body["thinking"] = [
@@ -277,6 +283,21 @@ enum AnthropicRequestBodySupport {
             return codableDictionary.mapValues { $0.value }
         }
         return nil
+    }
+
+    /// Adaptive-thinking models (Sonnet 5, Fable, Opus 5, 4.8/4.7/4.6) reject
+    /// `thinking.budget_tokens` as extra input. Strip it after every mutator so a
+    /// leftover `{type:"enabled", budget_tokens:N}` from a previous model in the
+    /// same conversation cannot reach the API.
+    static func sanitizeAdaptiveThinking(in body: inout [String: Any], modelID: String) {
+        guard AnthropicModelLimits.supportsAdaptiveThinking(for: modelID),
+              var thinking = body["thinking"] as? [String: Any] else { return }
+        thinking.removeValue(forKey: "budget_tokens")
+        thinking.removeValue(forKey: "budgetTokens")
+        if unwrappedString(thinking["type"]) == "enabled" {
+            thinking["type"] = "adaptive"
+        }
+        body["thinking"] = thinking
     }
 
     /// Opus 5 rejects `thinking: {type: "disabled"}` paired with an effort of `xhigh`/`max`

@@ -18,15 +18,14 @@ enum AnthropicModelLimits {
             || isDeepSeekV4(lower)
     }
 
-    /// Models where OMITTING `thinking` does not disable it — Anthropic's migration guide:
-    /// "on Claude Sonnet 5 and Claude Opus 5, omitting runs adaptive; on Opus 4.7/4.8,
-    /// omitting runs without thinking." So disabling reasoning on these requires sending
-    /// `thinking: {type: "disabled"}` explicitly (which they accept, unlike Fable 5, where
-    /// an explicit "disabled" 400s). Opus 5 additionally caps the effort it accepts
-    /// alongside a disabled thinking block — see `disabledThinkingRequiresEffortAtMostHigh`.
+    /// Models where OMITTING `thinking` does not disable it, but an explicit
+    /// `{type: "disabled"}` is accepted. Claude Opus 5 is in this set. Claude Sonnet 5
+    /// is not: the model card documents adaptive thinking as always on (same as Fable 5),
+    /// so `thinking: {type: "disabled"}` must not be sent — omit the field instead.
+    /// Opus 5 additionally caps the effort it accepts alongside a disabled thinking
+    /// block — see `disabledThinkingRequiresEffortAtMostHigh`.
     static func requiresExplicitThinkingDisabled(for modelID: String) -> Bool {
-        let lower = modelID.lowercased()
-        return isSonnet5(lower) || isOpus5(lower)
+        isOpus5(modelID.lowercased())
     }
 
     /// Opus 5 accepts `thinking: {type: "disabled"}` only at effort `high` or below;
@@ -136,10 +135,11 @@ enum AnthropicModelLimits {
         return max(1, resolved)
     }
 
-    /// The Fable/Mythos 5 generation (`claude-fable-5`, `claude-mythos-5`). Mythos 5
-    /// shares Fable 5's exact API surface (adaptive-thinking-only, no sampling params,
-    /// 128k output) without the safety classifiers. Note: the older invitation-only
-    /// `claude-mythos-preview` is a different model and is intentionally NOT matched here.
+    /// The Fable/Mythos 5 generation (`claude-fable-5`, `claude-fable-5-1`,
+    /// `claude-mythos-5`, `claude-mythos-5-1`). Mythos shares Fable's exact API
+    /// surface (adaptive-thinking-only, no sampling params, 128k output) without the
+    /// safety classifiers. Note: the older invitation-only `claude-mythos-preview` is a
+    /// different model and is intentionally NOT matched here.
     static func isFableMythos5(_ lowercasedModelID: String) -> Bool {
         isModelFamily(lowercasedModelID, prefix: "claude-fable-5")
             || isModelFamily(lowercasedModelID, prefix: "claude-mythos-5")
@@ -178,6 +178,15 @@ enum AnthropicModelLimits {
     }
 
     private static func isModelFamily(_ lowercasedModelID: String, prefix: String) -> Bool {
-        lowercasedModelID == prefix || lowercasedModelID.hasPrefix("\(prefix)-")
+        let bare = bareAnthropicModelID(lowercasedModelID)
+        return bare == prefix || bare.hasPrefix("\(prefix)-")
+    }
+
+    /// `anthropic/claude-sonnet-5`, `databricks-claude-sonnet-5` → `claude-sonnet-5`.
+    private static func bareAnthropicModelID(_ lowercasedModelID: String) -> String {
+        if let range = lowercasedModelID.range(of: "claude-") {
+            return String(lowercasedModelID[range.lowerBound...])
+        }
+        return lowercasedModelID
     }
 }

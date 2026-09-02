@@ -204,6 +204,10 @@ final class AnthropicAdapterFastModeTests: XCTestCase {
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-haiku-4-5"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-opus-4"))
         // Fable 5 / Mythos 5 have no fast-mode variant — docs do not list `speed: "fast"`.
+        XCTAssertTrue(AnthropicModelLimits.isFableMythos5("claude-fable-5-1"))
+        XCTAssertTrue(AnthropicModelLimits.isFableMythos5("claude-mythos-5-1"))
+        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-fable-5-1"))
+        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-mythos-5-1"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-fable-5"))
         XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "claude-mythos-5"))
         // Fast mode remains a research preview scoped to Opus 5 / Opus 4.8 only — Sonnet 5 is not listed.

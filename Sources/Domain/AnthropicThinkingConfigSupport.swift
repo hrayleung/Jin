@@ -29,6 +29,7 @@ enum AnthropicThinkingConfigSupport {
         if AnthropicModelLimits.supportsAdaptiveThinking(for: modelID) {
             normalized["type"] = "adaptive"
             normalized.removeValue(forKey: "budget_tokens")
+            normalized.removeValue(forKey: "budgetTokens")
             if let display = resolvedThinkingDisplay(from: reasoning, modelID: modelID) {
                 normalized["display"] = display.rawValue
             }

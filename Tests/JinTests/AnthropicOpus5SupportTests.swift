@@ -102,6 +102,7 @@ final class AnthropicOpus5SupportTests: XCTestCase {
         // on Opus 4.8 — so only Opus 5 needs the explicit disable block.
         XCTAssertTrue(AnthropicModelLimits.requiresExplicitThinkingDisabled(for: "claude-opus-5"))
         XCTAssertFalse(AnthropicModelLimits.requiresExplicitThinkingDisabled(for: "claude-opus-4-8"))
+        XCTAssertFalse(AnthropicModelLimits.requiresExplicitThinkingDisabled(for: "claude-sonnet-5"))
     }
 
     func testOpus5SupportsCodeExecutionAndWebSearchDynamicFiltering() {

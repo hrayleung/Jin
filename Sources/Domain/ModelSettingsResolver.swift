@@ -159,6 +159,9 @@ enum ModelSettingsResolver {
         if providerType == .baseten {
             return !basetenAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType == .anthropic || providerType == .claudeManagedAgents {
+            return !anthropicAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
         return true
     }
 
@@ -255,6 +258,18 @@ enum ModelSettingsResolver {
         "zai-org/glm-5.3-flash",
     ]
 
+    /// Anthropic IDs whose adaptive thinking cannot be turned off. Exact-ID only.
+    /// Sonnet 5 model card (platform.claude.com/docs/en/models/sonnet-5/overview):
+    /// "Adaptive thinking (always on)" — `{type: "disabled"}` must not be sent.
+    /// Fable/Mythos 5 / 5.1 reject disabled the same way.
+    private static let anthropicAlwaysOnReasoningModelIDs: Set<String> = [
+        "claude-sonnet-5",
+        "claude-fable-5",
+        "claude-fable-5-1",
+        "claude-mythos-5",
+        "claude-mythos-5-1",
+    ]
+
     /// xAI models where reasoning is always-on ("Reasoning cannot be disabled" per
     /// docs.x.ai for grok-4.6 / grok-4.5); only the effort is adjustable.
     private static let xaiAlwaysOnReasoningModelIDs: Set<String> = [
@@ -304,6 +319,7 @@ enum ModelSettingsResolver {
         "x-ai/grok-4.6",
         "x-ai/grok-4.5",
         "anthropic/claude-fable-5",
+        "anthropic/claude-fable-5.1",
         "sakana/fugu-ultra",
         "meta/muse-spark-1.1",
         "meta/muse-spark-1.2",

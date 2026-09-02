@@ -361,6 +361,8 @@ enum ModelCapabilityRegistry {
     /// Exact model IDs that Anthropic currently documents as supporting the code execution tool.
     /// Includes Fable 5 / Mythos 5 (restored 2026-07 docs list code execution under Supported features).
     private static let anthropicCodeExecutionSupportedModelIDs: Set<String> = [
+        "claude-fable-5-1",
+        "claude-mythos-5-1",
         "claude-fable-5",
         "claude-mythos-5",
         "claude-opus-5",
@@ -1370,8 +1372,8 @@ enum ModelCapabilityRegistry {
         case .openrouter:
             return supportsOpenRouterWebSearch(lowerModelID: lowerModelID)
         case .anthropic:
-            // Server-side web search is available on current Claude models including Fable 5 /
-            // Mythos 5 (dynamic filtering docs list them as of 2026-07).
+            // Server-side web search is available on current Claude models including Fable 5.1 /
+            // Mythos 5.1 and Fable 5 / Mythos 5 (dynamic filtering docs list them as of 2026-07).
             return isAnthropicModelID(lowerModelID)
         case .claudeManagedAgents:
             return false
@@ -1708,11 +1710,15 @@ enum ModelCapabilityRegistry {
     }
 
     /// Models that support the `web_search_20260209` tool with dynamic filtering.
-    /// Documented list includes Fable 5, Mythos 5, Opus 5, Opus 4.8/4.7/4.6, Sonnet 5/4.6.
+    /// Documented list includes Fable 5.1 / Mythos 5.1, Fable 5, Mythos 5, Opus 5,
+    /// Opus 4.8/4.7/4.6, Sonnet 5/4.6. Dynamic filtering is "Claude 4.6 and later"
+    /// plus Mythos; Fable 5.1 is the Fable 5 successor (2026-09-01).
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
         let lower = modelID.lowercased()
-        return lower == "claude-fable-5"
+        return lower == "claude-fable-5-1"
+            || lower == "claude-mythos-5-1"
+            || lower == "claude-fable-5"
             || lower == "claude-mythos-5"
             || lower == "claude-opus-5"
             || lower == "claude-opus-4-8"

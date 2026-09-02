@@ -2010,6 +2010,107 @@ final class AnthropicAdapterTests: XCTestCase {
         for try await _ in stream {}
     }
 
+    func testAnthropicReplaysInterleavedThinkingBlocksInStoredOrder() async throws {
+        // Adaptive thinking interleaves reasoning with visible text (e.g. around a web
+        // search): `[thinking, text, thinking, text]`. Anthropic signs each block against
+        // its position in the original response, so hoisting the thinking blocks to the
+        // front (`[thinking, thinking, text, text]`) is rejected with "`thinking` or
+        // `redacted_thinking` blocks in the latest assistant message cannot be modified" —
+        // for every assistant turn in the history, on every Claude model.
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "anthropic",
+            name: "Anthropic",
+            type: .anthropic,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(root["messages"] as? [[String: Any]])
+            let assistantMessages = messages.filter { $0["role"] as? String == "assistant" }
+            XCTAssertEqual(assistantMessages.count, 2)
+
+            // Mid-history turn: the interleaving must survive verbatim.
+            let earlier = try XCTUnwrap(assistantMessages.first?["content"] as? [[String: Any]])
+            XCTAssertEqual(
+                earlier.map { $0["type"] as? String },
+                ["thinking", "text", "thinking", "text"]
+            )
+            XCTAssertEqual(earlier[0]["thinking"] as? String, "plan the search")
+            XCTAssertEqual(earlier[0]["signature"] as? String, "sig-1")
+            XCTAssertEqual(earlier[1]["text"] as? String, "Let me look that up.")
+            XCTAssertEqual(earlier[2]["thinking"] as? String, "results are thin")
+            XCTAssertEqual(earlier[2]["signature"] as? String, "sig-2")
+            XCTAssertEqual(earlier[3]["text"] as? String, "Here is what I found.")
+
+            // Latest turn: redacted blocks keep their slot too, and tool_use still trails.
+            let latest = try XCTUnwrap(assistantMessages.last?["content"] as? [[String: Any]])
+            XCTAssertEqual(
+                latest.map { $0["type"] as? String },
+                ["thinking", "text", "redacted_thinking", "text", "tool_use"]
+            )
+            XCTAssertEqual(latest[0]["signature"] as? String, "sig-3")
+            XCTAssertEqual(latest[2]["data"] as? String, "opaque-redacted-payload")
+            XCTAssertEqual(latest[4]["id"] as? String, "toolu_1")
+
+            // The tool result still follows the tool_use turn immediately.
+            let toolUseIndex = try XCTUnwrap(messages.firstIndex { $0["role"] as? String == "assistant" && ($0["content"] as? [[String: Any]])?.contains { $0["type"] as? String == "tool_use" } == true })
+            let toolResultTurn = try XCTUnwrap(messages[toolUseIndex + 1]["content"] as? [[String: Any]])
+            XCTAssertEqual(toolResultTurn.first?["type"] as? String, "tool_result")
+            XCTAssertEqual(toolResultTurn.first?["tool_use_id"] as? String, "toolu_1")
+
+            let response = Data("data: [DONE]\n\n".utf8)
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                response
+            )
+        }
+
+        let adapter = AnthropicAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        let messages: [Message] = [
+            Message(role: .user, content: [.text("hi")]),
+            Message(role: .assistant, content: [
+                .thinking(ThinkingBlock(text: "plan the search", signature: "sig-1", provider: "anthropic")),
+                .text("Let me look that up."),
+                .thinking(ThinkingBlock(text: "results are thin", signature: "sig-2", provider: "anthropic")),
+                .text("Here is what I found.")
+            ]),
+            Message(role: .user, content: [.text("and then?")]),
+            Message(
+                role: .assistant,
+                content: [
+                    .thinking(ThinkingBlock(text: "needs a tool", signature: "sig-3", provider: "anthropic")),
+                    .text("Checking."),
+                    .redactedThinking(RedactedThinkingBlock(data: "opaque-redacted-payload", provider: "anthropic")),
+                    .text("Calling a tool.")
+                ],
+                toolCalls: [ToolCall(id: "toolu_1", name: "lookup", arguments: [:])]
+            ),
+            Message(
+                role: .tool,
+                content: [],
+                toolResults: [ToolResult(toolCallID: "toolu_1", toolName: "lookup", content: "42", isError: false)]
+            ),
+            Message(role: .user, content: [.text("thanks")])
+        ]
+
+        let stream = try await adapter.sendMessage(
+            messages: messages,
+            modelID: "claude-sonnet-5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true)),
+            tools: [],
+            streaming: true
+        )
+
+        for try await _ in stream {}
+    }
+
     func testAnthropicDropsEmptyRedactedThinkingBlocks() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

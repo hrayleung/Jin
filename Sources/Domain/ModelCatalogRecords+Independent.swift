@@ -7,6 +7,23 @@ extension ModelCatalog {
     // MARK: Anthropic
 
     static let anthropicRecords: [Record] = [
+        // Fable/Mythos 5.1 (2026-09-01): same 1M / 128k / always-on adaptive thinking /
+        // effort low…max (default high) surface as Fable 5. Official IDs from
+        // platform.claude.com/docs/en/models/fable-5-1/overview. Mythos 5.1 is
+        // Project Glasswing only. Code execution is documented (C2PA on files the
+        // tool produces). Thinking `{type:"disabled"}` still 400s.
+        Record(id: "claude-fable-5-1", displayName: "Claude Fable 5.1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "claude-mythos-5-1", displayName: "Claude Mythos 5.1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         // Fable/Mythos 5: adaptive thinking always on, effort low…max, no sampling params.
         // Official Supported features (2026-07) include code execution, memory tool, and PTC.
         // Fable may return stop_reason=refusal (HTTP 200). Mythos 5 is Project Glasswing only.
@@ -52,10 +69,11 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
         // Sonnet 5: best speed/intelligence combination in the Sonnet tier, near-Opus quality
-        // on coding and agentic work. Adaptive thinking (with explicit disable — unlike Fable 5,
-        // omitting `thinking` on Sonnet 5 defaults to adaptive-on, not off). Full effort range
-        // low...max (first Sonnet-tier model with xhigh). Unlike Fable 5/Mythos 5, Sonnet 5 DOES
-        // support server-side code execution and web search (incl. dynamic filtering) at launch.
+        // on coding and agentic work. Adaptive thinking is always on (model card 2026-09):
+        // omit `thinking` for the default; `{type: "disabled"}` must not be sent (Fable-class).
+        // Full effort range low...max (first Sonnet-tier model with xhigh). Unlike Fable 5,
+        // Sonnet 5 DOES support server-side code execution and web search (incl. dynamic
+        // filtering) at launch.
         Record(id: "claude-sonnet-5", displayName: "Claude Sonnet 5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,

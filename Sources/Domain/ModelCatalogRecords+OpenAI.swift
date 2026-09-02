@@ -537,6 +537,15 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
 
         // Anthropic
+        // Fable 5.1 (Cloudflare AI docs, 2026-09-01): exact compat ID is the dotted
+        // `anthropic/claude-fable-5.1` (developers.cloudflare.com/ai/models/anthropic/claude-fable-5.1).
+        // The hyphenated `…/claude-fable-5-1` slug 404s. Keep nativePDF off on this gateway.
+        Record(id: "anthropic/claude-fable-5.1", displayName: "Claude Fable 5.1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "anthropic/claude-fable-5", displayName: "Claude Fable 5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_000_000,
@@ -1054,6 +1063,15 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
 
         // Anthropic
+        // Fable 5.1 (Vercel AI Gateway changelog, 2026-09-01): exact ID
+        // `anthropic/claude-fable-5.1` (vercel.com/ai-gateway/models/claude-fable-5.1).
+        // Sibling Fable 5 on this gateway does not claim promptCaching or nativePDF.
+        Record(id: "anthropic/claude-fable-5.1", displayName: "Claude Fable 5.1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "anthropic/claude-fable-5", displayName: "Claude Fable 5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_000_000,

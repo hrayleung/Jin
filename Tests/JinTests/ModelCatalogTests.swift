@@ -2821,6 +2821,7 @@ final class ModelCatalogTests: XCTestCase {
             Expected(id: "x-ai/grok-4.5", contextWindow: 500_000, maxOutputTokens: nil, reasoningType: .effort, effort: .high),
             Expected(id: "anthropic/claude-sonnet-5", contextWindow: 1_000_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
             Expected(id: "anthropic/claude-fable-5", contextWindow: 1_000_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
+            Expected(id: "anthropic/claude-fable-5.1", contextWindow: 1_000_000, maxOutputTokens: 128_000, reasoningType: .effort, effort: .medium),
             Expected(id: "tencent/hy3", contextWindow: 262_144, maxOutputTokens: nil, reasoningType: .effort, effort: ReasoningEffort.none),
             Expected(id: "tencent/hy3:free", contextWindow: 262_144, maxOutputTokens: 262_144, reasoningType: .effort, effort: ReasoningEffort.none),
             Expected(id: "poolside/laguna-xs-2.1", contextWindow: 262_144, maxOutputTokens: 32_768, reasoningType: .toggle, effort: nil),

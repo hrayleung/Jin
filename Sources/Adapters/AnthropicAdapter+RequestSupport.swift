@@ -164,8 +164,10 @@ extension AnthropicAdapter {
             supportsDynamicFiltering: supportsWebSearchDynamicFiltering(modelID)
         )
 
-        // Must stay last: it reconciles `thinking` against `output_config.effort` once every
-        // other mutator (including provider-specific overrides) has had its say.
+        // Must stay last: strip leftover `budget_tokens` from a previous model, then
+        // reconcile `thinking` against `output_config.effort` once every other mutator
+        // (including provider-specific overrides) has had its say.
+        AnthropicRequestBodySupport.sanitizeAdaptiveThinking(in: &body, modelID: modelID)
         AnthropicRequestBodySupport.normalizeDisabledThinkingEffort(in: &body, modelID: modelID)
 
         return try NetworkRequestFactory.makeJSONRequest(

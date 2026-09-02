@@ -95,12 +95,11 @@ final class AnthropicRequestBodySupportTests: XCTestCase {
         XCTAssertEqual(outputConfig["effort"] as? String, "xhigh")
     }
 
-    func testApplyThinkingConfigForSonnet5DisabledSendsExplicitDisabledTypeAndOmitsSampling() throws {
+    func testApplyThinkingConfigForSonnet5DisabledOmitsThinkingAndSampling() throws {
         var body: [String: Any] = [:]
 
-        // Unlike Fable 5 (where an explicit "disabled" 400s and the field must be omitted),
-        // Sonnet 5 defaults to adaptive-ON when `thinking` is omitted entirely — so disabling
-        // reasoning on Sonnet 5 requires sending `thinking: {type: "disabled"}` explicitly.
+        // Sonnet 5 adaptive thinking is always on (model card). `{type: "disabled"}` must
+        // not be sent — same omit-the-field path as Fable 5. Sampling params 400 too.
         AnthropicRequestBodySupport.applyThinkingConfig(
             to: &body,
             controls: GenerationControls(
@@ -112,8 +111,8 @@ final class AnthropicRequestBodySupportTests: XCTestCase {
             modelID: "claude-sonnet-5"
         )
 
-        let thinking = try XCTUnwrap(body["thinking"] as? [String: Any])
-        XCTAssertEqual(thinking["type"] as? String, "disabled")
+        XCTAssertNil(body["thinking"], "Sonnet 5 must omit the thinking field — never send type=disabled")
+        XCTAssertFalse(AnthropicModelLimits.requiresExplicitThinkingDisabled(for: "claude-sonnet-5"))
         XCTAssertNil(body["temperature"], "Sonnet 5 does not accept sampling params")
         XCTAssertNil(body["top_p"], "Sonnet 5 does not accept sampling params")
     }
@@ -133,6 +132,54 @@ final class AnthropicRequestBodySupportTests: XCTestCase {
         )
 
         XCTAssertNil(body["thinking"], "Sonnet 5 must omit thinking (not send disabled) when no reasoning preference was ever set")
+    }
+
+    func testApplyThinkingConfigForSonnet5DropsLeftoverBudgetTokensFromPreviousModel() throws {
+        var body: [String: Any] = [:]
+        var controls = GenerationControls(
+            reasoning: ReasoningControls(enabled: true, effort: .high, budgetTokens: 4096)
+        )
+        controls.providerSpecific["thinking"] = AnyCodable([
+            "type": "enabled",
+            "budget_tokens": 4096
+        ] as [String: Any])
+
+        AnthropicRequestBodySupport.applyThinkingConfig(
+            to: &body,
+            controls: controls,
+            providerType: .anthropic,
+            modelID: "claude-sonnet-5"
+        )
+        AnthropicRequestBodySupport.applyProviderSpecificOverrides(
+            to: &body,
+            controls: controls,
+            modelID: "claude-sonnet-5",
+            supportsDynamicFiltering: true
+        )
+        AnthropicRequestBodySupport.sanitizeAdaptiveThinking(in: &body, modelID: "claude-sonnet-5")
+
+        let thinking = try XCTUnwrap(body["thinking"] as? [String: Any])
+        XCTAssertEqual(thinking["type"] as? String, "adaptive")
+        XCTAssertNil(thinking["budget_tokens"])
+        XCTAssertNil(thinking["budgetTokens"])
+    }
+
+    func testSanitizeAdaptiveThinkingCoercesEnabledBudgetShapeOnPrefixedSonnet5ID() throws {
+        var body: [String: Any] = [
+            "thinking": [
+                "type": "enabled",
+                "budget_tokens": 2048
+            ] as [String: Any]
+        ]
+
+        AnthropicRequestBodySupport.sanitizeAdaptiveThinking(
+            in: &body,
+            modelID: "anthropic/claude-sonnet-5"
+        )
+
+        let thinking = try XCTUnwrap(body["thinking"] as? [String: Any])
+        XCTAssertEqual(thinking["type"] as? String, "adaptive")
+        XCTAssertNil(thinking["budget_tokens"])
     }
 
     func testApplyThinkingConfigForFable5DisabledOmitsThinkingAndSampling() throws {
