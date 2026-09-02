@@ -1206,6 +1206,15 @@ extension ModelCatalog {
                maxOutputTokens: 128000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Fable 5.1 (OpenRouter model page, 2026-09-01): exact ID `anthropic/claude-fable-5.1`
+        // (dotted, matching the live slug). 1M / 128k. nativePDF kept off on this gateway.
+        // Default effort follows the Fable 5 OpenRouter row (medium), not origin high.
+        Record(id: "anthropic/claude-fable-5.1", displayName: "Anthropic: Claude Fable 5.1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1000000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         // Tencent Hy3 (created 2026-07-06): reasoning default-DISABLED with efforts
         // high/low/none; paid route publishes no max output, the free route allows the
         // full 262K. Text-only.

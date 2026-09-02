@@ -31,7 +31,7 @@ enum OpenAICompatibleReasoningSupport {
             )
 
         case .anthropic:
-            return applyAnthropicReasoning(to: &body, reasoning: reasoning)
+            return applyAnthropicReasoning(to: &body, reasoning: reasoning, modelID: modelID)
 
         case .gemini:
             applyGeminiReasoning(to: &body, reasoning: reasoning)
@@ -273,9 +273,27 @@ enum OpenAICompatibleReasoningSupport {
 
     private static func applyAnthropicReasoning(
         to body: inout [String: Any],
-        reasoning: ReasoningControls
+        reasoning: ReasoningControls,
+        modelID: String
     ) -> Bool {
         guard reasoning.enabled else { return false }
+
+        // Sonnet 5 / Fable / Opus 5 adaptive thinking rejects `budget_tokens`.
+        // Mid-conversation switches leave the previous model's budget on `reasoning`.
+        if AnthropicModelLimits.supportsAdaptiveThinking(for: modelID) {
+            body["thinking"] = AnthropicThinkingConfigSupport.normalizedThinkingConfiguration(
+                ["type": "adaptive"],
+                reasoning: reasoning,
+                modelID: modelID
+            )
+            if let effort = reasoning.effort, effort != .none {
+                mergeOutputConfig(
+                    into: &body,
+                    additional: ["effort": mapAnthropicEffort(effort)]
+                )
+            }
+            return true
+        }
 
         if let budget = reasoning.budgetTokens {
             body["thinking"] = [

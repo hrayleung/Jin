@@ -26,7 +26,9 @@ final class JinModelSupportTests: XCTestCase {
     func testCloudflareAIGatewayUsesProviderPrefixedExactModelIDsForFullySupportedTag() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "openai/gpt-5.2"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "openai/gpt-5.3-chat-latest"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-fable-5.1"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-fable-5"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-fable-5-1"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-opus-4-8"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-opus-4-7"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "anthropic/claude-sonnet-4-6"))
@@ -48,7 +50,9 @@ final class JinModelSupportTests: XCTestCase {
 
     func testVercelAIGatewayUsesProviderPrefixedExactModelIDsForFullySupportedTag() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "openai/gpt-5.2"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-fable-5.1"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-fable-5"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-fable-5-1"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-opus-4.8"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-opus-4.7"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-sonnet-4.6"))
@@ -65,6 +69,11 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testAnthropicClaude47UsesExactFullySupportedID() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-fable-5-1"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .claudeManagedAgents, modelID: "claude-fable-5-1"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-fable-5-1-custom"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-mythos-5-1"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-mythos-5-1-custom"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-fable-5"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-fable-5-custom"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-mythos-5"))
@@ -559,10 +568,19 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testClaudeFable5CodeExecutionCapability() {
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-fable-5-1"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-mythos-5-1"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-fable-5"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .anthropic, modelID: "claude-mythos-5"))
         let fable = ModelCatalog.modelInfo(for: "claude-fable-5", provider: .anthropic)
         XCTAssertTrue(fable.capabilities.contains(.codeExecution))
+        let fable51 = ModelCatalog.modelInfo(for: "claude-fable-5-1", provider: .anthropic)
+        XCTAssertTrue(fable51.capabilities.contains(.codeExecution))
+        XCTAssertEqual(fable51.contextWindow, 1_000_000)
+        XCTAssertEqual(fable51.maxOutputTokens, 128_000)
+        XCTAssertEqual(fable51.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(ModelCatalog.seededModels(for: .anthropic).contains(where: { $0.id == "claude-fable-5-1" }))
+        XCTAssertFalse(ModelCatalog.seededModels(for: .anthropic).contains(where: { $0.id == "claude-mythos-5-1" }))
     }
 
     func testNewFrontierModelsSupportAndMetadata() {
@@ -575,6 +593,23 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertEqual(deepseekV4Pro0813.reasoningConfig?.defaultEffort, .high)
 
         // GLM-5.3 on OpenRouter, Together, DeepInfra, Fireworks, Baseten, Modal, Cloudflare, Vercel
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "anthropic/claude-fable-5.1"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "anthropic/claude-fable-5-1"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "anthropic/claude-fable-5.1-custom"))
+        let openRouterFable51 = ModelCatalog.modelInfo(for: "anthropic/claude-fable-5.1", provider: .openrouter)
+        XCTAssertEqual(openRouterFable51.contextWindow, 1_000_000)
+        XCTAssertEqual(openRouterFable51.maxOutputTokens, 128_000)
+        XCTAssertEqual(openRouterFable51.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertFalse(openRouterFable51.capabilities.contains(.nativePDF))
+        let cloudflareFable51 = ModelCatalog.modelInfo(for: "anthropic/claude-fable-5.1", provider: .cloudflareAIGateway)
+        XCTAssertEqual(cloudflareFable51.contextWindow, 1_000_000)
+        XCTAssertEqual(cloudflareFable51.maxOutputTokens, 128_000)
+        XCTAssertTrue(cloudflareFable51.capabilities.contains(.promptCaching))
+        let vercelFable51 = ModelCatalog.modelInfo(for: "anthropic/claude-fable-5.1", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelFable51.contextWindow, 1_000_000)
+        XCTAssertEqual(vercelFable51.maxOutputTokens, 128_000)
+        XCTAssertFalse(vercelFable51.capabilities.contains(.promptCaching))
+
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "z-ai/glm-5.3"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "zai-org/GLM-5.3"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: "zai-org/GLM-5.3"))

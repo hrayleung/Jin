@@ -127,7 +127,7 @@ final class ModelCapabilityRegistryTests: XCTestCase {
 
     func testFableMythos5SupportEffortButNotServerSideTools() {
         // Effort spans low…max (adaptive-thinking-only, xhigh + max), same as Opus 4.8/4.7.
-        for modelID in ["claude-fable-5", "claude-mythos-5"] {
+        for modelID in ["claude-fable-5-1", "claude-mythos-5-1", "claude-fable-5", "claude-mythos-5"] {
             XCTAssertEqual(
                 ModelCapabilityRegistry.supportedReasoningEfforts(for: .anthropic, modelID: modelID),
                 [.low, .medium, .high, .xhigh, .max],

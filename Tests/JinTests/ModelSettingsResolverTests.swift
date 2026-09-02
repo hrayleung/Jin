@@ -246,6 +246,36 @@ final class ModelSettingsResolverTests: XCTestCase {
     }
 
     func testAnthropicCatalogCarriesDocsVerifiedContextAndMaxOutput() {
+        let legacyFable51 = ModelInfo(
+            id: "claude-fable-5-1",
+            name: "Fable 5.1",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedLegacyFable51 = ModelSettingsResolver.resolve(model: legacyFable51, providerType: .anthropic)
+        XCTAssertEqual(resolvedLegacyFable51.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedLegacyFable51.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedLegacyFable51.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolvedLegacyFable51.capabilities.contains(.nativePDF))
+        XCTAssertTrue(resolvedLegacyFable51.capabilities.contains(.codeExecution))
+
+        let fable51 = ModelCatalog.modelInfo(for: "claude-fable-5-1", provider: .anthropic)
+        let resolvedFable51 = ModelSettingsResolver.resolve(model: fable51, providerType: .anthropic)
+        XCTAssertEqual(resolvedFable51.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedFable51.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedFable51.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedFable51.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(resolvedFable51.capabilities.contains(.nativePDF))
+        XCTAssertTrue(resolvedFable51.capabilities.contains(.codeExecution))
+
+        let mythos51 = ModelCatalog.modelInfo(for: "claude-mythos-5-1", provider: .anthropic)
+        let resolvedMythos51 = ModelSettingsResolver.resolve(model: mythos51, providerType: .anthropic)
+        XCTAssertEqual(resolvedMythos51.contextWindow, 1_000_000)
+        XCTAssertEqual(resolvedMythos51.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedMythos51.reasoningConfig?.defaultEffort, .high)
+
         let fable5 = ModelCatalog.modelInfo(for: "claude-fable-5", provider: .anthropic)
         let resolvedFable5 = ModelSettingsResolver.resolve(model: fable5, providerType: .anthropic)
         XCTAssertEqual(resolvedFable5.contextWindow, 1_000_000)
@@ -2497,17 +2527,44 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.6-custom"))
 
         // OpenRouter reasoning.mandatory=true models (live metadata, 2026-07-11 / 2026-08-12).
-        for id in ["x-ai/grok-4.6", "x-ai/grok-4.5", "anthropic/claude-fable-5", "sakana/fugu-ultra", "qwen/qwen3.8-2.4t-a95b", "qwen/qwen3.8-max"] {
+        for id in ["x-ai/grok-4.6", "x-ai/grok-4.5", "anthropic/claude-fable-5", "anthropic/claude-fable-5.1", "sakana/fugu-ultra", "qwen/qwen3.8-2.4t-a95b", "qwen/qwen3.8-max"] {
             XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: id), id)
         }
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "anthropic/claude-sonnet-5"))
+
+        // Native Anthropic: Sonnet 5 / Fable 5.x adaptive thinking is always on.
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .anthropic, modelID: "claude-sonnet-5"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .anthropic, modelID: "claude-fable-5"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .anthropic, modelID: "claude-fable-5-1"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .claudeManagedAgents, modelID: "claude-sonnet-5"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .anthropic, modelID: "claude-sonnet-5-custom"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .anthropic, modelID: "claude-opus-5"))
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "qwen/qwen3.8-27b"))
 
         // Vercel AI Gateway twins of always-on upstream models.
-        for id in ["xai/grok-4.6", "xai/grok-4.5", "meta/muse-spark-1.1", "meta/muse-spark-1.2", "meta/muse-spark-1.2-contributor"] {
+        for id in ["xai/grok-4.6", "xai/grok-4.5", "meta/muse-spark-1.1", "meta/muse-spark-1.2", "meta/muse-spark-1.2-contributor", "anthropic/claude-fable-5.1"] {
             XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: id), id)
         }
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "openai/gpt-5.6-sol"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "anthropic/claude-fable-5.1-custom"))
+
+        // Legacy persisted Vercel Fable 5.1 row: catalog overlay must lock Off so a stored
+        // `enabled: false` cannot reach the OpenAI-compatible `effort: none` path.
+        let legacyVercelFable51 = ModelInfo(
+            id: "anthropic/claude-fable-5.1",
+            name: "Fable 5.1",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedVercelFable51 = ModelSettingsResolver.resolve(
+            model: legacyVercelFable51,
+            providerType: .vercelAIGateway
+        )
+        XCTAssertFalse(resolvedVercelFable51.reasoningCanDisable)
+        XCTAssertEqual(resolvedVercelFable51.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolvedVercelFable51.reasoningConfig?.defaultEffort, .high)
 
         // OpenRouter Muse Spark twins are always-on reasoning.
         for id in ["meta/muse-spark-1.1", "meta/muse-spark-1.2"] {
