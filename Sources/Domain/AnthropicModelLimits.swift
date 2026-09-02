@@ -182,10 +182,12 @@ enum AnthropicModelLimits {
         return bare == prefix || bare.hasPrefix("\(prefix)-")
     }
 
-    /// `anthropic/claude-sonnet-5`, `databricks-claude-sonnet-5` → `claude-sonnet-5`.
+    /// OpenRouter / Vercel / Cloudflare compound IDs (`anthropic/claude-sonnet-5`).
+    /// Do not strip arbitrary leading junk — `beta-claude-opus-4-6-variant` must not
+    /// match the Opus 4.6 family.
     private static func bareAnthropicModelID(_ lowercasedModelID: String) -> String {
-        if let range = lowercasedModelID.range(of: "claude-") {
-            return String(lowercasedModelID[range.lowerBound...])
+        if lowercasedModelID.hasPrefix("anthropic/") {
+            return String(lowercasedModelID.dropFirst("anthropic/".count))
         }
         return lowercasedModelID
     }
