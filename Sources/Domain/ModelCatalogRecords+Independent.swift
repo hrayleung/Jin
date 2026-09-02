@@ -2234,6 +2234,15 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: true),
+        // GLM-5.3 (Baseten Model APIs, 2026-08-28). Exact ID from models.dev
+        // `baseten` + baseten.co/library/glm-53. 1,048,576 / 262,144,
+        // text-only, always-on low/high/max.
+        Record(id: "zai-org/GLM-5.3", displayName: "GLM 5.3",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.2", displayName: "GLM 5.2",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 1_048_576,

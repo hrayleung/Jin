@@ -23,6 +23,8 @@ enum GeminiModelConstants {
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
         "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
         "gemini-2.5",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
@@ -52,12 +54,16 @@ enum GeminiModelConstants {
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
         "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
     ]
 
     /// Exact IDs where custom temperature / topP / topK are ignored or deprecated.
     /// Docs (Vertex 3.6 Flash / 3.5 Flash-Lite model pages + Gemini API 2026-07-21 changelog;
     /// 3.7 Flash "What's new" migration guide, 2026-08-13: "Strip temperature, top_p, and top_k").
     static let customSamplingUnsupportedModelIDs: Set<String> = [
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
         "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash-lite",
@@ -117,6 +123,8 @@ enum GeminiModelConstants {
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
         "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
     ]
 
     /// Extended native PDF set for Vertex AI, which also supports Gemini 2.5 family.

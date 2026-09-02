@@ -110,7 +110,7 @@ extension GeminiAdapter {
                 || lower == "gemini-3.1-flash-lite"
                 || lower == "gemini-3.5-flash-lite" {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .minimal)
-            } else if lower == "gemini-3.5-flash" || lower == "gemini-3.6-flash" || lower == "gemini-3.7-flash" {
+            } else if lower == "gemini-3.5-flash" || lower == "gemini-3.6-flash" || lower == "gemini-3.7-flash" || lower == "gemini-3.8-flash" || lower == "gemini-3.8-flash-preview" {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .medium)
             } else if supportsThinkingConfig(id) {
                 reasoningConfig = ModelReasoningConfig(type: .effort, defaultEffort: .high)

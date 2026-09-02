@@ -128,10 +128,12 @@ enum ModelCapabilityRegistry {
         "gemini-3.6-flash",
     ]
 
-    /// Gemini 3.7 Flash supports LOW/MEDIUM/HIGH only — the model page states that
-    /// `thinking_level="MINIMAL"` returns an API validation error (verified 2026-08-13).
+    /// Gemini 3.7 & 3.8 Flash support LOW/MEDIUM/HIGH only — the model page states that
+    /// `thinking_level="MINIMAL"` returns an API validation error.
     private static let gemini37FlashEffortModelIDs: Set<String> = [
         "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
     ]
 
     /// Gemini 3.1 Flash Image supports MINIMAL/HIGH.
@@ -171,6 +173,8 @@ enum ModelCapabilityRegistry {
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
         "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -196,6 +200,8 @@ enum ModelCapabilityRegistry {
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
         "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -220,6 +226,8 @@ enum ModelCapabilityRegistry {
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
         "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -235,6 +243,8 @@ enum ModelCapabilityRegistry {
 
     /// Models documented by Google as supporting grounding with Google Maps in Gemini API.
     private static let geminiGoogleMapsSupportedModelIDs: Set<String> = [
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
         "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash",
@@ -259,6 +269,8 @@ enum ModelCapabilityRegistry {
         "gemini-3-pro-preview",
         "gemini-3.1-pro-preview",
         "gemini-3-flash-preview",
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
         "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash",
@@ -292,6 +304,8 @@ enum ModelCapabilityRegistry {
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
         "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -313,6 +327,8 @@ enum ModelCapabilityRegistry {
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
         "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemini-3.8-flash-preview",
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
@@ -627,9 +643,10 @@ enum ModelCapabilityRegistry {
         "qwen3-8-2-4t-a95b",
         "inferact/qwen3.8-2.4t-a95b-nvfp4",
     ]
-    /// Baseten Mercury 2: none/low/medium/high (Inception + OpenRouter, 2026-07-29).
+    /// Baseten Mercury 2 / 2.5: none/low/medium/high (Inception + OpenRouter, 2026-07/2026-08).
     private static let basetenMercury2ReasoningEffortModelIDs: Set<String> = [
         "inception/mercury-2",
+        "inception/mercury-2.5-preview",
     ]
 
     // MARK: Router (Ramp) effort bands

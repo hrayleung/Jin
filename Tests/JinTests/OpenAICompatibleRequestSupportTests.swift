@@ -60,6 +60,10 @@ final class OpenAICompatibleRequestSupportTests: XCTestCase {
         // The gateway ID shapes all canonicalize to the same terminal model ID, so a proxied
         // Gemini 3.7/3.6/3.5-Lite request suppresses sampling exactly like the native path.
         let suppressed = [
+            "gemini-3.8-flash",
+            "google/gemini-3.8-flash",
+            "google-ai-studio/gemini-3.8-flash",
+            "google-vertex-ai/google/gemini-3.8-flash",
             "gemini-3.7-flash",
             "google/gemini-3.7-flash",
             "google-ai-studio/gemini-3.7-flash",

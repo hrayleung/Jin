@@ -92,6 +92,32 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
         let maverick = ModelCatalog.modelInfo(for: "databricks-llama-4-maverick", provider: .databricks)
         XCTAssertTrue(maverick.capabilities.contains(.vision))
         XCTAssertFalse(maverick.capabilities.contains(.reasoning))
+
+        // Claude Fable 5.1: 1M context, vision, tools, no reasoning effort control
+        let fable51 = ModelCatalog.modelInfo(for: "databricks-claude-fable-5-1", provider: .databricks)
+        XCTAssertEqual(fable51.contextWindow, 1_000_000)
+        XCTAssertEqual(fable51.maxOutputTokens, 128_000)
+        XCTAssertTrue(fable51.capabilities.contains(.vision))
+        XCTAssertTrue(fable51.capabilities.contains(.toolCalling))
+        XCTAssertFalse(fable51.capabilities.contains(.reasoning))
+        XCTAssertNil(fable51.reasoningConfig)
+
+        // GLM 5.3 & Flash: 1M context, reasoning
+        let glm53 = ModelCatalog.modelInfo(for: "databricks-glm-5-3", provider: .databricks)
+        XCTAssertEqual(glm53.contextWindow, 1_048_576)
+        XCTAssertTrue(glm53.capabilities.contains(.reasoning))
+        XCTAssertFalse(glm53.capabilities.contains(.vision))
+
+        let glm53Flash = ModelCatalog.modelInfo(for: "databricks-glm-5-3-flash", provider: .databricks)
+        XCTAssertEqual(glm53Flash.contextWindow, 1_048_576)
+        XCTAssertTrue(glm53Flash.capabilities.contains(.reasoning))
+        XCTAssertTrue(glm53Flash.capabilities.contains(.vision))
+
+        // Grok 4.6: 500k context, vision, reasoning
+        let grok46 = ModelCatalog.modelInfo(for: "databricks-grok-4-6", provider: .databricks)
+        XCTAssertEqual(grok46.contextWindow, 500_000)
+        XCTAssertTrue(grok46.capabilities.contains(.vision))
+        XCTAssertTrue(grok46.capabilities.contains(.reasoning))
     }
 
     // MARK: - Reasoning effort gating
