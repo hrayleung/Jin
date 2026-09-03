@@ -3282,7 +3282,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("gpt-5.6-luna"))
         // Muse Spark 1.2 Contributor is the second Go Responses model (opencode.ai/docs/go,
         // page updated 2026-08-19). Exact ID only — Standard-tier Muse Spark is not on Go.
-        for id in ["muse-spark-1.2", "muse-spark-1.2-contributor"] {
+        for id in ["muse-spark-1.2", "muse-spark-1.2-contributor", "muse-spark-1.3", "muse-spark-1.3-contributor"] {
             XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /responses")
             XCTAssertTrue(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint(id), "\(id) → MetaAdapter replay")
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) must not inherit /messages")
@@ -3995,7 +3995,7 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
     }
 
     func testOpenCodeGoMuseSparkMapsReasoningEffortBandAndOmitsMax() {
-        for id in ["muse-spark-1.2", "muse-spark-1.2-contributor"] {
+        for id in ["muse-spark-1.2", "muse-spark-1.2-contributor", "muse-spark-1.3", "muse-spark-1.3-contributor"] {
             XCTAssertEqual(
                 OpenAIResponsesRequestSupport.mappedReasoningEffort(
                     .minimal,

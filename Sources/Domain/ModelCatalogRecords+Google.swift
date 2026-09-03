@@ -530,6 +530,18 @@ extension ModelCatalog {
         // Meta Muse Spark (OpenRouter live /models, 2026-08-06): 1M context, always-on
         // reasoning (mandatory=true, minimal..xhigh). OpenRouter chat path still
         // text-fallbacks files — claim vision/reasoning/promptCaching only.
+        Record(id: "meta/muse-spark-1.3", displayName: "Meta: Muse Spark 1.3",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "meta/muse-spark-1.3-contributor", displayName: "Meta: Muse Spark 1.3 Contributor",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         Record(id: "meta/muse-spark-1.2", displayName: "Meta: Muse Spark 1.2",
                capabilities: [.streaming, .toolCalling, .vision, .videoInput, .reasoning, .promptCaching],
                contextWindow: 1_048_576,

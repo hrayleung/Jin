@@ -158,6 +158,11 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
 
         // Google Gemini
+        Record(id: "databricks-gemini-3-8-flash", displayName: "Gemini 3.8 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         Record(id: "databricks-gemini-3-7-flash", displayName: "Gemini 3.7 Flash",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_048_576,

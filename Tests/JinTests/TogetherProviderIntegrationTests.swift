@@ -32,7 +32,7 @@ final class TogetherProviderIntegrationTests: XCTestCase {
 
         XCTAssertEqual(togetherProvider.id, "together")
         XCTAssertEqual(togetherProvider.baseURL, ProviderType.together.defaultBaseURL)
-        XCTAssertEqual(togetherProvider.models.count, 21)
+        XCTAssertEqual(togetherProvider.models.count, 22)
         XCTAssertEqual(
             togetherProvider.models.map(\.id),
             [
@@ -41,6 +41,7 @@ final class TogetherProviderIntegrationTests: XCTestCase {
                 "thinkingmachines/Inkling",
                 "moonshotai/Kimi-K2.7-Code",
                 "meta/muse-spark-1.2",
+                "Qwen/Qwen3.8-Flash",
                 "zai-org/GLM-5.3",
                 "zai-org/GLM-5.3-Flash",
                 "zai-org/GLM-5.2",
