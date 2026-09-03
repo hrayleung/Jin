@@ -745,11 +745,17 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertEqual(togetherQwenFlash.maxOutputTokens, 131_072)
         XCTAssertEqual(togetherQwenFlash.reasoningConfig?.type, .toggle)
 
-        // MorphLLM Fast Models
+        // MorphLLM Fast Models (conservative capabilities matching MorphLLMAdapter's text-only chat completions)
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .morphllm, modelID: "morph-kimik3"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .morphllm, modelID: "morph-glm53-744b"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .morphllm, modelID: "morph-glm53flash"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .morphllm, modelID: "morph-dsv4flash"))
+        let morphKimi = ModelCatalog.modelInfo(for: "morph-kimik3", provider: .morphllm)
+        XCTAssertEqual(morphKimi.capabilities, [.streaming])
+        XCTAssertNil(morphKimi.reasoningConfig)
+        let morphGLM = ModelCatalog.modelInfo(for: "morph-glm53-744b", provider: .morphllm)
+        XCTAssertEqual(morphGLM.capabilities, [.streaming])
+        XCTAssertNil(morphGLM.reasoningConfig)
 
         // Zyphra GLM-5.3
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zyphra, modelID: "zai-org/GLM-5.3"))
