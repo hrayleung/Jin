@@ -76,6 +76,8 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         "grok-4.6",
         "muse-spark-1.2",
         "muse-spark-1.2-contributor",
+        "muse-spark-1.3",
+        "muse-spark-1.3-contributor",
     ]
 
     /// Exact model IDs on the OpenAI-compatible `/chat/completions` path whose upstream

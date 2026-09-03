@@ -700,6 +700,7 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "google/gemini-3.8-flash"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "google-ai-studio/gemini-3.8-flash"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "google-vertex-ai/google/gemini-3.8-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-gemini-3-8-flash"))
         let gemini38 = ModelCatalog.modelInfo(for: "gemini-3.8-flash", provider: .gemini)
         XCTAssertEqual(gemini38.contextWindow, 1_048_576)
         XCTAssertEqual(gemini38.maxOutputTokens, 65_536)
@@ -707,5 +708,54 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(gemini38.capabilities.contains(.audio))
         XCTAssertTrue(gemini38.capabilities.contains(.nativePDF))
         XCTAssertTrue(gemini38.capabilities.contains(.codeExecution))
+
+        // Muse Spark 1.3 across Meta and Gateways
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .meta, modelID: "muse-spark-1.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .meta, modelID: "muse-spark-1.3-contributor"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "muse-spark-1.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "muse-spark-1.3-contributor"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "meta/muse-spark-1.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "meta/muse-spark-1.3-contributor"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "meta/muse-spark-1.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "meta/muse-spark-1.3-contributor"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "meta/muse-spark-1.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "meta/muse-spark-1.3-contributor"))
+        let muse13 = ModelCatalog.modelInfo(for: "muse-spark-1.3", provider: .meta)
+        XCTAssertEqual(muse13.contextWindow, 1_048_576)
+        XCTAssertEqual(muse13.maxOutputTokens, 131_072)
+        XCTAssertTrue(muse13.capabilities.contains(.videoInput))
+        XCTAssertTrue(muse13.capabilities.contains(.nativePDF))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .meta, modelID: "muse-spark-1.3"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "muse-spark-1.3"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "meta/muse-spark-1.3"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "meta/muse-spark-1.3"))
+
+        // Baseten GLM-5.3-Fast
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .baseten, modelID: "zai-org/GLM-5.3-Fast"))
+        let basetenGLM53Fast = ModelCatalog.modelInfo(for: "zai-org/GLM-5.3-Fast", provider: .baseten)
+        XCTAssertEqual(basetenGLM53Fast.contextWindow, 1_048_576)
+        XCTAssertEqual(basetenGLM53Fast.maxOutputTokens, 262_144)
+        XCTAssertEqual(basetenGLM53Fast.reasoningConfig?.defaultEffort, .max)
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .baseten, modelID: "zai-org/GLM-5.3-Fast"))
+
+        // Together Qwen 3.8 Flash
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3.8-Flash"))
+        let togetherQwenFlash = ModelCatalog.modelInfo(for: "Qwen/Qwen3.8-Flash", provider: .together)
+        XCTAssertEqual(togetherQwenFlash.contextWindow, 1_000_000)
+        XCTAssertEqual(togetherQwenFlash.maxOutputTokens, 131_072)
+        XCTAssertEqual(togetherQwenFlash.reasoningConfig?.type, .toggle)
+
+        // MorphLLM Fast Models
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .morphllm, modelID: "morph-kimik3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .morphllm, modelID: "morph-glm53-744b"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .morphllm, modelID: "morph-glm53flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .morphllm, modelID: "morph-dsv4flash"))
+
+        // Zyphra GLM-5.3
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zyphra, modelID: "zai-org/GLM-5.3"))
+        let zyphraGLM53 = ModelCatalog.modelInfo(for: "zai-org/GLM-5.3", provider: .zyphra)
+        XCTAssertEqual(zyphraGLM53.contextWindow, 139_264)
+        XCTAssertEqual(zyphraGLM53.maxOutputTokens, 131_072)
+        XCTAssertEqual(zyphraGLM53.reasoningConfig?.defaultEffort, .max)
     }
 }

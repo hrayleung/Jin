@@ -19,12 +19,14 @@ final class ModelCatalogTests: XCTestCase {
         "google/gemini-3.5-flash-lite",
         "google/gemini-3.6-flash",
         "google/gemini-3.7-flash",
+        "google/gemini-3.8-flash",
         "google/gemma-4-26b-a4b-it",
         "google/gemma-4-26b-a4b-it:free",
         "google/gemma-4-31b-it",
         "google/gemma-4-31b-it:free",
         "meta/muse-spark-1.1",
         "meta/muse-spark-1.2",
+        "meta/muse-spark-1.3",
         "minimax/minimax-m3",
         "moonshotai/kimi-k3",
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
@@ -3101,7 +3103,8 @@ final class ModelCatalogTests: XCTestCase {
             [.low, .high, .max]
         )
 
-        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "zai-org/GLM-5.3-Fast", provider: .baseten))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "zai-org/GLM-5.3-Fast", provider: .baseten))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "zai-org/GLM-5.3-Fast-custom", provider: .baseten))
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "zai-org/GLM-5.3-Flash-custom", provider: .together))
         XCTAssertFalse(ModelCatalog.isFullySupported(
             modelID: "accounts/fireworks/models/glm-5p3-flash-custom",

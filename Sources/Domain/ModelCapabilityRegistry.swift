@@ -1421,11 +1421,11 @@ enum ModelCapabilityRegistry {
         }
     }
 
-    /// Exact Muse Spark IDs live on OpenCode Go (`GET /zen/go/v1/models`, 2026-08-20).
+    /// Exact Muse Spark IDs live on OpenCode Go (`GET /zen/go/v1/models`, 2026-08-20, 2026-09-03).
     /// `muse-spark-1.1` is not served.
     static func isOpenCodeGoMuseSparkModelID(_ lowerModelID: String) -> Bool {
         switch lowerModelID {
-        case "muse-spark-1.2", "muse-spark-1.2-contributor":
+        case "muse-spark-1.2", "muse-spark-1.2-contributor", "muse-spark-1.3", "muse-spark-1.3-contributor":
             return true
         default:
             return false
@@ -1438,7 +1438,7 @@ enum ModelCapabilityRegistry {
             ? String(lowerModelID.dropFirst("meta/".count))
             : lowerModelID
         switch bare {
-        case "muse-spark-1.1", "muse-spark-1.2", "muse-spark-1.2-contributor":
+        case "muse-spark-1.1", "muse-spark-1.2", "muse-spark-1.2-contributor", "muse-spark-1.3", "muse-spark-1.3-contributor":
             return true
         default:
             return false

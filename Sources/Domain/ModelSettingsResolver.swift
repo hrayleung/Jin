@@ -300,6 +300,8 @@ enum ModelSettingsResolver {
         "ox-alpha-free",
         "muse-spark-1.2",
         "muse-spark-1.2-contributor",
+        "muse-spark-1.3",
+        "muse-spark-1.3-contributor",
     ]
 
     /// Zhipu / Z.AI Coding Plan IDs whose thinking cannot be turned off. GLM-5.3
@@ -324,6 +326,8 @@ enum ModelSettingsResolver {
         "meta/muse-spark-1.1",
         "meta/muse-spark-1.2",
         "meta/muse-spark-1.2-contributor",
+        "meta/muse-spark-1.3",
+        "meta/muse-spark-1.3-contributor",
         "qwen/qwen3.8-2.4t-a95b",
         "qwen/qwen3.8-max",
         "stealth/ox-alpha",
@@ -342,6 +346,8 @@ enum ModelSettingsResolver {
         "meta/muse-spark-1.1",
         "meta/muse-spark-1.2",
         "meta/muse-spark-1.2-contributor",
+        "meta/muse-spark-1.3",
+        "meta/muse-spark-1.3-contributor",
         "zai/glm-5.3",
         "zai/glm-5.3-flash",
         "qwen/qwen3.8-2.4t-a95b",
@@ -378,6 +384,7 @@ enum ModelSettingsResolver {
     /// effort values are low/high/max with no `none`.
     private static let basetenAlwaysOnReasoningModelIDs: Set<String> = [
         "zai-org/glm-5.3",
+        "zai-org/glm-5.3-fast",
         "zai-org/glm-5.3-flash",
     ]
 
