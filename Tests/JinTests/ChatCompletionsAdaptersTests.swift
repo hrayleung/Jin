@@ -1314,7 +1314,19 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         _ = try await adapter.sendMessage(
             messages: [Message(role: .user, content: [.text("hi")])],
             modelID: "qwen-3.8-27b",
-            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .none)),
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: ReasoningEffort.none)),
+            tools: [],
+            streaming: false
+        )
+        XCTAssertEqual(capturedBody?["disable_reasoning"] as? Bool, true)
+        XCTAssertEqual(capturedBody?["reasoning_format"] as? String, "none")
+        XCTAssertEqual(capturedBody?["reasoning_effort"] as? String, "none")
+
+        // Test disabled reasoning
+        _ = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "qwen-3.8-27b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
             tools: [],
             streaming: false
         )
