@@ -39,6 +39,7 @@ enum ModelCapabilityRegistry {
     ]
 
     private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
+        "gpt-6-astra",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
@@ -71,6 +72,7 @@ enum ModelCapabilityRegistry {
     /// (Sol/Terra/Luna support none|low|medium|high|xhigh|max; `minimal` was dropped).
     /// Older 5.x models reject "max", so it stays clamped to xhigh for them.
     private static let openAIStyleMaxEffortModelIDs: Set<String> = [
+        "gpt-6-astra",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
@@ -100,6 +102,7 @@ enum ModelCapabilityRegistry {
 
     /// Models that accept Responses API `text.verbosity`.
     private static let openAIStyleVerbosityModelIDs: Set<String> = [
+        "gpt-6-astra",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
@@ -433,6 +436,7 @@ enum ModelCapabilityRegistry {
         "zai/glm-5.3",
         "zai/glm-5.3-flash",
         "zai-org/glm-5.3",
+        "zai-org/glm-5.3-fp8",
         "zai-org/glm-5.3-flash",
     ]
     /// Ox Alpha on OpenRouter (`stealth/ox-alpha`): live `/models` supported_efforts
@@ -465,6 +469,11 @@ enum ModelCapabilityRegistry {
     /// omitting `reasoning_effort` (HF `no_think`). Do not inherit Hy3's `low`.
     private static let opencodeGoHy4ReasoningEffortModelIDs: Set<String> = [
         "hy4-preview",
+    ]
+    /// OpenCode Go Omen Alpha (released 2026-09-04; models.dev `opencode-go` reasoning_options):
+    /// accepts only `low`/`high`.
+    private static let opencodeGoOmenAlphaReasoningEffortModelIDs: Set<String> = [
+        "omen-alpha",
     ]
     private static let openRouterDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek/deepseek-v4-flash",
@@ -952,6 +961,10 @@ enum ModelCapabilityRegistry {
             if runinfraDeepSeekV4FlashReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
             }
+        case .makora, .zyphra:
+            if glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID) {
+                return true
+            }
         case .router:
             // Early return, not a fall-through `if`: Router relabels OpenAI models
             // under their bare public names, so the generic tail below would grant
@@ -1047,6 +1060,10 @@ enum ModelCapabilityRegistry {
             return defaultGeminiReasoningEfforts
         case .anthropic, .claudeManagedAgents:
             return supportedAnthropicEfforts(lowerModelID: lowerModelID)
+        case .cerebras where lowerModelID == "qwen-3.8-27b":
+            return [.none, .low, .medium, .high]
+        case .makora where glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high, .max]
         case .groq where lowerModelID == "qwen/qwen3.8-27b":
             // Groq Chat API: none/low/medium/high (default none). `high` is native xhigh.
             return [.none, .low, .medium, .high]
@@ -1214,6 +1231,8 @@ enum ModelCapabilityRegistry {
         case .opencodeGo where opencodeGoGLMHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
         case .opencodeGo where opencodeGoHy3ReasoningEffortModelIDs.contains(lowerModelID):
+            return [.low, .high]
+        case .opencodeGo where opencodeGoOmenAlphaReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high]
         case .opencodeGo where opencodeGoHy4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
@@ -1454,6 +1473,11 @@ enum ModelCapabilityRegistry {
             return ModelReasoningConfig(type: .effort, defaultEffort: .high)
         }
 
+        if providerType == .opencodeGo,
+           opencodeGoOmenAlphaReasoningEffortModelIDs.contains(lowerModelID) {
+            return ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.low, .high])
+        }
+
         guard isReasoningModelID(lowerModelID, shape: shape) else {
             return nil
         }
@@ -1543,7 +1567,7 @@ enum ModelCapabilityRegistry {
     }
 
     private static func isOpenAIReasoningModelID(_ lowerModelID: String) -> Bool {
-        lowerModelID.contains("gpt-5") || hasPrefixOrScopedPrefix(lowerModelID, prefixes: ["o1", "o3", "o4"])
+        lowerModelID.contains("gpt-5") || lowerModelID.contains("gpt-6") || hasPrefixOrScopedPrefix(lowerModelID, prefixes: ["o1", "o3", "o4"])
     }
 
     private static func supportsOpenAIWebSearch(lowerModelID: String) -> Bool {

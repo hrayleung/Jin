@@ -8,6 +8,16 @@ extension ModelCatalog {
 
     static let openAIRecords: [Record] = [
         // Seeded — appear in the model picker on first launch
+        // GPT-6 Astra (OpenAI flagship frontier model released 2026-09-03).
+        // 1,050,000 context / 128,000 output. Modalities: text+vision
+        // (native PDF via input_file/vision). Effort levels: low..max (default medium).
+        // Reasoning cannot be disabled. Web search natively supported on Responses.
+        Record(id: "gpt-6-astra", displayName: "GPT-6 Astra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
         // GPT-5.6 ships as three tiers — Sol (flagship), Terra (balanced), Luna (fast) —
         // replacing the mini/nano naming (verified against the live 2026-07-09 model pages:
         // 1,050,000 context / 128,000 output, reasoning_effort none..max where `max` is new

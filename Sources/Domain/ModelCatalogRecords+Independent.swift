@@ -1058,6 +1058,32 @@ extension ModelCatalog {
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
                isFullySupported: true, isSeeded: true),
+        // Qwen3.8 Flash Next (Fireworks serverless, 2026-08-30). FP8 and NVFP4 quantizations.
+        // 262,144 context, 32,768 max output, text+vision, reasoning via reasoning_effort.
+        Record(id: "accounts/fireworks/models/qwen3p8-flash-next-fp8", displayName: "Qwen3.8 Flash Next FP8",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "fireworks/qwen3p8-flash-next-fp8", displayName: "Qwen3.8 Flash Next FP8",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "accounts/fireworks/models/qwen3p8-flash-next-nvfp4", displayName: "Qwen3.8 Flash Next NVFP4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "fireworks/qwen3p8-flash-next-nvfp4", displayName: "Qwen3.8 Flash Next NVFP4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         Record(id: "accounts/fireworks/models/deepseek-v4-pro", displayName: "DeepSeek V4 Pro",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_600,
@@ -1439,6 +1465,20 @@ extension ModelCatalog {
     // MARK: Cerebras
 
     static let cerebrasRecords: [Record] = [
+        // Cerebras public model catalog (inference-docs.cerebras.ai): 128,000 context (paid) / 64,000 (free),
+        // 40,000 max output tokens (max_completion_tokens). Streaming, tool calling, reasoning.
+        // Vision is withheld because CerebrasAdapter in Jin does not encode images yet.
+        // Reasoning configurable via reasoning_effort (.none, .low, .medium, .high, default high).
+        Record(id: "qwen-3.8-27b", displayName: "Qwen 3.8 27B",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 128_000,
+               maxOutputTokens: 40_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort,
+                   defaultEffort: .high,
+                   supportedEfforts: [.none, .low, .medium, .high]
+               ),
+               isFullySupported: true, isSeeded: true),
         // Retires from Cerebras 2026-05-27 — keep record for in-flight chats but drop "fully supported" badge.
         Record(id: "qwen-3-235b-a22b-instruct-2507", displayName: "Qwen 3 235B A22B Instruct 2507 (Deprecated)",
                capabilities: [.streaming, .toolCalling],
@@ -1698,6 +1738,23 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
+        // Omen Alpha (opencode.ai/docs/go + models.dev `opencode-go`, 2026-09-04).
+        // Exact ID `omen-alpha` on /zen/go/v1/chat/completions via @ai-sdk/openai-compatible
+        // — routes through default chat completions path in OpenCodeGoAdapter.
+        // 500,000 context / 128,000 output. Text + image input (modalities.input: ["text", "image"]),
+        // tool calling, streaming, interleaved reasoning_content.
+        // Reasoning options: low/high (default high). Always-on reasoning (cannot disable).
+        // Seeded after glm-5.3 so the first-launch default is unchanged.
+        Record(id: "omen-alpha", displayName: "Omen Alpha",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 500_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort,
+                   defaultEffort: .high,
+                   supportedEfforts: [.low, .high]
+               ),
                isFullySupported: true, isSeeded: true),
         // GLM-5.2 stays on the Go line (1M / 131K, high/max effort). Seeded after 5.3
         // so the first-launch default is the current flagship.
@@ -2219,6 +2276,12 @@ extension ModelCatalog {
                contextWindow: 128_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        Record(id: "morph-compactor", displayName: "Morph Compactor",
+               capabilities: [.streaming],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: Baseten Model APIs

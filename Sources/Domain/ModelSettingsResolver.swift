@@ -93,6 +93,9 @@ enum ModelSettingsResolver {
         declaredEfforts: [ReasoningEffort]? = nil
     ) -> Bool {
         guard let providerType else { return true }
+        if providerType == .openai || providerType == .openaiWebSocket {
+            return !openAIAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
         if providerType == .fireworks {
             return !isFireworksAlwaysOnReasoningModel(modelID)
         }
@@ -228,6 +231,13 @@ enum ModelSettingsResolver {
         return value
     }
 
+    /// OpenAI / OpenAI WebSocket IDs whose reasoning cannot be disabled.
+    /// GPT-6 Astra reasoning is always-on (Responses API rejects reasoning.effort: "none"
+    /// or disabled reasoning with HTTP 400).
+    private static let openAIAlwaysOnReasoningModelIDs: Set<String> = [
+        "gpt-6-astra",
+    ]
+
     /// Exact-ID allowlist for SambaNova models where reasoning cannot be disabled.
     /// Keep this strict to avoid misclassifying unknown models by substring.
     private static let sambaNovaAlwaysOnReasoningModelIDs: Set<String> = [
@@ -290,6 +300,7 @@ enum ModelSettingsResolver {
     /// HTTP 400 (Meta docs); omit the field instead and lock the Off toggle. Other
     /// GLM / Kimi / MiMo stay on the provider-wide omit-to-disable convention.
     private static let opencodeGoAlwaysOnReasoningModelIDs: Set<String> = [
+        "omen-alpha",
         "grok-4.6",
         "grok-4.5",
         "deepseek-v4-pro",
