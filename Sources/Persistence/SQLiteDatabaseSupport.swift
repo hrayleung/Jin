@@ -149,6 +149,7 @@ enum SQLiteDatabaseSupport {
                 return SQLiteIntegrityResult(passed: false, detail: message(for: database))
             }
         }
+        sqlite3_busy_timeout(database, 5_000)
 
         var statement: OpaquePointer?
         defer { sqlite3_finalize(statement) }

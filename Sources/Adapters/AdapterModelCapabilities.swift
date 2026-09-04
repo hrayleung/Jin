@@ -348,6 +348,7 @@ private let openAIResponsesSamplingAllowedModelIDs: Set<String> = [
 /// GPT-5.6 Daybreak aliases whose IDs do not contain `gpt-5`.
 /// Exact IDs only — they share Sol/Cyber's Responses sampling rejection.
 private let openAIResponsesSamplingDeniedExactModelIDs: Set<String> = [
+    "gpt-6-astra",
     "gpt-daybreak-red-latest",
     "gpt-daybreak-blue-latest",
 ]

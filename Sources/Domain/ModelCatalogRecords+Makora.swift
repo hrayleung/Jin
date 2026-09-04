@@ -238,5 +238,47 @@ extension ModelCatalog {
             isFullySupported: true,
             isSeeded: false
         ),
+        Record(
+            id: "zai-org/GLM-5.3",
+            displayName: "GLM 5.3",
+            capabilities: makoraReasoning,
+            contextWindow: 1_048_576,
+            maxOutputTokens: 128_000,
+            reasoningConfig: ModelReasoningConfig(
+                type: .effort,
+                defaultEffort: .high,
+                supportedEfforts: [.low, .high, .max]
+            ),
+            isFullySupported: true,
+            isSeeded: false
+        ),
+        Record(
+            id: "zai-org/GLM-5.3-Flash",
+            displayName: "GLM 5.3 Flash",
+            capabilities: makoraVisionReasoning,
+            contextWindow: 1_048_576,
+            maxOutputTokens: 128_000,
+            reasoningConfig: ModelReasoningConfig(
+                type: .effort,
+                defaultEffort: .high,
+                supportedEfforts: [.low, .high, .max]
+            ),
+            isFullySupported: true,
+            isSeeded: false
+        ),
+        Record(
+            id: "zai-org/GLM-5.3-FP8",
+            displayName: "GLM 5.3 FP8",
+            capabilities: makoraReasoning,
+            contextWindow: 1_048_576,
+            maxOutputTokens: 128_000,
+            reasoningConfig: ModelReasoningConfig(
+                type: .effort,
+                defaultEffort: .high,
+                supportedEfforts: [.low, .high, .max]
+            ),
+            isFullySupported: true,
+            isSeeded: false
+        ),
     ]
 }

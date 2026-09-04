@@ -764,4 +764,104 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertEqual(zyphraGLM53.maxOutputTokens, 131_072)
         XCTAssertEqual(zyphraGLM53.reasoningConfig?.defaultEffort, .max)
     }
+
+    func testNewModelsSeptember2026Support() {
+        // OpenAI & OpenAI WebSocket: gpt-6-astra
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openai, modelID: "gpt-6-astra"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openaiWebSocket, modelID: "gpt-6-astra"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openai, modelID: "gpt-6-astra-custom"))
+        let gpt6Astra = ModelCatalog.modelInfo(for: "gpt-6-astra", provider: .openai)
+        XCTAssertEqual(gpt6Astra.contextWindow, 1_050_000)
+        XCTAssertEqual(gpt6Astra.maxOutputTokens, 128_000)
+        XCTAssertTrue(gpt6Astra.capabilities.contains(.vision))
+        XCTAssertTrue(gpt6Astra.capabilities.contains(.nativePDF))
+        XCTAssertTrue(gpt6Astra.capabilities.contains(.promptCaching))
+        XCTAssertTrue(gpt6Astra.capabilities.contains(.codeExecution))
+        XCTAssertTrue(gpt6Astra.capabilities.contains(.reasoning))
+        XCTAssertEqual(gpt6Astra.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openai, modelID: "gpt-6-astra"),
+            [.low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openai, modelID: "gpt-6-astra"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openaiWebSocket, modelID: "gpt-6-astra"))
+        XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-6-astra", reasoningEnabled: true))
+        XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-6-astra", reasoningEnabled: false))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .openai, modelID: "gpt-6-astra"))
+
+        // Cerebras: qwen-3.8-27b
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cerebras, modelID: "qwen-3.8-27b"))
+        let cerebrasQwen = ModelCatalog.modelInfo(for: "qwen-3.8-27b", provider: .cerebras)
+        XCTAssertEqual(cerebrasQwen.contextWindow, 128_000)
+        XCTAssertEqual(cerebrasQwen.maxOutputTokens, 40_000)
+        XCTAssertTrue(cerebrasQwen.capabilities.contains(.vision))
+        XCTAssertTrue(cerebrasQwen.capabilities.contains(.reasoning))
+        XCTAssertEqual(cerebrasQwen.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .cerebras, modelID: "qwen-3.8-27b"),
+            [.none, .low, .medium, .high]
+        )
+
+        // Fireworks: qwen3p8-flash-next-fp8 & nvfp4
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/qwen3p8-flash-next-fp8"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: "accounts/fireworks/models/qwen3p8-flash-next-nvfp4"))
+        let fireworksFP8 = ModelCatalog.modelInfo(for: "accounts/fireworks/models/qwen3p8-flash-next-fp8", provider: .fireworks)
+        XCTAssertEqual(fireworksFP8.contextWindow, 262_144)
+        XCTAssertEqual(fireworksFP8.maxOutputTokens, 32_768)
+        XCTAssertTrue(fireworksFP8.capabilities.contains(.vision))
+        XCTAssertTrue(fireworksFP8.capabilities.contains(.reasoning))
+        XCTAssertEqual(fireworksFP8.reasoningConfig?.defaultEffort, .medium)
+
+        // RunInfra: qwen3-8-flash-next-fp8
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .runinfra, modelID: "qwen3-8-flash-next-fp8"))
+        let runinfraFP8 = ModelCatalog.modelInfo(for: "qwen3-8-flash-next-fp8", provider: .runinfra)
+        XCTAssertEqual(runinfraFP8.contextWindow, 262_144)
+        XCTAssertEqual(runinfraFP8.maxOutputTokens, 32_768)
+        XCTAssertEqual(runinfraFP8.reasoningConfig?.type, .toggle)
+
+        // Makora: zai-org/GLM-5.3 & GLM-5.3-Flash
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .makora, modelID: "zai-org/GLM-5.3"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .makora, modelID: "zai-org/GLM-5.3-Flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .makora, modelID: "zai-org/GLM-5.3-FP8"))
+        let makoraGLM53 = ModelCatalog.modelInfo(for: "zai-org/GLM-5.3", provider: .makora)
+        XCTAssertEqual(makoraGLM53.contextWindow, 1_048_576)
+        XCTAssertEqual(makoraGLM53.maxOutputTokens, 128_000)
+        XCTAssertEqual(makoraGLM53.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .makora, modelID: "zai-org/GLM-5.3"),
+            [.low, .high, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .makora, modelID: "zai-org/GLM-5.3"))
+        let makoraFlash = ModelCatalog.modelInfo(for: "zai-org/GLM-5.3-Flash", provider: .makora)
+        XCTAssertTrue(makoraFlash.capabilities.contains(.vision))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .makora, modelID: "zai-org/GLM-5.3-Flash"))
+
+        // MorphLLM: morph-compactor
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .morphllm, modelID: "morph-compactor"))
+        let morphCompactor = ModelCatalog.modelInfo(for: "morph-compactor", provider: .morphllm)
+        XCTAssertEqual(morphCompactor.contextWindow, 1_000_000)
+        XCTAssertEqual(morphCompactor.maxOutputTokens, 131_072)
+        XCTAssertEqual(morphCompactor.capabilities, [.streaming])
+        XCTAssertNil(morphCompactor.reasoningConfig)
+
+        // OpenCode Go: omen-alpha
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "omen-alpha"))
+        let omenAlpha = ModelCatalog.modelInfo(for: "omen-alpha", provider: .opencodeGo)
+        XCTAssertEqual(omenAlpha.contextWindow, 500_000)
+        XCTAssertEqual(omenAlpha.maxOutputTokens, 128_000)
+        XCTAssertTrue(omenAlpha.capabilities.contains(.streaming))
+        XCTAssertTrue(omenAlpha.capabilities.contains(.toolCalling))
+        XCTAssertTrue(omenAlpha.capabilities.contains(.vision))
+        XCTAssertTrue(omenAlpha.capabilities.contains(.reasoning))
+        XCTAssertFalse(omenAlpha.capabilities.contains(.videoInput))
+        XCTAssertFalse(omenAlpha.capabilities.contains(.audio))
+        XCTAssertFalse(omenAlpha.capabilities.contains(.nativePDF))
+        XCTAssertEqual(omenAlpha.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "omen-alpha"),
+            [.low, .high]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "omen-alpha"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "omen-alpha"))
+    }
 }

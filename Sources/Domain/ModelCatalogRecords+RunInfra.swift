@@ -109,6 +109,13 @@ extension ModelCatalog {
                 isSeeded: true
             ),
             hosted(
+                id: "qwen3-8-flash-next-fp8",
+                displayName: "Qwen3.8 Flash Next FP8",
+                contextWindow: 262_144,
+                reasoningConfig: toggleReasoning,
+                isSeeded: false
+            ),
+            hosted(
                 id: "ornith-1-5-35b",
                 displayName: "Ornith 1.5 35B",
                 contextWindow: 262_144,

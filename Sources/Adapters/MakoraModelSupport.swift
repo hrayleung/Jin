@@ -18,6 +18,9 @@ enum MakoraModelSupport {
     static let glm51ID = "zai-org/GLM-5.1-FP8"
     static let glm52FP8ID = "zai-org/GLM-5.2-FP8"
     static let glm52NVFP4ID = "zai-org/GLM-5.2-NVFP4"
+    static let glm53ID = "zai-org/GLM-5.3"
+    static let glm53FP8ID = "zai-org/GLM-5.3-FP8"
+    static let glm53FlashID = "zai-org/GLM-5.3-Flash"
     static let gptOss120BID = "openai/gpt-oss-120b"
     static let kimiK3ID = "moonshotai/Kimi-K3"
     static let kimiK26ID = "nvidia/Kimi-K2.6-NVFP4"
@@ -57,6 +60,9 @@ enum MakoraModelSupport {
              glm51ID.lowercased(),
              glm52FP8ID.lowercased(),
              glm52NVFP4ID.lowercased(),
+             glm53ID.lowercased(),
+             glm53FP8ID.lowercased(),
+             glm53FlashID.lowercased(),
              kimiK3ID.lowercased(),
              kimiK26ID.lowercased(),
              kimiK27ID.lowercased(),
@@ -70,7 +76,15 @@ enum MakoraModelSupport {
     }
 
     static func isAlwaysOnReasoningModel(_ modelID: String) -> Bool {
-        modelID.lowercased() == gptOss120BID.lowercased()
+        switch modelID.lowercased() {
+        case gptOss120BID.lowercased(),
+             glm53ID.lowercased(),
+             glm53FP8ID.lowercased(),
+             glm53FlashID.lowercased():
+            return true
+        default:
+            return false
+        }
     }
 
     /// vLLM streaming parser is missing for these IDs (omp-makora-provider).
@@ -97,7 +111,10 @@ enum MakoraModelSupport {
         switch modelID.lowercased() {
         case glm51ID.lowercased(),
              glm52FP8ID.lowercased(),
-             glm52NVFP4ID.lowercased():
+             glm52NVFP4ID.lowercased(),
+             glm53ID.lowercased(),
+             glm53FP8ID.lowercased(),
+             glm53FlashID.lowercased():
             return true
         default:
             return false
@@ -161,6 +178,9 @@ enum MakoraModelSupport {
             glm51ID,
             glm52FP8ID,
             glm52NVFP4ID,
+            glm53ID,
+            glm53FP8ID,
+            glm53FlashID,
             gptOss120BID,
             kimiK3ID,
             kimiK26ID,
