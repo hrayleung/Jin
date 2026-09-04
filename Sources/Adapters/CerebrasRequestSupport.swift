@@ -29,8 +29,14 @@ extension CerebrasAdapter {
         }
 
         if let reasoning = controls.reasoning {
-            body["disable_reasoning"] = (reasoning.enabled == false)
-            body["reasoning_format"] = (reasoning.enabled == false) ? "none" : "parsed"
+            let isThinkingDisabled = (reasoning.enabled == false) || (reasoning.effort == ReasoningEffort.none)
+            body["disable_reasoning"] = isThinkingDisabled
+            body["reasoning_format"] = isThinkingDisabled ? "none" : "parsed"
+            if let effort = reasoning.effort {
+                body["reasoning_effort"] = (reasoning.enabled == false) ? "none" : effort.rawValue
+            } else if isThinkingDisabled {
+                body["reasoning_effort"] = "none"
+            }
         }
 
         if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {

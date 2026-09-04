@@ -1264,6 +1264,65 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         guard case .messageEnd = events[3] else { return XCTFail("Expected messageEnd") }
     }
 
+    func testCerebrasAdapterSerializesReasoningEffortForSupportedModels() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "c",
+            name: "Cerebras",
+            type: .cerebras,
+            apiKey: "ignored",
+            baseURL: "https://example.com"
+        )
+
+        var capturedBody: [String: Any]?
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            capturedBody = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let response: [String: Any] = [
+                "id": "cmpl_789",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "Done"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = CerebrasAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        // Test high effort
+        _ = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "qwen-3.8-27b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            tools: [],
+            streaming: false
+        )
+        XCTAssertEqual(capturedBody?["disable_reasoning"] as? Bool, false)
+        XCTAssertEqual(capturedBody?["reasoning_format"] as? String, "parsed")
+        XCTAssertEqual(capturedBody?["reasoning_effort"] as? String, "high")
+
+        // Test none effort
+        _ = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "qwen-3.8-27b",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .none)),
+            tools: [],
+            streaming: false
+        )
+        XCTAssertEqual(capturedBody?["disable_reasoning"] as? Bool, true)
+        XCTAssertEqual(capturedBody?["reasoning_format"] as? String, "none")
+        XCTAssertEqual(capturedBody?["reasoning_effort"] as? String, "none")
+    }
+
     func testCerebrasAdapterReplaysThinkingOnlyWhenClearThinkingIsDisabled() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
@@ -6602,6 +6661,49 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         let adapter = ZyphraAdapter(providerConfig: providerConfig, apiKey: "ignored", networkManager: networkManager)
         let isValid = try await adapter.validateAPIKey("invalid-key")
         XCTAssertFalse(isValid)
+    }
+
+    func testZyphraAdapterPreservesMaxReasoningEffortOnTheWire() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "zyphra",
+            name: "Zyphra",
+            type: .zyphra,
+            apiKey: "ignored",
+            baseURL: "https://api.zyphracloud.com/api/v1"
+        )
+
+        var capturedBody: [String: Any]?
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            capturedBody = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+            let response: [String: Any] = [
+                "id": "cmpl_zyphra_1",
+                "choices": [
+                    [
+                        "message": [
+                            "role": "assistant",
+                            "content": "Done"
+                        ],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = ZyphraAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        _ = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("solve")])],
+            modelID: "zai-org/GLM-5.3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            tools: [],
+            streaming: false
+        )
+        XCTAssertEqual(capturedBody?["reasoning_effort"] as? String, "max")
     }
 
     func testOpenAICompatibleAdapterFetchModelsForDeepInfraUsesCatalogMetadataWhenKnown() async throws {

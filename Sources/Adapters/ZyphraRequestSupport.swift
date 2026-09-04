@@ -64,8 +64,10 @@ extension ZyphraAdapter {
                 body["reasoning_effort"] = "low"
             case .medium:
                 body["reasoning_effort"] = "medium"
-            case .high, .xhigh, .max:
+            case .high, .xhigh:
                 body["reasoning_effort"] = "high"
+            case .max:
+                body["reasoning_effort"] = "max"
             }
 
         case .budget, .none, .noneSet:

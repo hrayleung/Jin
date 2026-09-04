@@ -1466,10 +1466,11 @@ extension ModelCatalog {
 
     static let cerebrasRecords: [Record] = [
         // Cerebras public model catalog (inference-docs.cerebras.ai): 128,000 context (paid) / 64,000 (free),
-        // 40,000 max output tokens (max_completion_tokens). Streaming, tool calling, vision, reasoning.
+        // 40,000 max output tokens (max_completion_tokens). Streaming, tool calling, reasoning.
+        // Vision is withheld because CerebrasAdapter in Jin does not encode images yet.
         // Reasoning configurable via reasoning_effort (.none, .low, .medium, .high, default high).
         Record(id: "qwen-3.8-27b", displayName: "Qwen 3.8 27B",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 128_000,
                maxOutputTokens: 40_000,
                reasoningConfig: ModelReasoningConfig(

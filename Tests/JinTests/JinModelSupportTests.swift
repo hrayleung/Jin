@@ -794,7 +794,7 @@ final class JinModelSupportTests: XCTestCase {
         let cerebrasQwen = ModelCatalog.modelInfo(for: "qwen-3.8-27b", provider: .cerebras)
         XCTAssertEqual(cerebrasQwen.contextWindow, 128_000)
         XCTAssertEqual(cerebrasQwen.maxOutputTokens, 40_000)
-        XCTAssertTrue(cerebrasQwen.capabilities.contains(.vision))
+        XCTAssertFalse(cerebrasQwen.capabilities.contains(.vision))
         XCTAssertTrue(cerebrasQwen.capabilities.contains(.reasoning))
         XCTAssertEqual(cerebrasQwen.reasoningConfig?.defaultEffort, .high)
         XCTAssertEqual(
