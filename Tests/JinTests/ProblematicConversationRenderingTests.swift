@@ -48,6 +48,56 @@ final class ProblematicConversationRenderingTests: XCTestCase {
         XCTAssertLessThan(size.height, 4_000)
     }
 
+    func testSACHopperNumericRangesLayoutAndOptionalSnapshot() throws {
+        let theme = MarkdownTheme.resolved(appFontFamily: "", codeFontFamily: "")
+        for isStreaming in [false, true] {
+            let key = NativeMarkdownCache.Key(
+                markdownText: Self.sacHopperExcerpt,
+                isStreaming: isStreaming,
+                renderPlainText: false,
+                appFontFamily: "",
+                codeFontFamily: ""
+            )
+            let parsed = NativeMarkdownCache.compute(key: key, theme: theme)
+            XCTAssertTrue(parsed.layout.flatText.contains("5~10 个 seed"))
+            XCTAssertTrue(parsed.layout.flatText.contains("2~4 核"))
+
+            let host = NSHostingView(rootView: markdownGroupsView(parsed.groups, theme: theme)
+                .padding(24)
+                .background(Color(nsColor: .textBackgroundColor))
+                .environment(\.colorScheme, .light))
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 808, height: 800),
+                styleMask: [.borderless],
+                backing: .buffered,
+                defer: false
+            )
+            window.appearance = NSAppearance(named: .aqua)
+            window.contentView = host
+            for _ in 0..<4 {
+                RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+                host.layoutSubtreeIfNeeded()
+                window.setContentSize(NSSize(width: 808, height: max(1, host.fittingSize.height)))
+            }
+            host.layoutSubtreeIfNeeded()
+            host.displayIfNeeded()
+            XCTAssertGreaterThan(host.fittingSize.height, 200)
+            XCTAssertLessThan(host.fittingSize.height, 1_200)
+
+            // Opt in when visually checking this regression; normal test runs
+            // still exercise real AppKit layout without leaving image files.
+            if let directory = ProcessInfo.processInfo.environment["JIN_MARKDOWN_SNAPSHOT_DIR"] {
+                let bitmap = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+                host.cacheDisplay(in: host.bounds, to: bitmap)
+                let png = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                let output = URL(fileURLWithPath: directory, isDirectory: true)
+                try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+                let state = isStreaming ? "streaming" : "final"
+                try png.write(to: output.appendingPathComponent("sac-hopper-\(state).png"))
+            }
+        }
+    }
+
     func testThinkingBlockWithMobiHocNSDIReasoningLayoutCompletes() {
         let previousMode = UserDefaults.standard.string(forKey: AppPreferenceKeys.thinkingBlockDisplayMode)
         UserDefaults.standard.set(ThinkingBlockDisplayMode.expanded.rawValue, forKey: AppPreferenceKeys.thinkingBlockDisplayMode)
@@ -122,6 +172,20 @@ final class ProblematicConversationRenderingTests: XCTestCase {
         .frame(width: 760, alignment: .leading)
         .environment(\.markdownTheme, theme)
     }
+
+    private static let sacHopperExcerpt = """
+    ## 64 核的正确打开方式：并行跑 seed
+
+    RL 方差大，你本来就需要 5~10 个 seed 才能下结论。单个 SAC 实验只用 2~4 核，所以：
+
+    - **同时跑 8~16 个独立实验**（不同 seed / 不同超参），用 `taskset` 绑核隔离
+    - 这比“单实验开 64 个 actor”的样本效率高几个数量级——因为 SAC 根本消化不了那么多数据
+    - 注意：如果只有一张 GPU，多个实验共享 GPU 时 learner 会互相排队，这时限制并行数到 4~8 个比较合理
+
+    **预期表现**：1M 步收敛到 **3000~3500** return。纯 CPU 约 2~4 小时。
+
+    删除线语法检查：~~已弃用配置~~，保留普通范围 5~10、2~4。
+    """
 
     private static let messageLikeLongText = """
     This message exercises the same nested stack shape as a chat row: a compact \
