@@ -258,7 +258,7 @@ enum NativeMarkdownCache {
         // following lines into its children — mangling visible content.
         let document = Document(parsing: preprocessed, options: [.parseSymbolLinks])
         let walker = MarkdownASTWalker(theme: theme, isStreaming: key.isStreaming)
-        let blocks = walker.walk(document: document)
+        let blocks = walker.walk(document: document, source: preprocessed)
         let groups = NativeMarkdownGroupBuilder.build(blocks: blocks, theme: theme)
         let layout = NativeAnchorLayoutBuilder.build(groups: groups)
         return Value(blocks: blocks, groups: groups, layout: layout)

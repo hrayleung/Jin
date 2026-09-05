@@ -15,8 +15,8 @@ struct MarkdownASTWalker {
         self.isStreaming = isStreaming
     }
 
-    func walk(document: Document) -> [NativeMarkdownBlock] {
-        let inlineRenderer = MarkdownInlineRenderer(theme: theme)
+    func walk(document: Document, source: String? = nil) -> [NativeMarkdownBlock] {
+        let inlineRenderer = MarkdownInlineRenderer(theme: theme, source: source)
         var blocks: [NativeMarkdownBlock] = []
         let topLevel = Array(document.blockChildren)
         for (index, child) in topLevel.enumerated() {

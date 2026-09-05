@@ -12,9 +12,23 @@ import Markdown
 /// Bare URLs in plain text are linkified via `NSDataDetector`.
 struct MarkdownInlineRenderer {
     let theme: MarkdownTheme
+    private let sourceLines: [Substring]
+
+    init(theme: MarkdownTheme, source: String? = nil) {
+        self.theme = theme
+        // Keep one shared line index for the rare missing-source-range fallback
+        // below, rather than rescanning the document for each inline run.
+        if let source, source.contains("~") {
+            sourceLines = source.split(omittingEmptySubsequences: false) {
+                $0 == "\n" || $0 == "\r" || $0 == "\r\n"
+            }
+        } else {
+            sourceLines = []
+        }
+    }
 
     func render(inlineChildren: some Sequence<any Markup>) -> InlineRun {
-        var acc = Accumulator(theme: theme)
+        var acc = Accumulator(theme: theme, sourceLines: sourceLines)
         for child in inlineChildren {
             acc.render(child)
         }
@@ -25,13 +39,15 @@ struct MarkdownInlineRenderer {
 private extension MarkdownInlineRenderer {
     struct Accumulator {
         let theme: MarkdownTheme
+        let sourceLines: [Substring]
         var attrs = NSMutableAttributedString()
         var plain = ""
         var links: [LinkRange] = []
         var stack: [InlineAttributes]
 
-        init(theme: MarkdownTheme) {
+        init(theme: MarkdownTheme, sourceLines: [Substring]) {
             self.theme = theme
+            self.sourceLines = sourceLines
             self.stack = [.base(theme: theme)]
         }
 
@@ -51,9 +67,18 @@ private extension MarkdownInlineRenderer {
                 stack.removeLast()
 
             case let strike as Strikethrough:
-                stack.append(stack.last!.withStrikethrough(theme: theme))
-                for child in strike.children { render(child) }
-                stack.removeLast()
+                if usesSingleTilde(strike) {
+                    // cmark also accepts ~...~, pairing unrelated ranges like
+                    // `5~10 个 seed，2~4 核`. Keep those tildes visible; only
+                    // explicit ~~...~~ receives a strikethrough in Jin.
+                    appendRaw("~", frame: stack.last!)
+                    for child in strike.children { render(child) }
+                    appendRaw("~", frame: stack.last!)
+                } else {
+                    stack.append(stack.last!.withStrikethrough(theme: theme))
+                    for child in strike.children { render(child) }
+                    stack.removeLast()
+                }
 
             case let code as InlineCode:
                 let frame = stack.last!.withInlineCode(theme: theme)
@@ -99,6 +124,30 @@ private extension MarkdownInlineRenderer {
             default:
                 for child in markup.children { render(child) }
             }
+        }
+
+        private func usesSingleTilde(_ strike: Strikethrough) -> Bool {
+            guard let contentStart = strike.child(at: 0)?.range?.lowerBound else {
+                // Synthetic nodes have no source spelling; honour their style.
+                return false
+            }
+            if let start = strike.range?.lowerBound, start.line == contentStart.line {
+                // Both ranges include their own delimiters. The relative gap
+                // works even in table cells whose escaped pipes shift absolute
+                // source positions, or when the first child is bold/code.
+                return contentStart.column - start.column == 1
+            }
+
+            // cmark 0.8 may omit a multiline strike's range when its closing
+            // column precedes its opening column. Its first child still has a
+            // location: inspect the preceding delimiter in the exact parse input.
+            guard sourceLines.indices.contains(contentStart.line - 1),
+                  contentStart.column > 1 else { return false }
+            let line = sourceLines[contentStart.line - 1].utf8
+            let preceding = line.prefix(contentStart.column - 1).reversed()
+            let tildes = preceding.prefix { $0 == UInt8(ascii: "~") }.count
+            let backslashes = preceding.dropFirst(tildes).prefix { $0 == UInt8(ascii: "\\") }.count
+            return tildes - (backslashes % 2) == 1
         }
 
         /// Append a `Markdown.Text` run, rendering any inline math (`$…$` /
