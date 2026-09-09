@@ -2790,20 +2790,5 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertEqual(resolvedDBAstra.maxOutputTokens, 128_000)
         XCTAssertEqual(resolvedDBAstra.reasoningConfig?.type, .effort)
         XCTAssertFalse(resolvedDBAstra.reasoningCanDisable)
-
-        // Perplexity: perplexity/glm-5.3-flash
-        let stalePplxFlash = ModelInfo(
-            id: "perplexity/glm-5.3-flash",
-            name: "GLM-5.3 Flash",
-            capabilities: [.streaming, .toolCalling],
-            contextWindow: 128_000,
-            reasoningConfig: nil,
-            isEnabled: true
-        )
-        let resolvedPplxFlash = ModelSettingsResolver.resolve(model: stalePplxFlash, providerType: .perplexity)
-        XCTAssertEqual(resolvedPplxFlash.contextWindow, 1_048_576)
-        XCTAssertEqual(resolvedPplxFlash.maxOutputTokens, 131_072)
-        XCTAssertTrue(resolvedPplxFlash.supportsWebSearch)
-        XCTAssertTrue(resolvedPplxFlash.capabilities.contains(.vision))
     }
 }

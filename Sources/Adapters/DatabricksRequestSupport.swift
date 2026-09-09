@@ -67,10 +67,18 @@ extension DatabricksAdapter {
     /// falls back to its server-side default.
     /// OpenAI GPT-5 / o-series reasoning models reject any non-default `temperature`/`top_p`.
     /// `gpt-4o` and other non-reasoning models still accept custom sampling.
+    private static let exactSamplingRejectingModelIDs: Set<String> = [
+        "databricks-gpt-6-astra",
+        "openai/gpt-6-astra",
+        "gpt-6-astra"
+    ]
+
     private func modelRejectsCustomSampling(_ modelID: String) -> Bool {
         let lower = modelID.lowercased()
+        if Self.exactSamplingRejectingModelIDs.contains(lower) {
+            return true
+        }
         return lower.contains("gpt-5")
-            || lower.contains("gpt-6")
             || lower.hasPrefix("o1") || lower.hasPrefix("o3") || lower.hasPrefix("o4")
             || lower.contains("/o1") || lower.contains("/o3") || lower.contains("/o4")
             || lower.contains("-o1") || lower.contains("-o3") || lower.contains("-o4")

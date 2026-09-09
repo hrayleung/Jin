@@ -913,23 +913,13 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(dbAstra.capabilities.contains(.vision))
         XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .databricks, modelID: "databricks-gpt-6-astra"))
         let dbEfforts = ModelCapabilityRegistry.supportedReasoningEfforts(for: .databricks, modelID: "databricks-gpt-6-astra")
-        XCTAssertTrue(dbEfforts.contains(.xhigh))
-        XCTAssertTrue(dbEfforts.contains(.max))
+        XCTAssertEqual(dbEfforts, [.low, .medium, .high])
+        XCTAssertFalse(dbEfforts.contains(.xhigh))
+        XCTAssertFalse(dbEfforts.contains(.max))
 
-        // Perplexity: GLM-5.3 models
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .perplexity, modelID: "perplexity/glm-5.3-flash"))
-        let pplxFlash = ModelCatalog.modelInfo(for: "perplexity/glm-5.3-flash", provider: .perplexity)
-        XCTAssertEqual(pplxFlash.contextWindow, 1_048_576)
-        XCTAssertEqual(pplxFlash.maxOutputTokens, 131_072)
-        XCTAssertTrue(pplxFlash.capabilities.contains(.vision))
-        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .perplexity, modelID: "perplexity/glm-5.3-flash"))
-
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .perplexity, modelID: "perplexity/glm-5.3"))
-        let pplxStandard = ModelCatalog.modelInfo(for: "perplexity/glm-5.3", provider: .perplexity)
-        XCTAssertEqual(pplxStandard.contextWindow, 1_048_576)
-        XCTAssertEqual(pplxStandard.maxOutputTokens, 131_072)
-        XCTAssertFalse(pplxStandard.capabilities.contains(.vision))
-        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .perplexity, modelID: "perplexity/glm-5.3"))
+        // Perplexity: non-Sonar Agent/Router models are not routed on Chat Completions
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .perplexity, modelID: "perplexity/glm-5.3-flash"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .perplexity, modelID: "perplexity/glm-5.3"))
 
         // Cerebras seed
         let seeds = DefaultProviderSeeds.allProviders()

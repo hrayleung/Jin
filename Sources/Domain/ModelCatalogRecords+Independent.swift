@@ -171,19 +171,6 @@ extension ModelCatalog {
                contextWindow: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
-        // Perplexity Agent API / Router API models (2026-09-03)
-        Record(id: "perplexity/glm-5.3-flash", displayName: "GLM-5.3 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 131_072,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
-               isFullySupported: true, isSeeded: false),
-        Record(id: "perplexity/glm-5.3", displayName: "GLM-5.3",
-               capabilities: [.streaming, .toolCalling, .reasoning],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 131_072,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
-               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: DeepInfra

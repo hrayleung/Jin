@@ -137,11 +137,7 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_050_000,
                maxOutputTokens: 128_000,
-               reasoningConfig: ModelReasoningConfig(
-                   type: .effort,
-                   defaultEffort: .medium,
-                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]
-               ),
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "databricks-gpt-oss-20b", displayName: "GPT-OSS 20B",
                capabilities: [.streaming, .toolCalling, .reasoning],

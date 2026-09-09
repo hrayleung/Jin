@@ -40,7 +40,6 @@ enum ModelCapabilityRegistry {
 
     private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
         "gpt-6-astra",
-        "databricks-gpt-6-astra",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
@@ -74,7 +73,6 @@ enum ModelCapabilityRegistry {
     /// Older 5.x models reject "max", so it stays clamped to xhigh for them.
     private static let openAIStyleMaxEffortModelIDs: Set<String> = [
         "gpt-6-astra",
-        "databricks-gpt-6-astra",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",

@@ -464,7 +464,7 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
         var controls = GenerationControls()
         controls.temperature = 0.7
         controls.topP = 0.95
-        controls.reasoning = ReasoningControls(enabled: true, effort: .xhigh)
+        controls.reasoning = ReasoningControls(enabled: true, effort: .high)
 
         let req = try await adapter.buildRequest(
             messages: [Message(role: .user, content: [.text("hello")])],
@@ -480,11 +480,26 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
         XCTAssertNil(body?["top_p"])
         XCTAssertEqual(body?["reasoning_effort"] as? String, "high")
 
+        // Unrelated/custom model containing gpt-6 does NOT reject custom sampling (exact ID rule)
+        let req2 = try await adapter.buildRequest(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "databricks-gpt-6-custom-fine-tuned",
+            controls: controls,
+            tools: [],
+            streaming: false
+        )
+        let body2 = try JSONSerialization.jsonObject(with: try XCTUnwrap(req2.httpBody)) as? [String: Any]
+        XCTAssertEqual(body2?["temperature"] as? Double, 0.7)
+        XCTAssertEqual(body2?["top_p"] as? Double, 0.95)
+
         // Catalog verification
         let info = ModelCatalog.modelInfo(for: "databricks-gpt-6-astra", provider: .databricks)
         XCTAssertTrue(info.capabilities.contains(.reasoning))
         XCTAssertTrue(info.capabilities.contains(.vision))
         XCTAssertEqual(info.contextWindow, 1_050_000)
-        XCTAssertEqual(info.maxOutputTokens, 128_000)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .databricks, modelID: "databricks-gpt-6-astra"),
+            [.low, .medium, .high]
+        )
     }
 }
