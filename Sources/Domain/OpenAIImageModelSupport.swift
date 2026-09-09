@@ -5,12 +5,13 @@ enum OpenAIImageModelFamily: Sendable {
     case gptImage15
     case gptImage1Mini
     case gptImage2
+    case gptImage25
     case dallE3
     case dallE2
 
     var isGPTImageModel: Bool {
         switch self {
-        case .gptImage1, .gptImage15, .gptImage1Mini, .gptImage2:
+        case .gptImage1, .gptImage15, .gptImage1Mini, .gptImage2, .gptImage25:
             return true
         case .dallE3, .dallE2:
             return false
@@ -103,6 +104,38 @@ enum OpenAIImageModelSupport {
         supportsInputFidelity: false
     )
 
+    static let gptImage25FlareProfile = OpenAIImageModelProfile(
+        family: .gptImage25,
+        ids: ["gpt-image-2.5-flare", "gpt-image-2.5-flare-2026-09-08"],
+        supportsEdits: true,
+        usesMultipartEdits: true,
+        presetSizes: OpenAIImageSize.gptImage2SuggestedSizes,
+        supportsCustomSize: true,
+        qualityOptions: OpenAIImageQuality.gptImage25Qualities,
+        supportsStyle: false,
+        backgroundOptions: [.auto, .transparent, .opaque],
+        supportsOutputFormat: true,
+        supportsOutputCompression: true,
+        supportsModeration: true,
+        supportsInputFidelity: false
+    )
+
+    static let gptImage25SunburstProfile = OpenAIImageModelProfile(
+        family: .gptImage25,
+        ids: ["gpt-image-2.5-sunburst", "gpt-image-2.5-sunburst-2026-09-08"],
+        supportsEdits: true,
+        usesMultipartEdits: true,
+        presetSizes: OpenAIImageSize.gptImage2SuggestedSizes,
+        supportsCustomSize: true,
+        qualityOptions: OpenAIImageQuality.gptImage25Qualities,
+        supportsStyle: false,
+        backgroundOptions: [.auto, .transparent, .opaque],
+        supportsOutputFormat: true,
+        supportsOutputCompression: true,
+        supportsModeration: true,
+        supportsInputFidelity: false
+    )
+
     static let dallE3Profile = OpenAIImageModelProfile(
         family: .dallE3,
         ids: ["dall-e-3"],
@@ -140,6 +173,8 @@ enum OpenAIImageModelSupport {
         gptImage15Profile,
         gptImage1MiniProfile,
         gptImage2Profile,
+        gptImage25FlareProfile,
+        gptImage25SunburstProfile,
         dallE3Profile,
         dallE2Profile,
     ]
@@ -234,6 +269,7 @@ enum OpenAIImageModelSupport {
         case .gptImage15: return "GPT Image 1.5"
         case .gptImage1Mini: return "GPT Image 1 Mini"
         case .gptImage2: return "GPT Image 2"
+        case .gptImage25: return "GPT Image 2.5"
         case .dallE3: return "DALL-E 3"
         case .dallE2: return "DALL-E 2"
         case nil: return modelID

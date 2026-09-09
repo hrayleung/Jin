@@ -451,4 +451,40 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
         XCTAssertTrue(cataloged)
         XCTAssertFalse(unknown)
     }
+
+    func testDatabricksGPT6AstraSamplingAndMetadata() async throws {
+        let adapter = DatabricksAdapter(
+            providerConfig: ProviderConfig(
+                id: "databricks", name: "Databricks", type: .databricks, apiKey: "dapi-test",
+                baseURL: "https://dbc-1234.cloud.databricks.com/serving-endpoints"
+            ),
+            apiKey: "dapi-test"
+        )
+
+        var controls = GenerationControls()
+        controls.temperature = 0.7
+        controls.topP = 0.95
+        controls.reasoning = ReasoningControls(enabled: true, effort: .xhigh)
+
+        let req = try await adapter.buildRequest(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "databricks-gpt-6-astra",
+            controls: controls,
+            tools: [],
+            streaming: false
+        )
+
+        let body = try JSONSerialization.jsonObject(with: try XCTUnwrap(req.httpBody)) as? [String: Any]
+        // GPT-6 Astra rejects custom temperature/top_p on Databricks serving endpoints.
+        XCTAssertNil(body?["temperature"])
+        XCTAssertNil(body?["top_p"])
+        XCTAssertEqual(body?["reasoning_effort"] as? String, "high")
+
+        // Catalog verification
+        let info = ModelCatalog.modelInfo(for: "databricks-gpt-6-astra", provider: .databricks)
+        XCTAssertTrue(info.capabilities.contains(.reasoning))
+        XCTAssertTrue(info.capabilities.contains(.vision))
+        XCTAssertEqual(info.contextWindow, 1_050_000)
+        XCTAssertEqual(info.maxOutputTokens, 128_000)
+    }
 }

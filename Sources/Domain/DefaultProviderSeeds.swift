@@ -34,6 +34,7 @@ enum DefaultProviderSeeds {
             mimoTokenPlanAnthropic,
             kimiForCoding,
             fireworks,
+            cerebras,
             sambaNova,
             databricks,
             modal,
@@ -324,6 +325,17 @@ enum DefaultProviderSeeds {
             iconID: LobeProviderIconCatalog.defaultIconID(for: .fireworks),
             baseURL: ProviderType.fireworks.defaultBaseURL,
             models: ModelCatalog.seededModels(for: .fireworks)
+        )
+    }
+
+    static var cerebras: ProviderConfig {
+        ProviderConfig(
+            id: "cerebras",
+            name: "Cerebras",
+            type: .cerebras,
+            iconID: LobeProviderIconCatalog.defaultIconID(for: .cerebras),
+            baseURL: ProviderType.cerebras.defaultBaseURL,
+            models: ModelCatalog.seededModels(for: .cerebras)
         )
     }
 

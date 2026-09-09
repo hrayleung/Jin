@@ -133,6 +133,16 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
 
         // OpenAI GPT
+        Record(id: "databricks-gpt-6-astra", displayName: "GPT-6 Astra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort,
+                   defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]
+               ),
+               isFullySupported: true, isSeeded: false),
         Record(id: "databricks-gpt-oss-20b", displayName: "GPT-OSS 20B",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 128_000,

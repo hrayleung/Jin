@@ -864,4 +864,76 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "omen-alpha"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "omen-alpha"))
     }
+
+    func testSeptember2026DiscoveredModelsSupport() {
+        // OpenAI: GPT Image 2.5 Flare and Sunburst
+        for modelID in ["gpt-image-2.5-flare", "gpt-image-2.5-flare-2026-09-08",
+                        "gpt-image-2.5-sunburst", "gpt-image-2.5-sunburst-2026-09-08"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openai, modelID: modelID))
+            let info = ModelCatalog.modelInfo(for: modelID, provider: .openai)
+            XCTAssertTrue(info.capabilities.contains(.imageGeneration))
+            XCTAssertEqual(info.contextWindow, 32_000)
+            XCTAssertNil(info.maxOutputTokens)
+        }
+
+        // OpenRouter: GPT-6 Astra & Nex-N2.5
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "openai/gpt-6-astra"))
+        let orAstra = ModelCatalog.modelInfo(for: "openai/gpt-6-astra", provider: .openrouter)
+        XCTAssertEqual(orAstra.contextWindow, 1_050_000)
+        XCTAssertEqual(orAstra.maxOutputTokens, 128_000)
+        XCTAssertTrue(orAstra.capabilities.contains(.reasoning))
+        XCTAssertTrue(orAstra.capabilities.contains(.vision))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "openai/gpt-6-astra"))
+
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "nex-agi/nex-n2.5-pro:free"))
+        let nexPro = ModelCatalog.modelInfo(for: "nex-agi/nex-n2.5-pro:free", provider: .openrouter)
+        XCTAssertEqual(nexPro.contextWindow, 262_144)
+        XCTAssertEqual(nexPro.maxOutputTokens, 65_536)
+        XCTAssertTrue(nexPro.capabilities.contains(.reasoning))
+
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "nex-agi/nex-n2.5-mini:free"))
+        let nexMini = ModelCatalog.modelInfo(for: "nex-agi/nex-n2.5-mini:free", provider: .openrouter)
+        XCTAssertEqual(nexMini.contextWindow, 262_144)
+        XCTAssertEqual(nexMini.maxOutputTokens, 65_536)
+
+        // Vercel AI Gateway: GPT-6 Astra
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "openai/gpt-6-astra"))
+        let vercelAstra = ModelCatalog.modelInfo(for: "openai/gpt-6-astra", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelAstra.contextWindow, 1_050_000)
+        XCTAssertEqual(vercelAstra.maxOutputTokens, 128_000)
+        XCTAssertTrue(vercelAstra.capabilities.contains(.reasoning))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "openai/gpt-6-astra"))
+
+        // Databricks: GPT-6 Astra
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-gpt-6-astra"))
+        let dbAstra = ModelCatalog.modelInfo(for: "databricks-gpt-6-astra", provider: .databricks)
+        XCTAssertEqual(dbAstra.contextWindow, 1_050_000)
+        XCTAssertEqual(dbAstra.maxOutputTokens, 128_000)
+        XCTAssertTrue(dbAstra.capabilities.contains(.reasoning))
+        XCTAssertTrue(dbAstra.capabilities.contains(.vision))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .databricks, modelID: "databricks-gpt-6-astra"))
+        let dbEfforts = ModelCapabilityRegistry.supportedReasoningEfforts(for: .databricks, modelID: "databricks-gpt-6-astra")
+        XCTAssertTrue(dbEfforts.contains(.xhigh))
+        XCTAssertTrue(dbEfforts.contains(.max))
+
+        // Perplexity: GLM-5.3 models
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .perplexity, modelID: "perplexity/glm-5.3-flash"))
+        let pplxFlash = ModelCatalog.modelInfo(for: "perplexity/glm-5.3-flash", provider: .perplexity)
+        XCTAssertEqual(pplxFlash.contextWindow, 1_048_576)
+        XCTAssertEqual(pplxFlash.maxOutputTokens, 131_072)
+        XCTAssertTrue(pplxFlash.capabilities.contains(.vision))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .perplexity, modelID: "perplexity/glm-5.3-flash"))
+
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .perplexity, modelID: "perplexity/glm-5.3"))
+        let pplxStandard = ModelCatalog.modelInfo(for: "perplexity/glm-5.3", provider: .perplexity)
+        XCTAssertEqual(pplxStandard.contextWindow, 1_048_576)
+        XCTAssertEqual(pplxStandard.maxOutputTokens, 131_072)
+        XCTAssertFalse(pplxStandard.capabilities.contains(.vision))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .perplexity, modelID: "perplexity/glm-5.3"))
+
+        // Cerebras seed
+        let seeds = DefaultProviderSeeds.allProviders()
+        XCTAssertTrue(seeds.contains { $0.type == .cerebras && $0.id == "cerebras" })
+    }
 }
+

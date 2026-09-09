@@ -70,6 +70,7 @@ extension DatabricksAdapter {
     private func modelRejectsCustomSampling(_ modelID: String) -> Bool {
         let lower = modelID.lowercased()
         return lower.contains("gpt-5")
+            || lower.contains("gpt-6")
             || lower.hasPrefix("o1") || lower.hasPrefix("o3") || lower.hasPrefix("o4")
             || lower.contains("/o1") || lower.contains("/o3") || lower.contains("/o4")
             || lower.contains("-o1") || lower.contains("-o3") || lower.contains("-o4")

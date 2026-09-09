@@ -148,18 +148,25 @@ enum OpenAIImageQuality: String, Codable, CaseIterable {
     case low
     case medium
     case high
+    case xhigh
+    case max
     case standard
     case hd
 
     var displayName: String {
         switch self {
         case .hd: return "HD"
+        case .xhigh: return "Extra High"
+        case .max: return "Max"
         default: return rawValue.capitalized
         }
     }
 
     /// Quality options for GPT Image models, including `gpt-image-2`.
     static let gptImageQualities: [OpenAIImageQuality] = [.auto, .low, .medium, .high]
+
+    /// Quality options for GPT Image 2.5 models.
+    static let gptImage25Qualities: [OpenAIImageQuality] = [.auto, .low, .medium, .high, .xhigh, .max]
 
     /// Quality options for DALL-E 3.
     static let dallE3Qualities: [OpenAIImageQuality] = [.standard, .hd]

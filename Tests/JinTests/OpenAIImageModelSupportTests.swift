@@ -99,4 +99,49 @@ final class OpenAIImageModelSupportTests: XCTestCase {
         XCTAssertEqual(controls.outputFormat, .webp)
         XCTAssertEqual(controls.outputCompression, 50)
     }
+
+    func testGPTImage25ProfileAndQualities() {
+        for modelID in ["gpt-image-2.5-flare", "gpt-image-2.5-flare-2026-09-08",
+                        "gpt-image-2.5-sunburst", "gpt-image-2.5-sunburst-2026-09-08"] {
+            guard let profile = OpenAIImageModelSupport.profile(for: modelID) else {
+                XCTFail("Missing profile for \(modelID)")
+                continue
+            }
+            XCTAssertEqual(profile.family, .gptImage25)
+            XCTAssertTrue(profile.supportsCustomSize)
+            XCTAssertEqual(profile.qualityOptions, [.auto, .low, .medium, .high, .xhigh, .max])
+            XCTAssertTrue(profile.supportsOutputFormat)
+            XCTAssertTrue(profile.supportsOutputCompression)
+            XCTAssertTrue(profile.supportsModeration)
+            XCTAssertFalse(profile.supportsInputFidelity)
+            XCTAssertEqual(OpenAIImageModelSupport.displayName(for: modelID), "GPT Image 2.5")
+        }
+    }
+
+    func testNormalizeOpenAIImageControlsGPTImage25() {
+        var controls = OpenAIImageGenerationControls(
+            size: OpenAIImageSize(rawValue: "1024x1024"),
+            quality: .xhigh
+        )
+
+        ChatControlNormalizationSupport.normalizeOpenAIImageControls(
+            &controls,
+            lowerModelID: "gpt-image-2.5-flare"
+        )
+
+        XCTAssertEqual(controls.quality, .xhigh)
+
+        var maxQualityControls = OpenAIImageGenerationControls(
+            size: OpenAIImageSize(rawValue: "1024x1024"),
+            quality: .max
+        )
+
+        ChatControlNormalizationSupport.normalizeOpenAIImageControls(
+            &maxQualityControls,
+            lowerModelID: "gpt-image-2.5-sunburst"
+        )
+
+        XCTAssertEqual(maxQualityControls.quality, .max)
+    }
 }
+
