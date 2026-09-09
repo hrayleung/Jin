@@ -123,6 +123,9 @@ enum ModelSettingsResolver {
         if providerType == .zhipuCodingPlan {
             return !zhipuAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType == .databricks {
+            return !databricksAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
         if providerType == .meta {
             // Muse Spark's reasoning cannot be disabled (Meta docs: thinking
             // {type:"disabled"} / reasoning_effort "none" both return HTTP 400).
@@ -329,6 +332,7 @@ enum ModelSettingsResolver {
     /// but its catalog record keeps reasoningConfig nil (no reasoning UI, no reasoning
     /// shape sent), making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
+        "openai/gpt-6-astra",
         "x-ai/grok-4.6",
         "x-ai/grok-4.5",
         "anthropic/claude-fable-5",
@@ -352,6 +356,7 @@ enum ModelSettingsResolver {
     /// record keeps reasoningConfig nil (no reasoning UI, no reasoning shape sent),
     /// making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let vercelAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
+        "openai/gpt-6-astra",
         "xai/grok-4.6",
         "xai/grok-4.5",
         "meta/muse-spark-1.1",
@@ -365,6 +370,12 @@ enum ModelSettingsResolver {
         // Fable 5.1 is always-on adaptive thinking upstream; Off would emit
         // `reasoning: {effort:"none"}` on the OpenAI-compatible gateway path.
         "anthropic/claude-fable-5.1",
+    ]
+
+    /// Databricks foundation models where reasoning cannot be disabled.
+    /// databricks-gpt-6-astra is a reasoning-only model (internal reasoning always active).
+    private static let databricksAlwaysOnReasoningModelIDs: Set<String> = [
+        "databricks-gpt-6-astra",
     ]
 
     /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list

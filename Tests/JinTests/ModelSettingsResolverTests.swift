@@ -2744,4 +2744,51 @@ final class ModelSettingsResolverTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .vercelAIGateway, modelID: "alibaba/qwen3.8-flash"))
     }
 
+    func testSeptember2026DiscoveredModelsResolver() {
+        // OpenRouter: openai/gpt-6-astra legacy/persisted model fallback
+        let staleORAstra = ModelInfo(
+            id: "openai/gpt-6-astra",
+            name: "GPT-6 Astra",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedORAstra = ModelSettingsResolver.resolve(model: staleORAstra, providerType: .openrouter)
+        XCTAssertEqual(resolvedORAstra.contextWindow, 1_050_000)
+        XCTAssertEqual(resolvedORAstra.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedORAstra.reasoningConfig?.type, .effort)
+        XCTAssertFalse(resolvedORAstra.reasoningCanDisable)
+        XCTAssertTrue(resolvedORAstra.capabilities.contains(.vision))
+
+        // Vercel AI Gateway: openai/gpt-6-astra legacy fallback
+        let staleVercelAstra = ModelInfo(
+            id: "openai/gpt-6-astra",
+            name: "GPT-6 Astra",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedVercelAstra = ModelSettingsResolver.resolve(model: staleVercelAstra, providerType: .vercelAIGateway)
+        XCTAssertEqual(resolvedVercelAstra.contextWindow, 1_050_000)
+        XCTAssertEqual(resolvedVercelAstra.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedVercelAstra.reasoningConfig?.type, .effort)
+        XCTAssertFalse(resolvedVercelAstra.reasoningCanDisable)
+
+        // Databricks: databricks-gpt-6-astra legacy fallback
+        let staleDBAstra = ModelInfo(
+            id: "databricks-gpt-6-astra",
+            name: "GPT-6 Astra",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000,
+            reasoningConfig: nil,
+            isEnabled: true
+        )
+        let resolvedDBAstra = ModelSettingsResolver.resolve(model: staleDBAstra, providerType: .databricks)
+        XCTAssertEqual(resolvedDBAstra.contextWindow, 1_050_000)
+        XCTAssertEqual(resolvedDBAstra.maxOutputTokens, 128_000)
+        XCTAssertEqual(resolvedDBAstra.reasoningConfig?.type, .effort)
+        XCTAssertFalse(resolvedDBAstra.reasoningCanDisable)
+    }
 }
