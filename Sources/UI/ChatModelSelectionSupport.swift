@@ -16,6 +16,7 @@ enum ChatModelSelectionSupport {
         "kimi-k2p6",
         "qwen3p8-2p4t-a95b",
         "qwen3p6-plus",
+        "deepseek-v4p1-flash",
         "deepseek-v4-pro-0813",
         "deepseek-v4-pro",
         "deepseek-v3p2",
@@ -28,6 +29,7 @@ enum ChatModelSelectionSupport {
     ]
     static let preferredDeepInfraModelOrder: [String] = [
         "moonshotai/Kimi-K3",
+        "deepseek-ai/DeepSeek-V4.1-Flash",
         "deepseek-ai/DeepSeek-V4-Pro-0813",
         "Qwen/Qwen3.8-2.4T-A95B",
         "nvidia/NVIDIA-Nemotron-3.5-Lightning",
@@ -69,6 +71,7 @@ enum ChatModelSelectionSupport {
         "moonshotai/Kimi-K2.6",
         "thinkingmachines/inkling",
         "thinkingmachines/inkling-small",
+        "deepseek-ai/DeepSeek-V4.1-Flash",
         "deepseek-ai/DeepSeek-V4-Pro-0813",
         "deepseek-ai/DeepSeek-V4-Flash-0731",
         "deepseek-ai/DeepSeek-V4-Pro",
@@ -91,6 +94,7 @@ enum ChatModelSelectionSupport {
         "gpt-5.4",
         "grok-4.6",
         "accounts/fireworks/models/kimi-k3",
+        "accounts/fireworks/models/deepseek-v4p1-flash",
         "accounts/fireworks/models/deepseek-v4-pro",
     ]
     static let preferredRunInfraModelOrder: [String] = [
@@ -112,6 +116,7 @@ enum ChatModelSelectionSupport {
         "databricks-meta-llama-3-3-70b-instruct",
         "databricks-llama-4-maverick",
         "databricks-qwen35-122b-a10b",
+        "databricks-deepseek-v4-1-flash",
     ]
 
     static func preferredFireworksModelID(in models: [ModelInfo]) -> String? {
@@ -176,7 +181,8 @@ enum ChatModelSelectionSupport {
             return models.first(where: { $0.id == "sonar-pro" })?.id
                 ?? models.first(where: { $0.id == "sonar" })?.id
         case .deepseek:
-            return models.first(where: { $0.id == "deepseek-v4-pro" })?.id
+            return models.first(where: { $0.id == "deepseek-flash" })?.id
+                ?? models.first(where: { $0.id == "deepseek-v4-pro" })?.id
                 ?? models.first(where: { $0.id == "deepseek-v4-flash" })?.id
                 ?? models.first(where: { $0.id == "deepseek-chat" })?.id
                 ?? models.first(where: { $0.id == "deepseek-reasoner" })?.id

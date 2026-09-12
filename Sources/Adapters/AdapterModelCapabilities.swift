@@ -244,11 +244,15 @@ func isFireworksDeepSeekV4GAModel(_ modelID: String) -> Bool {
     let lower = modelID.lowercased()
     if fireworksDeepSeekV4Pro0813PreferredModelIDs.contains(lower)
         || lower == "accounts/fireworks/models/deepseek-v4-flash-0731"
-        || lower == "fireworks/deepseek-v4-flash-0731" {
+        || lower == "fireworks/deepseek-v4-flash-0731"
+        || lower == "accounts/fireworks/models/deepseek-v4p1-flash"
+        || lower == "fireworks/deepseek-v4p1-flash" {
         return true
     }
     guard let canonical = fireworksCanonicalModelID(lower) else { return false }
-    return canonical == "deepseek-v4-pro-0813" || canonical == "deepseek-v4-flash-0731"
+    return canonical == "deepseek-v4-pro-0813"
+        || canonical == "deepseek-v4-flash-0731"
+        || canonical == "deepseek-v4p1-flash"
 }
 
 // MARK: - OpenAI Responses API Supported File MIME Types

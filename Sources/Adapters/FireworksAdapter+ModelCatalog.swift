@@ -88,6 +88,7 @@ extension FireworksAdapter {
             if suffix == "deepseek-v4-pro"
                 || suffix == "deepseek-v4-pro-0813"
                 || suffix == "deepseek-v4-flash-0731"
+                || suffix == "deepseek-v4p1-flash"
                 || suffix == "qwen3p8-2p4t-a95b"
                 || suffix == "glm-5p3"
                 || suffix == "glm-5p3-flash"
@@ -195,6 +196,12 @@ extension FireworksAdapter {
         "glm-5": FireworksFallbackSpec(name: "GLM-5", contextWindow: 202_800, reasoning: true),
         "glm-4p7": FireworksFallbackSpec(name: "GLM-4.7", contextWindow: 202_800, reasoning: true),
         "deepseek-v4-flash-0731": FireworksFallbackSpec(name: "DeepSeek V4 Flash 0731", contextWindow: 1_040_000, reasoning: true),
+        "deepseek-v4p1-flash": FireworksFallbackSpec(
+            name: "DeepSeek V4.1 Flash",
+            contextWindow: 1_040_000,
+            extraCapabilities: [.vision],
+            reasoning: true
+        ),
         "nemotron-3-5-lightning": FireworksFallbackSpec(name: "Nemotron 3.5 Lightning", contextWindow: 1_000_000, reasoning: true),
         "nemotron-3-ultra-nvfp4": FireworksFallbackSpec(name: "Nemotron 3 Ultra NVFP4", contextWindow: 1_000_000, reasoning: true),
     ]

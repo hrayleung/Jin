@@ -413,6 +413,8 @@ enum ModelCapabilityRegistry {
     private static let defaultReasoningEfforts: [ReasoningEffort] = [.low, .medium, .high]
     private static let defaultGeminiReasoningEfforts: [ReasoningEffort] = [.minimal, .low, .medium, .high]
     private static let deepSeekV4ReasoningEffortModelIDs: Set<String> = [
+        "deepseek-flash",
+        "deepseek-v4.1-flash",
         "deepseek-v4-flash",
         "deepseek-v4-flash-0731",
         "deepseek-v4-flash-vision-exp",
@@ -485,6 +487,7 @@ enum ModelCapabilityRegistry {
         "deepseek/deepseek-v4-pro-0813",
         "deepseek/deepseek-v4-flash-0731",
         "deepseek/deepseek-v4-flash-vision-exp",
+        "deepseek/deepseek-v4.1-flash",
     ]
     /// Open-weight Qwen3.8-2.4T-A95B + 27B on OpenRouter: xhigh/medium/low
     /// (default xhigh). Cloud Max is a different product (see below).
@@ -497,9 +500,12 @@ enum ModelCapabilityRegistry {
         "qwen/qwen3.8-max",
     ]
     /// Sakana Fugu Ultra only accepts the high/xhigh/max band (OpenRouter
-    /// supported_efforts, verified 2026-07-11).
+    /// supported_efforts, verified 2026-07-11). fugu-ultra-v2 / fugu-max carry
+    /// the same band per their live supported_efforts.
     private static let openRouterHighBandEffortModelIDs: Set<String> = [
         "sakana/fugu-ultra",
+        "sakana/fugu-ultra-v2",
+        "sakana/fugu-max",
     ]
     /// Tencent Hy3 accepts only high/low ("none" is expressed by disabling
     /// reasoning) — OpenRouter supported_efforts, verified 2026-07-11.
@@ -558,6 +564,12 @@ enum ModelCapabilityRegistry {
     private static let deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro-0813",
     ]
+    /// DeepInfra DeepSeek-V4.1-Flash: none/low/high/xhigh/max (models.dev
+    /// `deepinfra` reasoning options, 2026-09-10). Wider than every other
+    /// gateway's V4.1 band — keep it on its own set.
+    private static let deepInfraDeepSeekV41FlashReasoningEffortModelIDs: Set<String> = [
+        "deepseek-ai/deepseek-v4.1-flash",
+    ]
     /// DeepInfra Qwen3.8-2.4T-A95B: HF low/medium/xhigh, thinking always on.
     private static let deepInfraQwen38TextReasoningEffortModelIDs: Set<String> = [
         "qwen/qwen3.8-2.4t-a95b",
@@ -576,11 +588,16 @@ enum ModelCapabilityRegistry {
     ]
     /// Fireworks DeepSeek-V4-Pro-0813: low/high/max (same GA band as Together /
     /// DeepInfra / official docs). Preview `deepseek-v4-pro` stays high/max.
+    /// V4.1 Flash inherits the GA band — Fireworks publishes no effort matrix
+    /// and the official DeepSeek band is low/high/max + non-thinking.
     private static let fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs: Set<String> = [
         "deepseek-v4-pro-0813",
         "fireworks/deepseek-v4-pro-0813",
         "accounts/fireworks/models/deepseek-v4-pro-0813",
         "deepseek-ai/deepseek-v4-pro-0813",
+        "deepseek-v4p1-flash",
+        "fireworks/deepseek-v4p1-flash",
+        "accounts/fireworks/models/deepseek-v4p1-flash",
     ]
     /// Fireworks Qwen3.8-2.4T-A95B aliases. Fireworks page does not list effort
     /// values; inherit the HF/Modal same-weights band (low/medium/xhigh).
@@ -611,8 +628,11 @@ enum ModelCapabilityRegistry {
         "openai/gpt-oss-120b",
     ]
     /// Baseten DeepSeek V4 Pro 0813: narrow effort band (none/low/high/max).
+    /// DeepSeek-V4.1-Flash publishes the same none/low/high/max band on Baseten
+    /// (models.dev `baseten`, 2026-09-10).
     private static let basetenDeepSeekV4Pro0813ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro-0813",
+        "deepseek-ai/deepseek-v4.1-flash",
     ]
     /// Baseten GLM-5.2 family: none/high/max only. GLM-5.3-Flash is always-on
     /// low/high/max via `glm53LowHighMaxReasoningEffortModelIDs`.
@@ -688,6 +708,7 @@ enum ModelCapabilityRegistry {
     ]
     /// Router band `none, minimal, low, medium, high, xhigh`.
     private static let routerNoneToExtremeEffortModelIDs: Set<String> = [
+        "accounts/fireworks/models/deepseek-v4p1-flash",
         "accounts/fireworks/models/gpt-oss-20b",
         "accounts/fireworks/models/kimi-k2p6",
         "accounts/fireworks/models/kimi-k2p7-code",
@@ -900,6 +921,7 @@ enum ModelCapabilityRegistry {
         case .deepinfra:
             if deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
                 || deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
+                || deepInfraDeepSeekV41FlashReasoningEffortModelIDs.contains(lowerModelID)
                 || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731"
                 || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
@@ -1111,6 +1133,8 @@ enum ModelCapabilityRegistry {
             return [.low, .high, .xhigh]
         case .together where togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
+        case .deepinfra where deepInfraDeepSeekV41FlashReasoningEffortModelIDs.contains(lowerModelID):
+            return [.none, .low, .high, .xhigh, .max]
         case .deepinfra where deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
             || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731"
             || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
@@ -1148,6 +1172,10 @@ enum ModelCapabilityRegistry {
         case .fireworks where fireworksKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
             || fireworksCanonicalModelID(lowerModelID).map({ fireworksKimiK3ReasoningEffortModelIDs.contains($0) }) == true:
             return [.none, .low, .medium, .high, .max]
+        case .vercelAIGateway where lowerModelID == "deepseek/deepseek-v4.1-flash":
+            // models.dev `vercel` reasoning options: toggle + effort high/xhigh.
+            // Narrower than every other gateway's V4.1 band.
+            return [.high, .xhigh]
         case .vercelAIGateway where vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID)
             || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
             || lowerModelID == "deepseek/deepseek-v4-pro-0813"

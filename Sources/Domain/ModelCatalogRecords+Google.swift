@@ -511,6 +511,16 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        // DeepSeek V4.1 Flash (OpenRouter live /models, created 2026-09-10 with the
+        // origin release). 1,048,576 / 384,000, text+image input, tools,
+        // cached-input → promptCaching. Same low/high/max GA band as the V4 GA
+        // family via openRouterDeepSeekV4GAReasoningEffortModelIDs.
+        Record(id: "deepseek/deepseek-v4.1-flash", displayName: "DeepSeek: DeepSeek V4.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         // Nemotron 3.5 Lightning (OpenRouter live /models, 2026-08-11). 1M / 131k,
         // text-only, tools, cached-input. `reasoning` + `include_reasoning` with no
         // reasoning_effort → toggle only.
@@ -1356,6 +1366,113 @@ extension ModelCatalog {
                contextWindow: 260_000,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+
+        // In-window additions (OpenRouter live /models `created` 2026-09-05..12;
+        // metadata below is from the live API payload for each exact ID).
+        // Inception Mercury 2.5 GA (created 2026-09-08): text-only, 260,000 /
+        // 65,536, tools, cached-input → promptCaching, effort default high.
+        Record(id: "inception/mercury-2.5", displayName: "Inception: Mercury 2.5",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 260_000,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Sakana Fugu Ultra V2 + Fugu Max (created 2026-09-08/09): same 1M / 128k
+        // and restricted high/xhigh/max effort band as fugu-ultra (default xhigh).
+        Record(id: "sakana/fugu-ultra-v2", displayName: "Sakana: Fugu Ultra V2",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "sakana/fugu-max", displayName: "Sakana: Fugu Max",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
+        // inclusionAI Ling-3.0-Flash-VL (created 2026-09-07): image input claimed;
+        // the `video` modality is NOT promoted to .videoInput without a live probe.
+        // Reasoning is a plain toggle like ling-3.0-flash/-fin.
+        Record(id: "inclusionai/ling-3.0-flash-vl", displayName: "inclusionAI: Ling-3.0-Flash-VL",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 131_072,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "inclusionai/ling-3.0-flash-vl:free", displayName: "inclusionAI: Ling-3.0-Flash-VL (Free)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // inclusionAI Ling-3.0-Flash-Sante free tier (created 2026-09-07): text-only.
+        Record(id: "inclusionai/ling-3.0-flash-sante:free", displayName: "inclusionAI: Ling-3.0-Flash-Sante (Free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Inference.net Schematron V2 (created 2026-09-08): text-only, no tools or
+        // reasoning parameters on the live API — streaming only.
+        Record(id: "inference-net/schematron-v2-turbo", displayName: "Inference.net: Schematron V2 Turbo",
+               capabilities: [.streaming],
+               contextWindow: 128_000,
+               maxOutputTokens: 8_192,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "inference-net/schematron-v2-small", displayName: "Inference.net: Schematron V2 Small",
+               capabilities: [.streaming],
+               contextWindow: 128_000,
+               maxOutputTokens: 4_096,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // OpenAI `~openai/*-latest` aliases (created 2026-09-05): same 1,050,000 /
+        // 128,000 metadata as `~openai/gpt-latest` — effort default medium.
+        Record(id: "~openai/gpt-astra-latest", displayName: "OpenAI: GPT Astra (Latest)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "~openai/gpt-sol-latest", displayName: "OpenAI: GPT Sol (Latest)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "~openai/gpt-terra-latest", displayName: "OpenAI: GPT Terra (Latest)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "~openai/gpt-luna-latest", displayName: "OpenAI: GPT Luna (Latest)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        // GPT-6 Astra variants (created 2026-09-05/08): `:batch` and `-pro` forms
+        // mirror openai/gpt-6-astra metadata.
+        Record(id: "openai/gpt-6-astra:batch", displayName: "OpenAI: GPT-6 Astra (Batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-astra-pro", displayName: "OpenAI: GPT-6 Astra Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-astra-pro:batch", displayName: "OpenAI: GPT-6 Astra Pro (Batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
     ]
 }

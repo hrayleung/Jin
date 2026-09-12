@@ -267,6 +267,18 @@ extension ModelCatalog {
                maxOutputTokens: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        // Router "Supported Models" table (docs.router.com, verified 2026-09-12):
+        // label `deepseek-v4p1-flash` under the DeepSeek section — same Fireworks
+        // path scheme as siblings. Table publishes 1,048,576 ctx / 1,048,576 max
+        // out and the none/minimal/low/medium/high/xhigh effort band
+        // (routerNoneToExtremeEffortModelIDs). Vision is not claimed — the table
+        // does not publish modality.
+        Record(id: "accounts/fireworks/models/deepseek-v4p1-flash", displayName: "DeepSeek-V4.1-Flash",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "accounts/fireworks/models/deepseek-v4-pro", displayName: "DeepSeek-V4-Pro",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,

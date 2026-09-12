@@ -222,6 +222,16 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // DeepSeek V4.1 Flash (docs.databricks.com "Databricks-hosted foundation
+        // models" — added to the page 2026-09-11, pay-per-token). Endpoint
+        // `databricks-deepseek-v4-1-flash`, inputs text+image, reasoning with
+        // adjustable reasoning_effort. Docs publish no context cap for this
+        // endpoint — model-native 1,048,576 used; output cap unpublished → omitted.
+        Record(id: "databricks-deepseek-v4-1-flash", displayName: "DeepSeek V4.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
 
         // xAI Grok
         Record(id: "databricks-grok-4-6", displayName: "Grok 4.6",

@@ -1039,6 +1039,17 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        // Live ai-gateway.vercel.sh/v1/models (2026-09-10 origin release):
+        // `deepseek/deepseek-v4.1-flash`, 1,048,576 ctx / 393,216 out (models.dev
+        // `vercel`), text+image input, implicit caching → promptCaching. Reasoning
+        // is a toggle plus effort high/xhigh only — narrower than every other
+        // gateway's V4.1 band; handled by its own arm in ModelCapabilityRegistry.
+        Record(id: "deepseek/deepseek-v4.1-flash", displayName: "DeepSeek V4.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 393_216,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
 
         // Zhipu / Z.ai. Vercel AI Gateway IDs use the `zai/` prefix (models.dev
         // `vercel`), not OpenRouter's `z-ai/`.

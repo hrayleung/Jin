@@ -204,6 +204,16 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // DeepSeek-V4.1-Flash on DeepInfra (deepinfra.com model page, hosted with the
+        // 2026-09-10 origin release). Exact ID `deepseek-ai/DeepSeek-V4.1-Flash`.
+        // models.dev `deepinfra`: 1,048,576 ctx / 384,000 out, text+image input,
+        // cached-input pricing → promptCaching, effort band none/low/high/xhigh/max.
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash", displayName: "DeepSeek V4.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "moonshotai/Kimi-K2.7-Code", displayName: "Kimi K2.7 Code",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 262_144,
@@ -774,12 +784,25 @@ extension ModelCatalog {
 
     // MARK: DeepSeek
 
-    // Official Models & Pricing (2026-08-16): primary IDs stay deepseek-v4-flash /
-    // deepseek-v4-pro (names unchanged). Current versions are V4-Flash-0731 /
-    // V4-Pro-0813. reasoning_effort is low/high/max (default high).
+    // Official Models & Pricing + news260910 (2026-09-10):
+    // https://api-docs.deepseek.com/quick_start/pricing
+    // https://api-docs.deepseek.com/news/news260910
+    // DeepSeek-V4.1-Flash ships as the new primary ID `deepseek-flash`. 1M context /
+    // 384K max output, native multimodal (image+text input → text), thinking on by
+    // default with thinking.type=disabled for non-thinking mode, reasoning_effort
+    // low/high/max (default high), cached-input pricing → promptCaching.
+    // Per DeepSeek's notice, `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp`
+    // are retired IDs that now route to V4.1-Flash, and `deepseek-v4-pro` follows on
+    // 2026-09-14 — records stay for persisted chats.
     // deepseek-chat / deepseek-reasoner are aliases of V4 Flash non/thinking modes and are
     // deprecated 2026-07-24 15:59 UTC — keep catalog-only for persisted chats.
     static let deepSeekRecords: [Record] = [
+        Record(id: "deepseek-flash", displayName: "DeepSeek Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "deepseek-v4-flash", displayName: "DeepSeek V4 Flash",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 1_000_000,
@@ -1160,6 +1183,23 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: true),
         Record(id: "fireworks/deepseek-v4-flash-0731", displayName: "DeepSeek V4 Flash 0731",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // DeepSeek V4.1 Flash (fireworks.ai/models → accounts/fireworks/models/
+        // deepseek-v4p1-flash, hosted with the 2026-09-10 origin release). Serverless,
+        // text+image input, function calling, cached-input pricing → promptCaching.
+        // Fireworks publishes "1040k" context; effort band matches the V4 GA family
+        // (low/high/max) via the shared GA set in ModelCapabilityRegistry.
+        Record(id: "accounts/fireworks/models/deepseek-v4p1-flash", displayName: "DeepSeek V4.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "fireworks/deepseek-v4p1-flash", displayName: "DeepSeek V4.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_040_000,
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
@@ -1976,6 +2016,20 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // DeepSeek V4.1 Flash on Go (opencode.ai/docs/go endpoint table + live
+        // /zen/go/v1/models, hosted with the 2026-09-10 origin release). Exact ID
+        // `deepseek-v4.1-flash` on /zen/go/v1/chat/completions via
+        // @ai-sdk/openai-compatible — NOT /messages, NOT /responses. Same multimodal
+        // successor: image input, 1M context / 384K output per api-docs.deepseek.com
+        // (Go does not publish a separate cap). Reasoning is the same always-on
+        // high/max band as Go's V4 Flash/Pro. Images are user-message `image_url`
+        // only. .videoInput is not claimed.
+        Record(id: "deepseek-v4.1-flash", displayName: "DeepSeek V4.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "minimax-m3", displayName: "MiniMax M3",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,
@@ -2282,6 +2336,29 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // Live on morphllm.com/api/models/json (verified 2026-09): `morph-dsv41flash`
+        // is Morph's hosted copy of DeepSeek-V4.1-Flash (2026-09-10 origin release);
+        // `morph-kimik3-fast` and `morph-dsv4flash-0731` are live variants absent from
+        // the seeded lineup. Morph records intentionally claim streaming only — the
+        // API is a code-edit surface without Jin's standard tool/reasoning controls.
+        Record(id: "morph-dsv41flash", displayName: "DeepSeek V4.1 Flash (Fast)",
+               capabilities: [.streaming],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "morph-kimik3-fast", displayName: "Kimi K3 Fast (Fast)",
+               capabilities: [.streaming],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "morph-dsv4flash-0731", displayName: "DeepSeek V4 Flash 0731 (Fast)",
+               capabilities: [.streaming],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: Baseten Model APIs
@@ -2339,6 +2416,18 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        // DeepSeek-V4.1-Flash (Baseten Model APIs, hosted with the 2026-09-10 origin
+        // release). Exact ID from baseten.co/library/deepseek-v41-flash. 1,048,576 ctx /
+        // 32,768 max output (models.dev `baseten` — Baseten's serving cap, not the
+        // model-native 384K). Text+image input, $0.03/M cached-input rate →
+        // promptCaching. Effort band none/low/high/max (models.dev) → same arm as
+        // V4-Pro-0813 in ModelCapabilityRegistry.
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash", displayName: "DeepSeek V4.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 32_768,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
         // GLM-5.3-Flash (Baseten Model APIs, 2026-08-26). Exact ID from models.dev
