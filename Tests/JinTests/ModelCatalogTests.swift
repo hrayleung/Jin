@@ -999,6 +999,192 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(vision.reasoningConfig)
     }
 
+    func testDeepSeekV41FlashCatalogUsesExactProviderIDs() {
+        // Origin: deepseek-flash is the V4.1-Flash primary ID (api-docs.deepseek.com,
+        // 2026-09-10). Native multimodal + thinking toggle; low/high/max band.
+        let origin = ModelCatalog.modelInfo(for: "deepseek-flash", provider: .deepseek)
+        XCTAssertEqual(origin.name, "DeepSeek Flash")
+        XCTAssertEqual(origin.contextWindow, 1_000_000)
+        XCTAssertEqual(origin.maxOutputTokens, 384_000)
+        XCTAssertEqual(origin.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertEqual(origin.reasoningConfig?.type, .effort)
+        XCTAssertEqual(origin.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .deepseek, modelID: "deepseek-flash"),
+            [.low, .high, .max]
+        )
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "deepseek-flash", provider: .deepseek))
+        XCTAssertEqual(ModelCatalog.seededModels(for: .deepseek).first?.id, "deepseek-flash")
+
+        // DeepInfra hosted copy: widest V4.1 band (none/low/high/xhigh/max).
+        let deepInfra = ModelCatalog.modelInfo(for: "deepseek-ai/DeepSeek-V4.1-Flash", provider: .deepinfra)
+        XCTAssertEqual(deepInfra.contextWindow, 1_048_576)
+        XCTAssertEqual(deepInfra.maxOutputTokens, 384_000)
+        XCTAssertEqual(deepInfra.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4.1-Flash"),
+            [.none, .low, .high, .xhigh, .max]
+        )
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "deepseek-ai/DeepSeek-V4.1-Flash", provider: .deepinfra))
+
+        // Baseten hosted copy: same ID, Baseten's 32K serving cap, none/low/high/max.
+        let baseten = ModelCatalog.modelInfo(for: "deepseek-ai/DeepSeek-V4.1-Flash", provider: .baseten)
+        XCTAssertEqual(baseten.contextWindow, 1_048_576)
+        XCTAssertEqual(baseten.maxOutputTokens, 32_768)
+        XCTAssertEqual(baseten.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .baseten, modelID: "deepseek-ai/DeepSeek-V4.1-Flash"),
+            [.none, .low, .high, .max]
+        )
+
+        // Fireworks hosted copy: both account and short-prefix forms, GA band.
+        for id in ["accounts/fireworks/models/deepseek-v4p1-flash", "fireworks/deepseek-v4p1-flash"] {
+            let info = ModelCatalog.modelInfo(for: id, provider: .fireworks)
+            XCTAssertEqual(info.name, "DeepSeek V4.1 Flash", id)
+            XCTAssertEqual(info.contextWindow, 1_040_000, id)
+            XCTAssertEqual(info.maxOutputTokens, 384_000, id)
+            XCTAssertEqual(info.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], id)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .fireworks, modelID: id),
+                [.low, .high, .max],
+                id
+            )
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .fireworks), id)
+        }
+
+        // OpenRouter hosted copy: GA low/high/max band.
+        let openRouter = ModelCatalog.modelInfo(for: "deepseek/deepseek-v4.1-flash", provider: .openrouter)
+        XCTAssertEqual(openRouter.contextWindow, 1_048_576)
+        XCTAssertEqual(openRouter.maxOutputTokens, 384_000)
+        XCTAssertEqual(openRouter.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "deepseek/deepseek-v4.1-flash"),
+            [.low, .high, .max]
+        )
+
+        // Vercel AI Gateway copy: toggle + high/xhigh only — narrower than the rest.
+        let vercel = ModelCatalog.modelInfo(for: "deepseek/deepseek-v4.1-flash", provider: .vercelAIGateway)
+        XCTAssertEqual(vercel.contextWindow, 1_048_576)
+        XCTAssertEqual(vercel.maxOutputTokens, 393_216)
+        XCTAssertEqual(vercel.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vercelAIGateway, modelID: "deepseek/deepseek-v4.1-flash"),
+            [.high, .xhigh]
+        )
+
+        // OpenCode Go copy: /chat/completions shape, always-on high/max band.
+        let go = ModelCatalog.modelInfo(for: "deepseek-v4.1-flash", provider: .opencodeGo)
+        XCTAssertEqual(go.name, "DeepSeek V4.1 Flash")
+        XCTAssertEqual(go.contextWindow, 1_000_000)
+        XCTAssertEqual(go.maxOutputTokens, 384_000)
+        XCTAssertEqual(go.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertFalse(go.capabilities.contains(.videoInput))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "deepseek-v4.1-flash"),
+            [.high, .max]
+        )
+        XCTAssertTrue(ModelCatalog.seededModels(for: .opencodeGo).contains(where: { $0.id == "deepseek-v4.1-flash" }))
+
+        // Ramp Router copy: full none…xhigh band per docs.router.com.
+        let router = ModelCatalog.modelInfo(for: "accounts/fireworks/models/deepseek-v4p1-flash", provider: .router)
+        XCTAssertEqual(router.contextWindow, 1_048_576)
+        XCTAssertEqual(router.maxOutputTokens, 1_048_576)
+        XCTAssertEqual(router.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .router, modelID: "accounts/fireworks/models/deepseek-v4p1-flash"),
+            [.none, .minimal, .low, .medium, .high, .xhigh]
+        )
+
+        // Databricks endpoint: text+image, adjustable effort; output cap unpublished.
+        let databricks = ModelCatalog.modelInfo(for: "databricks-deepseek-v4-1-flash", provider: .databricks)
+        XCTAssertEqual(databricks.contextWindow, 1_048_576)
+        XCTAssertNil(databricks.maxOutputTokens)
+        XCTAssertEqual(databricks.capabilities, [.streaming, .toolCalling, .vision, .reasoning])
+        XCTAssertEqual(databricks.reasoningConfig?.type, .effort)
+
+        // Morph hosted copy: streaming-only like every morph-* record.
+        let morph = ModelCatalog.modelInfo(for: "morph-dsv41flash", provider: .morphllm)
+        XCTAssertEqual(morph.capabilities, [.streaming])
+        XCTAssertEqual(morph.contextWindow, 1_048_576)
+        XCTAssertNil(morph.reasoningConfig)
+
+        // Near-miss IDs must not prefix-match into full support.
+        for (provider, nearMiss) in [
+            (ProviderType.deepseek, "deepseek-flash-pro"),
+            (ProviderType.opencodeGo, "deepseek-v4.1-flash-pro"),
+            (ProviderType.deepinfra, "deepseek-ai/DeepSeek-V4.1-Flash-Custom"),
+        ] {
+            let unknown = ModelCatalog.modelInfo(for: nearMiss, provider: provider)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], "\(provider) \(nearMiss)")
+            XCTAssertEqual(unknown.contextWindow, 128_000, "\(provider) \(nearMiss)")
+            XCTAssertNil(unknown.reasoningConfig, "\(provider) \(nearMiss)")
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: nearMiss, provider: provider), "\(provider) \(nearMiss)")
+        }
+    }
+
+    func testOpenRouterSeptember2026CatalogUsesExactProviderIDs() {
+        // In-window OpenRouter additions (live /models `created` 2026-09-05..12).
+        let mercury = ModelCatalog.modelInfo(for: "inception/mercury-2.5", provider: .openrouter)
+        XCTAssertEqual(mercury.contextWindow, 260_000)
+        XCTAssertEqual(mercury.maxOutputTokens, 65_536)
+        XCTAssertEqual(mercury.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+
+        for id in ["sakana/fugu-ultra-v2", "sakana/fugu-max"] {
+            let info = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(info.contextWindow, 1_000_000, id)
+            XCTAssertEqual(info.maxOutputTokens, 128_000, id)
+            XCTAssertEqual(info.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], id)
+            XCTAssertEqual(info.reasoningConfig?.defaultEffort, .xhigh, id)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: id),
+                [.high, .xhigh, .max],
+                id
+            )
+        }
+
+        // Ling VL claims image input only — live `video` modality is not promoted.
+        let lingVL = ModelCatalog.modelInfo(for: "inclusionai/ling-3.0-flash-vl", provider: .openrouter)
+        XCTAssertEqual(lingVL.contextWindow, 131_072)
+        XCTAssertEqual(lingVL.maxOutputTokens, 32_768)
+        XCTAssertEqual(lingVL.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertFalse(lingVL.capabilities.contains(.videoInput))
+        XCTAssertEqual(lingVL.reasoningConfig?.type, .toggle)
+
+        let lingVLFree = ModelCatalog.modelInfo(for: "inclusionai/ling-3.0-flash-vl:free", provider: .openrouter)
+        XCTAssertEqual(lingVLFree.contextWindow, 262_144)
+        XCTAssertEqual(lingVLFree.capabilities, [.streaming, .toolCalling, .vision, .reasoning])
+
+        let sante = ModelCatalog.modelInfo(for: "inclusionai/ling-3.0-flash-sante:free", provider: .openrouter)
+        XCTAssertEqual(sante.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(sante.reasoningConfig?.type, .toggle)
+
+        // Schematron V2: no tools/reasoning parameters on the live API.
+        for (id, maxOut) in [("inference-net/schematron-v2-turbo", 8_192), ("inference-net/schematron-v2-small", 4_096)] {
+            let info = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(info.contextWindow, 128_000, id)
+            XCTAssertEqual(info.maxOutputTokens, maxOut, id)
+            XCTAssertEqual(info.capabilities, [.streaming], id)
+            XCTAssertNil(info.reasoningConfig, id)
+        }
+
+        // ~openai latest aliases + gpt-6-astra variants mirror gpt-6-astra metadata.
+        for id in ["~openai/gpt-astra-latest", "~openai/gpt-sol-latest", "~openai/gpt-terra-latest", "~openai/gpt-luna-latest",
+                   "openai/gpt-6-astra:batch", "openai/gpt-6-astra-pro", "openai/gpt-6-astra-pro:batch"] {
+            let info = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(info.contextWindow, 1_050_000, id)
+            XCTAssertEqual(info.maxOutputTokens, 128_000, id)
+            XCTAssertEqual(info.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], id)
+            XCTAssertEqual(info.reasoningConfig?.defaultEffort, .medium, id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .openrouter), id)
+        }
+
+        // Near-miss variants must not inherit full support.
+        let unknown = ModelCatalog.modelInfo(for: "sakana/fugu-ultra-v3", provider: .openrouter)
+        XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(unknown.contextWindow, 128_000)
+        XCTAssertNil(unknown.reasoningConfig)
+    }
+
     func testGeminiGemma431CatalogUsesExactMetadata() {
         let model = ModelCatalog.modelInfo(
             for: "gemma-4-31b-it",
@@ -1649,6 +1835,7 @@ final class ModelCatalogTests: XCTestCase {
                 "moonshotai/Kimi-K2.7-Code",
                 "deepseek-ai/DeepSeek-V4-Pro-0813",
                 "deepseek-ai/DeepSeek-V4-Flash-0731",
+                "deepseek-ai/DeepSeek-V4.1-Flash",
                 "Qwen/Qwen3.8-2.4T-A95B",
                 "Qwen/Qwen3.8-27B",
                 "MiniMaxAI/MiniMax-M3",

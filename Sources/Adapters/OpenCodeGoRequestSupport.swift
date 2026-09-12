@@ -139,7 +139,9 @@ extension OpenCodeGoAdapter {
 
     private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {
         let includeVideo = modelSupportsVideoInput(providerConfig: providerConfig, modelID: modelID)
+        // DeepSeek vision IDs restrict images to user messages (api-docs.deepseek.com/guides/vision).
         let visionUserImagesOnly = modelID.lowercased() == "deepseek-v4-flash-vision-exp"
+            || modelID.lowercased() == "deepseek-v4.1-flash"
         return try translateMessagesToOpenAIFormat(messages) { message in
             try translateNonToolMessage(
                 message,
@@ -220,7 +222,7 @@ extension OpenCodeGoAdapter {
             // and never emit the invalid `low`/`medium` strings for it. The model's selectable
             // efforts are already restricted to [.high, .max] in ModelCapabilityRegistry.
             return (effort == .max || effort == .xhigh) ? "max" : "high"
-        case "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp":
+        case "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp", "deepseek-v4.1-flash":
             // Official DeepSeek V4 OpenAI format is low/high/max. On V4 Pro, xhigh/max
             // map to max and everything else maps to high (api-docs.deepseek.com
             // thinking_mode, 2026-08). The Go UI band is already [.high, .max].

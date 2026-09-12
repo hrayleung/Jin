@@ -71,6 +71,9 @@ extension ContentView {
         if providerID == "xai", let grokBuild = models.first(where: { $0.id == "grok-build-0.1" }) {
             return grokBuild.id
         }
+        if providerID == "deepseek", let deepseekFlash = models.first(where: { $0.id == "deepseek-flash" }) {
+            return deepseekFlash.id
+        }
         if providerID == "deepseek", let deepseekV4Pro = models.first(where: { $0.id == "deepseek-v4-pro" }) {
             return deepseekV4Pro.id
         }
@@ -202,7 +205,7 @@ extension ContentView {
     private static let absoluteFallbackModelIDs: [String: String] = [
         "anthropic": "claude-opus-5",
         "xai": "grok-4.6",
-        "deepseek": "deepseek-v4-pro",
+        "deepseek": "deepseek-flash",
         "zhipu-coding-plan": "glm-5.3[1m]",
         "kimi-for-coding": "k3",
         "minimax": "MiniMax-M2.7",

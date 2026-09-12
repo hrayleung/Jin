@@ -225,6 +225,44 @@ final class ChatModelSelectionSupportTests: XCTestCase {
         )
     }
 
+    func testPreferredModelIDPrefersDeepSeekFlashOverV4Pro() {
+        let models = [
+            ModelInfo(
+                id: "deepseek-v4-pro",
+                name: "DeepSeek V4 Pro",
+                capabilities: [.streaming],
+                contextWindow: 1_000_000,
+                reasoningConfig: nil,
+                isEnabled: true
+            ),
+            ModelInfo(
+                id: "deepseek-flash",
+                name: "DeepSeek Flash",
+                capabilities: [.streaming],
+                contextWindow: 1_000_000,
+                reasoningConfig: nil,
+                isEnabled: true
+            )
+        ]
+
+        let provider = ProviderConfigEntity(
+            id: "deepseek",
+            name: "DeepSeek",
+            typeRaw: ProviderType.deepseek.rawValue,
+            modelsData: try! JSONEncoder().encode(models)
+        )
+
+        XCTAssertEqual(
+            ChatModelSelectionSupport.preferredModelID(
+                in: models,
+                providerID: "deepseek",
+                providers: [provider],
+                geminiPreferredModelOrder: []
+            ),
+            "deepseek-flash"
+        )
+    }
+
     func testPreferredModelIDFallsBackToDeepSeekV4FlashWhenProIsMissing() {
         let models = [
             ModelInfo(
