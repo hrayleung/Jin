@@ -59,6 +59,9 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         "qwen3.7-plus",
         "qwen3.6-plus",
         "qwen3.5-plus",
+        // Union Alpha Free (Go /models 2026-09-16; models.dev npm =
+        // @ai-sdk/anthropic). Exact ID only — do not prefix-match "union-*".
+        "union-alpha",
     ])
 
     /// Exact model IDs OpenCode Go serves via the OpenAI **Responses** `/responses` endpoint.

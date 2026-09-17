@@ -925,5 +925,118 @@ final class JinModelSupportTests: XCTestCase {
         let seeds = DefaultProviderSeeds.allProviders()
         XCTAssertTrue(seeds.contains { $0.type == .cerebras && $0.id == "cerebras" })
     }
+
+    func testMidSeptember2026DiscoveredModelsSupport() {
+        // Vertex AI: Gemini 3.8 Flash Cyber (GA 2026-09-16, allowlisted,
+        // Vertex-only — must not resolve as fully supported on AI Studio).
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-3.8-flash-cyber"))
+        let cyber = ModelCatalog.modelInfo(for: "gemini-3.8-flash-cyber", provider: .vertexai)
+        XCTAssertEqual(cyber.contextWindow, 1_048_576)
+        XCTAssertEqual(cyber.maxOutputTokens, 65_536)
+        XCTAssertTrue(cyber.capabilities.contains(.reasoning))
+        XCTAssertTrue(cyber.capabilities.contains(.videoInput))
+        XCTAssertTrue(cyber.capabilities.contains(.audio))
+        XCTAssertTrue(cyber.capabilities.contains(.nativePDF))
+        XCTAssertFalse(cyber.capabilities.contains(.codeExecution))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vertexai, modelID: "gemini-3.8-flash-cyber"),
+            [.low, .medium, .high]
+        )
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-3.8-flash-cyber"))
+
+        // Together: DeepSeek V4.1-Flash (serverless table, 2026-09-10).
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4.1-Flash"))
+        let togetherV41 = ModelCatalog.modelInfo(for: "deepseek-ai/DeepSeek-V4.1-Flash", provider: .together)
+        XCTAssertEqual(togetherV41.contextWindow, 1_048_576)
+        XCTAssertEqual(togetherV41.maxOutputTokens, 384_000)
+        XCTAssertTrue(togetherV41.capabilities.contains(.vision))
+        XCTAssertTrue(togetherV41.capabilities.contains(.promptCaching))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .together, modelID: "deepseek-ai/DeepSeek-V4.1-Flash"),
+            [.low, .high, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .together, modelID: "deepseek-ai/DeepSeek-V4.1-Flash"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .together, modelID: "deepseek-ai/DeepSeek-V4.1-Flash"))
+
+        // OpenRouter: Stealth Union Alpha (created 2026-09-16) — no reasoning fields.
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "stealth/union-alpha"))
+        let unionAlpha = ModelCatalog.modelInfo(for: "stealth/union-alpha", provider: .openrouter)
+        XCTAssertEqual(unionAlpha.contextWindow, 262_144)
+        XCTAssertEqual(unionAlpha.maxOutputTokens, 131_072)
+        XCTAssertTrue(unionAlpha.capabilities.contains(.vision))
+        XCTAssertFalse(unionAlpha.capabilities.contains(.reasoning))
+
+        // OpenRouter: DeepSeek ~latest aliases (created 2026-09-14).
+        let orFlash = ModelCatalog.modelInfo(for: "~deepseek/deepseek-flash-latest", provider: .openrouter)
+        XCTAssertEqual(orFlash.contextWindow, 1_048_576)
+        XCTAssertEqual(orFlash.maxOutputTokens, 943_718)
+        XCTAssertTrue(orFlash.capabilities.contains(.vision))
+        XCTAssertTrue(orFlash.capabilities.contains(.promptCaching))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "~deepseek/deepseek-flash-latest"),
+            [.low, .high, .max]
+        )
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "~deepseek/deepseek-flash-latest"))
+
+        let orPro = ModelCatalog.modelInfo(for: "~deepseek/deepseek-pro-latest", provider: .openrouter)
+        XCTAssertEqual(orPro.contextWindow, 1_048_576)
+        XCTAssertEqual(orPro.maxOutputTokens, 384_000)
+        XCTAssertFalse(orPro.capabilities.contains(.vision))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "~deepseek/deepseek-pro-latest"),
+            [.low, .high, .max]
+        )
+
+        // Vercel AI Gateway: Sakana Fugu (release 2026-09-11) — always-on
+        // reasoning with the high/xhigh/max band; output cap is the Sakana
+        // model-level 128k, not the models.dev 1M echo.
+        for (id, defaultEffort) in [("sakana/fugu-max", ReasoningEffort.high), ("sakana/fugu-ultra-v2", ReasoningEffort.xhigh)] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: id))
+            let info = ModelCatalog.modelInfo(for: id, provider: .vercelAIGateway)
+            XCTAssertEqual(info.contextWindow, 1_000_000)
+            XCTAssertEqual(info.maxOutputTokens, 128_000)
+            XCTAssertTrue(info.capabilities.contains(.vision))
+            XCTAssertTrue(info.capabilities.contains(.promptCaching))
+            XCTAssertEqual(info.reasoningConfig?.defaultEffort, defaultEffort)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .vercelAIGateway, modelID: id),
+                [.high, .xhigh, .max]
+            )
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: id))
+            XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .vercelAIGateway, modelID: id))
+        }
+
+        // Fireworks: DeepSeek Flash Latest router alias (2026-09-10).
+        for id in ["accounts/fireworks/routers/deepseek-flash-latest", "fireworks/deepseek-flash-latest"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: id))
+            let info = ModelCatalog.modelInfo(for: id, provider: .fireworks)
+            XCTAssertEqual(info.contextWindow, 1_000_000)
+            XCTAssertEqual(info.maxOutputTokens, 384_000)
+            XCTAssertTrue(info.capabilities.contains(.vision))
+            XCTAssertTrue(info.capabilities.contains(.promptCaching))
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .fireworks, modelID: id),
+                [.low, .high, .max]
+            )
+            XCTAssertTrue(isFireworksDeepSeekV4GAModel(id))
+        }
+
+        // OpenCode Go: Union Alpha Free (Go /models 2026-09-16) — Anthropic
+        // /messages route with a toggleable thinking budget.
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "union-alpha"))
+        let goUnion = ModelCatalog.modelInfo(for: "union-alpha", provider: .opencodeGo)
+        XCTAssertEqual(goUnion.contextWindow, 262_144)
+        XCTAssertEqual(goUnion.maxOutputTokens, 131_072)
+        XCTAssertTrue(goUnion.capabilities.contains(.vision))
+        XCTAssertTrue(goUnion.capabilities.contains(.reasoning))
+        XCTAssertFalse(goUnion.capabilities.contains(.promptCaching))
+        XCTAssertEqual(goUnion.reasoningConfig?.type, .budget)
+        XCTAssertTrue(OpenCodeGoAdapter.anthropicMessagesModelIDs.contains("union-alpha"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "union-alpha"))
+
+        // OpenRouter video-edit model stays uncataloged (source-video input has
+        // no payload path in the adapter — blocked-adapter, exact ID recorded).
+        XCTAssertNil(ModelCatalog.entry(for: "black-forest-labs/flux-video-edit", provider: .openrouter))
+    }
 }
 

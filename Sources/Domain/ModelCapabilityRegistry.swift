@@ -137,6 +137,7 @@ enum ModelCapabilityRegistry {
         "gemini-3.7-flash",
         "gemini-3.8-flash",
         "gemini-3.8-flash-preview",
+        "gemini-3.8-flash-cyber",
     ]
 
     /// Gemini 3.1 Flash Image supports MINIMAL/HIGH.
@@ -488,6 +489,8 @@ enum ModelCapabilityRegistry {
         "deepseek/deepseek-v4-flash-0731",
         "deepseek/deepseek-v4-flash-vision-exp",
         "deepseek/deepseek-v4.1-flash",
+        "~deepseek/deepseek-flash-latest",
+        "~deepseek/deepseek-pro-latest",
     ]
     /// Open-weight Qwen3.8-2.4T-A95B + 27B on OpenRouter: xhigh/medium/low
     /// (default xhigh). Cloud Max is a different product (see below).
@@ -547,6 +550,7 @@ enum ModelCapabilityRegistry {
     private static let togetherDeepSeekV4GAReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro-0813",
         "deepseek-ai/deepseek-v4-flash-0731",
+        "deepseek-ai/deepseek-v4.1-flash",
     ]
     /// Together Qwen3.8-2.4T-A95B: always-on low/high/xhigh (Together model page).
     private static let togetherQwen38TextReasoningEffortModelIDs: Set<String> = [
@@ -598,6 +602,12 @@ enum ModelCapabilityRegistry {
         "deepseek-v4p1-flash",
         "fireworks/deepseek-v4p1-flash",
         "accounts/fireworks/models/deepseek-v4p1-flash",
+        // Router alias for the latest V4.1 Flash (models.dev `fireworks-ai`,
+        // 2026-09-10): low/high/max + toggle. `routers/` is not stripped by
+        // fireworksCanonicalModelID, so the literal ID must be listed.
+        "accounts/fireworks/routers/deepseek-flash-latest",
+        "fireworks/deepseek-flash-latest",
+        "deepseek-flash-latest",
     ]
     /// Fireworks Qwen3.8-2.4T-A95B aliases. Fireworks page does not list effort
     /// values; inherit the HF/Modal same-weights band (low/medium/xhigh).
@@ -950,6 +960,7 @@ enum ModelCapabilityRegistry {
         case .vercelAIGateway:
             if vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID)
                 || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
+                || openRouterHighBandEffortModelIDs.contains(lowerModelID)
                 || lowerModelID == "deepseek/deepseek-v4-pro-0813"
                 || lowerModelID == "deepseek/deepseek-v4-flash-0731" {
                 return true
@@ -1176,6 +1187,10 @@ enum ModelCapabilityRegistry {
             // models.dev `vercel` reasoning options: toggle + effort high/xhigh.
             // Narrower than every other gateway's V4.1 band.
             return [.high, .xhigh]
+        case .vercelAIGateway where openRouterHighBandEffortModelIDs.contains(lowerModelID):
+            // Sakana Fugu family on Vercel: high/xhigh/max only (models.dev
+            // `vercel` reasoning_options) — same band as the OpenRouter copies.
+            return [.high, .xhigh, .max]
         case .vercelAIGateway where vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID)
             || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
             || lowerModelID == "deepseek/deepseek-v4-pro-0813"

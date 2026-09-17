@@ -1307,5 +1307,24 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+
+        // Sakana Fugu Max + Fugu Ultra V2 (models.dev `vercel`, release
+        // 2026-09-11): 1,000,000 context, text+image input, tools, cached-input
+        // → promptCaching, always-on reasoning with the restricted
+        // high/xhigh/max band. Output cap is 128,000 — the Sakana model-level
+        // max_output also published by OpenRouter's top_provider (models.dev
+        // `vercel` echoes context as output, an artifact; do not copy 1M).
+        Record(id: "sakana/fugu-max", displayName: "Sakana Fugu Max",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "sakana/fugu-ultra-v2", displayName: "Sakana Fugu Ultra V2",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
     ]
 }

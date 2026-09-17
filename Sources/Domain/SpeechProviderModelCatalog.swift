@@ -248,6 +248,7 @@ enum SpeechProviderModelCatalog {
                 SpeechProviderModelChoice(id: "mistralai/voxtral-mini-transcribe", name: "Mistral Voxtral Mini Transcribe"),
                 SpeechProviderModelChoice(id: "qwen/qwen3-asr-flash-2026-02-10", name: "Qwen3 ASR Flash"),
                 SpeechProviderModelChoice(id: "nvidia/parakeet-tdt-0.6b-v3", name: "NVIDIA Parakeet TDT 0.6B v3"),
+                SpeechProviderModelChoice(id: "meta/muse-voice-transcribe-1.0", name: "Meta Muse Voice Transcribe 1.0"),
                 SpeechProviderModelChoice(id: "google/chirp-3", name: "Google Chirp 3")
             ]
         case .groq:

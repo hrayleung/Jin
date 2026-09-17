@@ -507,6 +507,17 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // DeepSeek-V4.1-Flash (Together serverless table, origin release
+        // 2026-09-10): exact ID `deepseek-ai/DeepSeek-V4.1-Flash`. models.dev
+        // `togetherai`: 1,048,576 / 384,000, text+image input, tools,
+        // cached-input → promptCaching. Reasoning options are effort-only
+        // (low/high/max, no toggle) → always-on, like the V4 GA family.
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash", displayName: "DeepSeek V4.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "openai/gpt-oss-120b", displayName: "GPT-OSS 120B",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 128_000,
@@ -1201,6 +1212,25 @@ extension ModelCatalog {
         Record(id: "fireworks/deepseek-v4p1-flash", displayName: "DeepSeek V4.1 Flash",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // DeepSeek Flash Latest (Fireworks router alias, models.dev `fireworks-ai`
+        // release 2026-09-10): `accounts/fireworks/routers/deepseek-flash-latest`
+        // resolves upstream to the current V4.1 Flash snapshot. Router listing:
+        // 1,000,000 / 384,000, text+image, tools, cached-input, effort
+        // low/high/max (toggleable, unlike the always-on Go copies).
+        // NOTE: fireworksCanonicalModelID only strips `accounts/fireworks/models/`
+        // — routers/* IDs are matched literally in the capability sets.
+        Record(id: "accounts/fireworks/routers/deepseek-flash-latest", displayName: "DeepSeek Flash (Latest)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "fireworks/deepseek-flash-latest", displayName: "DeepSeek Flash (Latest)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
@@ -2087,6 +2117,22 @@ extension ModelCatalog {
         Record(id: "qwen3.8-max", displayName: "Qwen3.8 Max",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 10_000),
+               isFullySupported: true, isSeeded: true),
+        // Union Alpha Free (live GET /zen/go/v1/models, released 2026-09-16):
+        // stealth agentic-coding model. Live metadata: 262,144 / 131,072,
+        // text+image input, tools, reasoning. models.dev `opencode-go` reports
+        // provider npm `@ai-sdk/anthropic` → served via /zen/go/v1/messages, so
+        // the ID must also be listed in OpenCodeGoAdapter.anthropicMessagesModelIDs.
+        // Reasoning is the Anthropic thinking-budget shape of that route
+        // (reasoning_options is empty — no effort band; toggleable, so it is NOT
+        // in ModelSettingsResolver.opencodeGoAlwaysOnReasoningModelIDs).
+        // .promptCaching stays off like every /messages-routed row, and
+        // .videoInput is not claimed (no video block on /messages).
+        Record(id: "union-alpha", displayName: "Union Alpha Free",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 10_000),
                isFullySupported: true, isSeeded: true),

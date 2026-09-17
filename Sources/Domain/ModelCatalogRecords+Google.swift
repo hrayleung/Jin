@@ -289,6 +289,18 @@ extension ModelCatalog {
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
+        // Gemini 3.8 Flash Cyber (Vertex model page, GA 2026-09-16): allowlisted
+        // security-focused 3.8 Flash variant. Same 1,048,576 / 65,536 envelope and
+        // multimodal input as gemini-3.8-flash; thinking is LOW/MEDIUM/HIGH.
+        // Vertex-only ID — do not mirror into geminiRecords. .codeExecution is not
+        // claimed: the Cyber model page does not list the code-execution tool.
+        // isSeeded stays false — the model is allowlist-gated upstream.
+        Record(id: "gemini-3.8-flash-cyber", displayName: "Gemini 3.8 Flash Cyber",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         // GA 2026-08-13. Thinking is LOW/MEDIUM/HIGH — MINIMAL is rejected by the API.
         Record(id: "gemini-3.7-flash", displayName: "Gemini 3.7 Flash",
                capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
@@ -1474,5 +1486,34 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Stealth Union Alpha (created 2026-09-16): OpenRouter's hosted copy of
+        // OpenCode Go's `union-alpha` — distinct product, distinct ID. Live /models:
+        // 262,144 / 131,072, text+image input, tools, no reasoning fields.
+        Record(id: "stealth/union-alpha", displayName: "Stealth: Union Alpha",
+               capabilities: [.streaming, .toolCalling, .vision],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // DeepSeek `~deepseek/*-latest` aliases (created 2026-09-14). flash-latest
+        // publishes max_completion_tokens 943,718 on the live API — that odd number
+        // is what the upstream reports; kept verbatim. Both carry the GA
+        // low/high/max effort band (default high) via openRouterDeepSeekV4GA…
+        Record(id: "~deepseek/deepseek-flash-latest", displayName: "DeepSeek: Flash (Latest)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "~deepseek/deepseek-pro-latest", displayName: "DeepSeek: Pro (Latest)",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // black-forest-labs/flux-video-edit (created 2026-09-10) is deliberately
+        // NOT cataloged: it requires a source-video input part, and Jin's
+        // OpenRouter video pipeline only forwards images. Blocked-adapter until a
+        // video-input payload path exists.
     ]
 }

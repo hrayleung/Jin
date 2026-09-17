@@ -211,6 +211,7 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
                 "mistralai/voxtral-mini-transcribe",
                 "qwen/qwen3-asr-flash-2026-02-10",
                 "nvidia/parakeet-tdt-0.6b-v3",
+                "meta/muse-voice-transcribe-1.0",
                 "google/chirp-3"
             ]
         )
