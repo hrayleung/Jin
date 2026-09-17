@@ -261,6 +261,9 @@ enum ModelSettingsResolver {
         "qwen/qwen3.8-2.4t-a95b",
         "zai-org/glm-5.3",
         "zai-org/glm-5.3-flash",
+        // V4.1-Flash publishes effort-only reasoning options (low/high/max, no
+        // toggle) on models.dev `togetherai` — same always-on shape as Inkling.
+        "deepseek-ai/deepseek-v4.1-flash",
     ]
 
     /// DeepInfra IDs whose thinking cannot be turned off. Exact-ID only.
@@ -371,6 +374,10 @@ enum ModelSettingsResolver {
         // Fable 5.1 is always-on adaptive thinking upstream; Off would emit
         // `reasoning: {effort:"none"}` on the OpenAI-compatible gateway path.
         "anthropic/claude-fable-5.1",
+        // Sakana Fugu on Vercel publishes effort-only reasoning options
+        // (high/xhigh/max, no toggle) — mandatory reasoning, like the OR copies.
+        "sakana/fugu-max",
+        "sakana/fugu-ultra-v2",
     ]
 
     /// Databricks foundation models where reasoning cannot be disabled.
