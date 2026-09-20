@@ -1120,6 +1120,33 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: false),
+        // GLM-5.3-FlashX (created 2026-09-18). Live /models: 1,048,576 / 131,072,
+        // text+image+video input, tools, reasoning_effort. Video is NOT claimed —
+        // same Flash family as ox-alpha, whose live video_url probe returned 400.
+        // Always-on low/high/max per docs.z.ai/guides/vlm/glm-5.3-flash
+        // (glm53LowHighMaxReasoningEffortModelIDs).
+        Record(id: "z-ai/glm-5.3-flashx", displayName: "Z.ai: GLM 5.3 FlashX",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: false),
+        // Unbiased Pareto (created 2026-09-17). Live /models: 262,144 / 131,072,
+        // text+image input, tools; no reasoning fields advertised.
+        Record(id: "unbiased/pareto", displayName: "Unbiased: Pareto",
+               capabilities: [.streaming, .toolCalling, .vision],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // PrismML Ternary Bonsai 2 27B (created 2026-09-18). Live /models:
+        // 262,144 / 32,768, text+image input, tools, reasoning fields.
+        Record(id: "prism-ml/ternary-bonsai-2-27b", displayName: "PrismML: Ternary Bonsai 2 27B",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "z-ai/glm-5.2", displayName: "Z.ai: GLM 5.2",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 1048576,
