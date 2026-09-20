@@ -3298,4 +3298,257 @@ final class ModelCatalogTests: XCTestCase {
             provider: .fireworks
         ))
     }
+
+    // MARK: - September 13–20 2026 census additions
+
+    /// GLM-5.3-FlashX (released 2026-09-18) is cataloged under the provider's own
+    /// namespace on both gateways — `z-ai/` on OpenRouter, `zai/` on Vercel.
+    /// Vision is claimed; `.videoInput` is NOT — the OpenRouter modality table
+    /// advertises video but gateway/upstream probing is the bar.
+    func testGLM53FlashXCatalogUsesExactNamespacedIDs() {
+        for provider in [ProviderType.openrouter, .vercelAIGateway] {
+            let id = provider == .openrouter ? "z-ai/glm-5.3-flashx" : "zai/glm-5.3-flashx"
+            let model = ModelCatalog.modelInfo(for: id, provider: provider)
+            XCTAssertEqual(model.contextWindow, 1_048_576, "\(provider)/\(id)")
+            XCTAssertEqual(model.maxOutputTokens, 131_072, "\(provider)/\(id)")
+            XCTAssertTrue(model.capabilities.isSuperset(of: [.streaming, .toolCalling, .vision, .reasoning]), id)
+            XCTAssertFalse(model.capabilities.contains(.videoInput), "\(id) must not claim video without a live probe")
+            XCTAssertEqual(model.reasoningConfig?.type, .effort, id)
+            XCTAssertEqual(model.reasoningConfig?.defaultEffort, .max, id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: provider), id)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: provider, modelID: id),
+                [.low, .high, .max],
+                id
+            )
+            // GLM-5.3 thinking is always-on — no `none` in the band, so the
+            // resolver must refuse to offer a disable control (Codex review:
+            // turning reasoning off would emit effort `none`, which is rejected).
+            XCTAssertFalse(
+                ModelSettingsResolver.defaultReasoningCanDisable(for: provider, modelID: id),
+                id
+            )
+        }
+
+        // Namespace must not bleed across gateways.
+        for (provider, wrongID) in [(ProviderType.openrouter, "zai/glm-5.3-flashx"),
+                                    (ProviderType.vercelAIGateway, "z-ai/glm-5.3-flashx"),
+                                    (ProviderType.zhipuCodingPlan, "glm-5.3-flashx")] {
+            let unknown = ModelCatalog.modelInfo(for: wrongID, provider: provider)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], "\(provider)/\(wrongID)")
+            XCTAssertEqual(unknown.contextWindow, 128_000, "\(provider)/\(wrongID)")
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: wrongID, provider: provider), "\(provider)/\(wrongID)")
+        }
+    }
+
+    /// Other in-window OpenRouter additions: Unbiased Pareto (no reasoning) and
+    /// PrismML Ternary Bonsai 2 27B (effort, default high).
+    func testOpenRouterSeptember2026CatalogUsesExactIDs() {
+        let pareto = ModelCatalog.modelInfo(for: "unbiased/pareto", provider: .openrouter)
+        XCTAssertEqual(pareto.contextWindow, 262_144)
+        XCTAssertEqual(pareto.maxOutputTokens, 131_072)
+        XCTAssertTrue(pareto.capabilities.isSuperset(of: [.streaming, .toolCalling, .vision]))
+        XCTAssertNil(pareto.reasoningConfig)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "unbiased/pareto", provider: .openrouter))
+
+        let bonsai = ModelCatalog.modelInfo(for: "prism-ml/ternary-bonsai-2-27b", provider: .openrouter)
+        XCTAssertEqual(bonsai.contextWindow, 262_144)
+        XCTAssertEqual(bonsai.maxOutputTokens, 32_768)
+        XCTAssertEqual(bonsai.reasoningConfig?.type, .effort)
+        XCTAssertEqual(bonsai.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "prism-ml/ternary-bonsai-2-27b", provider: .openrouter))
+
+        for id in ["unbiased/pareto-2", "prism-ml/ternary-bonsai-3-27b", "typesafe/jev"] {
+            let unknown = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .openrouter), id)
+        }
+    }
+
+    /// Ramp Router additions: callable IDs from docs.router.com/supported-models
+    /// (fetched 2026-09-20) — `claude-` prefix for the Fable label, the
+    /// `accounts/fireworks/` path for GLM-5.3-Flash, and the verbatim
+    /// Hugging Face-style Baseten-backend IDs, each with its published effort band.
+    func testRouterSeptember2026CatalogUsesExactIDsAndBands() {
+        let fable51 = ModelCatalog.modelInfo(for: "claude-fable-5-1", provider: .router)
+        XCTAssertEqual(fable51.contextWindow, 1_000_000)
+        XCTAssertEqual(fable51.maxOutputTokens, 128_000)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .router, modelID: "claude-fable-5-1"),
+            [.minimal, .low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "claude-fable-5-1", provider: .router))
+
+        let astra = ModelCatalog.modelInfo(for: "gpt-6-astra", provider: .router)
+        XCTAssertEqual(astra.contextWindow, 1_050_000)
+        XCTAssertEqual(astra.maxOutputTokens, 128_000)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .router, modelID: "gpt-6-astra"),
+            [.low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "gpt-6-astra", provider: .router))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .router, modelID: "gpt-6-astra"))
+
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .router,
+                modelID: "accounts/fireworks/models/glm-5p3-flash"
+            ),
+            [.minimal, .low, .medium, .high, .xhigh, .max]
+        )
+
+        // The 30B-A3B Lightning variant publishes no reasoning support on Router.
+        let lightning = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+            provider: .router
+        )
+        XCTAssertEqual(lightning.contextWindow, 262_144)
+        XCTAssertNil(lightning.reasoningConfig)
+
+        // Baseten-backend verbatim IDs and their published bands.
+        let basetenBands: [(String, [ReasoningEffort])] = [
+            ("deepseek-ai/DeepSeek-V4.1-Flash", [.high]),
+            ("deepseek-ai/DeepSeek-V4-Flash-0731", [.high]),
+            ("deepseek-ai/DeepSeek-V4-Pro-0813", [.high]),
+            ("deepseek-ai/DeepSeek-V4-Pro", [.medium, .high]),
+            ("zai-org/GLM-5.3-Flash", [.high, .max]),
+            ("zai-org/GLM-5.2", [.high, .xhigh, .max]),
+            ("zai-org/GLM-5.2-Fast", [.high, .xhigh, .max]),
+            ("moonshotai/Kimi-K3", [.minimal, .low, .medium, .high, .max]),
+            ("moonshotai/Kimi-K2.7-Code", [.medium, .high]),
+            ("moonshotai/Kimi-K2.6", [.none, .medium, .high]),
+            ("nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B", [.none, .medium, .high]),
+            ("thinkingmachines/inkling", [.high]),
+            ("thinkingmachines/inkling-small", [.high]),
+            ("openai/gpt-oss-120b", [.minimal, .low, .medium, .high]),
+        ]
+        for (id, band) in basetenBands {
+            let model = ModelCatalog.modelInfo(for: id, provider: .router)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .router), id)
+            XCTAssertEqual(model.reasoningConfig?.type, .effort, id)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .router, modelID: id),
+                band,
+                id
+            )
+        }
+
+        let glm47 = ModelCatalog.modelInfo(for: "zai-org/GLM-4.7", provider: .router)
+        XCTAssertEqual(glm47.contextWindow, 200_000)
+        XCTAssertNil(glm47.reasoningConfig)
+
+        // Display-label near-misses must not resolve.
+        for id in ["fable-5-1", "glm-5p3-flash", "kimi-k3", "DeepSeek-V4.1-Flash"] {
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .router), id)
+        }
+    }
+
+    /// Cloudflare AI Gateway additions: third-party catalog rows and Workers AI
+    /// `@cf/` IDs (developers.cloudflare.com/ai-gateway/models, 2026-09-20).
+    func testCloudflareSeptember2026CatalogUsesExactIDs() {
+        let union = ModelCatalog.modelInfo(for: "stealth/union-alpha", provider: .cloudflareAIGateway)
+        XCTAssertEqual(union.contextWindow, 262_144)
+        XCTAssertEqual(union.maxOutputTokens, 131_072)
+        XCTAssertTrue(union.capabilities.isSuperset(of: [.streaming, .toolCalling, .vision]))
+        XCTAssertNil(union.reasoningConfig)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "stealth/union-alpha", provider: .cloudflareAIGateway))
+        // The same upstream model is already cataloged on OpenCode Go — the
+        // Cloudflare copy is a distinct provider ID.
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "union-alpha", provider: .cloudflareAIGateway))
+
+        let workers = ModelCatalog.modelInfo(for: "@cf/zai-org/glm-5.3", provider: .cloudflareAIGateway)
+        XCTAssertEqual(workers.contextWindow, 1_048_576)
+        XCTAssertTrue(workers.capabilities.contains(.reasoning))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "@cf/zai-org/glm-5.3", provider: .cloudflareAIGateway))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "@cf/zai-org/glm-5.4", provider: .cloudflareAIGateway))
+    }
+
+    /// Gateway copies of the census batch on Groq, SambaNova, Fireworks,
+    /// DeepInfra, Modal and Databricks.
+    func testSeptember2026HostedCopiesUseExactIDs() {
+        // Groq preview: MiniMax M2.7 (196,608 / 131,072, reasoning toggle).
+        let groq = ModelCatalog.modelInfo(for: "minimaxai/minimax-m2.7", provider: .groq)
+        XCTAssertEqual(groq.contextWindow, 196_608)
+        XCTAssertEqual(groq.maxOutputTokens, 131_072)
+        XCTAssertEqual(groq.reasoningConfig?.type, .toggle)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "minimaxai/minimax-m2.7", provider: .groq))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "minimaxai/minimax-m3", provider: .groq))
+
+        // SambaNova preview: Gemma 4 31B IT (128k, text+image; video unclaimed).
+        let sambanova = ModelCatalog.modelInfo(for: "gemma-4-31B-it", provider: .sambanova)
+        XCTAssertEqual(sambanova.contextWindow, 131_072)
+        XCTAssertTrue(sambanova.capabilities.contains(.vision))
+        XCTAssertFalse(sambanova.capabilities.contains(.videoInput))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "gemma-4-31B-it", provider: .sambanova))
+
+        // Fireworks serverless: V4-Flash-Vision-Exp + Nemotron Lightning 30B-A3B.
+        let visionExp = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/deepseek-v4-flash-vision-exp",
+            provider: .fireworks
+        )
+        XCTAssertEqual(visionExp.contextWindow, 1_040_000)
+        XCTAssertTrue(visionExp.capabilities.isSuperset(of: [.vision, .reasoning, .promptCaching]))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .fireworks,
+                modelID: "accounts/fireworks/models/deepseek-v4-flash-vision-exp"
+            ),
+            [.low, .high, .max]
+        )
+        let lightning = ModelCatalog.modelInfo(
+            for: "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+            provider: .fireworks
+        )
+        XCTAssertEqual(lightning.contextWindow, 262_144)
+        XCTAssertEqual(lightning.reasoningConfig?.type, .toggle)
+        // On-demand-only base models resolve in the catalog but are not fully supported.
+        XCTAssertFalse(ModelCatalog.isFullySupported(
+            modelID: "accounts/fireworks/models/kimi-pluto-v1",
+            provider: .fireworks
+        ))
+        XCTAssertFalse(ModelCatalog.isFullySupported(
+            modelID: "accounts/fireworks/models/ling-3-flash-fin",
+            provider: .fireworks
+        ))
+
+        // DeepInfra serverless trio.
+        for (id, ctx) in [("nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B", 262_144),
+                          ("google/gemma-4-26B-A4B-it", 262_144),
+                          ("XiaomiMiMo/MiMo-V2.5-Pro", 1_048_576)] {
+            let model = ModelCatalog.modelInfo(for: id, provider: .deepinfra)
+            XCTAssertEqual(model.contextWindow, ctx, id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .deepinfra), id)
+        }
+        XCTAssertFalse(ModelCatalog.isFullySupported(
+            modelID: "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-Custom",
+            provider: .deepinfra
+        ))
+
+        // Modal shared endpoints.
+        let modalFlash = ModelCatalog.modelInfo(for: "deepseek-ai/DeepSeek-V4.1-Flash", provider: .modal)
+        XCTAssertEqual(modalFlash.contextWindow, 1_048_576)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .modal,
+                modelID: "deepseek-ai/DeepSeek-V4.1-Flash"
+            ),
+            [.none, .low, .high, .max]
+        )
+        // `max` must reach the wire as "max", not be remapped to an unsupported
+        // `xhigh` (Codex review on PR #485).
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+            for: .modal,
+            modelID: "deepseek-ai/DeepSeek-V4.1-Flash"
+        ))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "openai/gpt-oss-120b", provider: .modal))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "google/gemma-4-31b-it", provider: .modal))
+
+        // Databricks pay-per-token endpoints (supported-models page, 2026-09-15).
+        for id in ["databricks-gpt-6-astra", "databricks-gpt-5-5", "databricks-kimi-k3",
+                   "databricks-inkling", "databricks-glm-5-2", "databricks-deepseek-v4-pro-0813",
+                   "databricks-claude-sonnet-4", "databricks-gemini-3-6-flash"] {
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .databricks), id)
+        }
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "databricks-gpt-7", provider: .databricks))
+    }
 }

@@ -403,6 +403,28 @@ extension ModelCatalog {
                contextWindow: 256_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // DeepInfra serverless (deepinfra.com model pages, fetched 2026-09-20):
+        // Nemotron 3 Ultra 550B — 262,144 ctx, Function, Multimodal, cached-input
+        // pricing. Reasoning present; no published effort band → toggle.
+        Record(id: "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B", displayName: "Nemotron 3 Ultra 550B",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Gemma 4 26B A4B — 262,144 ctx, text+image, Function calling; Gemma 4
+        // family ships configurable thinking modes → toggle.
+        Record(id: "google/gemma-4-26B-A4B-it", displayName: "Gemma 4 26B A4B",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // MiMo V2.5 Pro — 1,048,576 ctx, Function calling, cached-input pricing,
+        // text-only on DeepInfra (no Multimodal badge on the model page).
+        Record(id: "XiaomiMiMo/MiMo-V2.5-Pro", displayName: "MiMo V2.5 Pro",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: Together AI
@@ -1467,6 +1489,49 @@ extension ModelCatalog {
                contextWindow: 40_960,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // Fireworks "New" rows (fireworks.ai/models, fetched 2026-09-20):
+        // DeepSeek-V4-Flash-Vision-Exp — serverless, 1040k ctx, image input,
+        // function calling, cached-input pricing. Same V4-Flash structure
+        // (fireworks.ai/models/deepseek-ai/deepseek-v4-flash-vision-exp) →
+        // V4 GA effort band via fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.
+        Record(id: "accounts/fireworks/models/deepseek-v4-flash-vision-exp", displayName: "DeepSeek V4 Flash Vision Exp",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "fireworks/deepseek-v4-flash-vision-exp", displayName: "DeepSeek V4 Flash Vision Exp",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Nemotron Lightning 3.5 30B-A3B — serverless, 262k, function calling, no
+        // image input. Reasoning is a chat-template flag → toggle
+        // (fireworks.ai/models/fireworks/nemotron-lightning-3p5-30b-a3b).
+        Record(id: "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b", displayName: "Nemotron Lightning 3.5 30B A3B",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "fireworks/nemotron-lightning-3p5-30b-a3b", displayName: "Nemotron Lightning 3.5 30B A3B",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // kimi-pluto-v1 + ling-3-flash-fin are on-demand-deployment base models
+        // ("Serverless: Not supported" on their model pages) — cataloged for
+        // recognition only, not callable through the serverless endpoint.
+        Record(id: "accounts/fireworks/models/kimi-pluto-v1", displayName: "Kimi Pluto v1",
+               capabilities: [.streaming, .toolCalling, .vision],
+               contextWindow: 1_040_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "accounts/fireworks/models/ling-3-flash-fin", displayName: "Ling 3 Flash Fin",
+               capabilities: [.streaming],
+               contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
     ]
 
     // MARK: Groq
@@ -1528,6 +1593,15 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 131_072,
                maxOutputTokens: 16_384,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // MiniMax M2.7 preview (console.groq.com/docs/models, fetched 2026-09-20):
+        // 196,608 context / 131,072 max completion, Enterprise tier. Groq does
+        // not publish an effort band for this model → toggle only.
+        Record(id: "minimaxai/minimax-m2.7", displayName: "MiniMax M2.7",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 196_608,
+               maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: false),
     ]
@@ -1651,6 +1725,15 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 32_000,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Gemma 4 31B IT — badged Preview on the SambaNova model list
+        // (docs.sambanova.ai/cloud supported-models, fetched 2026-09-20):
+        // 128k context, text+image+video input. `.videoInput` stays unclaimed —
+        // the modality table is not proof on this endpoint; needs a live probe.
+        Record(id: "gemma-4-31B-it", displayName: "Gemma 4 31B IT",
+               capabilities: [.streaming, .toolCalling, .vision],
+               contextWindow: 131_072,
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
     ]
 
@@ -2655,6 +2738,29 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Modal library (modal.com/library, fetched 2026-09-20) also lists these —
+        // cataloged so a Shared Endpoint token that exposes them resolves metadata.
+        // DeepSeek-V4.1-Flash (2026-09-10 origin release): 1M ctx, text+image,
+        // thinking always-on; effort band none/low/high/max per the Baseten card
+        // (Modal publishes no effort matrix — the `.modal` arm reuses that band).
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash", displayName: "DeepSeek V4.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-oss-120b", displayName: "GPT-OSS 120B",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 131_072,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "google/gemma-4-31b-it", displayName: "Gemma 4 31B IT",
+               capabilities: [.streaming, .toolCalling, .vision],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
     ]
 }

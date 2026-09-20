@@ -434,6 +434,11 @@ enum ModelCapabilityRegistry {
         "glm-5.3",
         "glm-5.3[1m]",
         "glm-5.3-flash",
+        // GLM-5.3-FlashX (2026-09-18): OpenRouter `z-ai/` + Vercel `zai/` slugs.
+        // Same always-on low/high/max band (docs.z.ai/guides/vlm/glm-5.3-flash).
+        // NOT on the GLM Coding Plan (docs.z.ai/devpack/latest-model).
+        "z-ai/glm-5.3-flashx",
+        "zai/glm-5.3-flashx",
         "z-ai/glm-5.3",
         "z-ai/glm-5.3-flash",
         "zai/glm-5.3",
@@ -602,6 +607,11 @@ enum ModelCapabilityRegistry {
         "deepseek-v4p1-flash",
         "fireworks/deepseek-v4p1-flash",
         "accounts/fireworks/models/deepseek-v4p1-flash",
+        // V4-Flash-Vision-Exp (fireworks.ai model page, serverless, 2026-09):
+        // same V4-Flash structure + visual module → same effort band.
+        "deepseek-v4-flash-vision-exp",
+        "fireworks/deepseek-v4-flash-vision-exp",
+        "accounts/fireworks/models/deepseek-v4-flash-vision-exp",
         // Router alias for the latest V4.1 Flash (models.dev `fireworks-ai`,
         // 2026-09-10): low/high/max + toggle. `routers/` is not stripped by
         // fireworksCanonicalModelID, so the literal ID must be listed.
@@ -736,6 +746,10 @@ enum ModelCapabilityRegistry {
     private static let routerMinimalToMaxEffortModelIDs: Set<String> = [
         "accounts/fireworks/models/kimi-k3",
         "accounts/fireworks/routers/kimi-k3-fast",
+        // docs.router.com supported-models (fetched 2026-09-20): `fable-5-1` and
+        // `glm-5p3-flash` labels publish minimal..max.
+        "claude-fable-5-1",
+        "accounts/fireworks/models/glm-5p3-flash",
         "claude-fable-5",
     ]
     /// Router band `minimal, low, medium, high, xhigh`.
@@ -775,15 +789,52 @@ enum ModelCapabilityRegistry {
         "gpt-5",
         "gpt-5-mini",
         "gpt-5-nano",
+        // Baseten-backend row (docs table 2026-09-20).
+        "openai/gpt-oss-120b",
     ]
-    /// Router band `high` only.
+    /// Router band `high` only. The docs table prints this band for the
+    /// Baseten-backend DeepSeek and Inkling rows (fetched 2026-09-20).
     private static let routerHighOnlyEffortModelIDs: Set<String> = [
         "gpt-5-pro",
+        "deepseek-ai/deepseek-v4.1-flash",
+        "deepseek-ai/deepseek-v4-flash-0731",
+        "deepseek-ai/deepseek-v4-pro-0813",
+        "thinkingmachines/inkling",
+        "thinkingmachines/inkling-small",
     ]
     /// Router band `low, medium, high`.
     private static let routerLowToHighEffortModelIDs: Set<String> = [
         "o3",
         "o3-pro",
+    ]
+    /// Router band `low, medium, high, xhigh, max` — `gpt-6-astra` only
+    /// (docs table 2026-09-20: no `none`, no `minimal`).
+    private static let routerLowToMaxEffortModelIDs: Set<String> = [
+        "gpt-6-astra",
+    ]
+    /// Router band `high, max` — Baseten-backend `zai-org/GLM-5.3-Flash`.
+    private static let routerHighMaxEffortModelIDs: Set<String> = [
+        "zai-org/glm-5.3-flash",
+    ]
+    /// Router band `high, xhigh, max` — Baseten-backend GLM-5.2 rows.
+    private static let routerHighXHighMaxEffortModelIDs: Set<String> = [
+        "zai-org/glm-5.2",
+        "zai-org/glm-5.2-fast",
+    ]
+    /// Router band `minimal, low, medium, high, max` (no `xhigh`) — Baseten-backend
+    /// `moonshotai/Kimi-K3` row. Distinct from the Fireworks copy's wider band.
+    private static let routerMinimalToMaxNoXHighEffortModelIDs: Set<String> = [
+        "moonshotai/kimi-k3",
+    ]
+    /// Router band `medium, high` — Baseten-backend Kimi-K2.7-Code / DeepSeek-V4-Pro.
+    private static let routerMediumHighEffortModelIDs: Set<String> = [
+        "moonshotai/kimi-k2.7-code",
+        "deepseek-ai/deepseek-v4-pro",
+    ]
+    /// Router band `none, medium, high` — Baseten-backend Kimi-K2.6 / Nemotron-3-Ultra.
+    private static let routerNoneMediumHighEffortModelIDs: Set<String> = [
+        "moonshotai/kimi-k2.6",
+        "nvidia/nvidia-nemotron-3-ultra-550b-a55b",
     ]
     /// Every Router model whose band includes `max`. Kept as one flat set so
     /// `supportsOpenAIStyleMaxEffort` can answer without recursing into
@@ -792,6 +843,10 @@ enum ModelCapabilityRegistry {
         routerFullLadderEffortModelIDs
             .union(routerMinimalToMaxEffortModelIDs)
             .union(routerNoneLowToMaxEffortModelIDs)
+            .union(routerLowToMaxEffortModelIDs)
+            .union(routerHighMaxEffortModelIDs)
+            .union(routerHighXHighMaxEffortModelIDs)
+            .union(routerMinimalToMaxNoXHighEffortModelIDs)
     /// Router models accepting Responses `text.verbosity` — `/v1/models` reports
     /// `verbosity.supported: true` for exactly the GPT-5 family (verified accepted
     /// on gpt-5.4, 2026-08-22).
@@ -987,7 +1042,8 @@ enum ModelCapabilityRegistry {
                 || lowerModelID == "zai-org/glm-5.3"
                 || lowerModelID == "zai-org/glm-5.3-flash"
                 || lowerModelID == "deepseek-ai/deepseek-v4-pro-0813"
-                || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731" {
+                || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731"
+                || lowerModelID == "deepseek-ai/deepseek-v4.1-flash" {
                 return true
             }
         case .runinfra:
@@ -1232,7 +1288,9 @@ enum ModelCapabilityRegistry {
         case .modal where modalKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
             || lowerModelID == "zai-org/glm-5.3"
             || lowerModelID == "deepseek-ai/deepseek-v4-pro-0813"
-            || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731":
+            || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731"
+            // Modal library listing 2026-09-20; same band as the Baseten card.
+            || lowerModelID == "deepseek-ai/deepseek-v4.1-flash":
             return [.none, .low, .high, .max]
         case .modal where modalInklingReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
@@ -1318,6 +1376,18 @@ enum ModelCapabilityRegistry {
             return [.none, .low, .medium, .high]
         case .router where routerMinimalToHighEffortModelIDs.contains(lowerModelID):
             return [.minimal, .low, .medium, .high]
+        case .router where routerLowToMaxEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high, .xhigh, .max]
+        case .router where routerHighMaxEffortModelIDs.contains(lowerModelID):
+            return [.high, .max]
+        case .router where routerHighXHighMaxEffortModelIDs.contains(lowerModelID):
+            return [.high, .xhigh, .max]
+        case .router where routerMinimalToMaxNoXHighEffortModelIDs.contains(lowerModelID):
+            return [.minimal, .low, .medium, .high, .max]
+        case .router where routerMediumHighEffortModelIDs.contains(lowerModelID):
+            return [.medium, .high]
+        case .router where routerNoneMediumHighEffortModelIDs.contains(lowerModelID):
+            return [.none, .medium, .high]
         case .router where routerHighOnlyEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .router where routerLowToHighEffortModelIDs.contains(lowerModelID):
