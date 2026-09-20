@@ -352,6 +352,9 @@ enum ModelSettingsResolver {
         "stealth/ox-alpha",
         "z-ai/glm-5.3",
         "z-ai/glm-5.3-flash",
+        // GLM-5.3-FlashX (2026-09-18): same always-on thinking as the rest of
+        // the GLM-5.3 family — band low/high/max has no `none`.
+        "z-ai/glm-5.3-flashx",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /
@@ -370,6 +373,7 @@ enum ModelSettingsResolver {
         "meta/muse-spark-1.3-contributor",
         "zai/glm-5.3",
         "zai/glm-5.3-flash",
+        "zai/glm-5.3-flashx",
         "qwen/qwen3.8-2.4t-a95b",
         // Fable 5.1 is always-on adaptive thinking upstream; Off would emit
         // `reasoning: {effort:"none"}` on the OpenAI-compatible gateway path.

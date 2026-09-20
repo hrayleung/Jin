@@ -1042,7 +1042,8 @@ enum ModelCapabilityRegistry {
                 || lowerModelID == "zai-org/glm-5.3"
                 || lowerModelID == "zai-org/glm-5.3-flash"
                 || lowerModelID == "deepseek-ai/deepseek-v4-pro-0813"
-                || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731" {
+                || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731"
+                || lowerModelID == "deepseek-ai/deepseek-v4.1-flash" {
                 return true
             }
         case .runinfra:

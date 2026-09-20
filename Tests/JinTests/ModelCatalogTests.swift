@@ -3321,6 +3321,13 @@ final class ModelCatalogTests: XCTestCase {
                 [.low, .high, .max],
                 id
             )
+            // GLM-5.3 thinking is always-on — no `none` in the band, so the
+            // resolver must refuse to offer a disable control (Codex review:
+            // turning reasoning off would emit effort `none`, which is rejected).
+            XCTAssertFalse(
+                ModelSettingsResolver.defaultReasoningCanDisable(for: provider, modelID: id),
+                id
+            )
         }
 
         // Namespace must not bleed across gateways.
@@ -3527,6 +3534,12 @@ final class ModelCatalogTests: XCTestCase {
             ),
             [.none, .low, .high, .max]
         )
+        // `max` must reach the wire as "max", not be remapped to an unsupported
+        // `xhigh` (Codex review on PR #485).
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+            for: .modal,
+            modelID: "deepseek-ai/DeepSeek-V4.1-Flash"
+        ))
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "openai/gpt-oss-120b", provider: .modal))
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "google/gemma-4-31b-it", provider: .modal))
 
