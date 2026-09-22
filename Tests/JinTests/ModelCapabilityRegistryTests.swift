@@ -627,6 +627,18 @@ final class ModelCapabilityRegistryTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "grok-4.6"),
             [.low, .medium, .high, .xhigh]
         )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .xai, modelID: "grok-4.7"),
+            [.low, .medium, .high, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vercelAIGateway, modelID: "spacexai/grok-4.7"),
+            [.low, .medium, .high, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .router, modelID: "grok-4.7"),
+            [.low, .medium, .high, .xhigh]
+        )
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.6-custom", provider: .xai))
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.6-custom", provider: .opencodeGo))
     }

@@ -1045,6 +1045,29 @@ extension ModelCatalog {
                contextWindow: 262144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
                isFullySupported: true, isSeeded: false),
+        // MiMo-V2.6 (openrouter.ai/xiaomi/mimo-v2.6-*, released 2026-09-21).
+        // Xiaomi authors the cards: 1,048,576 context, 131,072 output, image
+        // input, tools, cache reads. Audio and video are named on the cards
+        // but are not claimed until a live clip probe. Effort default follows
+        // the V2.5 siblings because Xiaomi does not publish a default.
+        Record(id: "xiaomi/mimo-v2.6-pro", displayName: "Xiaomi: MiMo-V2.6-Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1048576,
+               maxOutputTokens: 131072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "xiaomi/mimo-v2.6-flash", displayName: "Xiaomi: MiMo-V2.6-Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1048576,
+               maxOutputTokens: 131072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "xiaomi/mimo-v2.6-pro-ultraspeed", displayName: "Xiaomi: MiMo-V2.6-Pro-UltraSpeed",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1048576,
+               maxOutputTokens: 131072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "xiaomi/mimo-v2.5-pro", displayName: "Xiaomi: MiMo-V2.5-Pro",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 1048576,
@@ -1284,6 +1307,15 @@ extension ModelCatalog {
                contextWindow: 1050000,
                maxOutputTokens: 128000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        // Grok 4.7 (openrouter.ai/x-ai/grok-4.7, released 2026-09-21). 500k
+        // context, no separate max output. Reasoning is the upstream
+        // low/medium/high/xhigh band (default high) and is mandatory.
+        // nativePDF stays off on this gateway.
+        Record(id: "x-ai/grok-4.7", displayName: "xAI: Grok 4.7",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 500000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
         // Grok 4.6 (created 2026-08-12): 500K ctx, max output unpublished
         // (max_completion_tokens null), reasoning mandatory low/medium/high/xhigh

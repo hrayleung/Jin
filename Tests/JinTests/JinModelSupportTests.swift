@@ -445,6 +445,8 @@ final class JinModelSupportTests: XCTestCase {
     }
 
     func testXAIGrok41FastVariantsUseExactMatch() {
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.7"))
+        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .xai, modelID: "grok-4.7"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.6"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.3"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .xai, modelID: "grok-4.20"))

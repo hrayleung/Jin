@@ -1,6 +1,9 @@
 import Foundation
 
 enum MiMoModelIDs {
+    static let v26Pro = "mimo-v2.6-pro"
+    static let v26Flash = "mimo-v2.6-flash"
+    static let v26ProUltraSpeed = "mimo-v2.6-pro-ultraspeed"
     static let v25Pro = "mimo-v2.5-pro"
     static let v25 = "mimo-v2.5"
     static let v2Pro = "mimo-v2-pro"

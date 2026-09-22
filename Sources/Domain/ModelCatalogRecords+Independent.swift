@@ -680,8 +680,8 @@ extension ModelCatalog {
 
     // MARK: xAI
 
-    // Verified against docs.x.ai/developers/models + pricing + reasoning
-    // (2026-08-12): Chat/Code contexts are 500k (4.6 / 4.5), 1M (4.3 / 4.20 /
+    // Verified against docs.x.ai/developers/models + grok-4-7 (2026-09-21):
+    // Chat contexts are 500k (4.7 / 4.6 / 4.5), 1M (4.3 / 4.20 /
     // multi-agent), 256k (build). Multi-agent: built-in tools only (no client
     // function tools), effort = agent count. grok-4.6 reasoning is always-on
     // low/medium/high/xhigh (default high); grok-4.5 is the same band minus
@@ -691,7 +691,17 @@ extension ModelCatalog {
     // Retired 4.1/* slugs still resolve (redirect to 4.3) but are catalog-only,
     // not seeded.
     static let xAIRecords: [Record] = [
-        // Seeded
+        // Grok 4.7 (docs.x.ai/developers/grok-4-7, launched 2026-09-21).
+        // 500k context, no published text output cap. Modalities are text and
+        // image in, text out — native PDF and code execution are not on the
+        // model page, so they are not claimed. Reasoning is low/medium/high
+        // (default high) or xhigh, and cannot be disabled. Responses and Chat
+        // Completions. The fast variant is Cursor/Grok Build only.
+        Record(id: "grok-4.7", displayName: "Grok 4.7",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 500_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "grok-4.6", displayName: "Grok 4.6",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 500_000,
@@ -1742,6 +1752,31 @@ extension ModelCatalog {
     // MARK: Xiaomi MiMo Token Plan
 
     static let mimoTokenPlanOpenAIRecords: [Record] = [
+        // MiMo-V2.6 (mimo.xiaomi.com/mimo-v2-6, 2026-09-21): live on the MiMo
+        // API platform and Token Plan. Context 1,048,576 and max output
+        // 131,072 are the Xiaomi-authored OpenRouter cards (one upstream
+        // host) and Vercel's Pro page. Image input is documented there.
+        // Audio and video are not claimed (no live probe). Thinking stays a
+        // toggle, same envelope as V2.5. UltraSpeed is the same Pro
+        // checkpoint on a faster tier.
+        Record(id: MiMoModelIDs.v26Pro, displayName: "MiMo V2.6 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: MiMoModelIDs.v26Flash, displayName: "MiMo V2.6 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: MiMoModelIDs.v26ProUltraSpeed, displayName: "MiMo V2.6 Pro UltraSpeed",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
         Record(id: MiMoModelIDs.v25Pro, displayName: "MiMo V2.5 Pro",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,
@@ -1775,6 +1810,26 @@ extension ModelCatalog {
     ]
 
     static let mimoTokenPlanAnthropicRecords: [Record] = [
+        // Same MiMo-V2.6 IDs as the OpenAI Token Plan. The Anthropic-compatible
+        // surface takes images; audio and video are not claimed.
+        Record(id: MiMoModelIDs.v26Pro, displayName: "MiMo V2.6 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: MiMoModelIDs.v26Flash, displayName: "MiMo V2.6 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        Record(id: MiMoModelIDs.v26ProUltraSpeed, displayName: "MiMo V2.6 Pro UltraSpeed",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
         Record(id: MiMoModelIDs.v25Pro, displayName: "MiMo V2.5 Pro",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,
@@ -1915,6 +1970,17 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_000_000,
                maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        // Grok 4.7 (opencode.ai/docs/go endpoint table, 2026-09-22): exact ID
+        // `grok-4.7` on /zen/go/v1/responses via @ai-sdk/openai, same route as
+        // grok-4.6. 500k context and no separate output cap match
+        // docs.x.ai/developers/grok-4-7. Reasoning is always-on
+        // low/medium/high/xhigh (default high). native PDF, code execution,
+        // and web search stay off on Go.
+        Record(id: "grok-4.7", displayName: "Grok 4.7",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 500_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
         // Grok 4.6 is now first on opencode.ai/docs/go's model list (page updated 2026-08-25).
@@ -2082,6 +2148,26 @@ extension ModelCatalog {
                contextWindow: 262_144,
                maxOutputTokens: 262_144,
                reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+        // MiMo-V2.6 (opencode.ai/docs/go endpoint table, 2026-09-22). Exact IDs
+        // `mimo-v2.6-flash` and `mimo-v2.6-pro` on /zen/go/v1/chat/completions.
+        // 1,048,576 / 131,072 match the Xiaomi-authored OpenRouter cards and
+        // Vercel's MiMo V2.6 Pro page; Go does not publish a separate cap.
+        // Image input is documented on those cards. Audio and video are not
+        // claimed here (no live clip probe on this gateway). UltraSpeed is
+        // not on the Go list. Seeded after glm-5.3 so the first-launch
+        // default is unchanged.
+        Record(id: "mimo-v2.6-pro", displayName: "MiMo V2.6 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "mimo-v2.6-flash", displayName: "MiMo V2.6 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
         Record(id: "mimo-v2.5-pro", displayName: "MiMo V2.5 Pro",
                capabilities: [.streaming, .toolCalling, .reasoning],

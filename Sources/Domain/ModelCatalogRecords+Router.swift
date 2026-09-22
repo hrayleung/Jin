@@ -262,6 +262,17 @@ extension ModelCatalog {
                maxOutputTokens: 500_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        // grok-4.7 (docs.router.com/supported-models, 2026-09-22). Callable ID
+        // is the bare slug. 500,000 context and 500,000 max output are the
+        // published Router columns (xAI itself publishes no output cap).
+        // Reasoning efforts are low/medium/high/xhigh — Router drops the
+        // `minimal` it still lists for grok-4.6.
+        Record(id: "grok-4.7", displayName: "Grok 4.7",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 500_000,
+               maxOutputTokens: 500_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
         Record(id: "grok-4.6", displayName: "Grok 4.6",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 500_000,

@@ -1119,6 +1119,15 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
 
+        // xAI — spacexai/grok-4.7 is the ID in the AI SDK sample on
+        // vercel.com/ai-gateway/models/grok-4.7 (released 2026-09-21).
+        // 500k context. Vercel's 500k max-output column echoes context, so
+        // none is recorded. Reasoning is always-on low/medium/high/xhigh.
+        Record(id: "spacexai/grok-4.7", displayName: "Grok 4.7",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 500_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         // xAI — grok-4.6 confirmed live on vercel.com/ai-gateway/models/grok-4.6
         // (2026-08-12). 500K context; official xAI publishes no text output limit,
         // so none is recorded (Vercel's 500K "max output" column echoes context).
@@ -1302,6 +1311,30 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
 
         // Xiaomi MiMo
+        // MiMo-V2.6 Pro (vercel.com/ai-gateway/models/mimo-v2.6-pro, 2026-09-21):
+        // model ID `xiaomi/mimo-v2.6-pro`, 1,048,576 context, 131,072 output,
+        // image input, prompt cache. Flash and UltraSpeed are the same release
+        // on the gateway index, with the same window on the Xiaomi-authored
+        // OpenRouter cards. The Pro input-limits table documents images, so
+        // only vision is claimed.
+        Record(id: "xiaomi/mimo-v2.6-pro", displayName: "MiMo V2.6 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "xiaomi/mimo-v2.6-flash", displayName: "MiMo V2.6 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "xiaomi/mimo-v2.6-pro-ultraspeed", displayName: "MiMo V2.6 Pro UltraSpeed",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "xiaomi/mimo-v2.5", displayName: "MiMo V2.5",
                capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
