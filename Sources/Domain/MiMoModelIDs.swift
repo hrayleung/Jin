@@ -10,7 +10,12 @@ enum MiMoModelIDs {
     static let v2Omni = "mimo-v2-omni"
     static let v2Flash = "mimo-v2-flash"
 
+    /// Chat IDs that accept the Token Plan `web_search` tool. OpenCode Go reuses
+    /// this set for the same bare slugs. Exact IDs only.
     static let tokenPlanExactModelIDs: Set<String> = [
+        v26Pro,
+        v26Flash,
+        v26ProUltraSpeed,
         v25Pro,
         v25,
         v2Pro,

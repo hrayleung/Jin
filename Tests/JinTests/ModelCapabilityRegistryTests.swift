@@ -253,6 +253,8 @@ final class ModelCapabilityRegistryTests: XCTestCase {
     }
 
     func testOpenCodeGoWebSearchUsesExactSupportedModelIDs() {
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2.6-pro"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2.6-flash"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2.5-pro"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2.5"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2-pro"))
@@ -261,6 +263,7 @@ final class ModelCapabilityRegistryTests: XCTestCase {
 
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "kimi-k2.6"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2.5-preview"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .opencodeGo, modelID: "mimo-v2.6-pro-preview"))
 
         // The 2026-08 additions are not MiMo IDs — the Go gateway hosts no web-search tool
         // for them.
@@ -391,6 +394,9 @@ final class ModelCapabilityRegistryTests: XCTestCase {
 
     func testMiMoTokenPlanWebSearchUsesExactSupportedModelIDs() {
         let supportedIDs = [
+            "mimo-v2.6-pro",
+            "mimo-v2.6-flash",
+            "mimo-v2.6-pro-ultraspeed",
             "mimo-v2.5-pro",
             "mimo-v2.5",
             "mimo-v2-pro",
@@ -413,7 +419,9 @@ final class ModelCapabilityRegistryTests: XCTestCase {
         }
 
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanOpenAI, modelID: "mimo-v2.5-preview"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanOpenAI, modelID: "mimo-v2.6-pro-preview"))
         XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanAnthropic, modelID: "mimo-v2.5-preview"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .mimoTokenPlanAnthropic, modelID: "mimo-v2.6-pro"))
     }
 
     func testGatewayPrefixedGeminiModelsUseNativeThinkingEffortBands() {
