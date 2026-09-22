@@ -3335,13 +3335,15 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         // opencode.ai/docs/go publishes a per-model endpoint table. Every model must land on
         // exactly one of the three routes, matched by exact ID.
         for id in ["grok-4.5", "hy3", "hy4-preview", "glm-5.3", "glm-5.3-flash", "glm-5.2", "glm-5.1", "ox-alpha-free", "kimi-k3", "kimi-k2.7-code",
-                   "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp", "mimo-v2.5", "mimo-v2.5-pro", "longcat-2.0"] {
+                   "kimi-k2.6", "deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp", "mimo-v2.6-pro", "mimo-v2.6-flash", "mimo-v2.5", "mimo-v2.5-pro", "longcat-2.0"] {
             XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint(id), "\(id) → /chat/completions")
             XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint(id), "\(id) → /chat/completions")
         }
         // grok-4.6 replaced grok-4.5 at the top of opencode.ai/docs/go and moved to /responses.
+        XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("grok-4.7"))
         XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("grok-4.6"))
         XCTAssertTrue(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("Grok-4.6"))
+        XCTAssertFalse(OpenCodeGoAdapter.usesOpenAIResponsesEndpoint("grok-4.7-fast"))
         XCTAssertFalse(OpenCodeGoAdapter.usesAnthropicMessagesEndpoint("grok-4.6"))
         XCTAssertFalse(OpenCodeGoAdapter.usesMuseSparkResponsesEndpoint("grok-4.6"))
         for id in ["minimax-m3", "minimax-m2.7", "minimax-m2.5", "qwen3.8-max", "qwen3.8-flash", "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus"] {

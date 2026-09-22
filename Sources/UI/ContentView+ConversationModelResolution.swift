@@ -56,6 +56,9 @@ extension ContentView {
         if providerID == "anthropic", let sonnet45 = models.first(where: { $0.id == "claude-sonnet-4-5-20250929" }) {
             return sonnet45.id
         }
+        if providerID == "xai", let grok47 = models.first(where: { $0.id == "grok-4.7" }) {
+            return grok47.id
+        }
         if providerID == "xai", let grok46 = models.first(where: { $0.id == "grok-4.6" }) {
             return grok46.id
         }
@@ -204,7 +207,7 @@ extension ContentView {
 
     private static let absoluteFallbackModelIDs: [String: String] = [
         "anthropic": "claude-opus-5",
-        "xai": "grok-4.6",
+        "xai": "grok-4.7",
         "deepseek": "deepseek-flash",
         "zhipu-coding-plan": "glm-5.3[1m]",
         "kimi-for-coding": "k3",

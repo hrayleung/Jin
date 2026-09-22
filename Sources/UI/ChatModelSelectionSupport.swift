@@ -92,6 +92,7 @@ enum ChatModelSelectionSupport {
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.4",
+        "grok-4.7",
         "grok-4.6",
         "accounts/fireworks/models/kimi-k3",
         "accounts/fireworks/models/deepseek-v4p1-flash",
@@ -198,7 +199,8 @@ enum ChatModelSelectionSupport {
                 ?? models.first(where: { $0.id == "MiniMax-M2.7" })?.id
                 ?? models.first(where: { $0.id == "MiniMax-M2.5" })?.id
         case .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI:
-            return models.first(where: { $0.id == "mimo-v2.5-pro" })?.id
+            return models.first(where: { $0.id == "mimo-v2.6-pro" })?.id
+                ?? models.first(where: { $0.id == "mimo-v2.5-pro" })?.id
                 ?? models.first(where: { $0.id == "mimo-v2.5" })?.id
                 ?? models.first(where: { $0.id == "mimo-v2-pro" })?.id
                 ?? models.first(where: { $0.id == "mimo-v2-omni" })?.id

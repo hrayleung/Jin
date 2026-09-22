@@ -289,6 +289,7 @@ enum ModelSettingsResolver {
     /// xAI models where reasoning is always-on ("Reasoning cannot be disabled" per
     /// docs.x.ai for grok-4.6 / grok-4.5); only the effort is adjustable.
     private static let xaiAlwaysOnReasoningModelIDs: Set<String> = [
+        "grok-4.7",
         "grok-4.6",
         "grok-4.5",
     ]
@@ -307,6 +308,7 @@ enum ModelSettingsResolver {
     /// GLM / Kimi / MiMo stay on the provider-wide omit-to-disable convention.
     private static let opencodeGoAlwaysOnReasoningModelIDs: Set<String> = [
         "omen-alpha",
+        "grok-4.7",
         "grok-4.6",
         "grok-4.5",
         "deepseek-v4-pro",
@@ -337,6 +339,7 @@ enum ModelSettingsResolver {
     /// shape sent), making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
         "openai/gpt-6-astra",
+        "x-ai/grok-4.7",
         "x-ai/grok-4.6",
         "x-ai/grok-4.5",
         "anthropic/claude-fable-5",
@@ -364,6 +367,7 @@ enum ModelSettingsResolver {
     /// making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let vercelAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
         "openai/gpt-6-astra",
+        "spacexai/grok-4.7",
         "xai/grok-4.6",
         "xai/grok-4.5",
         "meta/muse-spark-1.1",

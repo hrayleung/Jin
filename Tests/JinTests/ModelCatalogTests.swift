@@ -2843,7 +2843,95 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(openRouterGrok46.reasoningConfig?.defaultEffort, .high)
         XCTAssertFalse(openRouterGrok46.capabilities.contains(.nativePDF))
 
-        XCTAssertEqual(ModelCatalog.seededModels(for: .xai).first?.id, "grok-4.6")
+        XCTAssertEqual(ModelCatalog.seededModels(for: .xai).first?.id, "grok-4.7")
+    }
+
+    func testXAIGrok47CatalogUsesDocsVerifiedExactMetadata() {
+        let grok47 = ModelCatalog.modelInfo(for: "grok-4.7", provider: .xai)
+
+        XCTAssertEqual(grok47.name, "Grok 4.7")
+        XCTAssertEqual(grok47.contextWindow, 500_000)
+        XCTAssertNil(grok47.maxOutputTokens)
+        XCTAssertTrue(grok47.capabilities.contains(.streaming))
+        XCTAssertTrue(grok47.capabilities.contains(.toolCalling))
+        XCTAssertTrue(grok47.capabilities.contains(.vision))
+        XCTAssertTrue(grok47.capabilities.contains(.reasoning))
+        XCTAssertTrue(grok47.capabilities.contains(.promptCaching))
+        XCTAssertFalse(grok47.capabilities.contains(.nativePDF))
+        XCTAssertFalse(grok47.capabilities.contains(.codeExecution))
+        XCTAssertEqual(grok47.reasoningConfig?.type, .effort)
+        XCTAssertEqual(grok47.reasoningConfig?.defaultEffort, .high)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "grok-4.7", provider: .xai))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.7-fast", provider: .xai))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "grok-4.7-custom", provider: .xai))
+
+        let vercel = ModelCatalog.modelInfo(for: "spacexai/grok-4.7", provider: .vercelAIGateway)
+        XCTAssertEqual(vercel.contextWindow, 500_000)
+        XCTAssertNil(vercel.maxOutputTokens)
+        XCTAssertEqual(vercel.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(vercel.capabilities.contains(.nativePDF))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "spacexai/grok-4.7", provider: .vercelAIGateway))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "xai/grok-4.7", provider: .vercelAIGateway))
+
+        let openRouter = ModelCatalog.modelInfo(for: "x-ai/grok-4.7", provider: .openrouter)
+        XCTAssertEqual(openRouter.contextWindow, 500_000)
+        XCTAssertNil(openRouter.maxOutputTokens)
+        XCTAssertFalse(openRouter.capabilities.contains(.nativePDF))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "x-ai/grok-4.7", provider: .openrouter))
+
+        let router = ModelCatalog.modelInfo(for: "grok-4.7", provider: .router)
+        XCTAssertEqual(router.contextWindow, 500_000)
+        XCTAssertEqual(router.maxOutputTokens, 500_000)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "grok-4.7", provider: .router))
+
+        let go = ModelCatalog.modelInfo(for: "grok-4.7", provider: .opencodeGo)
+        XCTAssertEqual(go.contextWindow, 500_000)
+        XCTAssertNil(go.maxOutputTokens)
+        XCTAssertFalse(go.capabilities.contains(.nativePDF))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "grok-4.7", provider: .opencodeGo))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.7"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "grok-4.7"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "x-ai/grok-4.7"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "spacexai/grok-4.7"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .xai, modelID: "grok-4.7-custom"))
+    }
+
+    func testMiMoV26CatalogUsesExactProviderIDs() {
+        for provider in [ProviderType.mimoTokenPlanOpenAI, ProviderType.mimoTokenPlanAnthropic] {
+            let pro = ModelCatalog.modelInfo(for: "mimo-v2.6-pro", provider: provider)
+            XCTAssertEqual(pro.name, "MiMo V2.6 Pro", "\(provider)")
+            XCTAssertEqual(pro.contextWindow, 1_048_576, "\(provider)")
+            XCTAssertEqual(pro.maxOutputTokens, 131_072, "\(provider)")
+            XCTAssertTrue(pro.capabilities.contains(.vision), "\(provider)")
+            XCTAssertFalse(pro.capabilities.contains(.audio), "\(provider)")
+            XCTAssertFalse(pro.capabilities.contains(.videoInput), "\(provider)")
+            XCTAssertEqual(pro.reasoningConfig?.type, .toggle, "\(provider)")
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "mimo-v2.6-pro", provider: provider))
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "mimo-v2.6-flash", provider: provider))
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "mimo-v2.6-pro-ultraspeed", provider: provider))
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "mimo-v2.6", provider: provider))
+        }
+
+        let goPro = ModelCatalog.modelInfo(for: "mimo-v2.6-pro", provider: .opencodeGo)
+        XCTAssertEqual(goPro.contextWindow, 1_048_576)
+        XCTAssertEqual(goPro.maxOutputTokens, 131_072)
+        XCTAssertTrue(goPro.capabilities.contains(.vision))
+        XCTAssertFalse(goPro.capabilities.contains(.videoInput))
+        XCTAssertEqual(goPro.reasoningConfig?.defaultEffort, .high)
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "mimo-v2.6-pro-ultraspeed", provider: .opencodeGo))
+
+        let openRouterFlash = ModelCatalog.modelInfo(for: "xiaomi/mimo-v2.6-flash", provider: .openrouter)
+        XCTAssertEqual(openRouterFlash.contextWindow, 1_048_576)
+        XCTAssertEqual(openRouterFlash.maxOutputTokens, 131_072)
+        XCTAssertTrue(openRouterFlash.capabilities.contains(.vision))
+        XCTAssertFalse(openRouterFlash.capabilities.contains(.videoInput))
+        XCTAssertFalse(openRouterFlash.capabilities.contains(.audio))
+
+        let vercelUltra = ModelCatalog.modelInfo(for: "xiaomi/mimo-v2.6-pro-ultraspeed", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelUltra.contextWindow, 1_048_576)
+        XCTAssertEqual(vercelUltra.maxOutputTokens, 131_072)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "xiaomi/mimo-v2.6-pro", provider: .vercelAIGateway))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "mimo-v2.6-pro", provider: .vercelAIGateway))
     }
 
     func testXAIGrok45CatalogUsesDocsVerifiedExactMetadata() {

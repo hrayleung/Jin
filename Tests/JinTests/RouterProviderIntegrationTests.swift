@@ -31,7 +31,7 @@ final class RouterProviderIntegrationTests: XCTestCase {
 
     func testSeededModelsMatchLiveCatalog() {
         let seeded = ModelCatalog.seededModels(for: .router).map(\.id)
-        XCTAssertEqual(seeded.count, 17)
+        XCTAssertEqual(seeded.count, 18)
         XCTAssertEqual(seeded, [
             "claude-fable-5",
             "claude-haiku-4-5",
@@ -42,6 +42,7 @@ final class RouterProviderIntegrationTests: XCTestCase {
             "gpt-5.6-sol",
             "gpt-5.6-terra",
             "o3",
+            "grok-4.7",
             "grok-4.6",
             "accounts/fireworks/models/deepseek-v4-pro",
             "accounts/fireworks/models/glm-5p3",
@@ -111,6 +112,7 @@ final class RouterProviderIntegrationTests: XCTestCase {
             "gpt-5-mini": [.minimal, .low, .medium, .high],
             "gpt-5-pro": [.high],
             "o3": [.low, .medium, .high],
+            "grok-4.7": [.low, .medium, .high, .xhigh],
             "grok-4.6": [.minimal, .low, .medium, .high, .xhigh],
             "grok-4.3": [.none, .minimal, .low, .medium, .high, .xhigh],
         ]
@@ -131,7 +133,7 @@ final class RouterProviderIntegrationTests: XCTestCase {
         for id in ["claude-opus-5", "claude-fable-5", "accounts/fireworks/models/kimi-k3", "gpt-5.6-sol"] {
             XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .router, modelID: id), id)
         }
-        for id in ["gpt-5.5", "gpt-5.4", "gpt-5.1", "o3", "grok-4.6", "claude-haiku-4-5"] {
+        for id in ["gpt-5.5", "gpt-5.4", "gpt-5.1", "o3", "grok-4.7", "grok-4.6", "claude-haiku-4-5"] {
             XCTAssertFalse(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .router, modelID: id), id)
             // …and the menu must clamp a stored `.max` down into the real band.
             XCTAssertNotEqual(
@@ -158,7 +160,7 @@ final class RouterProviderIntegrationTests: XCTestCase {
             XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .router, modelID: id), id)
         }
         // …bands without it are thinking-always-on.
-        for id in ["claude-fable-5", "grok-4.6", "gpt-5-pro", "gpt-5.5-pro", "o3"] {
+        for id in ["claude-fable-5", "grok-4.7", "grok-4.6", "gpt-5-pro", "gpt-5.5-pro", "o3"] {
             XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .router, modelID: id), id)
         }
     }
@@ -178,6 +180,7 @@ final class RouterProviderIntegrationTests: XCTestCase {
         }
         for id in [
             "claude-opus-5",
+            "grok-4.7",
             "grok-4.6",
             "accounts/fireworks/models/kimi-k3",
             "accounts/fireworks/models/gpt-oss-120b",
@@ -197,7 +200,7 @@ final class RouterProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(config.name, "Ramp Router")
         XCTAssertEqual(config.type, .router)
         XCTAssertEqual(config.baseURL, "https://api.router.com/v1")
-        XCTAssertEqual(config.models.count, 17)
+        XCTAssertEqual(config.models.count, 18)
         XCTAssertTrue(DefaultProviderSeeds.allProviders().contains(where: { $0.id == "router" }))
         XCTAssertEqual(ProviderFormSupport.credentialKind(for: .router), .apiKey)
 

@@ -12,6 +12,7 @@ enum XAIResponsesRequestSupport {
     /// (docs.x.ai: grok-4.6 reasoning is always-on; xhigh is available).
     private static let standardReasoningEffortWithXHighModelIDs: Set<String> = [
         "grok-4.6",
+        "grok-4.7",
     ]
     /// Models that accept `reasoning: {"effort": ...}` with low/medium/high only
     /// (docs.x.ai: grok-4.5 reasoning is always-on and rejects none).
@@ -28,6 +29,7 @@ enum XAIResponsesRequestSupport {
         "grok-4.3",
         "grok-4.5",
         "grok-4.6",
+        "grok-4.7",
         "grok-4.20",
         "grok-4.20-0309-reasoning",
         "grok-4.20-0309-non-reasoning",
@@ -42,6 +44,7 @@ enum XAIResponsesRequestSupport {
         "grok-4.3",
         "grok-4.5",
         "grok-4.6",
+        "grok-4.7",
         "grok-4.20",
         "grok-4.20-0309-reasoning",
         "grok-4.20-0309-non-reasoning",

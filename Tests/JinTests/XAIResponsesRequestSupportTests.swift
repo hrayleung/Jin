@@ -441,6 +441,10 @@ final class XAIResponsesRequestSupportTests: XCTestCase {
             supportsClientFunctionTools: true
         )
 
+        XCTAssertTrue(XAIResponsesRequestSupport.supportsStandardReasoningEffortWithXHigh(modelID: "grok-4.7"))
+        XCTAssertTrue(XAIResponsesRequestSupport.supportsClientFunctionTools(modelID: "grok-4.7"))
+        XCTAssertTrue(XAIResponsesRequestSupport.supportsMaxOutputTokens(modelID: "grok-4.7"))
+        XCTAssertFalse(XAIResponsesRequestSupport.supportsStandardReasoningEffortWithXHigh(modelID: "grok-4.7-fast"))
         XCTAssertTrue(XAIResponsesRequestSupport.supportsStandardReasoningEffortWithXHigh(modelID: "grok-4.6"))
         XCTAssertFalse(XAIResponsesRequestSupport.supportsStandardReasoningEffort(modelID: "grok-4.6"))
         XCTAssertTrue(XAIResponsesRequestSupport.supportsClientFunctionTools(modelID: "grok-4.6"))

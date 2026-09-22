@@ -76,6 +76,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
     /// prefix. Matched by exact ID — never by prefix.
     static let openAIResponsesModelIDs: Set<String> = [
         "gpt-5.6-luna",
+        "grok-4.7",
         "grok-4.6",
         "muse-spark-1.2",
         "muse-spark-1.2-contributor",

@@ -758,6 +758,12 @@ enum ModelCapabilityRegistry {
         "grok-4.5",
         "grok-4.6",
     ]
+    /// Router band `low, medium, high, xhigh`. docs.router.com/supported-models
+    /// (2026-09-22) lists this for grok-4.7 and drops the `minimal` still
+    /// published for grok-4.6.
+    private static let routerLowToExtremeNoMinimalEffortModelIDs: Set<String> = [
+        "grok-4.7",
+    ]
     /// Router band `none, low, medium, high, xhigh, max` (GPT-5.6 family).
     private static let routerNoneLowToMaxEffortModelIDs: Set<String> = [
         "gpt-5.6-luna",
@@ -879,8 +885,11 @@ enum ModelCapabilityRegistry {
     /// 2026-08-12). Distinct from grok-4.5, which rejects xhigh (treated as high).
     private static let xAIAlwaysOnStandardEffortWithXHighModelIDs: Set<String> = [
         "grok-4.6",
+        "grok-4.7",
         "x-ai/grok-4.6",
+        "x-ai/grok-4.7",
         "xai/grok-4.6",
+        "spacexai/grok-4.7",
     ]
     private static let xAIAlwaysOnStandardEffortModelIDs: Set<String> = [
         "grok-4.5",
@@ -1364,6 +1373,8 @@ enum ModelCapabilityRegistry {
             return [.none, .minimal, .low, .medium, .high, .xhigh]
         case .router where routerMinimalToMaxEffortModelIDs.contains(lowerModelID):
             return [.minimal, .low, .medium, .high, .xhigh, .max]
+        case .router where routerLowToExtremeNoMinimalEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high, .xhigh]
         case .router where routerMinimalToExtremeEffortModelIDs.contains(lowerModelID):
             return [.minimal, .low, .medium, .high, .xhigh]
         case .router where routerNoneLowToMaxEffortModelIDs.contains(lowerModelID):
