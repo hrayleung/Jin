@@ -14,14 +14,15 @@ extension OpenCodeGoAdapter {
         ]
 
         do {
+            let sessionHeaders = Self.outboundHeaders(fallbackSessionID: Self.keyValidationSessionID)
             let request: URLRequest
             if Self.usesAnthropicMessagesEndpoint(modelID) {
+                var headers = sessionHeaders
+                headers["x-api-key"] = key
+                headers["anthropic-version"] = "2023-06-01"
                 request = try NetworkRequestFactory.makeJSONRequest(
                     url: validatedURL("\(Self.hardcodedBaseURL)/messages"),
-                    headers: [
-                        "x-api-key": key,
-                        "anthropic-version": "2023-06-01"
-                    ],
+                    headers: headers,
                     body: body
                 )
             } else if Self.usesOpenAIResponsesEndpoint(modelID) {
@@ -38,13 +39,15 @@ extension OpenCodeGoAdapter {
                         "input": "hi",
                         "max_output_tokens": 16,
                         "stream": false
-                    ]
+                    ],
+                    additionalHeaders: sessionHeaders
                 )
             } else {
                 request = try makeAuthorizedJSONRequest(
                     url: validatedURL("\(Self.hardcodedBaseURL)/chat/completions"),
                     apiKey: key,
-                    body: body
+                    body: body,
+                    additionalHeaders: sessionHeaders
                 )
             }
             _ = try await networkManager.sendRequest(request)
@@ -65,6 +68,7 @@ extension OpenCodeGoAdapter {
             let request = makeGETRequest(
                 url: try validatedURL("\(Self.hardcodedBaseURL)/models"),
                 apiKey: apiKey,
+                additionalHeaders: Self.outboundHeaders(fallbackSessionID: Self.keyValidationSessionID),
                 includeUserAgent: false
             )
             let (data, _) = try await networkManager.sendRequest(request)

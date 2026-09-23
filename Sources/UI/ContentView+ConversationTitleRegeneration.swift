@@ -31,7 +31,8 @@ extension ContentView {
                 modelID: target.modelID,
                 contextMessages: contextMessages,
                 maxCharacters: 24,
-                promptTemplate: promptTemplate
+                promptTemplate: promptTemplate,
+                conversationID: conversation.id
             )
             conversation.title = title
             try modelContext.save()

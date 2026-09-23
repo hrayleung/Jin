@@ -16,6 +16,10 @@ import Foundation
 ///   replayed across tool continuations (see `usesMuseSparkResponsesEndpoint(_:)`)
 /// - DeepSeek, GLM, Kimi, MiMo, Grok 4.5, Hy3, Hy4 preview, Ox Alpha Free, … → OpenAI-compatible `/chat/completions`
 ///
+/// Every inference request also sends `x-opencode-session` (the conversation id)
+/// and `User-Agent: Jin/<version>`. Since 2026-09-06 the gateway answers
+/// `400 MissingSessionID` when that header is absent.
+///
 /// Docs: https://opencode.ai/docs/go/
 actor OpenCodeGoAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig

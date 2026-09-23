@@ -85,6 +85,11 @@ extension AnthropicAdapter {
         if let betaHeader {
             headers["anthropic-beta"] = betaHeader
         }
+        if providerConfig.type == .opencodeGo {
+            for (field, value) in OpenCodeGoAdapter.outboundHeaders() {
+                headers[field] = value
+            }
+        }
 
         return headers
     }
