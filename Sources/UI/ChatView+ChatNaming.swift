@@ -50,7 +50,8 @@ extension ChatView {
                 modelID: targetModelID,
                 contextMessages: [latestUser, finalAssistantMessage],
                 maxCharacters: 24,
-                promptTemplate: promptTemplate
+                promptTemplate: promptTemplate,
+                conversationID: conversationEntity.id
             )
             conversationEntity.title = title
             try? modelContext.save()

@@ -105,6 +105,9 @@ extension OpenAIAdapter {
             apiKey: apiKey,
             body: body,
             accept: nil,
+            additionalHeaders: providerConfig.type == .opencodeGo
+                ? OpenCodeGoAdapter.outboundHeaders()
+                : [:],
             includeUserAgent: false
         )
     }

@@ -3476,6 +3476,115 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         }
     }
 
+    /// Go rejects inference calls that omit `x-opencode-session` with 400 MissingSessionID.
+    /// The value has to stay stable per conversation and differ across conversations.
+    func testOpenCodeGoSendsConversationSessionHeaderOnEveryRoute() async throws {
+        let routes: [(modelID: String, endpoint: String, streaming: Bool)] = [
+            ("glm-5.3", "https://opencode.ai/zen/go/v1/chat/completions", false),
+            ("qwen3.8-max", "https://opencode.ai/zen/go/v1/messages", true),
+            ("grok-4.7", "https://opencode.ai/zen/go/v1/responses", false),
+            ("muse-spark-1.3-contributor", "https://opencode.ai/zen/go/v1/responses", false),
+        ]
+
+        final class ExpectedRequest: @unchecked Sendable {
+            var sessionID: String?
+            var endpoint = ""
+        }
+        let expected = ExpectedRequest()
+
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+        let providerConfig = ProviderConfig(id: "opencode", name: "OpenCode Go", type: .opencodeGo, apiKey: "ignored")
+
+        protocolType.requestHandler = { request in
+            XCTAssertEqual(request.url?.absoluteString, expected.endpoint)
+            XCTAssertEqual(
+                request.value(forHTTPHeaderField: OpenCodeGoAdapter.sessionHeaderField),
+                expected.sessionID
+            )
+            let userAgent = try XCTUnwrap(request.value(forHTTPHeaderField: "User-Agent"))
+            XCTAssertTrue(userAgent == jinUserAgent || userAgent.hasPrefix("Jin/"), userAgent)
+            XCTAssertFalse(userAgent.localizedCaseInsensitiveContains("alamofire"), userAgent)
+
+            if expected.endpoint.hasSuffix("/messages") {
+                XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "test-key")
+                XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    Data("data: [DONE]\n\n".utf8)
+                )
+            }
+
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            let payload: [String: Any]
+            if expected.endpoint.hasSuffix("/responses") {
+                payload = [
+                    "id": "resp_session",
+                    "output": [["type": "message", "content": [["type": "output_text", "text": "OK"]]]]
+                ]
+            } else {
+                payload = [
+                    "id": "cmpl_session",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+            }
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                try JSONSerialization.data(withJSONObject: payload)
+            )
+        }
+
+        let adapter = OpenCodeGoAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+        for route in routes {
+            for sessionID in ["conversation-one", "conversation-two"] {
+                expected.sessionID = sessionID
+                expected.endpoint = route.endpoint
+                try await NetworkDebugLogScope.$current.withValue(
+                    NetworkDebugLogContext(conversationID: sessionID)
+                ) {
+                    let stream = try await adapter.sendMessage(
+                        messages: [Message(role: .user, content: [.text("hi")])],
+                        modelID: route.modelID,
+                        controls: GenerationControls(),
+                        tools: [],
+                        streaming: route.streaming
+                    )
+                    for try await _ in stream {}
+                }
+            }
+        }
+
+        expected.sessionID = nil
+        expected.endpoint = "https://opencode.ai/zen/go/v1/chat/completions"
+        let unscoped = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "glm-5.3",
+            controls: GenerationControls(),
+            tools: [],
+            streaming: false
+        )
+        for try await _ in unscoped {}
+
+        expected.sessionID = OpenCodeGoAdapter.keyValidationSessionID
+        expected.endpoint = "https://opencode.ai/zen/go/v1/messages"
+        let messagesProvider = ProviderConfig(
+            id: "opencode",
+            name: "OpenCode Go",
+            type: .opencodeGo,
+            apiKey: "ignored",
+            models: [
+                ModelInfo(id: "minimax-m3", name: "MiniMax M3", capabilities: [.streaming], contextWindow: 1_048_576)
+            ]
+        )
+        let messagesAdapter = OpenCodeGoAdapter(
+            providerConfig: messagesProvider,
+            apiKey: "ignored",
+            networkManager: networkManager
+        )
+        let isValid = try await messagesAdapter.validateAPIKey("test-key")
+        XCTAssertTrue(isValid)
+    }
+
     func testOpenCodeGoAdapterSendsQwen38MaxOverAnthropicMessagesWithThinkingBudget() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

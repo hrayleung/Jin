@@ -1,6 +1,42 @@
 import Foundation
 
 extension OpenCodeGoAdapter {
+    /// Header OpenCode Go requires on every inference request.
+    /// https://opencode.ai/docs/go/ — a missing value is
+    /// `400 {"type":"MissingSessionID"}` ("cannot be routed efficiently").
+    /// Any stable opaque string is accepted; Jin sends the conversation id.
+    static let sessionHeaderField = "x-opencode-session"
+
+    /// Key probes are not part of a conversation. One stable id keeps those
+    /// requests from being rejected before the gateway checks the key.
+    static let keyValidationSessionID = "jin-opencode-go-key-validation"
+
+    /// `User-Agent` plus the per-conversation session header.
+    /// Go asks clients to identify themselves (`Jin/<version>`) instead of a
+    /// generic HTTP-library name, and to keep `x-opencode-session` stable
+    /// for the life of a conversation so routing and prompt cache stick.
+    static func outboundHeaders(fallbackSessionID: String? = nil) -> [String: String] {
+        var headers = ["User-Agent": openCodeGoUserAgent]
+        if let sessionID = resolvedSessionID(fallback: fallbackSessionID) {
+            headers[sessionHeaderField] = sessionID
+        }
+        return headers
+    }
+
+    static var openCodeGoUserAgent: String {
+        let version = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)?
+            .trimmedNonEmpty
+        if let version {
+            return "Jin/\(version)"
+        }
+        return jinUserAgent
+    }
+
+    static func resolvedSessionID(fallback: String? = nil) -> String? {
+        NetworkDebugLogScope.current?.conversationID?.trimmedNonEmpty
+            ?? fallback?.trimmedNonEmpty
+    }
+
     /// Models OpenCode Go serves via the Anthropic-style `/messages` endpoint
     /// (per opencode.ai/docs/go + models.dev `opencode-go` → `@ai-sdk/anthropic`).
     /// Besides Claude, OpenCode Go routes the MiniMax and Qwen families through
@@ -122,7 +158,8 @@ extension OpenCodeGoAdapter {
         return try makeAuthorizedJSONRequest(
             url: validatedURL("\(Self.hardcodedBaseURL)/chat/completions"),
             apiKey: apiKey,
-            body: body
+            body: body,
+            additionalHeaders: Self.outboundHeaders()
         )
     }
 

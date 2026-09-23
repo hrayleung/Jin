@@ -29,7 +29,8 @@ Output the title text and nothing else.
         modelID: String,
         contextMessages: [Message],
         maxCharacters: Int = 24,
-        promptTemplate: String? = nil
+        promptTemplate: String? = nil,
+        conversationID: UUID? = nil
     ) async throws -> String {
         let trimmedContext = contextMessages.filter { !$0.content.isEmpty }
         guard !trimmedContext.isEmpty else {
@@ -64,13 +65,28 @@ Output the title text and nothing else.
             modelID: modelID
         )
 
-        let stream = try await adapter.sendMessage(
-            messages: requestMessages,
-            modelID: modelID,
-            controls: titleControls,
-            tools: [],
-            streaming: shouldStream
-        )
+        let stream: AsyncThrowingStream<StreamEvent, Error>
+        if let conversationID {
+            stream = try await NetworkDebugLogScope.$current.withValue(
+                NetworkDebugLogContext(conversationID: conversationID.uuidString)
+            ) {
+                try await adapter.sendMessage(
+                    messages: requestMessages,
+                    modelID: modelID,
+                    controls: titleControls,
+                    tools: [],
+                    streaming: shouldStream
+                )
+            }
+        } else {
+            stream = try await adapter.sendMessage(
+                messages: requestMessages,
+                modelID: modelID,
+                controls: titleControls,
+                tools: [],
+                streaming: shouldStream
+            )
+        }
 
         var collected = ""
         for try await event in stream {
