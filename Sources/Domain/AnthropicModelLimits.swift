@@ -22,17 +22,25 @@ enum AnthropicModelLimits {
     /// `{type: "disabled"}` is accepted. Claude Opus 5 is in this set. Claude Sonnet 5
     /// is not: the model card documents adaptive thinking as always on (same as Fable 5),
     /// so `thinking: {type: "disabled"}` must not be sent — omit the field instead.
+    /// Claude Opus 5.5 is excluded too: its `isOpus5` family prefix matches
+    /// (`claude-opus-5-5`), but the Opus 5.5 docs state thinking is adaptive-ONLY —
+    /// `{type: "disabled"}` and `budget_tokens` both return 400, so nothing may be
+    /// emitted for it at all.
     /// Opus 5 additionally caps the effort it accepts alongside a disabled thinking
     /// block — see `disabledThinkingRequiresEffortAtMostHigh`.
     static func requiresExplicitThinkingDisabled(for modelID: String) -> Bool {
-        isOpus5(modelID.lowercased())
+        let lower = modelID.lowercased()
+        return isOpus5(lower) && !isOpus55(lower)
     }
 
     /// Opus 5 accepts `thinking: {type: "disabled"}` only at effort `high` or below;
     /// pairing it with `xhigh`/`max` returns a 400. The API validates this per request,
     /// so every call site that can emit both fields has to clamp, not just the first.
+    /// Opus 5.5 is excluded: it never accepts a disabled thinking block, so there is
+    /// no effort pairing to clamp.
     static func disabledThinkingRequiresEffortAtMostHigh(for modelID: String) -> Bool {
-        isOpus5(modelID.lowercased())
+        let lower = modelID.lowercased()
+        return isOpus5(lower) && !isOpus55(lower)
     }
 
     static func supportsDeepSeekV4OutputConfigEffort(for modelID: String) -> Bool {
@@ -46,16 +54,17 @@ enum AnthropicModelLimits {
     }
 
     /// Fast mode (beta: research preview) is documented for the exact model IDs
-    /// `claude-opus-5` and `claude-opus-4-8` only. Opus 4.7 fast mode has since been
-    /// removed upstream (`speed: "fast"` on 4.7 now errors) and the retired
-    /// `claude-opus-4-6-fast` route silently falls back to standard Opus 4.6, so both
-    /// are gated off here. Sending `speed: "fast"` to any other model — including
-    /// date-suffixed snapshots of Opus 5/4.8 — returns an API error, and the request
-    /// still bills at the fast-mode rate as extra usage, so we gate strictly on
-    /// exact-match.
+    /// `claude-opus-5`, `claude-opus-5-5`, and `claude-opus-4-8` only. Opus 4.7 fast
+    /// mode has since been removed upstream (`speed: "fast"` on 4.7 now errors) and
+    /// the retired `claude-opus-4-6-fast` route silently falls back to standard
+    /// Opus 4.6, so both are gated off here. Opus 5.5's fast mode is Claude API only
+    /// (not Bedrock/Vertex/Foundry), which matches this provider's direct-API scope.
+    /// Sending `speed: "fast"` to any other model — including date-suffixed
+    /// snapshots of Opus 5/4.8 — returns an API error, and the request still bills
+    /// at the fast-mode rate as extra usage, so we gate strictly on exact-match.
     static func supportsFastMode(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
-        return lower == "claude-opus-5" || lower == "claude-opus-4-8"
+        return lower == "claude-opus-5" || lower == "claude-opus-5-5" || lower == "claude-opus-4-8"
     }
 
     static func supportsMaxEffort(for modelID: String) -> Bool {
@@ -106,9 +115,11 @@ enum AnthropicModelLimits {
             return 65_536
         }
 
-        // Kimi K2.7 Code (Kimi for Coding provider): 262,144 max output per the
-        // model catalog. K3's max output is undocumented, so it intentionally
-        // falls through to the resolver fallback.
+        // Kimi for Coding: `kimi-for-coding` is now K2.8 Preview whose max output
+        // is unpublished — the 262,144 cap is carried over from K2.7 Code as a
+        // conservative bound. K2.7 Code HighSpeed documents 262,144. K3's max
+        // output is undocumented, so it intentionally falls through to the
+        // resolver fallback.
         if lower == "kimi-for-coding" || lower == "kimi-for-coding-highspeed" {
             return 262_144
         }
@@ -149,8 +160,21 @@ enum AnthropicModelLimits {
     /// no sampling params, 1M context / 128k output, full `low`…`max` effort ladder), with
     /// two behavioural flips: thinking is ON when `thinking` is omitted, and an explicit
     /// `{type: "disabled"}` is only accepted at effort `high` or below.
+    /// NOTE: the `claude-opus-5-` prefix also matches Claude Opus 5.5 (`claude-opus-5-5`).
+    /// That is intentional for the shared surface (adaptive thinking, effort ladder, no
+    /// sampling, 128k output, thinking.display), but Opus 5.5 differs where it matters:
+    /// thinking can NEVER be disabled and default effort is `medium`. Any helper that
+    /// encodes Opus-5-only behaviour must exclude it via `isOpus55`.
     static func isOpus5(_ lowercasedModelID: String) -> Bool {
         isModelFamily(lowercasedModelID, prefix: "claude-opus-5")
+    }
+
+    /// Claude Opus 5.5 (`claude-opus-5-5`, released 2026-09-22). The hyphenated suffix
+    /// also matches future dated snapshots (`claude-opus-5-5-YYYYMMDD`). OpenRouter's
+    /// dotted `anthropic/claude-opus-5.5` deliberately does NOT match — it is a
+    /// different provider surface resolved through the OpenRouter effort sets.
+    static func isOpus55(_ lowercasedModelID: String) -> Bool {
+        isModelFamily(lowercasedModelID, prefix: "claude-opus-5-5")
     }
 
     private static func isOpus48(_ lowercasedModelID: String) -> Bool {

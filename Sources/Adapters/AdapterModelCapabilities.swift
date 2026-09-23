@@ -352,10 +352,17 @@ private let openAIResponsesSamplingAllowedModelIDs: Set<String> = [
     "gpt-5.1",
 ]
 
-/// GPT-5.6 Daybreak aliases whose IDs do not contain `gpt-5`.
-/// Exact IDs only — they share Sol/Cyber's Responses sampling rejection.
+/// GPT-5.6 Daybreak aliases and GPT-6 models whose IDs do not contain `gpt-5`.
+/// Exact IDs only — they share Sol/Cyber's Responses sampling rejection. The `-pro`
+/// slugs are OpenRouter's naming (canonicalized `openai/gpt-6-*-pro` lookups land
+/// here); they are harmless on the native surface where the IDs do not exist.
 private let openAIResponsesSamplingDeniedExactModelIDs: Set<String> = [
     "gpt-6-astra",
+    "gpt-6-astra-pro",
+    "gpt-6-sol",
+    "gpt-6-sol-pro",
+    "gpt-6-luna",
+    "gpt-6-luna-pro",
     "gpt-daybreak-red-latest",
     "gpt-daybreak-blue-latest",
 ]
@@ -378,11 +385,13 @@ func supportsOpenAIResponsesSamplingParameters(
     }
 
     let lower = modelID.lowercased()
-    let canonical: String
-    if lower.hasPrefix("openai/") {
-        canonical = String(lower.dropFirst("openai/".count))
-    } else {
-        canonical = lower
+    var canonical = lower
+    if canonical.hasPrefix("openai/") {
+        canonical = String(canonical.dropFirst("openai/".count))
+    }
+    // OpenRouter `:batch` slugs share the base model's sampling policy.
+    if canonical.hasSuffix(":batch") {
+        canonical = String(canonical.dropLast(":batch".count))
     }
 
     if openAIResponsesSamplingDeniedExactModelIDs.contains(canonical) {
@@ -400,6 +409,70 @@ func supportsOpenAIResponsesSamplingParameters(
 
     return openAIResponsesSamplingAllowedModelIDs.contains(canonical)
 }
+
+// MARK: - OpenRouter Sampling Support
+
+/// Whether an OpenRouter request must omit sampling parameters entirely.
+///
+/// OpenRouter publishes `supported_parameters` per model on `GET /api/v1/models`;
+/// every cataloged ID below omits `temperature`/`top_p` (verified 2026-09-23), so
+/// forwarding sampling controls can fail upstream. Exact IDs only — `:batch`
+/// variants publish their own parameter lists and are listed separately
+/// (`anthropic/claude-opus-5.5` accepts `temperature`; its `:batch` twin does not).
+/// IDs absent from the live model list cannot be verified and stay out.
+func openRouterOmitsSamplingParameters(modelID: String) -> Bool {
+    openRouterSamplingDeniedModelIDs.contains(modelID.lowercased())
+}
+
+private let openRouterSamplingDeniedModelIDs: Set<String> = [
+    // GPT-6 family — OpenAI rejects sampling on these reasoning models and
+    // OpenRouter's supported_parameters mirror that (base, `-pro`, `:batch`).
+    "openai/gpt-6-astra",
+    "openai/gpt-6-astra:batch",
+    "openai/gpt-6-astra-pro",
+    "openai/gpt-6-astra-pro:batch",
+    "openai/gpt-6-sol",
+    "openai/gpt-6-sol:batch",
+    "openai/gpt-6-sol-pro",
+    "openai/gpt-6-sol-pro:batch",
+    "openai/gpt-6-luna",
+    "openai/gpt-6-luna:batch",
+    "openai/gpt-6-luna-pro",
+    "openai/gpt-6-luna-pro:batch",
+    // Earlier OpenAI reasoning generations with the same published restriction.
+    "openai/gpt-5.4-image-2",
+    "openai/gpt-5.4-mini",
+    "openai/gpt-5.4-nano",
+    "openai/gpt-5.5",
+    "openai/gpt-5.5-pro",
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-sol-pro",
+    "openai/gpt-5.6-terra",
+    "openai/gpt-5.6-terra-pro",
+    "openai/gpt-5.6-luna",
+    "openai/gpt-5.6-luna-pro",
+    "openai/gpt-chat-latest",
+    // Anthropic always-on-thinking models — upstream rejects temperature when
+    // thinking is enabled and these cannot disable it through OpenRouter.
+    "anthropic/claude-opus-5.5:batch",
+    "anthropic/claude-sonnet-5",
+    "anthropic/claude-fable-5",
+    "anthropic/claude-fable-5.1",
+    "anthropic/claude-opus-4.7",
+    // OpenRouter-native routers and other cataloged IDs whose published
+    // supported_parameters omit sampling.
+    "openrouter/fusion",
+    "openrouter/pareto-code",
+    "sakana/fugu-ultra",
+    "sakana/fugu-ultra-v2",
+    "sakana/fugu-max",
+    "~openai/gpt-mini-latest",
+    "~anthropic/claude-sonnet-latest",
+    "~openai/gpt-astra-latest",
+    "~openai/gpt-sol-latest",
+    "~openai/gpt-terra-latest",
+    "~openai/gpt-luna-latest",
+]
 
 // MARK: - OpenAI Service Tier Support
 

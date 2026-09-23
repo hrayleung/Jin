@@ -246,6 +246,21 @@ extension ModelCatalog {
                contextWindow: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Catalog-only — Gemini 3.8 Live (2026-09-15 changelog) are audio-to-audio
+        // models served over the Live API (WebSocket realtime sessions), not
+        // `generateContent`. Jin's Gemini adapter has no Live-API transport, so
+        // these stay catalog-only to resolve metadata for fetched/persisted IDs.
+        // Context window is unpublished; the conservative sentinel applies.
+        Record(id: "gemini-3.8-live", displayName: "Gemini 3.8 Live",
+               capabilities: [.audio],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "gemini-3.8-live-extended-thinking", displayName: "Gemini 3.8 Live (Extended Thinking)",
+               capabilities: [.audio, .reasoning],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
     ] + geminiOmniVideoRecords + veoVideoRecords
 
     // MARK: Vertex AI
@@ -257,6 +272,10 @@ extension ModelCatalog {
     // (no Vertex credentials on hand to probe); if a Vertex Gemini model ever rejects
     // `inlineData` video, drop the claim on that record rather than the whole table.
     static let vertexAIRecords: [Record] = [
+        // NOTE (2026-09-22): Vertex lists Anthropic partner model `claude-opus-5-5`,
+        // but Jin's Vertex adapter only speaks the Gemini `generateContent` API —
+        // there is no `:rawPredict` Anthropic Messages path, so it is intentionally
+        // absent from this table (blocked-adapter).
         // Seeded — live stable / current preview IDs only
         Record(id: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro (Preview)",
                capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
@@ -851,6 +870,23 @@ extension ModelCatalog {
         // unlike the dotted 4.x aliases. Live /models metadata (2026-07-25): 1,000,000 context /
         // 128,000 output, efforts low…max defaulting to high, reasoning.mandatory=false with
         // default_enabled=true — so it is deliberately NOT in `openRouterAlwaysOnReasoningModelIDs`.
+        // Opus 5.5 on OpenRouter (created 2026-09-22) uses the DOTTED upstream ID
+        // `anthropic/claude-opus-5.5` — unlike Opus 5's undotted `anthropic/claude-opus-5`.
+        // 1M context / 128K output. Upstream thinking is adaptive-only (cannot be
+        // disabled), so both IDs join openRouterAlwaysOnReasoningModelIDs and the
+        // full-ladder effort set. Default effort is `medium` (Opus 5 defaults `high`).
+        Record(id: "anthropic/claude-opus-5.5", displayName: "Anthropic: Claude Opus 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1000000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "anthropic/claude-opus-5.5:batch", displayName: "Anthropic: Claude Opus 5.5 (Batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1000000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         Record(id: "anthropic/claude-opus-5-fast", displayName: "Anthropic: Claude Opus 5 (Fast)",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1000000,
@@ -1259,6 +1295,84 @@ extension ModelCatalog {
                contextWindow: 1050000,
                maxOutputTokens: 128000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        // GPT-6 Sol / Luna on OpenRouter (created 2026-09-22): same 1.05M / 128K
+        // envelope as Astra, effort none..max default medium. The `-pro` twins are
+        // the same models served with reasoning.mode=pro; `:batch` halves pricing.
+        Record(id: "openai/gpt-6-sol", displayName: "OpenAI: GPT-6 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-sol-pro", displayName: "OpenAI: GPT-6 Sol Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-sol:batch", displayName: "OpenAI: GPT-6 Sol (Batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-sol-pro:batch", displayName: "OpenAI: GPT-6 Sol Pro (Batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-luna", displayName: "OpenAI: GPT-6 Luna",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-luna-pro", displayName: "OpenAI: GPT-6 Luna Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-luna:batch", displayName: "OpenAI: GPT-6 Luna (Batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-luna-pro:batch", displayName: "OpenAI: GPT-6 Luna Pro (Batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1050000,
+               maxOutputTokens: 128000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        // Command A+ (created 2026-09-22): Cohere's flagship for enterprise agentic
+        // work — 192K context per OpenRouter, text+image input, native tool calling
+        // with strict schemas, structured outputs, optional reasoning → toggle.
+        Record(id: "cohere/command-a-plus", displayName: "Cohere: Command A+",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 192_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Qwen3.8 Omni Flash (created 2026-09-21): omni-modal reasoning model —
+        // OpenRouter lists image understanding plus native audio/video
+        // understanding. `.vision` is claimed from the documented image input;
+        // `.videoInput` is not — it needs a live colour-clip probe (same rule as
+        // qwen3.8-flash). No effort values published → toggle.
+        Record(id: "qwen/qwen3.8-omni-flash", displayName: "Qwen: Qwen3.8 Omni Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Ming Image 0.1 Design (created 2026-09-22): inclusionAI text-to-image
+        // model for graphic design. Prompt-only (no reference images); explicit
+        // sizes/aspect ratios are rejected — context window unpublished, so the
+        // record carries a conservative prompt budget.
+        Record(id: "inclusionai/ming-image-0.1-design", displayName: "inclusionAI: Ming Image 0.1 Design",
+               capabilities: [.imageGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
         Record(id: "nex-agi/nex-n2.5-pro:free", displayName: "Nex AGI: Nex-N2.5 Pro (Free)",
                capabilities: [.streaming, .toolCalling, .reasoning],

@@ -139,6 +139,22 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Catalog-only — `databricks-gpt-6-sol` / `databricks-gpt-6-luna` (Databricks
+        // supported-models docs, updated 2026-09-22) are Responses-API-only
+        // endpoints; Jin's Databricks adapter posts to `chat/completions`, so they
+        // are not selectable until a Responses path exists.
+        Record(id: "databricks-gpt-6-sol", displayName: "GPT-6 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: false, isSeeded: false),
+        Record(id: "databricks-gpt-6-luna", displayName: "GPT-6 Luna",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: false, isSeeded: false),
         Record(id: "databricks-gpt-oss-20b", displayName: "GPT-OSS 20B",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 128_000,

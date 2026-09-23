@@ -37,24 +37,33 @@ final class KimiForCodingProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(provider.baseURL, ProviderType.kimiForCoding.defaultBaseURL)
         XCTAssertEqual(
             provider.models.map(\.id),
-            ["k3", "kimi-for-coding", "kimi-for-coding-highspeed"]
+            ["k3", "k3-256k", "kimi-for-coding", "kimi-for-coding-highspeed"]
         )
     }
 
     func testKimiForCodingCatalogMetadata() {
-        // Exactly the three documented model IDs are seeded; the 1M context is an
+        // Exactly the four documented model IDs are seeded; the 1M context is an
         // entitlement of `k3`, not a separate `k3[1m]` model ID.
         XCTAssertNil(ModelCatalog.entry(for: "k3[1m]", provider: .kimiForCoding))
 
-        // K3 supports only effort "max", applied server-side when `thinking` is
-        // omitted — so the record exposes no reasoning control shape at all.
+        // K3's effort wire shape is unverified on this Anthropic-shaped endpoint —
+        // the record exposes no reasoning control shape and the adapter sends no
+        // thinking field. `k3-256k` is the fixed-256K twin with the same surface.
         let k3 = ModelCatalog.modelInfo(for: "k3", provider: .kimiForCoding)
         XCTAssertEqual(k3.contextWindow, 262_144)
         XCTAssertTrue(k3.capabilities.contains(.reasoning))
         XCTAssertNil(k3.reasoningConfig)
 
+        let k3_256k = ModelCatalog.modelInfo(for: "k3-256k", provider: .kimiForCoding)
+        XCTAssertEqual(k3_256k.contextWindow, 262_144)
+        XCTAssertTrue(k3_256k.capabilities.contains(.reasoning))
+        XCTAssertNil(k3_256k.reasoningConfig)
+
+        // `kimi-for-coding` upgraded in place to K2.8 Preview (1M context). Max
+        // output is unpublished — the 262,144 K2.7 bound is carried over.
         let kimiForCoding = ModelCatalog.modelInfo(for: "kimi-for-coding", provider: .kimiForCoding)
-        XCTAssertEqual(kimiForCoding.contextWindow, 262_144)
+        XCTAssertEqual(kimiForCoding.name, "Kimi K2.8 Preview")
+        XCTAssertEqual(kimiForCoding.contextWindow, 1_048_576)
         XCTAssertEqual(kimiForCoding.maxOutputTokens, 262_144)
         XCTAssertTrue(kimiForCoding.capabilities.contains(.vision))
         XCTAssertTrue(kimiForCoding.capabilities.contains(.reasoning))
@@ -79,6 +88,10 @@ final class KimiForCodingProviderIntegrationTests: XCTestCase {
         let k3 = ModelCatalog.modelInfo(for: "k3", provider: .kimiForCoding)
         let resolvedK3 = ModelSettingsResolver.resolve(model: k3, providerType: .kimiForCoding)
         XCTAssertTrue(resolvedK3.reasoningCanDisable)
+
+        let k3_256k = ModelCatalog.modelInfo(for: "k3-256k", provider: .kimiForCoding)
+        let resolvedK3256k = ModelSettingsResolver.resolve(model: k3_256k, providerType: .kimiForCoding)
+        XCTAssertTrue(resolvedK3256k.reasoningCanDisable)
 
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "kimi-for-coding"), 262_144)
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "kimi-for-coding-highspeed"), 262_144)

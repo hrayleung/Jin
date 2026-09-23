@@ -50,6 +50,20 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // Opus 5.5 (platform.claude.com opus-5-5 overview + what's-new, released
+        // 2026-09-22): 1M context / 128k output, full low…max effort ladder, but the
+        // default effort flips to `medium` and thinking is adaptive-ONLY — both
+        // `{type:"disabled"}` and `budget_tokens` 400, handled in AnthropicModelLimits.
+        // Fast mode (`speed:"fast"`) is supported on the Claude API. Feature list:
+        // prompt caching (512 min), batch, Files API, PDF, vision, tools — code
+        // execution is not listed, so `.codeExecution` stays off. Forced tool use
+        // (`tool_choice` any/tool) 400s; Jin never emits those anyway.
+        Record(id: "claude-opus-5-5", displayName: "Claude Opus 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
         Record(id: "claude-opus-4-8", displayName: "Claude Opus 4.8",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,
@@ -421,6 +435,21 @@ extension ModelCatalog {
         // MiMo V2.5 Pro — 1,048,576 ctx, Function calling, cached-input pricing,
         // text-only on DeepInfra (no Multimodal badge on the model page).
         Record(id: "XiaomiMiMo/MiMo-V2.5-Pro", displayName: "MiMo V2.5 Pro",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // MiMo V2.6 Flash / Pro (deepinfra.com/models, listed 2026-09-21): 1,024K
+        // context, cached-input pricing, ZDR fp8. The cards describe the weights as
+        // omnimodal (text/image/video/audio), but DeepInfra shows no Multimodal badge
+        // and no endpoint-level video verification exists — same conservative
+        // text+reasoning shape as V2.5 Pro.
+        Record(id: "XiaomiMiMo/MiMo-V2.6-Flash", displayName: "MiMo V2.6 Flash",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "XiaomiMiMo/MiMo-V2.6-Pro", displayName: "MiMo V2.6 Pro",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
@@ -1864,28 +1893,43 @@ extension ModelCatalog {
 
     // MARK: Kimi for Coding
 
-    // Model IDs verified against the official Kimi Code docs (kimi.com/code/docs):
-    // exactly three IDs exist — the 1M context is an entitlement of `k3`
-    // (Allegretto+), not a separate model ID, so no `k3[1m]` record is seeded.
-    // `k3` context stays at the Moderato-tier 262,144 (docs: "up to 1M" only on
-    // higher tiers). Thinking is always on for the whole lineup: K2.7 Code
-    // requests without thinking are silently routed to K2.6, and K3 supports
-    // only effort "max" — which the endpoint applies when `thinking` is omitted
-    // (docs: null/undefined → max) — so `k3` keeps reasoningConfig nil and Jin
-    // sends no thinking shape for it (same pattern as the `kimi-k2.7-code`
-    // OpenCode Go record). The K2.7 IDs keep a toggle that the resolver locks
-    // on (reasoningCanDisable = false). K2.7 Code vision + 262,144 max output
-    // match the repo's existing `kimi-k2.7-code` record (models.dev); K3 vision
-    // and max output are undocumented, so they stay conservative.
+    // Model IDs verified against the official Kimi Code docs (kimi.com/code/docs,
+    // 2026-09): exactly four IDs exist — `k3`, `k3-256k` (fixed-256K context twin of
+    // K3), `kimi-for-coding`, `kimi-for-coding-highspeed`. The 1M
+    // context is an entitlement of `k3` (Allegretto+/Pro+), not a separate model ID,
+    // so no `k3[1m]` record is seeded; `k3` context stays at the Moderato-tier
+    // 262,144.
+    //
+    // `kimi-for-coding` is upgraded in place to K2.8 Preview: 1,048,576 context,
+    // `reasoning_effort` low/high/max defaulting to max. Docs describe image+video
+    // input upstream, but only `.vision` is claimed — `.videoInput` needs an
+    // endpoint-level probe on this Anthropic-shaped surface (repo rule). K2.8's
+    // max output is unpublished so the record stays conservative (the 262,144 cap
+    // in AnthropicModelLimits is carried over from K2.7 and still applies).
+    // `kimi-for-coding-highspeed` remains K2.7 Code HighSpeed at 262,144.
+    //
+    // Thinking is always on for the whole lineup: requests without thinking are
+    // silently routed away, so the toggle records are locked on by the resolver
+    // (kimiForCodingAlwaysOnReasoningModelIDs). K3-family docs now list
+    // `reasoning_effort` low/high/max defaulting to `high`, but the endpoint's wire
+    // shape for it is unverified (the plan is Anthropic-shaped /v1/messages and the
+    // adapter deliberately sends no thinking field for `k3`), so `k3`/`k3-256k`
+    // keep reasoningConfig nil. K3 vision is undocumented on this endpoint and
+    // stays off.
     static let kimiForCodingRecords: [Record] = [
         Record(id: "k3", displayName: "Kimi K3",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 262_144,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
-        Record(id: "kimi-for-coding", displayName: "Kimi K2.7 Code",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+        Record(id: "k3-256k", displayName: "Kimi K3 (256K)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+        Record(id: "kimi-for-coding", displayName: "Kimi K2.8 Preview",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: true),

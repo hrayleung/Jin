@@ -91,10 +91,14 @@ final class ModelCatalogTests: XCTestCase {
     }
 
     /// Google's own gateways carry `.video` through as `inlineData`, so every text model
-    /// there takes video. Only the image-generation records are excluded.
+    /// there takes video. Only the image-generation records are excluded. The Gemini 3.8
+    /// Live records are excluded too — they are Live API (WebSocket realtime) models that
+    /// never pass through `generateContent`/`inlineData` at all.
     func testGeminiAndVertexTextModelsClaimVideoInput() {
+        let liveAPIModelIDs: Set<String> = ["gemini-3.8-live", "gemini-3.8-live-extended-thinking"]
         for provider in [ProviderType.gemini, .vertexai] {
             for record in ModelCatalog.orderedRecords[provider] ?? [] {
+                guard !liveAPIModelIDs.contains(record.id) else { continue }
                 guard !record.capabilities.contains(.imageGeneration),
                       !record.capabilities.contains(.videoGeneration) else {
                     XCTAssertFalse(record.capabilities.contains(.videoInput), "\(provider) \(record.id)")

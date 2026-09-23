@@ -2048,6 +2048,95 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
         XCTAssertEqual(usage?.outputTokens, 5)
     }
 
+    /// OpenRouter publishes `supported_parameters` per model on GET /api/v1/models.
+    /// Every ID in the denied list omits `temperature`/`top_p` there (verified
+    /// 2026-09-23), so forwarding them can fail upstream — including through the
+    /// providerSpecific backdoor. `anthropic/claude-opus-5.5` (non-batch) does list
+    /// `temperature`, so it must keep working.
+    func testOpenRouterOmitsSamplingOnlyForVerifiedNoSamplingModelIDs() async throws {
+        let (configuration, protocolType) = makeMockedSessionConfiguration()
+        let networkManager = NetworkManager(configuration: configuration)
+
+        let providerConfig = ProviderConfig(
+            id: "or",
+            name: "OpenRouter",
+            type: .openrouter,
+            apiKey: "ignored",
+            baseURL: "https://openrouter.ai/api/v1"
+        )
+
+        var currentModelID = ""
+        var currentExpectsSampling = false
+        protocolType.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyData(request))
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+
+            XCTAssertEqual(root["model"] as? String, currentModelID)
+            if currentExpectsSampling {
+                XCTAssertEqual(root["temperature"] as? Double, 0.4, currentModelID)
+                XCTAssertEqual(root["top_p"] as? Double, 0.8, currentModelID)
+            } else {
+                XCTAssertNil(root["temperature"], "\(currentModelID) must omit temperature")
+                XCTAssertNil(root["top_p"], "\(currentModelID) must omit top_p")
+            }
+
+            let response: [String: Any] = [
+                "id": "cmpl_or_sampling",
+                "choices": [
+                    [
+                        "message": ["role": "assistant", "content": "OK"],
+                        "finish_reason": "stop"
+                    ]
+                ]
+            ]
+            let data = try JSONSerialization.data(withJSONObject: response)
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, data)
+        }
+
+        let adapter = OpenRouterAdapter(providerConfig: providerConfig, apiKey: "test-key", networkManager: networkManager)
+
+        // (modelID, samplingSupported). The :batch slugs publish their own
+        // supported_parameters and are covered deliberately.
+        let cases: [(String, Bool)] = [
+            ("openai/gpt-6-sol", false),
+            ("openai/gpt-6-sol:batch", false),
+            ("openai/gpt-6-sol-pro", false),
+            ("openai/gpt-6-luna", false),
+            ("openai/gpt-6-luna-pro:batch", false),
+            ("openai/gpt-6-astra-pro", false),
+            ("anthropic/claude-opus-5.5:batch", false),
+            ("anthropic/claude-fable-5.1", false),
+            ("anthropic/claude-opus-4.7", false),
+            ("anthropic/claude-opus-5.5", true),
+            ("qwen/qwen3.8-omni-flash", true),
+            ("cohere/command-a-plus", true),
+        ]
+
+        for (modelID, expectsSampling) in cases {
+            currentModelID = modelID
+            currentExpectsSampling = expectsSampling
+            var controls = GenerationControls(
+                temperature: 0.4,
+                reasoning: ReasoningControls(enabled: true, effort: .medium)
+            )
+            controls.topP = 0.8
+            if !expectsSampling {
+                // The providerSpecific backdoor must be stripped too — it is
+                // applied after the structured controls.
+                controls.providerSpecific = ["temperature": AnyCodable(0.9), "top_p": AnyCodable(0.5)]
+            }
+
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: modelID,
+                controls: controls,
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+    }
+
     func testOpenCodeGoAdapterBuildsMiMoV25RequestWithNativeWebSearchTool() async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

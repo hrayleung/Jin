@@ -279,6 +279,9 @@ enum ModelSettingsResolver {
     /// "Adaptive thinking (always on)" — `{type: "disabled"}` must not be sent.
     /// Fable/Mythos 5 / 5.1 reject disabled the same way.
     private static let anthropicAlwaysOnReasoningModelIDs: Set<String> = [
+        // Opus 5.5 (2026-09-22): adaptive thinking cannot be disabled — both
+        // `{type:"disabled"}` and `budget_tokens` are rejected, unlike Opus 5.
+        "claude-opus-5-5",
         "claude-sonnet-5",
         "claude-fable-5",
         "claude-fable-5-1",
@@ -339,6 +342,10 @@ enum ModelSettingsResolver {
     /// shape sent), making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
         "openai/gpt-6-astra",
+        // Opus 5.5's thinking is adaptive-only upstream (Anthropic what's-new,
+        // 2026-09-22) — unlike Opus 5, there is no off switch to pass through.
+        "anthropic/claude-opus-5.5",
+        "anthropic/claude-opus-5.5:batch",
         "x-ai/grok-4.7",
         "x-ai/grok-4.6",
         "x-ai/grok-4.5",
@@ -382,6 +389,8 @@ enum ModelSettingsResolver {
         // Fable 5.1 is always-on adaptive thinking upstream; Off would emit
         // `reasoning: {effort:"none"}` on the OpenAI-compatible gateway path.
         "anthropic/claude-fable-5.1",
+        // Opus 5.5 (2026-09-22) is adaptive-only upstream — `none` would 400.
+        "anthropic/claude-opus-5.5",
         // Sakana Fugu on Vercel publishes effort-only reasoning options
         // (high/xhigh/max, no toggle) — mandatory reasoning, like the OR copies.
         "sakana/fugu-max",
