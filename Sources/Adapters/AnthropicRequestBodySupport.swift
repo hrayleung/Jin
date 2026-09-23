@@ -65,12 +65,13 @@ enum AnthropicRequestBodySupport {
         }
 
         if providerType == .kimiForCoding {
-            // Kimi K2.7 Code is thinking-always-on ("Thinking: ON" in the Kimi Code
-            // docs); requests without thinking are silently routed to K2.6, so force
-            // the thinking field regardless of the persisted toggle state. K3
-            // supports only effort "max", which the endpoint applies when `thinking`
-            // is omitted (docs: null/undefined → max) — send nothing for it rather
-            // than an undocumented budget shape.
+            // Kimi Code is thinking-always-on ("Thinking: ON" in the Kimi Code
+            // docs); requests without thinking are silently routed to an older
+            // model, so force the thinking field regardless of the persisted toggle
+            // state. K3 / k3-256k list `reasoning_effort` low/high/max (default
+            // `high`) in the docs, but the wire shape for effort on this
+            // Anthropic-shaped endpoint is unverified — send nothing and let the
+            // endpoint apply its default rather than an unconfirmed field.
             let lowerModelID = modelID.lowercased()
             if lowerModelID == "kimi-for-coding" || lowerModelID == "kimi-for-coding-highspeed" {
                 body["thinking"] = [

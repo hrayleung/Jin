@@ -1040,5 +1040,197 @@ final class JinModelSupportTests: XCTestCase {
         // no payload path in the adapter — blocked-adapter, exact ID recorded).
         XCTAssertNil(ModelCatalog.entry(for: "black-forest-labs/flux-video-edit", provider: .openrouter))
     }
+
+    func testLateSeptember2026ModelsSupport() {
+        // OpenAI + OpenAI WebSocket: GPT-6 Sol / Luna (2026-09-22). Same 1.05M /
+        // 128K envelope as Astra, effort none…max default medium, reasoning CAN
+        // be disabled (`none` is a documented value), sampling rejected.
+        for modelID in ["gpt-6-sol", "gpt-6-luna"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openai, modelID: modelID), modelID)
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openaiWebSocket, modelID: modelID), modelID)
+            let info = ModelCatalog.modelInfo(for: modelID, provider: .openai)
+            XCTAssertEqual(info.contextWindow, 1_050_000, modelID)
+            XCTAssertEqual(info.maxOutputTokens, 128_000, modelID)
+            XCTAssertTrue(info.capabilities.contains(.vision), modelID)
+            XCTAssertTrue(info.capabilities.contains(.nativePDF), modelID)
+            XCTAssertTrue(info.capabilities.contains(.promptCaching), modelID)
+            XCTAssertTrue(info.capabilities.contains(.codeExecution), modelID)
+            XCTAssertTrue(info.capabilities.contains(.reasoning), modelID)
+            XCTAssertEqual(info.reasoningConfig?.defaultEffort, .medium, modelID)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .openai, modelID: modelID),
+                [.low, .medium, .high, .xhigh, .max],
+                modelID
+            )
+            XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openai, modelID: modelID), modelID)
+            XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: modelID), modelID)
+            XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .openai, modelID: modelID), modelID)
+            XCTAssertFalse(
+                supportsOpenAIResponsesSamplingParameters(modelID: modelID, reasoningEnabled: true),
+                modelID
+            )
+            XCTAssertFalse(
+                supportsOpenAIResponsesSamplingParameters(modelID: modelID, reasoningEnabled: false),
+                modelID
+            )
+            XCTAssertTrue(
+                ModelCapabilityRegistry.supportsOpenAIStyleVerbosity(for: .openai, modelID: modelID),
+                modelID
+            )
+        }
+
+        // Anthropic + Claude Managed Agents: Claude Opus 5.5 (2026-09-22). 1M ctx /
+        // 128K out, adaptive-only thinking, default effort medium, fast mode.
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .anthropic, modelID: "claude-opus-5-5"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .claudeManagedAgents, modelID: "claude-opus-5-5"))
+        let opus55 = ModelCatalog.modelInfo(for: "claude-opus-5-5", provider: .anthropic)
+        XCTAssertEqual(opus55.name, "Claude Opus 5.5")
+        XCTAssertEqual(opus55.contextWindow, 1_000_000)
+        XCTAssertEqual(opus55.maxOutputTokens, 128_000)
+        XCTAssertTrue(opus55.capabilities.contains(.vision))
+        XCTAssertTrue(opus55.capabilities.contains(.nativePDF))
+        XCTAssertTrue(opus55.capabilities.contains(.promptCaching))
+        XCTAssertTrue(opus55.capabilities.contains(.reasoning))
+        XCTAssertFalse(opus55.capabilities.contains(.codeExecution),
+                       "Opus 5.5's docs do not list code execution — do not claim it")
+        XCTAssertEqual(opus55.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .anthropic, modelID: "claude-opus-5-5"),
+            [.low, .medium, .high, .xhigh, .max]
+        )
+        // Adaptive-only: never emits {type:"disabled"} and never accepts the
+        // effort clamp that Opus 5's disabled path needs.
+        XCTAssertFalse(AnthropicModelLimits.requiresExplicitThinkingDisabled(for: "claude-opus-5-5"))
+        XCTAssertFalse(AnthropicModelLimits.disabledThinkingRequiresEffortAtMostHigh(for: "claude-opus-5-5"))
+        XCTAssertTrue(AnthropicModelLimits.supportsAdaptiveThinking(for: "claude-opus-5-5"))
+        XCTAssertTrue(AnthropicModelLimits.supportsFastMode(for: "claude-opus-5-5"))
+        XCTAssertFalse(AnthropicModelLimits.supportsSamplingParameters(for: "claude-opus-5-5"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .anthropic, modelID: "claude-opus-5-5"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .claudeManagedAgents, modelID: "claude-opus-5-5"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .anthropic, modelID: "claude-opus-5-5"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearchDynamicFiltering(for: .anthropic, modelID: "claude-opus-5-5"))
+        // Opus 5 keeps its own behaviour — the family prefix must not collapse them.
+        XCTAssertTrue(AnthropicModelLimits.requiresExplicitThinkingDisabled(for: "claude-opus-5"))
+        XCTAssertTrue(AnthropicModelLimits.disabledThinkingRequiresEffortAtMostHigh(for: "claude-opus-5"))
+
+        // OpenRouter GPT-6 Sol/Luna families: base, -pro, :batch, -pro:batch.
+        for modelID in ["openai/gpt-6-sol", "openai/gpt-6-sol-pro",
+                        "openai/gpt-6-sol:batch", "openai/gpt-6-sol-pro:batch",
+                        "openai/gpt-6-luna", "openai/gpt-6-luna-pro",
+                        "openai/gpt-6-luna:batch", "openai/gpt-6-luna-pro:batch"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: modelID), modelID)
+            let info = ModelCatalog.modelInfo(for: modelID, provider: .openrouter)
+            XCTAssertEqual(info.contextWindow, 1_050_000, modelID)
+            XCTAssertEqual(info.maxOutputTokens, 128_000, modelID)
+            XCTAssertTrue(info.capabilities.contains(.reasoning), modelID)
+            XCTAssertTrue(info.capabilities.contains(.vision), modelID)
+            // `:batch` variants inherit the base slug's band via canonicalization.
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: modelID),
+                [.low, .medium, .high, .xhigh, .max],
+                modelID
+            )
+        }
+
+        // OpenRouter Anthropic Opus 5.5 (dotted ID) + :batch — full ladder,
+        // always-on (adaptive-only upstream).
+        for modelID in ["anthropic/claude-opus-5.5", "anthropic/claude-opus-5.5:batch"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: modelID), modelID)
+            let info = ModelCatalog.modelInfo(for: modelID, provider: .openrouter)
+            XCTAssertEqual(info.contextWindow, 1_000_000, modelID)
+            XCTAssertEqual(info.maxOutputTokens, 128_000, modelID)
+            XCTAssertEqual(info.reasoningConfig?.defaultEffort, .medium, modelID)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: modelID),
+                [.low, .medium, .high, .xhigh, .max],
+                modelID
+            )
+            XCTAssertFalse(
+                ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: modelID),
+                modelID
+            )
+        }
+        // The dotted OpenRouter ID must not leak into the native Anthropic helpers.
+        XCTAssertFalse(AnthropicModelLimits.requiresExplicitThinkingDisabled(for: "anthropic/claude-opus-5.5"))
+        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "anthropic/claude-opus-5.5"))
+
+        // OpenRouter Cohere Command A+ (2026-09-22): 192K ctx, toggle reasoning.
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "cohere/command-a-plus"))
+        let commandAPlus = ModelCatalog.modelInfo(for: "cohere/command-a-plus", provider: .openrouter)
+        XCTAssertEqual(commandAPlus.contextWindow, 192_000)
+        XCTAssertTrue(commandAPlus.capabilities.contains(.vision))
+        XCTAssertEqual(commandAPlus.reasoningConfig?.type, .toggle)
+
+        // OpenRouter Qwen3.8 Omni Flash (2026-09-21): 1M ctx, vision-only claim —
+        // omni-modal upstream, but video/audio need an endpoint probe.
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "qwen/qwen3.8-omni-flash"))
+        let orOmni = ModelCatalog.modelInfo(for: "qwen/qwen3.8-omni-flash", provider: .openrouter)
+        XCTAssertEqual(orOmni.contextWindow, 1_000_000)
+        XCTAssertTrue(orOmni.capabilities.contains(.vision))
+        XCTAssertFalse(orOmni.capabilities.contains(.videoInput))
+        XCTAssertFalse(orOmni.capabilities.contains(.audio))
+
+        // OpenRouter Ming Image (2026-09): image generation only.
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "inclusionai/ming-image-0.1-design"))
+        let mingImage = ModelCatalog.modelInfo(for: "inclusionai/ming-image-0.1-design", provider: .openrouter)
+        XCTAssertTrue(mingImage.capabilities.contains(.imageGeneration))
+        XCTAssertFalse(mingImage.capabilities.contains(.videoGeneration))
+        XCTAssertNil(mingImage.reasoningConfig)
+
+        // Vercel AI Gateway: GPT-6 Sol/Luna + Opus 5.5 + Qwen3.8 Omni Flash.
+        for modelID in ["openai/gpt-6-sol", "openai/gpt-6-luna"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: modelID), modelID)
+            let info = ModelCatalog.modelInfo(for: modelID, provider: .vercelAIGateway)
+            XCTAssertEqual(info.contextWindow, 1_050_000, modelID)
+            XCTAssertEqual(info.maxOutputTokens, 128_000, modelID)
+            XCTAssertTrue(info.capabilities.contains(.reasoning), modelID)
+            XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: modelID), modelID)
+        }
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "anthropic/claude-opus-5.5"))
+        let vercelOpus55 = ModelCatalog.modelInfo(for: "anthropic/claude-opus-5.5", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelOpus55.contextWindow, 1_000_000)
+        XCTAssertEqual(vercelOpus55.maxOutputTokens, 128_000)
+        XCTAssertEqual(vercelOpus55.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "anthropic/claude-opus-5.5")
+        )
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "alibaba/qwen3.8-omni-flash"))
+        let vercelOmni = ModelCatalog.modelInfo(for: "alibaba/qwen3.8-omni-flash", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelOmni.contextWindow, 1_000_000)
+        XCTAssertTrue(vercelOmni.capabilities.contains(.vision))
+        XCTAssertFalse(vercelOmni.capabilities.contains(.videoInput))
+
+        // DeepInfra: MiMo V2.6 Flash / Pro (listed 2026-09-21) — text+reasoning
+        // only; the cards' omni-modal claims lack endpoint-level verification.
+        for modelID in ["XiaomiMiMo/MiMo-V2.6-Flash", "XiaomiMiMo/MiMo-V2.6-Pro"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .deepinfra, modelID: modelID), modelID)
+            let info = ModelCatalog.modelInfo(for: modelID, provider: .deepinfra)
+            XCTAssertEqual(info.contextWindow, 1_048_576, modelID)
+            XCTAssertTrue(info.capabilities.contains(.reasoning), modelID)
+            XCTAssertTrue(info.capabilities.contains(.promptCaching), modelID)
+            XCTAssertFalse(info.capabilities.contains(.vision), modelID)
+            XCTAssertFalse(info.capabilities.contains(.videoInput), modelID)
+        }
+
+        // Blocked-adapter IDs resolve metadata but never claim full support.
+        // Databricks GPT-6 Sol/Luna are Responses-API-only endpoints; Jin's
+        // Databricks path is chat-completions.
+        for modelID in ["databricks-gpt-6-sol", "databricks-gpt-6-luna"] {
+            XCTAssertNotNil(ModelCatalog.entry(for: modelID, provider: .databricks), modelID)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .databricks, modelID: modelID), modelID)
+        }
+        // Gemini 3.8 Live is Live-API (WebSocket) only — not servable through
+        // generateContent on AI Studio or through Vercel's OpenAI-compatible path.
+        for modelID in ["gemini-3.8-live", "gemini-3.8-live-extended-thinking"] {
+            XCTAssertNotNil(ModelCatalog.entry(for: modelID, provider: .gemini), modelID)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .gemini, modelID: modelID), modelID)
+            XCTAssertNotNil(ModelCatalog.entry(for: "google/\(modelID)", provider: .vercelAIGateway), modelID)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "google/\(modelID)"), modelID)
+        }
+        // Vertex's `claude-opus-5-5` partner listing has no servable path — the
+        // Vertex adapter is Gemini-only, so no record exists at all.
+        XCTAssertNil(ModelCatalog.entry(for: "claude-opus-5-5", provider: .vertexai))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "claude-opus-5-5"))
+    }
 }
 

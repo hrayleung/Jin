@@ -18,6 +18,23 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
+        // GPT-6 Sol / Luna (developers.openai.com/api/docs/models/{gpt-6-sol,gpt-6-luna},
+        // released 2026-09-22): same 1,050,000 / 128,000 envelope as Astra, reasoning
+        // effort none..max default medium, text+image input, Responses + Chat
+        // Completions. Supported tools include code_interpreter → .codeExecution.
+        // Sampling params stay denied via the GPT-6 deny set in AdapterModelCapabilities.
+        Record(id: "gpt-6-sol", displayName: "GPT-6 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "gpt-6-luna", displayName: "GPT-6 Luna",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
         // GPT-5.6 ships as three tiers — Sol (flagship), Terra (balanced), Luna (fast) —
         // replacing the mini/nano naming (verified against the live 2026-07-09 model pages:
         // 1,050,000 context / 128,000 output, reasoning_effort none..max where `max` is new
@@ -1015,6 +1032,21 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // GPT-6 Sol / Luna on Vercel (vercel.com/ai-gateway/models table, 2026-09-22):
+        // chat models, 1.1M context, reasoning + tool-use + vision + web-search +
+        // explicit/implicit caching tags.
+        Record(id: "openai/gpt-6-sol", displayName: "GPT-6 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-luna", displayName: "GPT-6 Luna",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         // GPT-5.6 tiers confirmed live on ai-gateway.vercel.sh/v1/models (2026-07-11),
         // same 1.05M/128K limits as the native OpenAI entries.
         Record(id: "openai/gpt-5.6-sol", displayName: "GPT-5.6 Sol",
@@ -1295,6 +1327,16 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Qwen3.8 Omni Flash (Vercel AI Gateway models table, 2026-09-21): exact ID
+        // `alibaba/qwen3.8-omni-flash` — 1M context, chat, reasoning + tool-use +
+        // vision + structured-output + implicit-caching tags. The upstream model is
+        // omni-modal (audio/video understanding), but Vercel's row claims vision only
+        // — no video/audio input is claimed here.
+        Record(id: "alibaba/qwen3.8-omni-flash", displayName: "Qwen 3.8 Omni Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
 
         // MiniMax
         Record(id: "minimax/minimax-m3", displayName: "MiniMax M3",
@@ -1382,6 +1424,16 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Claude Opus 5.5 (Vercel AI Gateway models table, 2026-09-22): exact ID
+        // `anthropic/claude-opus-5.5` — explicit-caching, file-input, reasoning,
+        // tool-use, vision, web-search tags. Upstream default effort is `medium`
+        // (not Opus 5's `high`) and thinking cannot be disabled.
+        Record(id: "anthropic/claude-opus-5.5", displayName: "Claude Opus 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
         Record(id: "anthropic/claude-opus-5", displayName: "Claude Opus 5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
@@ -1529,6 +1581,20 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Catalog-only — `google/gemini-3.8-live` and `…-extended-thinking` appear in
+        // Vercel's models table (2026-09-22 fetch) but are Gemini Live API
+        // (WebSocket realtime) models, which the OpenAI-compatible gateway path
+        // cannot serve. Not fully supported; kept to resolve fetched/persisted IDs.
+        Record(id: "google/gemini-3.8-live", displayName: "Gemini 3.8 Live",
+               capabilities: [.audio],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "google/gemini-3.8-live-extended-thinking", displayName: "Gemini 3.8 Live (Extended Thinking)",
+               capabilities: [.audio, .reasoning],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
 
         // Sakana Fugu Max + Fugu Ultra V2 (models.dev `vercel`, release
         // 2026-09-11): 1,000,000 context, text+image input, tools, cached-input

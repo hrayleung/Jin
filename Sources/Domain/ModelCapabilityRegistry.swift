@@ -40,6 +40,10 @@ enum ModelCapabilityRegistry {
 
     private static let openAIStyleExtremeEffortModelIDs: Set<String> = [
         "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-sol-pro",
+        "gpt-6-luna",
+        "gpt-6-luna-pro",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
@@ -70,9 +74,14 @@ enum ModelCapabilityRegistry {
 
     /// Models accepting the `max` reasoning effort value, introduced with GPT-5.6
     /// (Sol/Terra/Luna support none|low|medium|high|xhigh|max; `minimal` was dropped).
+    /// GPT-6 Sol/Luna document the same none…max ladder (default medium).
     /// Older 5.x models reject "max", so it stays clamped to xhigh for them.
     private static let openAIStyleMaxEffortModelIDs: Set<String> = [
         "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-sol-pro",
+        "gpt-6-luna",
+        "gpt-6-luna-pro",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
@@ -103,6 +112,8 @@ enum ModelCapabilityRegistry {
     /// Models that accept Responses API `text.verbosity`.
     private static let openAIStyleVerbosityModelIDs: Set<String> = [
         "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
@@ -347,6 +358,9 @@ enum ModelCapabilityRegistry {
     /// Exact model IDs that OpenAI currently documents as supporting the built-in Code interpreter tool.
     /// Keep this conservative: do not broaden to unlisted realtime/audio families.
     private static let openAICodeInterpreterSupportedModelIDs: Set<String> = [
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
         "gpt-4.1",
         "gpt-4.1-2025-04-14",
         "gpt-5",
@@ -545,6 +559,10 @@ enum ModelCapabilityRegistry {
     private static let openRouterFullLadderEffortModelIDs: Set<String> = [
         "anthropic/claude-opus-5",
         "anthropic/claude-opus-5-fast",
+        // Opus 5.5 (2026-09-22): upstream ladder is low…max (default `medium`);
+        // OpenRouter passes the Anthropic effort band through on both variants.
+        "anthropic/claude-opus-5.5",
+        "anthropic/claude-opus-5.5:batch",
     ]
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
@@ -1622,7 +1640,10 @@ enum ModelCapabilityRegistry {
     ) -> ModelReasoningConfig {
         if shape == .anthropic {
             if AnthropicModelLimits.supportsAdaptiveThinking(for: lowerModelID) {
-                return ModelReasoningConfig(type: .effort, defaultEffort: .high)
+                // Opus 5.5 documents `medium` as its API default, unlike the rest
+                // of the adaptive-thinking lineup which defaults to `high`.
+                let defaultEffort: ReasoningEffort = AnthropicModelLimits.isOpus55(lowerModelID) ? .medium : .high
+                return ModelReasoningConfig(type: .effort, defaultEffort: defaultEffort)
             }
             return ModelReasoningConfig(type: .budget, defaultBudget: 2048)
         }
@@ -1779,10 +1800,16 @@ enum ModelCapabilityRegistry {
     }
 
     private static func canonicalOpenAIModelID(lowerModelID: String) -> String {
-        if lowerModelID.hasPrefix("openai/") {
-            return String(lowerModelID.dropFirst("openai/".count))
+        var id = lowerModelID
+        if id.hasPrefix("openai/") {
+            id = String(id.dropFirst("openai/".count))
         }
-        return lowerModelID
+        // OpenRouter `:batch` slugs (e.g. `openai/gpt-6-sol:batch`) are the same
+        // model on OpenRouter's batch path — inherit the base slug's policy.
+        if id.hasSuffix(":batch") {
+            id = String(id.dropLast(":batch".count))
+        }
+        return id
     }
 
     private static func containsAnyFragment(in value: String, fragments: [String]) -> Bool {
@@ -1877,7 +1904,8 @@ enum ModelCapabilityRegistry {
     /// Models that support the `web_search_20260209` tool with dynamic filtering.
     /// Documented list includes Fable 5.1 / Mythos 5.1, Fable 5, Mythos 5, Opus 5,
     /// Opus 4.8/4.7/4.6, Sonnet 5/4.6. Dynamic filtering is "Claude 4.6 and later"
-    /// plus Mythos; Fable 5.1 is the Fable 5 successor (2026-09-01).
+    /// plus Mythos; Fable 5.1 is the Fable 5 successor (2026-09-01) and Opus 5.5
+    /// (2026-09-22) is later than 4.6 with server-side tool support.
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
         let lower = modelID.lowercased()
@@ -1885,6 +1913,7 @@ enum ModelCapabilityRegistry {
             || lower == "claude-mythos-5-1"
             || lower == "claude-fable-5"
             || lower == "claude-mythos-5"
+            || lower == "claude-opus-5-5"
             || lower == "claude-opus-5"
             || lower == "claude-opus-4-8"
             || lower == "claude-opus-4-7"

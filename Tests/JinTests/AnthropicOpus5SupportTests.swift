@@ -33,10 +33,15 @@ final class AnthropicOpus5SupportTests: XCTestCase {
         XCTAssertTrue(opus5.capabilities.contains(.vision))
     }
 
-    func testOpus5LeadsTheAnthropicPreferenceLadder() {
+    func testOpus55LeadsTheAnthropicPreferenceLadder() {
         // The ladder drives both the picker default and the fallback a fresh conversation
-        // lands on, so it has to move with the flagship.
-        XCTAssertEqual(ChatModelSelectionSupport.preferredAnthropicModelOrder.first, "claude-opus-5")
+        // lands on, so it has to move with the flagship — Opus 5.5 (2026-09-22).
+        XCTAssertEqual(ChatModelSelectionSupport.preferredAnthropicModelOrder.first, "claude-opus-5-5")
+        XCTAssertEqual(
+            ChatModelSelectionSupport.preferredAnthropicModelOrder.dropFirst().first,
+            "claude-opus-5",
+            "Opus 5 stays next in line behind Opus 5.5"
+        )
     }
 
     func testOpus5IsAvailableOnEveryGatewayThatServesIt() {
@@ -244,5 +249,103 @@ final class AnthropicOpus5SupportTests: XCTestCase {
         let outputConfig = body["output_config"] as? [String: Any]
         XCTAssertEqual(outputConfig?["effort"] as? String, "max")
         XCTAssertFalse(AnthropicModelLimits.disabledThinkingRequiresEffortAtMostHigh(for: "claude-sonnet-5"))
+    }
+
+    // MARK: - Opus 5.5 (2026-09-22): adaptive-only thinking
+
+    // Opus 5.5 matches the `claude-opus-5` family prefix but is a different surface:
+    // thinking can never be disabled (`{type:"disabled"}` and `budget_tokens` both
+    // 400), and the default effort is `medium`, not Opus 5's `high`.
+
+    func testOpus55CatalogRecordIsSeededWithVerifiedLimits() throws {
+        let opus55 = try XCTUnwrap(
+            ModelCatalog.seededModels(for: .anthropic).first(where: { $0.id == "claude-opus-5-5" }),
+            "Opus 5.5 must be seeded so it appears in the picker on first launch"
+        )
+
+        XCTAssertEqual(opus55.name, "Claude Opus 5.5")
+        XCTAssertEqual(opus55.contextWindow, 1_000_000)
+        XCTAssertEqual(opus55.maxOutputTokens, 128_000)
+        XCTAssertEqual(opus55.reasoningConfig?.type, .effort)
+        XCTAssertEqual(opus55.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertTrue(opus55.capabilities.contains(.nativePDF))
+        XCTAssertTrue(opus55.capabilities.contains(.promptCaching))
+        XCTAssertTrue(opus55.capabilities.contains(.vision))
+        // Code execution is not listed on the Opus 5.5 feature table — unlike Opus 5.
+        XCTAssertFalse(opus55.capabilities.contains(.codeExecution))
+    }
+
+    func testOpus55CannotDisableThinking() {
+        // The family helpers still see 5.5 as adaptive-thinking (correct — it is
+        // adaptive-ONLY), but every disabled-thinking escape hatch must stay shut.
+        XCTAssertTrue(AnthropicModelLimits.supportsAdaptiveThinking(for: "claude-opus-5-5"))
+        XCTAssertFalse(AnthropicModelLimits.requiresExplicitThinkingDisabled(for: "claude-opus-5-5"))
+        XCTAssertFalse(AnthropicModelLimits.disabledThinkingRequiresEffortAtMostHigh(for: "claude-opus-5-5"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .anthropic, modelID: "claude-opus-5-5"))
+    }
+
+    func testApplyThinkingConfigForOpus55EmitsAdaptiveNotDisabledWhenToggledOff() throws {
+        var body: [String: Any] = [:]
+
+        // Even a persisted `enabled == false` must not produce `{type:"disabled"}` —
+        // the field is omitted entirely so the model runs its adaptive default.
+        AnthropicRequestBodySupport.applyThinkingConfig(
+            to: &body,
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: false, effort: .max)
+            ),
+            providerType: .anthropic,
+            modelID: "claude-opus-5-5"
+        )
+
+        XCTAssertNil(body["thinking"], "Opus 5.5 400s on {type: disabled} — omit the field")
+    }
+
+    func testApplyThinkingConfigForOpus55UsesAdaptiveWithMediumCapableLadder() throws {
+        var body: [String: Any] = [:]
+
+        AnthropicRequestBodySupport.applyThinkingConfig(
+            to: &body,
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .xhigh)
+            ),
+            providerType: .anthropic,
+            modelID: "claude-opus-5-5"
+        )
+
+        let thinking = try XCTUnwrap(body["thinking"] as? [String: Any])
+        XCTAssertEqual(thinking["type"] as? String, "adaptive")
+        XCTAssertEqual(thinking["display"] as? String, "summarized")
+        XCTAssertNil(thinking["budget_tokens"], "Opus 5.5 rejects budget_tokens")
+
+        let outputConfig = try XCTUnwrap(body["output_config"] as? [String: Any])
+        XCTAssertEqual(outputConfig["effort"] as? String, "xhigh")
+    }
+
+    func testOpus55ProviderSpecificDisabledOverrideNormalizesToAdaptive() throws {
+        var body: [String: Any] = [:]
+
+        // A stale/overridden `{type:"disabled"}` in providerSpecific must not survive —
+        // normalizedThinkingConfiguration rewrites it to adaptive for adaptive models.
+        AnthropicRequestBodySupport.applyProviderSpecificOverrides(
+            to: &body,
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true),
+                providerSpecific: ["thinking": AnyCodable(["type": "disabled", "budget_tokens": 4096] as [String: Any])]
+            ),
+            modelID: "claude-opus-5-5",
+            supportsDynamicFiltering: true
+        )
+
+        let thinking = try XCTUnwrap(body["thinking"] as? [String: Any])
+        XCTAssertEqual(thinking["type"] as? String, "adaptive")
+        XCTAssertNil(thinking["budget_tokens"])
+    }
+
+    func testOpus55SupportsFastModeOnClaudeAPI() {
+        // Fast mode is documented for Opus 5.5 on the direct Claude API only.
+        XCTAssertTrue(AnthropicModelLimits.supportsFastMode(for: "claude-opus-5-5"))
+        // The dotted OpenRouter twin is a different surface — never send speed there.
+        XCTAssertFalse(AnthropicModelLimits.supportsFastMode(for: "anthropic/claude-opus-5.5"))
     }
 }

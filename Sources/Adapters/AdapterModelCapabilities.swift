@@ -352,10 +352,12 @@ private let openAIResponsesSamplingAllowedModelIDs: Set<String> = [
     "gpt-5.1",
 ]
 
-/// GPT-5.6 Daybreak aliases whose IDs do not contain `gpt-5`.
+/// GPT-5.6 Daybreak aliases and GPT-6 models whose IDs do not contain `gpt-5`.
 /// Exact IDs only — they share Sol/Cyber's Responses sampling rejection.
 private let openAIResponsesSamplingDeniedExactModelIDs: Set<String> = [
     "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
     "gpt-daybreak-red-latest",
     "gpt-daybreak-blue-latest",
 ]
@@ -378,11 +380,13 @@ func supportsOpenAIResponsesSamplingParameters(
     }
 
     let lower = modelID.lowercased()
-    let canonical: String
-    if lower.hasPrefix("openai/") {
-        canonical = String(lower.dropFirst("openai/".count))
-    } else {
-        canonical = lower
+    var canonical = lower
+    if canonical.hasPrefix("openai/") {
+        canonical = String(canonical.dropFirst("openai/".count))
+    }
+    // OpenRouter `:batch` slugs share the base model's sampling policy.
+    if canonical.hasSuffix(":batch") {
+        canonical = String(canonical.dropLast(":batch".count))
     }
 
     if openAIResponsesSamplingDeniedExactModelIDs.contains(canonical) {
