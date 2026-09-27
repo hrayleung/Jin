@@ -273,7 +273,19 @@ extension OpenCodeGoAdapter {
             // extra rung and is unverified here; fold everything enabled to `high`.
             return "high"
         default:
-            return mapReasoningEffortNoneDisabled(effort)
+            // Declared bands (catalog record / live fetch) are provider-published
+            // truth, so normalize against them first — e.g. space-bunny-free
+            // accepts low…max, which the generic collapse would fold to "high".
+            let normalized = ModelCapabilityRegistry.normalizedReasoningEffort(
+                effort,
+                for: .opencodeGo,
+                modelID: modelID,
+                declaredEfforts: OpenAICompatibleReasoningSupport.declaredReasoningEfforts(
+                    providerConfig: providerConfig,
+                    modelID: modelID
+                )
+            )
+            return mapReasoningEffortNoneDisabled(normalized)
         }
     }
 

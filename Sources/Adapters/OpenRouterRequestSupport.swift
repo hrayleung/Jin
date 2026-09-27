@@ -213,7 +213,11 @@ extension OpenRouterAdapter {
                 ) {
                     let fallback = ModelCapabilityRegistry.supportedReasoningEfforts(
                         for: .openrouter,
-                        modelID: modelID
+                        modelID: modelID,
+                        declaredEfforts: OpenAICompatibleReasoningSupport.declaredReasoningEfforts(
+                            providerConfig: providerConfig,
+                            modelID: modelID
+                        )
                     ).first ?? .low
                     body["include_reasoning"] = true
                     body["reasoning"] = [

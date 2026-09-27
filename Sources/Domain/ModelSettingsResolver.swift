@@ -272,6 +272,9 @@ enum ModelSettingsResolver {
         "qwen/qwen3.8-2.4t-a95b",
         "zai-org/glm-5.3",
         "zai-org/glm-5.3-flash",
+        // Opus 5.5 hosted copy (listed 2026-09-23): adaptive thinking is
+        // mandatory upstream, and its published band is low…max with no `none`.
+        "anthropic/claude-opus-5-5",
     ]
 
     /// Anthropic IDs whose adaptive thinking cannot be turned off. Exact-ID only.
@@ -365,6 +368,12 @@ enum ModelSettingsResolver {
         // GLM-5.3-FlashX (2026-09-18): same always-on thinking as the rest of
         // the GLM-5.3 family — band low/high/max has no `none`.
         "z-ai/glm-5.3-flashx",
+        // GLM-5.3-Prime (2026-09-24): same always-on thinking — its published
+        // band is low/high/max with no `none`.
+        "z-ai/glm-5.3-prime",
+        // Qwen3.8 Max Prime (2026-09-24) shares the cloud Max band
+        // (minimal…xhigh, no `none`) and its always-on classification.
+        "qwen/qwen3.8-max-prime",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /
@@ -391,6 +400,8 @@ enum ModelSettingsResolver {
         "anthropic/claude-fable-5.1",
         // Opus 5.5 (2026-09-22) is adaptive-only upstream — `none` would 400.
         "anthropic/claude-opus-5.5",
+        // The `-fast` serving tier carries the same upstream constraint.
+        "anthropic/claude-opus-5.5-fast",
         // Sakana Fugu on Vercel publishes effort-only reasoning options
         // (high/xhigh/max, no toggle) — mandatory reasoning, like the OR copies.
         "sakana/fugu-max",
@@ -401,6 +412,9 @@ enum ModelSettingsResolver {
     /// databricks-gpt-6-astra is a reasoning-only model (internal reasoning always active).
     private static let databricksAlwaysOnReasoningModelIDs: Set<String> = [
         "databricks-gpt-6-astra",
+        // Opus 5.5 on FMAPI (docs.databricks.com supported-models, 2026-09-24):
+        // adaptive thinking cannot be disabled; band is low…max.
+        "databricks-claude-opus-5-5",
     ]
 
     /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list
