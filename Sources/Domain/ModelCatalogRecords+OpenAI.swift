@@ -1614,5 +1614,69 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
                isFullySupported: true, isSeeded: false),
+
+        // --- Vercel AI Gateway models table additions, fetched 2026-09-27 ---
+        // Claude Opus 5.5 Fast (created 2026-09-24): low-latency variant, same
+        // 1,000,000 / 128,000 and text+image+pdf input as the base slug. Effort
+        // band low..max with `medium` default per models.dev `vercel`.
+        Record(id: "anthropic/claude-opus-5.5-fast", displayName: "Claude Opus 5.5 Fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // GPT-6 Sol/Luna Fast (created 2026-09-24): same 1,050,000 / 128,000 and
+        // full none..max effort band as the non-fast GPT-6 records.
+        Record(id: "openai/gpt-6-sol-fast", displayName: "GPT-6 Sol Fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.none, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-luna-fast", displayName: "GPT-6 Luna Fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.none, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Alibaba Qwen3.8 Max Prime (created 2026-09-24): text+image input,
+        // 1,000,000 / 131,072, tools + reasoning_effort none/low/medium/high.
+        Record(id: "alibaba/qwen3.8-max-prime", displayName: "Qwen3.8 Max Prime",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.none, .low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Step-5 Preview (created 2026-09-25): text+image input, 1,000,000
+        // context AND output per the live gateway; no tool or reasoning params.
+        Record(id: "stepfun/step-5-preview", displayName: "Step-5 Preview",
+               capabilities: [.streaming, .vision],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 1_000_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Catalog-only — Jin's Vercel adapter speaks chat completions only:
+        // `recraft/recraft-v4.1-flash` is image-generation output, and the
+        // `google/gemini-3.8-*-tts` pair are text-to-speech. No image-gen or TTS
+        // request path exists on this provider (blocked-adapter).
+        Record(id: "recraft/recraft-v4.1-flash", displayName: "Recraft V4.1 Flash",
+               capabilities: [.imageGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "google/gemini-3.8-flash-tts", displayName: "Gemini 3.8 Flash TTS",
+               capabilities: [.audio],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "google/gemini-3.8-flash-lite-tts", displayName: "Gemini 3.8 Flash-Lite TTS",
+               capabilities: [.audio],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
     ]
 }

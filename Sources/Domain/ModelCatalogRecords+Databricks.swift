@@ -39,6 +39,17 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        // Claude Opus 5.5 (Databricks supported-models docs, updated 2026-09-24):
+        // `databricks-claude-opus-5-5`, text+image input, reasoning effort
+        // low/medium/high/xhigh/max with `medium` default and reasoning that
+        // cannot be disabled. Context/output match Anthropic's published limits.
+        Record(id: "databricks-claude-opus-5-5", displayName: "Claude Opus 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
         Record(id: "databricks-claude-opus-4-8", displayName: "Claude Opus 4.8",
                capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,
@@ -395,5 +406,24 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+
+        // Catalog-only — `databricks-gemini-3-1-flash-image` /
+        // `databricks-gemini-3-pro-image` (Databricks supported-models docs,
+        // updated 2026-09-24) are image-generation endpoints: text+image in,
+        // generated images out, no function calling. Jin's Databricks adapter
+        // posts to `chat/completions` and has no image-output path
+        // (blocked-adapter). `databricks-geos` is a geospatial product, not a
+        // model endpoint, and the bge/gte/qwen3-embedding IDs are embeddings —
+        // all outside the text-chat catalog.
+        Record(id: "databricks-gemini-3-1-flash-image", displayName: "Gemini 3.1 Flash Image",
+               capabilities: [.vision, .imageGeneration],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "databricks-gemini-3-pro-image", displayName: "Gemini 3 Pro Image",
+               capabilities: [.vision, .imageGeneration],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
     ]
 }

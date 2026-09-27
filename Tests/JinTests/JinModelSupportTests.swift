@@ -146,7 +146,8 @@ final class JinModelSupportTests: XCTestCase {
     func testTogetherCatalogOnlyRecentModelsUseExactIDs() {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "zai-org/GLM-4.7"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "zai-org/GLM-4.5-Air-FP8"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "openai/gpt-oss-20b"))
+        // Removed from Together serverless 2026-09-15 — dedicated-only, catalog-only here.
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "openai/gpt-oss-20b"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3.5-9B"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "Qwen/Qwen3-Next-80B-A3B-Instruct"))
@@ -351,7 +352,9 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "thinkingmachines/inkling-custom"))
 
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "thinkingmachines/Inkling"))
-        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "thinkingmachines/Inkling-Small"))
+        // Inkling-Small left Together serverless on 2026-09-15 — dedicated-only,
+        // so it resolves in the catalog but is not fully supported.
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "thinkingmachines/Inkling-Small"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .together, modelID: "thinkingmachines/Inkling-Small-custom"))
 
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "moonshotai/kimi-k3"))
