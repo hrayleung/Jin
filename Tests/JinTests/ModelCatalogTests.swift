@@ -93,9 +93,15 @@ final class ModelCatalogTests: XCTestCase {
     /// Google's own gateways carry `.video` through as `inlineData`, so every text model
     /// there takes video. Only the image-generation records are excluded. The Gemini 3.8
     /// Live records are excluded too — they are Live API (WebSocket realtime) models that
-    /// never pass through `generateContent`/`inlineData` at all.
+    /// never pass through `generateContent`/`inlineData` at all — and so are the 3.8 TTS
+    /// records, which are text-to-speech endpoints, not chat models.
     func testGeminiAndVertexTextModelsClaimVideoInput() {
-        let liveAPIModelIDs: Set<String> = ["gemini-3.8-live", "gemini-3.8-live-extended-thinking"]
+        let liveAPIModelIDs: Set<String> = [
+            "gemini-3.8-live",
+            "gemini-3.8-live-extended-thinking",
+            "gemini-3.8-flash-tts",
+            "gemini-3.8-flash-lite-tts",
+        ]
         for provider in [ProviderType.gemini, .vertexai] {
             for record in ModelCatalog.orderedRecords[provider] ?? [] {
                 guard !liveAPIModelIDs.contains(record.id) else { continue }
@@ -3642,5 +3648,185 @@ final class ModelCatalogTests: XCTestCase {
             XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .databricks), id)
         }
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "databricks-gpt-7", provider: .databricks))
+    }
+
+    /// Census additions for 2026-09-23…27: OpenRouter late-September slugs,
+    /// Vercel fast variants, DeepInfra/Fireworks/Together/OpenCode Go/Router/
+    /// Databricks additions, and the catalog-only TTS / image / ASR surfaces.
+    func testSeptember2026Week4CatalogUsesExactIDsAndDeclaredBands() {
+        // OpenRouter — exact slugs with models.dev-verified bands.
+        let prime = ModelCatalog.modelInfo(for: "z-ai/glm-5.3-prime", provider: .openrouter)
+        XCTAssertEqual(prime.contextWindow, 1_000_000)
+        XCTAssertEqual(prime.reasoningConfig?.supportedEfforts, [.low, .high, .max])
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "z-ai/glm-5.3-prime", provider: .openrouter))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "z-ai/glm-5.3-prime"),
+            [.low, .high, .max]
+        )
+
+        let qwenPrime = ModelCatalog.modelInfo(for: "qwen/qwen3.8-max-prime", provider: .openrouter)
+        XCTAssertEqual(qwenPrime.contextWindow, 1_000_000)
+        XCTAssertEqual(qwenPrime.reasoningConfig?.supportedEfforts,
+                       [.minimal, .low, .medium, .high, .xhigh])
+        // Modality table advertises video — not claimed without a live probe.
+        XCTAssertFalse(qwenPrime.capabilities.contains(.videoInput))
+
+        let bunny = ModelCatalog.modelInfo(for: "stealth/space-bunny-alpha", provider: .openrouter)
+        XCTAssertEqual(bunny.contextWindow, 1_000_000)
+        XCTAssertEqual(bunny.maxOutputTokens, 524_288)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "stealth/space-bunny-alpha"),
+            [.low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertFalse(bunny.capabilities.contains(.videoInput))
+
+        for id in ["aion-labs/aion-3.5", "aion-labs/aion-3.5-mini"] {
+            let m = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(m.contextWindow, 262_144, id)
+            XCTAssertEqual(m.reasoningConfig?.supportedEfforts, [.low, .high, .max], id)
+            XCTAssertFalse(m.capabilities.contains(.vision), id)
+        }
+
+        let solar = ModelCatalog.modelInfo(for: "upstage/solar-mini4", provider: .openrouter)
+        XCTAssertEqual(solar.contextWindow, 524_288)
+        XCTAssertEqual(solar.reasoningConfig?.supportedEfforts,
+                       [.none, .minimal, .low, .medium, .high, .xhigh, .max])
+
+        let emberOR = ModelCatalog.modelInfo(for: "fireworks/ember-1", provider: .openrouter)
+        XCTAssertEqual(emberOR.contextWindow, 1_048_576)
+        XCTAssertEqual(emberOR.maxOutputTokens, 943_718)
+        XCTAssertEqual(emberOR.reasoningConfig?.supportedEfforts, [.low, .high, .max])
+
+        let jev = ModelCatalog.modelInfo(for: "typesafe/jev-router", provider: .openrouter)
+        XCTAssertEqual(jev.contextWindow, 1_000_000)
+        XCTAssertNil(jev.reasoningConfig)
+        XCTAssertFalse(jev.capabilities.contains(.toolCalling))
+
+        let perceptron = ModelCatalog.modelInfo(for: "perceptron/perceptron-mk1.5", provider: .openrouter)
+        XCTAssertEqual(perceptron.contextWindow, 36_864)
+        XCTAssertEqual(perceptron.reasoningConfig?.supportedEfforts,
+                       [.none, .minimal, .low, .medium, .high])
+
+        // Near-misses must not resolve.
+        for id in ["z-ai/glm-5.3-prime-2", "stealth/space-bunny", "aion-labs/aion-3.5-pro",
+                   "upstage/solar-mini5", "fireworks/ember-2", "typesafe/jev"] {
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .openrouter), id)
+        }
+
+        // Vercel AI Gateway — fast variants and the catalog-only media rows.
+        let opus55Fast = ModelCatalog.modelInfo(for: "anthropic/claude-opus-5.5-fast", provider: .vercelAIGateway)
+        XCTAssertEqual(opus55Fast.contextWindow, 1_000_000)
+        XCTAssertEqual(opus55Fast.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertEqual(opus55Fast.reasoningConfig?.supportedEfforts,
+                       [.low, .medium, .high, .xhigh, .max])
+        for id in ["openai/gpt-6-sol-fast", "openai/gpt-6-luna-fast"] {
+            let m = ModelCatalog.modelInfo(for: id, provider: .vercelAIGateway)
+            XCTAssertEqual(m.contextWindow, 1_050_000, id)
+            XCTAssertEqual(m.reasoningConfig?.supportedEfforts,
+                           [.none, .low, .medium, .high, .xhigh, .max], id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .vercelAIGateway), id)
+        }
+        let alibabaPrime = ModelCatalog.modelInfo(for: "alibaba/qwen3.8-max-prime", provider: .vercelAIGateway)
+        XCTAssertEqual(alibabaPrime.contextWindow, 1_000_000)
+        XCTAssertEqual(alibabaPrime.reasoningConfig?.supportedEfforts, [.none, .low, .medium, .high])
+        let step5 = ModelCatalog.modelInfo(for: "stepfun/step-5-preview", provider: .vercelAIGateway)
+        XCTAssertEqual(step5.contextWindow, 1_000_000)
+        XCTAssertNil(step5.reasoningConfig)
+        // No chat adapter surface for these on Vercel — catalog-only.
+        for id in ["recraft/recraft-v4.1-flash", "google/gemini-3.8-flash-tts",
+                   "google/gemini-3.8-flash-lite-tts"] {
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .vercelAIGateway), id)
+        }
+
+        // DeepInfra — Anthropic hosted copy + Tencent Hy4 preview.
+        let diOpus = ModelCatalog.modelInfo(for: "anthropic/claude-opus-5-5", provider: .deepinfra)
+        XCTAssertEqual(diOpus.contextWindow, 1_000_000)
+        XCTAssertTrue(diOpus.capabilities.isSuperset(of: [.streaming, .toolCalling, .vision, .reasoning]))
+        let diHy4 = ModelCatalog.modelInfo(for: "tencent/Hy4-preview", provider: .deepinfra)
+        XCTAssertEqual(diHy4.contextWindow, 1_048_576)
+        XCTAssertEqual(diHy4.reasoningConfig?.supportedEfforts, [.high])
+        XCTAssertFalse(ModelCatalog.isFullySupported(
+            modelID: "nvidia/Nemotron-3-Diarization", provider: .deepinfra))
+
+        // Fireworks — Ember-1 serverless; Glimmer serverless; Pro RL on-demand only.
+        let ember = ModelCatalog.modelInfo(for: "accounts/fireworks/models/ember-1", provider: .fireworks)
+        XCTAssertEqual(ember.contextWindow, 1_048_576)
+        XCTAssertEqual(ember.reasoningConfig?.supportedEfforts, [.low, .medium, .high, .max])
+        XCTAssertTrue(ModelCatalog.isFullySupported(
+            modelID: "accounts/fireworks/models/ember-1", provider: .fireworks))
+        XCTAssertTrue(ModelCatalog.isFullySupported(
+            modelID: "accounts/fireworks/models/muse-glimmer-30b", provider: .fireworks))
+        XCTAssertFalse(ModelCatalog.isFullySupported(
+            modelID: "accounts/fireworks/models/mimo-v2p6-pro-rl", provider: .fireworks))
+
+        // Together — Tev1 experimental + Glimmer; serverless removals are
+        // catalog-only now (dedicated endpoints only since 2026-09-15).
+        let tev = ModelCatalog.modelInfo(for: "together/Tev1-4B-experimental", provider: .together)
+        XCTAssertEqual(tev.contextWindow, 32_768)
+        XCTAssertFalse(tev.capabilities.contains(.toolCalling))
+        XCTAssertTrue(ModelCatalog.isFullySupported(
+            modelID: "meta-models/Muse-Glimmer-30B", provider: .together))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "openai/gpt-oss-20b", provider: .together))
+        XCTAssertFalse(ModelCatalog.isFullySupported(
+            modelID: "thinkingmachines/Inkling-Small", provider: .together))
+        // DeepInfra's own copy of gpt-oss-20b is unaffected by Together's removal.
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "openai/gpt-oss-20b", provider: .deepinfra))
+
+        // OpenCode Go — GPT-6 Luna routes to /responses; the new free IDs stay
+        // on /chat/completions (absent from every endpoint-routing set).
+        XCTAssertTrue(OpenCodeGoAdapter.openAIResponsesModelIDs.contains("gpt-6-luna"))
+        for id in ["space-bunny-free", "longcat-2.5-preview-free", "deepseek-flash"] {
+            XCTAssertFalse(OpenCodeGoAdapter.anthropicMessagesModelIDs.contains(id), id)
+            XCTAssertFalse(OpenCodeGoAdapter.openAIResponsesModelIDs.contains(id), id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .opencodeGo), id)
+        }
+        let goLuna = ModelCatalog.modelInfo(for: "gpt-6-luna", provider: .opencodeGo)
+        XCTAssertEqual(goLuna.contextWindow, 1_050_000)
+        let goBunny = ModelCatalog.modelInfo(for: "space-bunny-free", provider: .opencodeGo)
+        XCTAssertEqual(goBunny.maxOutputTokens, 524_288)
+        XCTAssertEqual(goBunny.reasoningConfig?.supportedEfforts,
+                       [.low, .medium, .high, .xhigh, .max])
+        let goLongcat = ModelCatalog.modelInfo(for: "longcat-2.5-preview-free", provider: .opencodeGo)
+        XCTAssertEqual(goLongcat.contextWindow, 1_000_000)
+        XCTAssertNil(goLongcat.reasoningConfig)
+        // deepseek-flash inherits the Go high/max DeepSeek band via the registry set.
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "deepseek-flash"),
+            [.high, .max]
+        )
+
+        // Ramp Router — opus-5-5 (minimal..max) and GPT-6 Sol/Luna (none..max).
+        let routerOpus = ModelCatalog.modelInfo(for: "claude-opus-5-5", provider: .router)
+        XCTAssertEqual(routerOpus.contextWindow, 1_000_000)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .router, modelID: "claude-opus-5-5"),
+            [.minimal, .low, .medium, .high, .xhigh, .max]
+        )
+        for id in ["gpt-6-sol", "gpt-6-luna"] {
+            let m = ModelCatalog.modelInfo(for: id, provider: .router)
+            XCTAssertEqual(m.contextWindow, 1_050_000, id)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .router, modelID: id),
+                [.none, .low, .medium, .high, .xhigh, .max],
+                id
+            )
+            XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .router, modelID: id), id)
+        }
+
+        // Databricks — Opus 5.5 is fully supported on chat/completions; the
+        // Gemini image endpoints are catalog-only (no image-output path).
+        let dbOpus = ModelCatalog.modelInfo(for: "databricks-claude-opus-5-5", provider: .databricks)
+        XCTAssertEqual(dbOpus.contextWindow, 1_000_000)
+        XCTAssertEqual(dbOpus.reasoningConfig?.supportedEfforts, [.low, .medium, .high, .xhigh, .max])
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "databricks-claude-opus-5-5", provider: .databricks))
+        for id in ["databricks-gemini-3-1-flash-image", "databricks-gemini-3-pro-image"] {
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .databricks), id)
+        }
+
+        // Gemini — the 3.8 Flash TTS pair is catalog-only (no TTS surface).
+        for id in ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"] {
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .gemini), id)
+            XCTAssertNotNil(ModelCatalog.entry(for: id, provider: .gemini), id)
+        }
     }
 }

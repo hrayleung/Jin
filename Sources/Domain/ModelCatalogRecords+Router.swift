@@ -70,6 +70,17 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
                isFullySupported: true, isSeeded: true),
+        // Router supported-models table (fetched 2026-09-27): label `opus-5-5`
+        // under [Anthropic] — callable ID keeps the `claude-` prefix like its
+        // siblings. $4/$20, 1,000,000 / 128,000, Fast mode Available, effort
+        // band minimal..max with no `none` (routerMinimalToMaxEffortModelIDs).
+        // Default mirrors Anthropic's `medium` for Opus 5.5.
+        Record(id: "claude-opus-5-5", displayName: "Claude Opus 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         Record(id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_000_000,
@@ -214,6 +225,22 @@ extension ModelCatalog {
         // low/medium/high/xhigh/max — no `none`, no `minimal`
         // (routerLowToMaxEffortModelIDs).
         Record(id: "gpt-6-astra", displayName: "GPT-6 Astra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        // Router supported-models table (fetched 2026-09-27): `gpt-6-sol` and
+        // `gpt-6-luna`, Fast mode Available, 1,050,000 / 128,000, effort band
+        // none/low/medium/high/xhigh/max — no `minimal`
+        // (routerNoneLowToMaxEffortModelIDs).
+        Record(id: "gpt-6-sol", displayName: "GPT-6 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "gpt-6-luna", displayName: "GPT-6 Luna",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_050_000,
                maxOutputTokens: 128_000,

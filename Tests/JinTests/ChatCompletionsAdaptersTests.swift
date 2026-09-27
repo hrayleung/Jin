@@ -9957,6 +9957,128 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
 
         for try await _ in stream {}
     }
+
+    /// Sep 2026 census records declare per-model effort bands
+    /// (`ModelReasoningConfig.supportedEfforts`). Request-time normalization must
+    /// honor them: values inside the declared band pass through untouched, and
+    /// models whose band has no `none` fall back to the lowest rung instead of
+    /// emitting an out-of-band `effort: "none"`.
+    func testDeclaredEffortBandsSurviveRequestMapping() async throws {
+        func runAdapter(
+            _ makeAdapter: (NetworkManager) -> any LLMProviderAdapter,
+            modelID: String,
+            controls: GenerationControls,
+            assertBody: @escaping ([String: Any]) throws -> Void
+        ) async throws {
+            let (configuration, protocolType) = makeMockedSessionConfiguration()
+            let networkManager = NetworkManager(configuration: configuration)
+            protocolType.requestHandler = { request in
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                try assertBody(root)
+                let response: [String: Any] = [
+                    "id": "cmpl_declared_band",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    try JSONSerialization.data(withJSONObject: response)
+                )
+            }
+            let adapter = makeAdapter(networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: modelID,
+                controls: controls,
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+
+        func chatConfig(_ type: ProviderType, _ baseURL: String) -> ProviderConfig {
+            ProviderConfig(id: type.rawValue, name: type.displayName, type: type, apiKey: "ignored", baseURL: baseURL)
+        }
+
+        // OpenRouter Aion: declared band is low/high/max — `max` must reach the
+        // wire, not normalize to the generic low/medium/high fallback.
+        try await runAdapter(
+            { OpenRouterAdapter(providerConfig: chatConfig(.openrouter, "https://openrouter.ai/api/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "aion-labs/aion-3.5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "max")
+            XCTAssertEqual(root["include_reasoning"] as? Bool, true)
+        }
+
+        // OpenRouter GLM-5.3 Prime: always-on (family rejects disabled thinking),
+        // so an Off control must send the lowest band rung, never "none".
+        try await runAdapter(
+            { OpenRouterAdapter(providerConfig: chatConfig(.openrouter, "https://openrouter.ai/api/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "z-ai/glm-5.3-prime",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "low")
+            XCTAssertEqual(root["include_reasoning"] as? Bool, true)
+        }
+
+        // Vercel Opus 5.5 Fast: upstream adaptive-only, so Off also maps to the
+        // band floor on the shared OpenAI-compatible builder.
+        try await runAdapter(
+            { OpenAICompatibleAdapter(providerConfig: chatConfig(.vercelAIGateway, "https://ai-gateway.vercel.sh/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "anthropic/claude-opus-5.5-fast",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "low")
+        }
+
+        // Vercel GPT-6 fast variants: declared none…max band — xhigh and max
+        // must not collapse to "high".
+        for effort: ReasoningEffort in [.xhigh, .max] {
+            try await runAdapter(
+                { OpenAICompatibleAdapter(providerConfig: chatConfig(.vercelAIGateway, "https://ai-gateway.vercel.sh/v1"), apiKey: "k", networkManager: $0) },
+                modelID: "openai/gpt-6-luna-fast",
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort))
+            ) { root in
+                let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+                XCTAssertEqual(reasoning["effort"] as? String, effort.rawValue)
+            }
+        }
+
+        // DeepInfra Opus 5.5: declared low…max — `max` passes through.
+        try await runAdapter(
+            { OpenAICompatibleAdapter(providerConfig: chatConfig(.deepinfra, "https://api.deepinfra.com/v1/openai"), apiKey: "k", networkManager: $0) },
+            modelID: "anthropic/claude-opus-5-5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "max")
+        }
+
+        // Fireworks Ember-1: declared low/medium/high/max — `max` stays `max`.
+        try await runAdapter(
+            { FireworksAdapter(providerConfig: chatConfig(.fireworks, "https://api.fireworks.ai/inference/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "accounts/fireworks/models/ember-1",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max))
+        ) { root in
+            XCTAssertEqual(root["reasoning_effort"] as? String, "max")
+        }
+
+        // Databricks Opus 5.5: FMAPI documents low/medium/high/xhigh/max —
+        // the adapter must emit the extended values, not collapse to "high".
+        for (effort, expected) in [(ReasoningEffort.high, "high"), (.xhigh, "xhigh"), (.max, "max")] {
+            try await runAdapter(
+                { DatabricksAdapter(providerConfig: chatConfig(.databricks, "https://dbc-1234.cloud.databricks.com"), apiKey: "k", networkManager: $0) },
+                modelID: "databricks-claude-opus-5-5",
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort))
+            ) { root in
+                XCTAssertEqual(root["reasoning_effort"] as? String, expected)
+            }
+        }
+    }
 }
 
 // MARK: - URLProtocol stubbing

@@ -88,18 +88,31 @@ extension DatabricksAdapter {
         guard modelSupportsReasoning(providerConfig: providerConfig, modelID: modelID) else { return }
         guard let reasoning = controls.reasoning, reasoning.enabled else { return }
 
+        let declaredEfforts = OpenAICompatibleReasoningSupport.declaredReasoningEfforts(
+            providerConfig: providerConfig,
+            modelID: modelID
+        )
         let effort = ModelCapabilityRegistry.normalizedReasoningEffort(
             reasoning.effort ?? .medium,
             for: providerConfig.type,
-            modelID: modelID
+            modelID: modelID,
+            declaredEfforts: declaredEfforts
         )
         switch effort {
         case .none, .minimal, .low:
             body["reasoning_effort"] = "low"
         case .medium:
             body["reasoning_effort"] = "medium"
-        case .high, .xhigh, .max:
+        case .high:
             body["reasoning_effort"] = "high"
+        case .xhigh, .max:
+            // Emit the extended values only when the provider-declared band
+            // publishes them (databricks-claude-opus-5-5 documents low…max on
+            // the FMAPI supported-models page). Other models keep collapsing
+            // to "high" so undocumented literals are never sent.
+            body["reasoning_effort"] = declaredEfforts?.contains(effort) == true
+                ? effort.rawValue
+                : "high"
         }
     }
 

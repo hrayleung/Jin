@@ -116,14 +116,13 @@ extension OpenAIAdapter {
     /// also used as a delegate for gateways that expose the Responses API on their own host
     /// (OpenCode Go's `/zen/go/v1/responses`), where OpenAI-platform-only wire fields are
     /// rejected as unknown input.
-    /// The effort band the provider reported for this model when its catalog was
-    /// fetched, if any. Nil for every model whose band is only known statically —
-    /// which is the whole bundled catalog, so this is a no-op on the OpenAI path.
+    /// The effort band recorded for this model — from a live catalog fetch or
+    /// the bundled catalog record. Nil when the band is only known statically.
     func declaredReasoningEfforts(for modelID: String) -> [ReasoningEffort]? {
-        providerConfig.models
-            .first { $0.id == modelID }?
-            .reasoningConfig?
-            .supportedEfforts
+        OpenAICompatibleReasoningSupport.declaredReasoningEfforts(
+            providerConfig: providerConfig,
+            modelID: modelID
+        )
     }
 
     var usesNativeOpenAIPlatform: Bool {

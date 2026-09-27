@@ -110,6 +110,24 @@ enum OpenAICompatibleReasoningSupport {
         }
 
         if reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == ReasoningEffort.none {
+            let declaredEfforts = declaredReasoningEfforts(providerConfig: providerConfig, modelID: modelID)
+            // Always-on models reject effort "none"; fall back to the lowest
+            // supported effort instead of disabling, same as the OpenRouter path.
+            if !ModelSettingsResolver.defaultReasoningCanDisable(
+                for: providerConfig.type,
+                modelID: modelID,
+                declaredEfforts: declaredEfforts
+            ) {
+                let fallback = ModelCapabilityRegistry.supportedReasoningEfforts(
+                    for: providerConfig.type,
+                    modelID: modelID,
+                    declaredEfforts: declaredEfforts
+                ).first ?? .low
+                body["reasoning"] = [
+                    "effort": mapReasoningEffort(fallback, providerConfig: providerConfig, modelID: modelID)
+                ]
+                return false
+            }
             body["reasoning"] = ["effort": "none"]
             return false
         }
@@ -408,15 +426,37 @@ enum OpenAICompatibleReasoningSupport {
 
     // MARK: - Effort Mapping
 
+    /// The effort band the provider itself published for this model
+    /// (`ModelReasoningConfig.supportedEfforts` on the configured model or the
+    /// bundled catalog record), if any. Declared bands are live truth — they win
+    /// over the static registry sets, which cannot know a model newer than this
+    /// build. Nil for models whose band is only known statically.
+    static func declaredReasoningEfforts(providerConfig: ProviderConfig, modelID: String) -> [ReasoningEffort]? {
+        if let model = findConfiguredModel(in: providerConfig, for: modelID),
+           let efforts = ModelSettingsResolver.resolve(
+               model: model,
+               providerType: providerConfig.type
+           ).reasoningConfig?.supportedEfforts,
+           !efforts.isEmpty {
+            return efforts
+        }
+
+        let catalogEfforts = ModelCatalog.entry(for: modelID, provider: providerConfig.type)?
+            .reasoningConfig?.supportedEfforts
+        return catalogEfforts?.isEmpty == false ? catalogEfforts : nil
+    }
+
     static func mapReasoningEffort(
         _ effort: ReasoningEffort,
         providerConfig: ProviderConfig,
         modelID: String
     ) -> String {
+        let declaredEfforts = declaredReasoningEfforts(providerConfig: providerConfig, modelID: modelID)
         let normalized = ModelCapabilityRegistry.normalizedReasoningEffort(
             effort,
             for: providerConfig.type,
-            modelID: modelID
+            modelID: modelID,
+            declaredEfforts: declaredEfforts
         )
 
         switch normalized {
@@ -429,7 +469,8 @@ enum OpenAICompatibleReasoningSupport {
             // this path, so the fold to "low" only remains as a defensive tail.
             return ModelCapabilityRegistry.supportedReasoningEfforts(
                 for: providerConfig.type,
-                modelID: modelID
+                modelID: modelID,
+                declaredEfforts: declaredEfforts
             ).contains(.minimal) ? "minimal" : "low"
         case .low:
             return "low"
@@ -442,8 +483,13 @@ enum OpenAICompatibleReasoningSupport {
         case .max:
             // `max` is a real API value starting with GPT-5.6 (and for OpenRouter
             // models whose band includes it, e.g. sakana/fugu-ultra); older models
-            // reject it and stay clamped to xhigh.
-            return ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: providerConfig.type, modelID: modelID)
+            // reject it and stay clamped to xhigh. A provider-declared band that
+            // contains `max` is the published wire value, so it passes through.
+            return declaredEfforts?.contains(.max) == true
+                || ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(
+                    for: providerConfig.type,
+                    modelID: modelID
+                )
                 ? "max"
                 : "xhigh"
         }

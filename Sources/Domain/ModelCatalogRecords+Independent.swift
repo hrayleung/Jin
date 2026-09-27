@@ -454,6 +454,38 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: false),
+        // Claude Opus 5.5 on DeepInfra (deepinfra.com/anthropic/claude-opus-5-5,
+        // listed 2026-09-23): Multimodal + Function Calling + JSON badges,
+        // 1,000,000 context. Anthropic's upstream band is low…max (default
+        // `medium`, reasoning cannot be disabled); DeepInfra forwards
+        // `reasoning_effort`, so the native band is declared here.
+        Record(id: "anthropic/claude-opus-5-5", displayName: "Claude Opus 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Tencent Hy4 preview on DeepInfra (deepinfra.com/tencent/Hy4-preview,
+        // listed 2026-09-25): text-only, 1,048,576 context, Function Calling +
+        // JSON. HF card (tencent/Hy4-preview) documents `no_think` toggle and a
+        // high reasoning default; the only verified wire value is `high`, so the
+        // band is pinned and disable means omitting the field.
+        Record(id: "tencent/Hy4-preview", displayName: "Hy4 Preview",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 64_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.high]),
+               isFullySupported: true, isSeeded: false),
+        // Catalog-only — `nvidia/Nemotron-3-Diarization` is an audio→text
+        // diarization endpoint, not a chat model (blocked-adapter: no ASR
+        // request surface exists).
+        Record(id: "nvidia/Nemotron-3-Diarization", displayName: "Nemotron 3 Diarization",
+               capabilities: [.audio],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
     ]
 
     // MARK: Together AI
@@ -662,11 +694,13 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
         // Together serverless table: 524,288 context. Do not copy Inkling's
         // vision/audio/always-on band onto this smaller slug.
+        // Removed from serverless 2026-09-15 (changelog) — dedicated endpoints
+        // only. Kept catalog-only for persisted chats.
         Record(id: "thinkingmachines/Inkling-Small", displayName: "Inkling Small",
                capabilities: [.streaming, .toolCalling],
                contextWindow: 524_288,
                reasoningConfig: nil,
-               isFullySupported: true, isSeeded: false),
+               isFullySupported: false, isSeeded: false),
         Record(id: "zai-org/GLM-4.7", displayName: "GLM-4.7",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 202_752,
@@ -678,11 +712,13 @@ extension ModelCatalog {
                contextWindow: 131_072,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // Removed from Together serverless 2026-09-15 (changelog) — dedicated
+        // endpoints only. Kept catalog-only for persisted chats.
         Record(id: "openai/gpt-oss-20b", displayName: "GPT-OSS 20B",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
-               isFullySupported: true, isSeeded: false),
+               isFullySupported: false, isSeeded: false),
         Record(id: "Qwen/Qwen3-Next-80B-A3B-Instruct", displayName: "Qwen3 Next 80B A3B",
                capabilities: [.streaming, .toolCalling],
                contextWindow: 262_144,
@@ -703,6 +739,25 @@ extension ModelCatalog {
         Record(id: "ByteDance/Seedance-2.5", displayName: "Seedance 2.5",
                capabilities: [.videoGeneration],
                contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Tev1-4B-Experimental (Together serverless changelog 2026-09-23):
+        // Together's own experimental 4B. Serverless table publishes 32,768
+        // context and marks function calling / structured output "-", so only
+        // streaming is claimed. Max output unpublished.
+        Record(id: "together/Tev1-4B-experimental", displayName: "Tev1 4B Experimental",
+               capabilities: [.streaming],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Muse Glimmer 30B (Together serverless table, fetched 2026-09-27):
+        // Meta's image-capable reasoning model, 131,072 context. The table marks
+        // function calling "-", so no .toolCalling. Reasoning effort levels are
+        // documented by Meta but unverified over Together's chat-completions
+        // surface — capability is claimed, no effort config is exposed.
+        Record(id: "meta-models/Muse-Glimmer-30B", displayName: "Muse Glimmer 30B",
+               capabilities: [.streaming, .vision, .reasoning],
+               contextWindow: 131_072,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
     ]
@@ -1569,6 +1624,38 @@ extension ModelCatalog {
         Record(id: "accounts/fireworks/models/ling-3-flash-fin", displayName: "Ling 3 Flash Fin",
                capabilities: [.streaming],
                contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        // Ember-1 (fireworks.ai/models/fireworks/ember-1, serverless listing
+        // 2026-09-22): Fireworks' own model built on Kimi K3 with ~40% shorter
+        // reasoning traces. 1,048,576 context / 131,072 output, Vision badge,
+        // function calling. Reasoning: toggle + effort low/medium/high/max +
+        // budget_tokens (models.dev `fireworks-ai`); default is unpublished —
+        // .medium is the conservative middle of the band.
+        Record(id: "accounts/fireworks/models/ember-1", displayName: "Ember-1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Muse Glimmer 30B (fireworks.ai/models/fireworks/muse-glimmer-30b):
+        // Meta's image-capable reasoning model, serverless + on-demand,
+        // 131,000 context, function calling + image input. Meta documents
+        // selectable low..xhigh reasoning effort; that band is kept but the
+        // default is unpublished — .medium is the conservative middle.
+        Record(id: "accounts/fireworks/models/muse-glimmer-30b", displayName: "Muse Glimmer 30B",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 131_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        // MiMo V2.6 Pro RL (fireworks.ai/models/fireworks/mimo-v2p6-pro-rl,
+        // listed 2026-09-25) is on-demand-deployment only ("Serverless: Not
+        // supported") — cataloged for recognition only, like kimi-pluto-v1.
+        Record(id: "accounts/fireworks/models/mimo-v2p6-pro-rl", displayName: "MiMo V2.6 Pro RL",
+               capabilities: [.streaming, .vision, .reasoning],
+               contextWindow: 1_040_000,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
     ]
@@ -2501,6 +2588,50 @@ extension ModelCatalog {
                contextWindow: 262_144,
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        // GPT-6 Luna on OpenCode Go (live /zen/go/v1/models + opencode.ai/docs/go
+        // endpoint table, 2026-09-22): routes to `/responses` — exact ID added to
+        // `openAIResponsesModelIDs`. Same 1,050,000 / 128,000 limits and
+        // none..max effort band as gpt-5.6-luna (models.dev `opencode-go`).
+        Record(id: "gpt-6-luna", displayName: "GPT-6 Luna",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
+        // Space Bunny Free (live /zen/go/v1/models, released 2026-09-23):
+        // /chat/completions path (not in the Anthropic/Responses ID sets).
+        // models.dev `opencode-go`: 1,048,576 context / 524,288 output,
+        // text+image, tools, reasoning_effort low..max (default unpublished —
+        // .high is the conservative middle). Video is NOT claimed.
+        Record(id: "space-bunny-free", displayName: "Space Bunny (Free)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // LongCat 2.5 Preview Free (live /zen/go/v1/models, released 2026-09-25):
+        // /chat/completions path. 1,000,000 context / 131,072 output, text+image,
+        // tools. Reasoning is toggle-only on this free tier (same shape as
+        // longcat-2.0), so reasoningConfig stays nil — Jin claims `.reasoning`
+        // for streamed thinking but emits no effort it can't honor.
+        Record(id: "longcat-2.5-preview-free", displayName: "LongCat 2.5 Preview (Free)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // `deepseek-flash` on Go (live /zen/go/v1/models) is DeepSeek's official
+        // alias for V4.1 Flash — same /chat/completions path, same multimodal
+        // successor caps and high/max band as `deepseek-v4.1-flash`
+        // (deepSeekV4ReasoningEffortModelIDs already covers the alias).
+        // Unseeded alias — the canonical V4.1 Flash record stays the picker entry.
+        Record(id: "deepseek-flash", displayName: "DeepSeek Flash (Alias)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
     ]
 

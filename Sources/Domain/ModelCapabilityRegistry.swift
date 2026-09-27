@@ -460,6 +460,9 @@ enum ModelCapabilityRegistry {
         "zai-org/glm-5.3",
         "zai-org/glm-5.3-fp8",
         "zai-org/glm-5.3-flash",
+        // GLM-5.3-Prime (OpenRouter `z-ai/` slug, live /models 2026-09-24):
+        // same low/high/max band per models.dev `openrouter` reasoning_options.
+        "z-ai/glm-5.3-prime",
     ]
     /// Ox Alpha on OpenRouter (`stealth/ox-alpha`): live `/models` supported_efforts
     /// are max/high/low (default max, mandatory=true). Exact ID only — the Go slug
@@ -518,8 +521,10 @@ enum ModelCapabilityRegistry {
         "qwen/qwen3.8-27b",
     ]
     /// Alibaba Cloud Qwen3.8 Max on OpenRouter: xhigh/high/medium/low/minimal.
+    /// `qwen3.8-max-prime` (live /models 2026-09-24) publishes the same band.
     private static let openRouterQwen38CloudMaxReasoningEffortModelIDs: Set<String> = [
         "qwen/qwen3.8-max",
+        "qwen/qwen3.8-max-prime",
     ]
     /// Sakana Fugu Ultra only accepts the high/xhigh/max band (OpenRouter
     /// supported_efforts, verified 2026-07-11). fugu-ultra-v2 / fugu-max carry
@@ -563,6 +568,9 @@ enum ModelCapabilityRegistry {
         // OpenRouter passes the Anthropic effort band through on both variants.
         "anthropic/claude-opus-5.5",
         "anthropic/claude-opus-5.5:batch",
+        // Space Bunny Alpha (live /models 2026-09-24): models.dev `openrouter`
+        // reasoning_options publish the same low…max ladder.
+        "stealth/space-bunny-alpha",
     ]
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
@@ -769,6 +777,9 @@ enum ModelCapabilityRegistry {
         "claude-fable-5-1",
         "accounts/fireworks/models/glm-5p3-flash",
         "claude-fable-5",
+        // docs.router.com supported-models (fetched 2026-09-27): `opus-5-5`
+        // label publishes minimal..max (callable ID keeps the claude- prefix).
+        "claude-opus-5-5",
     ]
     /// Router band `minimal, low, medium, high, xhigh`.
     private static let routerMinimalToExtremeEffortModelIDs: Set<String> = [
@@ -787,6 +798,10 @@ enum ModelCapabilityRegistry {
         "gpt-5.6-luna",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
+        // docs.router.com supported-models (fetched 2026-09-27): gpt-6-sol /
+        // gpt-6-luna publish the same none…max ladder as the 5.6 tiers.
+        "gpt-6-sol",
+        "gpt-6-luna",
     ]
     /// Router band `none, low, medium, high, xhigh`. Note Router drops `minimal`
     /// on these, unlike OpenAI's own GPT-5.4/5.5 ladder.

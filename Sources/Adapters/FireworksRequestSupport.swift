@@ -191,13 +191,18 @@ extension FireworksAdapter {
     }
 
     private func mapReasoningEffort(_ effort: ReasoningEffort, modelID: String) -> String {
-        // Registry bands already encode per-model wire values (Kimi K3 max,
-        // DeepSeek V4 Pro 0813 low/high/max, Qwen3.8 xhigh). Normalize first
-        // so unsupported labels fold, then send the surviving raw value.
+        // Declared bands (catalog records / live fetch) and registry sets already
+        // encode per-model wire values (Kimi K3 max, DeepSeek V4 Pro 0813
+        // low/high/max, Qwen3.8 xhigh). Normalize first so unsupported labels
+        // fold, then send the surviving raw value.
         ModelCapabilityRegistry.normalizedReasoningEffort(
             effort,
             for: .fireworks,
-            modelID: modelID
+            modelID: modelID,
+            declaredEfforts: OpenAICompatibleReasoningSupport.declaredReasoningEfforts(
+                providerConfig: providerConfig,
+                modelID: modelID
+            )
         ).rawValue
     }
 

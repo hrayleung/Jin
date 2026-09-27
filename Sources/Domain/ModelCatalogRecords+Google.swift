@@ -261,6 +261,21 @@ extension ModelCatalog {
                contextWindow: 128_000,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
+        // Gemini 3.8 Flash TTS pair (GA 2026-09-22, ai.google.dev changelog):
+        // text-to-speech models that return synthesized audio, not chat text.
+        // Jin's Gemini adapter speaks generateContent text/image; there is no
+        // TTS surface, so these stay catalog-only for fetched/persisted IDs.
+        // Context windows are unpublished for TTS; conservative sentinel.
+        Record(id: "gemini-3.8-flash-tts", displayName: "Gemini 3.8 Flash TTS",
+               capabilities: [.audio],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "gemini-3.8-flash-lite-tts", displayName: "Gemini 3.8 Flash-Lite TTS",
+               capabilities: [.audio],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
     ] + geminiOmniVideoRecords + veoVideoRecords
 
     // MARK: Vertex AI
@@ -1688,5 +1703,96 @@ extension ModelCatalog {
         // NOT cataloged: it requires a source-video input part, and Jin's
         // OpenRouter video pipeline only forwards images. Blocked-adapter until a
         // video-input payload path exists.
+
+        // --- 2026-09-23…25 OpenRouter additions (live GET /api/v1/models +
+        // models.dev `openrouter`, 2026-09-27) ---
+        // GLM-5.3 Prime (created 2026-09-24): text-only, 1,000,000 / 131,072,
+        // tools + reasoning_effort; low/high/max band per models.dev
+        // reasoning_options (glm53LowHighMaxReasoningEffortModelIDs).
+        Record(id: "z-ai/glm-5.3-prime", displayName: "Z.ai: GLM 5.3 Prime",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max,
+                                                     supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Qwen3.8 Max Prime (created 2026-09-24): Alibaba Cloud tier above
+        // qwen3.8-max. Text+image (architecture also lists video — NOT claimed,
+        // no live clip probe run for this slug). 1,000,000 / 131,072, tools +
+        // structured outputs + reasoning_effort minimal..xhigh.
+        Record(id: "qwen/qwen3.8-max-prime", displayName: "Qwen: Qwen3.8 Max Prime",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh,
+                                                     supportedEfforts: [.minimal, .low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        // Space Bunny Alpha (created 2026-09-24): stealth model. Text+image
+        // (architecture lists video — NOT claimed without a live probe).
+        // 1,000,000 / 524,288, tools + reasoning_effort low..max; default is
+        // unpublished, .high is the conservative middle of the band.
+        Record(id: "stealth/space-bunny-alpha", displayName: "Stealth: Space Bunny Alpha",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Aion-3.5 + Mini (created 2026-09-25): text-only, 262,144 / 32,768,
+        // tools + reasoning_effort low/high/max (no medium). Default
+        // unpublished; .high is the middle of the band.
+        Record(id: "aion-labs/aion-3.5", displayName: "AionLabs: Aion-3.5",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "aion-labs/aion-3.5-mini", displayName: "AionLabs: Aion-3.5 Mini",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Solar Mini4 (created 2026-09-25): text-only, 524,288 / 131,072, tools +
+        // structured outputs + parallel_tool_calls; full none..max effort band.
+        Record(id: "upstage/solar-mini4", displayName: "Upstage: Solar Mini4",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 524_288,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.none, .minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Ember-1 (created 2026-09-23): OpenRouter's hosted copy of Fireworks'
+        // Kimi-K3-based reasoning model. Text+image, 1,048,576 / 943,718 (the odd
+        // output number is what the live API publishes), tools + structured
+        // outputs, reasoning toggle + effort low/high/max (no medium).
+        Record(id: "fireworks/ember-1", displayName: "Fireworks: Ember-1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Typesafe Jev Router (created 2026-09-24): model router exposed as a
+        // chat model. No tools/reasoning params on the live API. Input
+        // modalities include audio/file/video — only image (.vision) is claimed;
+        // the rest are unverified on this gateway.
+        Record(id: "typesafe/jev-router", displayName: "Typesafe: Jev Router",
+               capabilities: [.streaming, .vision],
+               contextWindow: 1_000_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Perceptron Mk1.5 (created 2026-09-25): embodied-reasoning model,
+        // 36,864 / 8,192, tools + structured outputs, effort none..high.
+        // Architecture lists audio+video input — NOT claimed (no live probe).
+        Record(id: "perceptron/perceptron-mk1.5", displayName: "Perceptron: Perceptron Mk1.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 36_864,
+               maxOutputTokens: 8_192,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.none, .minimal, .low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
     ]
 }
