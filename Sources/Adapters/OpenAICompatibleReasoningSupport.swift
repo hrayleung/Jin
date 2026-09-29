@@ -369,6 +369,17 @@ enum OpenAICompatibleReasoningSupport {
         modelID: String
     ) {
         let lowerModelID = modelID.lowercased()
+
+        if ModelCapabilityRegistry.isMiniMaxAlwaysThinkingEffortModel(for: providerConfig.type, modelID: modelID) {
+            // MiniMax-M3.1-Flash-Preview always thinks: `thinking: {type: "disabled"}` and
+            // `reasoning_effort: "none"` both return HTTP 400, and `adaptive` is the only
+            // `thinking.type` it accepts. Depth is tuned with `reasoning_effort` instead
+            // (platform.minimax.io text-chat-openai OpenAPI, 2026-09-29).
+            body["thinking"] = ["type": "adaptive"]
+            body["reasoning_effort"] = miniMaxAlwaysThinkingEffortWireValue(from: reasoning)
+            return
+        }
+
         let isGLM53 = isZhipuGLM53ModelID(lowerModelID)
         let isDisabled = !isGLM53 && (!reasoning.enabled || reasoning.effort == ReasoningEffort.none)
 
@@ -387,6 +398,26 @@ enum OpenAICompatibleReasoningSupport {
         if isZhipuGLM52ModelID(lowerModelID) {
             let effort = reasoning.effort ?? .high
             body["reasoning_effort"] = (effort == .max || effort == .xhigh) ? "max" : "high"
+        }
+    }
+
+    /// Published band is low/medium/high/xhigh/max (default max). An Off control cannot be
+    /// honored, so it degrades to the lowest rung rather than emitting a rejected `none`.
+    private static func miniMaxAlwaysThinkingEffortWireValue(from reasoning: ReasoningControls) -> String {
+        if !reasoning.enabled {
+            return "low"
+        }
+        switch reasoning.effort ?? .max {
+        case .none, .minimal, .low:
+            return "low"
+        case .medium:
+            return "medium"
+        case .high:
+            return "high"
+        case .xhigh:
+            return "xhigh"
+        case .max:
+            return "max"
         }
     }
 

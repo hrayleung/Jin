@@ -394,15 +394,19 @@ enum ModelCapabilityRegistry {
 
     /// Exact model IDs that Anthropic currently documents as supporting the code execution tool.
     /// Includes Fable 5 / Mythos 5 (restored 2026-07 docs list code execution under Supported features).
+    /// Mirrors the tool page's `supportedModels` front matter (re-read 2026-09-29), which also
+    /// names Opus 5.5 and Sonnet 5.5.
     private static let anthropicCodeExecutionSupportedModelIDs: Set<String> = [
         "claude-fable-5-1",
         "claude-mythos-5-1",
         "claude-fable-5",
         "claude-mythos-5",
+        "claude-opus-5-5",
         "claude-opus-5",
         "claude-opus-4-8",
         "claude-opus-4-7",
         "claude-opus-4-6",
+        "claude-sonnet-5-5",
         "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5-20250929",
@@ -568,6 +572,10 @@ enum ModelCapabilityRegistry {
         // OpenRouter passes the Anthropic effort band through on both variants.
         "anthropic/claude-opus-5.5",
         "anthropic/claude-opus-5.5:batch",
+        // Sonnet 5.5 (live /models 2026-09-29): supported_efforts max…low, default
+        // `high`, on both the sync slug and its `:batch` twin.
+        "anthropic/claude-sonnet-5.5",
+        "anthropic/claude-sonnet-5.5:batch",
         // Space Bunny Alpha (live /models 2026-09-24): models.dev `openrouter`
         // reasoning_options publish the same low…max ladder.
         "stealth/space-bunny-alpha",
@@ -734,6 +742,21 @@ enum ModelCapabilityRegistry {
     // not match any other provider's (`claude-opus-5`, not `claude-opus-5-20260115`;
     // `accounts/fireworks/models/kimi-k3`, not `moonshotai/kimi-k3`).
 
+    /// MiniMax models that always think and tune depth with `reasoning_effort` instead of the
+    /// `thinking` toggle: `MiniMax-M3.1-Flash-Preview` returns HTTP 400 for
+    /// `thinking: {type: "disabled"}` and for effort `none`, accepts only `thinking.type:
+    /// "adaptive"`, and publishes low/medium/high/xhigh/max with `max` as the default
+    /// (platform.minimax.io text-chat-openai OpenAPI, 2026-09-29). `MiniMax-M3` (toggle)
+    /// and the M2.x line stay on the shared toggle mapping. Exact IDs only.
+    private static let minimaxAlwaysThinkingEffortModelIDs: Set<String> = [
+        "minimax-m3.1-flash-preview",
+    ]
+
+    static func isMiniMaxAlwaysThinkingEffortModel(for providerType: ProviderType?, modelID: String) -> Bool {
+        guard providerType == .minimax || providerType == .minimaxCodingPlan else { return false }
+        return minimaxAlwaysThinkingEffortModelIDs.contains(modelID.lowercased())
+    }
+
     /// Router band `none, minimal, low, medium, high, xhigh, max`.
     private static let routerFullLadderEffortModelIDs: Set<String> = [
         "accounts/fireworks/models/deepseek-v4-flash",
@@ -749,6 +772,9 @@ enum ModelCapabilityRegistry {
         "claude-opus-4-8",
         "claude-opus-5",
         "claude-sonnet-4-6",
+        // docs.router.com supported-models (fetched 2026-09-29): `sonnet-5-5` publishes
+        // the same none…max ladder as `sonnet-5` (callable ID inferred, see the record).
+        "claude-sonnet-5-5",
         "claude-sonnet-5",
         "grok-4.20-multi-agent-0309",
     ]
@@ -1338,6 +1364,9 @@ enum ModelCapabilityRegistry {
             return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
         case .modal where modalQwen38TextReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .medium, .xhigh]
+        case .minimax where minimaxAlwaysThinkingEffortModelIDs.contains(lowerModelID),
+             .minimaxCodingPlan where minimaxAlwaysThinkingEffortModelIDs.contains(lowerModelID):
+            return [.low, .medium, .high, .xhigh, .max]
         case .runinfra where runinfraDeepSeekV4FlashReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .low, .medium, .max]
         case .runinfra where runinfraQwen3827BReasoningEffortModelIDs.contains(lowerModelID):
@@ -1919,8 +1948,9 @@ enum ModelCapabilityRegistry {
     /// Models that support the `web_search_20260209` tool with dynamic filtering.
     /// Documented list includes Fable 5.1 / Mythos 5.1, Fable 5, Mythos 5, Opus 5,
     /// Opus 4.8/4.7/4.6, Sonnet 5/4.6. Dynamic filtering is "Claude 4.6 and later"
-    /// plus Mythos; Fable 5.1 is the Fable 5 successor (2026-09-01) and Opus 5.5
-    /// (2026-09-22) is later than 4.6 with server-side tool support.
+    /// plus Mythos; Fable 5.1 is the Fable 5 successor (2026-09-01), Opus 5.5
+    /// (2026-09-22) and Sonnet 5.5 (2026-09-28) are later than 4.6 with server-side
+    /// tool support.
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
         let lower = modelID.lowercased()
@@ -1933,6 +1963,7 @@ enum ModelCapabilityRegistry {
             || lower == "claude-opus-4-8"
             || lower == "claude-opus-4-7"
             || lower == "claude-opus-4-6"
+            || lower == "claude-sonnet-5-5"
             || lower == "claude-sonnet-5"
             || lower == "claude-sonnet-4-6"
     }

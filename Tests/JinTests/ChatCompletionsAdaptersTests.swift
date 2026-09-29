@@ -10079,6 +10079,205 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             }
         }
     }
+
+    /// 2026-09-29 census: request shapes for the new always-on / declared-band records.
+    /// MiniMax-M3.1-Flash-Preview must never see `thinking: disabled` or effort `none`
+    /// (both 400); the Cloudflare / Vercel / OpenRouter copies of always-on models fall back
+    /// to their band floor instead of `none`; declared `xhigh` / `max` reach the wire.
+    func testSeptember2026Week5ReasoningWireShapes() async throws {
+        func runAdapter(
+            _ makeAdapter: (NetworkManager) -> any LLMProviderAdapter,
+            modelID: String,
+            controls: GenerationControls,
+            assertBody: @escaping ([String: Any]) throws -> Void
+        ) async throws {
+            let (configuration, protocolType) = makeMockedSessionConfiguration()
+            let networkManager = NetworkManager(configuration: configuration)
+            protocolType.requestHandler = { request in
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                try assertBody(root)
+                let response: [String: Any] = [
+                    "id": "cmpl_week5",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    try JSONSerialization.data(withJSONObject: response)
+                )
+            }
+            let adapter = makeAdapter(networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: modelID,
+                controls: controls,
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+
+        func chatConfig(_ type: ProviderType, _ baseURL: String) -> ProviderConfig {
+            ProviderConfig(id: type.rawValue, name: type.displayName, type: type, apiKey: "ignored", baseURL: baseURL)
+        }
+
+        // MiniMax-M3.1-Flash-Preview (Token-Plan-only model): depth is `reasoning_effort`,
+        // `thinking` is only ever `adaptive`.
+        for providerType in [ProviderType.minimaxCodingPlan] {
+            for (effort, expected) in [(ReasoningEffort.low, "low"), (.medium, "medium"), (.high, "high"),
+                                       (.xhigh, "xhigh"), (.max, "max")] {
+                try await runAdapter(
+                    { OpenAICompatibleAdapter(providerConfig: chatConfig(providerType, "https://api.minimax.io/v1"), apiKey: "k", networkManager: $0) },
+                    modelID: "MiniMax-M3.1-Flash-Preview",
+                    controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort))
+                ) { root in
+                    XCTAssertEqual((root["thinking"] as? [String: Any])?["type"] as? String, "adaptive", "\(providerType) \(effort)")
+                    XCTAssertEqual(root["reasoning_effort"] as? String, expected, "\(providerType) \(effort)")
+                }
+            }
+            // Off cannot be honored: never `disabled`, never `none` — the band floor instead.
+            try await runAdapter(
+                { OpenAICompatibleAdapter(providerConfig: chatConfig(providerType, "https://api.minimax.io/v1"), apiKey: "k", networkManager: $0) },
+                modelID: "MiniMax-M3.1-Flash-Preview",
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: false))
+            ) { root in
+                XCTAssertEqual((root["thinking"] as? [String: Any])?["type"] as? String, "adaptive")
+                XCTAssertEqual(root["reasoning_effort"] as? String, "low")
+            }
+            // A conversation that never touched reasoning sends neither field (server default: adaptive, max).
+            try await runAdapter(
+                { OpenAICompatibleAdapter(providerConfig: chatConfig(providerType, "https://api.minimax.io/v1"), apiKey: "k", networkManager: $0) },
+                modelID: "MiniMax-M3.1-Flash-Preview",
+                controls: GenerationControls()
+            ) { root in
+                XCTAssertNil(root["thinking"])
+                XCTAssertNil(root["reasoning_effort"])
+            }
+        }
+        // The pay-as-you-go provider has no record for a Token-Plan-only ID, so the model is
+        // unknown there: no reasoning UI and no reasoning fields are sent (server default applies).
+        try await runAdapter(
+            { OpenAICompatibleAdapter(providerConfig: chatConfig(.minimax, "https://api.minimax.io/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "MiniMax-M3.1-Flash-Preview",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false))
+        ) { root in
+            XCTAssertNil(root["thinking"])
+            XCTAssertNil(root["reasoning_effort"])
+        }
+        // MiniMax-M3 keeps its `thinking` toggle (regression guard for the shared mapping).
+        try await runAdapter(
+            { OpenAICompatibleAdapter(providerConfig: chatConfig(.minimaxCodingPlan, "https://api.minimax.io/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "MiniMax-M3",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false))
+        ) { root in
+            XCTAssertEqual((root["thinking"] as? [String: Any])?["type"] as? String, "disabled")
+            XCTAssertNil(root["reasoning_effort"])
+        }
+
+        // Cloudflare: Opus 5.5 ("Adaptive Thinking: Always on") and Grok 4.7 fall back to the
+        // band floor when Off; declared xhigh / max survive; GPT-6 keeps its none…max band.
+        let cloudflareURL = "https://gateway.ai.cloudflare.com/v1/acct/gw/compat"
+        for modelID in ["anthropic/claude-opus-5.5", "xai/grok-4.7"] {
+            try await runAdapter(
+                { OpenAICompatibleAdapter(providerConfig: chatConfig(.cloudflareAIGateway, cloudflareURL), apiKey: "k", networkManager: $0) },
+                modelID: modelID,
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: false))
+            ) { root in
+                let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any], modelID)
+                XCTAssertEqual(reasoning["effort"] as? String, "low", modelID)
+            }
+        }
+        try await runAdapter(
+            { OpenAICompatibleAdapter(providerConfig: chatConfig(.cloudflareAIGateway, cloudflareURL), apiKey: "k", networkManager: $0) },
+            modelID: "anthropic/claude-opus-5.5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "max")
+        }
+        try await runAdapter(
+            { OpenAICompatibleAdapter(providerConfig: chatConfig(.cloudflareAIGateway, cloudflareURL), apiKey: "k", networkManager: $0) },
+            modelID: "xai/grok-4.7",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "xhigh")
+        }
+        for (modelID, effort) in [("openai/gpt-6-sol", ReasoningEffort.max), ("openai/gpt-6-luna", .xhigh)] {
+            try await runAdapter(
+                { OpenAICompatibleAdapter(providerConfig: chatConfig(.cloudflareAIGateway, cloudflareURL), apiKey: "k", networkManager: $0) },
+                modelID: modelID,
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort))
+            ) { root in
+                let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any], modelID)
+                XCTAssertEqual(reasoning["effort"] as? String, effort.rawValue, modelID)
+            }
+        }
+        // GPT-6 Sol can genuinely turn reasoning off (band includes `none`).
+        try await runAdapter(
+            { OpenAICompatibleAdapter(providerConfig: chatConfig(.cloudflareAIGateway, cloudflareURL), apiKey: "k", networkManager: $0) },
+            modelID: "openai/gpt-6-sol",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "none")
+        }
+
+        // Vercel Sonnet 5.5: no toggle, no `none` upstream — Off maps to `low`, max stays `max`.
+        try await runAdapter(
+            { OpenAICompatibleAdapter(providerConfig: chatConfig(.vercelAIGateway, "https://ai-gateway.vercel.sh/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "anthropic/claude-sonnet-5.5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "low")
+        }
+        try await runAdapter(
+            { OpenAICompatibleAdapter(providerConfig: chatConfig(.vercelAIGateway, "https://ai-gateway.vercel.sh/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "anthropic/claude-sonnet-5.5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "max")
+        }
+        // Vercel Ember-1 publishes a reasoning toggle: Off really disables (`none`).
+        try await runAdapter(
+            { OpenAICompatibleAdapter(providerConfig: chatConfig(.vercelAIGateway, "https://ai-gateway.vercel.sh/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "fireworks/ember-1",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "none")
+        }
+        // Vercel Pixel Canary: band none/low/medium/xhigh — xhigh reaches the wire.
+        try await runAdapter(
+            { OpenAICompatibleAdapter(providerConfig: chatConfig(.vercelAIGateway, "https://ai-gateway.vercel.sh/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "stealth/pixel-canary",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .xhigh))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "xhigh")
+        }
+
+        // OpenRouter Sonnet 5.5 (mandatory reasoning): Off → band floor, max stays `max`.
+        try await runAdapter(
+            { OpenRouterAdapter(providerConfig: chatConfig(.openrouter, "https://openrouter.ai/api/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "anthropic/claude-sonnet-5.5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "low")
+            XCTAssertEqual(root["include_reasoning"] as? Bool, true)
+        }
+        try await runAdapter(
+            { OpenRouterAdapter(providerConfig: chatConfig(.openrouter, "https://openrouter.ai/api/v1"), apiKey: "k", networkManager: $0) },
+            modelID: "anthropic/claude-sonnet-5.5",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max))
+        ) { root in
+            let reasoning = try XCTUnwrap(root["reasoning"] as? [String: Any])
+            XCTAssertEqual(reasoning["effort"] as? String, "max")
+        }
+    }
 }
 
 // MARK: - URLProtocol stubbing

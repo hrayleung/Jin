@@ -87,6 +87,22 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: ReasoningEffort.none),
                isFullySupported: true, isSeeded: false),
+        // Router supported-models table (fetched 2026-09-29): label `sonnet-5-5`
+        // under [Anthropic] — $2/$10, no Fast mode, 1,000,000 / 128,000, effort band
+        // none…max (same rungs as `sonnet-5`, so it joins routerFullLadderEffortModelIDs).
+        // The table is display-only and `GET /v1/models` (the callable-ID authority)
+        // needs a key, so the `claude-` prefix is inferred exactly like `opus-5-5` →
+        // `claude-opus-5-5`. Unseeded on purpose: if the inferred ID is wrong it never
+        // matches anything, and a key that lists the model on Fetch picks up these limits.
+        // Not marked fully supported until a keyed `GET /v1/models` confirms the callable
+        // ID (unlike its sibling rows, which were transcribed from a live listing).
+        // Default mirrors Anthropic's `high` for Sonnet 5.5.
+        Record(id: "claude-sonnet-5-5", displayName: "Claude Sonnet 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: false, isSeeded: false),
         Record(id: "claude-sonnet-5", displayName: "Claude Sonnet 5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_000_000,

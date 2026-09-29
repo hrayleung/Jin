@@ -332,6 +332,28 @@ extension ModelCatalog {
 
     static let cloudflareAIGatewayRecords: [Record] = [
         // OpenAI
+        // GPT-6 Sol / Luna (Cloudflare model catalog JSON, added 2026-09-23): exact IDs
+        // `openai/gpt-6-sol` and `openai/gpt-6-luna`; 1,050,000 / 128,000, text+image
+        // input, Responses + Chat Completions, reasoning effort none…max. Default
+        // `medium` per OpenAI's model pages. `.nativePDF` / `.codeExecution` stay off
+        // on this gateway, like the GPT-5.6 rows below. Caveat for a live-key follow-up:
+        // OpenAI's own page limits Chat Completions function calling to
+        // `reasoning_effort: "none"`; Cloudflare's Chat Completions schema still lists
+        // `tools`, so tool calling is claimed like the sibling rows, unverified.
+        Record(id: "openai/gpt-6-sol", displayName: "GPT-6 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.none, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6-luna", displayName: "GPT-6 Luna",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.none, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
         // Cloudflare AI Gateway is a passthrough to the OpenAI provider, so the GPT-5.6
         // tiers route with the same `openai/{id}` compound IDs as older 5.x entries.
         Record(id: "openai/gpt-5.6-sol", displayName: "GPT-5.6 Sol",
@@ -459,6 +481,17 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 32_768,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Grok 4.7 (Cloudflare model catalog JSON, added 2026-09-22): `xai/grok-4.7`,
+        // 500,000 context, no published max output, text+image input, Chat
+        // Completions only, reasoning "Configurable (low, medium, high, xhigh)".
+        // Reasoning cannot be disabled upstream (xAI docs), so the ID is in the
+        // Cloudflare always-on set.
+        Record(id: "xai/grok-4.7", displayName: "Grok 4.7",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 500_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh]),
                isFullySupported: true, isSeeded: false),
         Record(id: "xai/grok-4.6", displayName: "Grok 4.6",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
@@ -610,6 +643,18 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Claude Opus 5.5 (Cloudflare model catalog JSON, added 2026-09-23): DOTTED
+        // slug `anthropic/claude-opus-5.5` — unlike the hyphenated 4.x IDs below.
+        // 1,000,000 / 128,000, adaptive thinking "Always on", default effort Medium,
+        // effort low…max. Same Anthropic-Messages-format catalog entry as its Opus 5
+        // sibling. `.nativePDF` stays off on this gateway.
+        Record(id: "anthropic/claude-opus-5.5", displayName: "Claude Opus 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: false),
         Record(id: "anthropic/claude-opus-5", displayName: "Claude Opus 5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
@@ -1678,5 +1723,56 @@ extension ModelCatalog {
                contextWindow: 128_000,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
+
+        // --- Vercel AI Gateway models table additions, fetched 2026-09-29 ---
+        // Claude Sonnet 5.5 (released 2026-09-28): 1,000,000 / 128,000, text+image+pdf
+        // input, explicit-caching / file-input / reasoning / tool-use / vision /
+        // web-search tags. Effort low…max with no toggle or `none` (thinking cannot
+        // be disabled upstream), `temperature: false`. Default effort `high` per
+        // Anthropic. `.promptCaching` / `.nativePDF` stay off on this gateway, like
+        // its Opus 5.5 sibling.
+        Record(id: "anthropic/claude-sonnet-5.5", displayName: "Claude Sonnet 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Ember-1 (released 2026-09-23): Fireworks' research-preview reasoning model
+        // built on Kimi K3. 1,048,576 context AND output per the live gateway,
+        // text+image input, tools. Vercel publishes reasoning as toggle + effort
+        // low/medium/high + budget_tokens (min 1024) — narrower than the OpenRouter
+        // (low/high/max) and Fireworks (low/medium/high/max) bands, so it carries its
+        // own. The toggle means reasoning can be switched off; the default effort is
+        // unpublished, so `medium` is the conservative middle of the band.
+        Record(id: "fireworks/ember-1", displayName: "Ember-1",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Pixel Canary (released 2026-09-25): anonymous free model with coding focus.
+        // 262,144 / 131,072, text+image input. The gateway lists no tool or
+        // structured-output parameters, so `.toolCalling` is not claimed. Effort
+        // none/low/medium/xhigh — no `high`; the default is unpublished, so `medium`
+        // is the conservative middle. Prompts may be retained for training
+        // (zdr/no_training: none).
+        Record(id: "stealth/pixel-canary", displayName: "Pixel Canary",
+               capabilities: [.streaming, .vision, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.none, .low, .medium, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        // LongCat 2.5 Preview (released 2026-09-26): Meituan's multimodal reasoning
+        // model. 1,048,576 / 131,072, text+image input, tools + structured outputs,
+        // reasoning is a bare toggle (no effort values).
+        Record(id: "meituan/longcat-2.5-preview", displayName: "LongCat 2.5 Preview",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
     ]
 }

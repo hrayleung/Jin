@@ -3829,4 +3829,159 @@ final class ModelCatalogTests: XCTestCase {
             XCTAssertNotNil(ModelCatalog.entry(for: id, provider: .gemini), id)
         }
     }
+
+    /// Census additions for 2026-09-27…29: Claude Sonnet 5.5 and its hosted copies, the
+    /// Cloudflare copies of the Sep 22 launches, Vercel additions, MiniMax M3.1 Flash
+    /// Preview, and the catalog-only Databricks row.
+    func testSeptember2026Week5CatalogUsesExactIDsAndDeclaredBands() {
+        let fullLadder: [ReasoningEffort] = [.low, .medium, .high, .xhigh, .max]
+
+        // OpenRouter — Sonnet 5.5 uses the DOTTED slug, is mandatory-reasoning, low…max.
+        let orSonnet = ModelCatalog.modelInfo(for: "anthropic/claude-sonnet-5.5", provider: .openrouter)
+        XCTAssertEqual(orSonnet.contextWindow, 1_000_000)
+        XCTAssertEqual(orSonnet.maxOutputTokens, 128_000)
+        XCTAssertEqual(orSonnet.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(orSonnet.reasoningConfig?.supportedEfforts, fullLadder)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "anthropic/claude-sonnet-5.5"),
+            fullLadder
+        )
+        XCTAssertTrue(
+            ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openrouter, modelID: "anthropic/claude-sonnet-5.5")
+        )
+        for id in ["anthropic/claude-sonnet-5.5", "anthropic/claude-sonnet-5.5:batch"] {
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: id), id)
+        }
+        // The OpenRouter adapter drops video input and text-falls-back PDFs — never claimed here.
+        for forbidden: ModelCapability in [.nativePDF, .videoInput, .codeExecution] {
+            XCTAssertFalse(orSonnet.capabilities.contains(forbidden), "\(forbidden)")
+        }
+        // The sync slug lists `temperature`; the `:batch` twin publishes no sampling params.
+        XCTAssertFalse(openRouterOmitsSamplingParameters(modelID: "anthropic/claude-sonnet-5.5"))
+        XCTAssertTrue(openRouterOmitsSamplingParameters(modelID: "anthropic/claude-sonnet-5.5:batch"))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "anthropic/claude-sonnet-5.5", provider: .openrouter))
+        // `:batch` is catalog-only until sync callability is verified.
+        XCTAssertNotNil(ModelCatalog.entry(for: "anthropic/claude-sonnet-5.5:batch", provider: .openrouter))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "anthropic/claude-sonnet-5.5:batch", provider: .openrouter))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "anthropic/claude-sonnet-5-5", provider: .openrouter))
+
+        // OpenRouter media — the image-output rows ride the existing image-generation path.
+        let recraft = ModelCatalog.modelInfo(for: "recraft/recraft-v4.1-flash", provider: .openrouter)
+        XCTAssertEqual(recraft.contextWindow, 65_536)
+        XCTAssertEqual(recraft.capabilities, [.imageGeneration])
+        let layer = ModelCatalog.modelInfo(for: "inclusionai/ming-image-0.1-design-layer", provider: .openrouter)
+        XCTAssertEqual(layer.capabilities, [.vision, .imageGeneration])
+        XCTAssertEqual(ModelSettingsResolver.inferModelType(capabilities: recraft.capabilities, modelID: recraft.id), .image)
+        XCTAssertEqual(ModelSettingsResolver.inferModelType(capabilities: layer.capabilities, modelID: layer.id), .image)
+
+        // Vercel AI Gateway — Sonnet 5.5 and the three new language models.
+        let vSonnet = ModelCatalog.modelInfo(for: "anthropic/claude-sonnet-5.5", provider: .vercelAIGateway)
+        XCTAssertEqual(vSonnet.contextWindow, 1_000_000)
+        XCTAssertEqual(vSonnet.maxOutputTokens, 128_000)
+        XCTAssertEqual(vSonnet.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(vSonnet.reasoningConfig?.supportedEfforts, fullLadder)
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "anthropic/claude-sonnet-5.5"))
+
+        let vEmber = ModelCatalog.modelInfo(for: "fireworks/ember-1", provider: .vercelAIGateway)
+        XCTAssertEqual(vEmber.contextWindow, 1_048_576)
+        XCTAssertEqual(vEmber.maxOutputTokens, 1_048_576)
+        // Vercel's own band (toggle + low/medium/high) — narrower than OpenRouter's low/high/max.
+        XCTAssertEqual(vEmber.reasoningConfig?.supportedEfforts, [.low, .medium, .high])
+        XCTAssertTrue(vEmber.capabilities.isSuperset(of: [.toolCalling, .vision, .reasoning]))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "fireworks/ember-1"))
+
+        let pixel = ModelCatalog.modelInfo(for: "stealth/pixel-canary", provider: .vercelAIGateway)
+        XCTAssertEqual(pixel.contextWindow, 262_144)
+        XCTAssertEqual(pixel.maxOutputTokens, 131_072)
+        XCTAssertEqual(pixel.reasoningConfig?.supportedEfforts, [.none, .low, .medium, .xhigh])
+        XCTAssertTrue(pixel.capabilities.contains(.vision))
+        // The gateway lists no tool parameters for this model.
+        XCTAssertFalse(pixel.capabilities.contains(.toolCalling))
+
+        let longcat = ModelCatalog.modelInfo(for: "meituan/longcat-2.5-preview", provider: .vercelAIGateway)
+        XCTAssertEqual(longcat.contextWindow, 1_048_576)
+        XCTAssertEqual(longcat.maxOutputTokens, 131_072)
+        XCTAssertEqual(longcat.reasoningConfig?.type, .toggle)
+        XCTAssertTrue(longcat.capabilities.isSuperset(of: [.toolCalling, .vision, .reasoning]))
+        for id in ["fireworks/ember-2", "stealth/pixel-canary-2", "meituan/longcat-2.5", "anthropic/claude-sonnet-5-5"] {
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .vercelAIGateway), id)
+        }
+
+        // Cloudflare AI Gateway — the Sep 22 launches' exact compound IDs.
+        let cfOpus = ModelCatalog.modelInfo(for: "anthropic/claude-opus-5.5", provider: .cloudflareAIGateway)
+        XCTAssertEqual(cfOpus.contextWindow, 1_000_000)
+        XCTAssertEqual(cfOpus.maxOutputTokens, 128_000)
+        XCTAssertEqual(cfOpus.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertEqual(cfOpus.reasoningConfig?.supportedEfforts, fullLadder)
+        XCTAssertFalse(cfOpus.capabilities.contains(.nativePDF))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .cloudflareAIGateway, modelID: "anthropic/claude-opus-5.5"))
+        for id in ["openai/gpt-6-sol", "openai/gpt-6-luna"] {
+            let m = ModelCatalog.modelInfo(for: id, provider: .cloudflareAIGateway)
+            XCTAssertEqual(m.contextWindow, 1_050_000, id)
+            XCTAssertEqual(m.maxOutputTokens, 128_000, id)
+            XCTAssertEqual(m.reasoningConfig?.supportedEfforts, [.none, .low, .medium, .high, .xhigh, .max], id)
+            XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .cloudflareAIGateway, modelID: id), id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .cloudflareAIGateway), id)
+        }
+        let cfGrok = ModelCatalog.modelInfo(for: "xai/grok-4.7", provider: .cloudflareAIGateway)
+        XCTAssertEqual(cfGrok.contextWindow, 500_000)
+        XCTAssertNil(cfGrok.maxOutputTokens)
+        XCTAssertEqual(cfGrok.reasoningConfig?.supportedEfforts, [.low, .medium, .high, .xhigh])
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .cloudflareAIGateway, modelID: "xai/grok-4.7"))
+        // Older Claude rows on this gateway keep their previous toggleable default.
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .cloudflareAIGateway, modelID: "anthropic/claude-opus-5"))
+        // Sonnet 5.5 is not on Cloudflare (its model page 404s) — no record.
+        XCTAssertNil(ModelCatalog.entry(for: "anthropic/claude-sonnet-5.5", provider: .cloudflareAIGateway))
+
+        // Ramp Router — callable ID inferred from the docs label, so unseeded; band = sonnet-5's.
+        let routerSonnet = ModelCatalog.modelInfo(for: "claude-sonnet-5-5", provider: .router)
+        XCTAssertEqual(routerSonnet.contextWindow, 1_000_000)
+        XCTAssertEqual(routerSonnet.maxOutputTokens, 128_000)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .router, modelID: "claude-sonnet-5-5"),
+            [.none, .minimal, .low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertFalse(ModelCatalog.seededModels(for: .router).contains(where: { $0.id == "claude-sonnet-5-5" }))
+        // The callable ID is inferred from a display-only label — no ✦ until a keyed /v1/models confirms it.
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "claude-sonnet-5-5", provider: .router))
+
+        // Databricks — endpoint named in the docs, specs undocumented: conservative and catalog-only.
+        let dbx = ModelCatalog.modelInfo(for: "databricks-claude-sonnet-5-5", provider: .databricks)
+        XCTAssertEqual(dbx.capabilities, [.streaming, .toolCalling])
+        XCTAssertEqual(dbx.contextWindow, 128_000)
+        XCTAssertNil(dbx.reasoningConfig)
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "databricks-claude-sonnet-5-5", provider: .databricks))
+        XCTAssertFalse(ModelCatalog.seededModels(for: .databricks).contains(where: { $0.id == "databricks-claude-sonnet-5-5" }))
+
+        // MiniMax Token Plan — M3.1 Flash Preview always thinks and is Token-Plan-only.
+        let m31 = ModelCatalog.modelInfo(for: "MiniMax-M3.1-Flash-Preview", provider: .minimaxCodingPlan)
+        XCTAssertEqual(m31.name, "MiniMax M3.1 Flash Preview")
+        XCTAssertEqual(m31.contextWindow, 1_000_000)
+        XCTAssertEqual(m31.maxOutputTokens, 524_288)
+        XCTAssertEqual(m31.capabilities, [.streaming, .toolCalling, .vision, .reasoning])
+        XCTAssertFalse(m31.capabilities.contains(.videoInput))
+        XCTAssertEqual(m31.reasoningConfig?.type, .effort)
+        XCTAssertEqual(m31.reasoningConfig?.defaultEffort, .max)
+        XCTAssertEqual(m31.reasoningConfig?.supportedEfforts, fullLadder)
+        for providerType in [ProviderType.minimaxCodingPlan, .minimax] {
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: providerType, modelID: "MiniMax-M3.1-Flash-Preview"),
+                fullLadder,
+                "\(providerType)"
+            )
+            XCTAssertFalse(
+                ModelSettingsResolver.defaultReasoningCanDisable(for: providerType, modelID: "MiniMax-M3.1-Flash-Preview"),
+                "\(providerType)"
+            )
+            // M3 keeps its toggle.
+            XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: providerType, modelID: "MiniMax-M3"), "\(providerType)")
+        }
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "MiniMax-M3.1-Flash-Preview", provider: .minimaxCodingPlan))
+        XCTAssertNil(ModelCatalog.entry(for: "MiniMax-M3.1-Flash-Preview", provider: .minimax))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "MiniMax-M3.1-Flash", provider: .minimaxCodingPlan))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "MiniMax-M3.1", provider: .minimaxCodingPlan))
+        let tokenPlanSeeded = ModelCatalog.seededModels(for: .minimaxCodingPlan).map(\.id)
+        XCTAssertEqual(tokenPlanSeeded.first, "MiniMax-M3")
+        XCTAssertTrue(tokenPlanSeeded.contains("MiniMax-M3.1-Flash-Preview"))
+    }
 }
