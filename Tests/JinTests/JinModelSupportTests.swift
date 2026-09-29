@@ -1094,8 +1094,8 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(opus55.capabilities.contains(.nativePDF))
         XCTAssertTrue(opus55.capabilities.contains(.promptCaching))
         XCTAssertTrue(opus55.capabilities.contains(.reasoning))
-        XCTAssertFalse(opus55.capabilities.contains(.codeExecution),
-                       "Opus 5.5's docs do not list code execution — do not claim it")
+        XCTAssertTrue(opus55.capabilities.contains(.codeExecution),
+                      "the code-execution tool page's supportedModels names claude-opus-5-5 (re-read 2026-09-29)")
         XCTAssertEqual(opus55.reasoningConfig?.defaultEffort, .medium)
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .anthropic, modelID: "claude-opus-5-5"),

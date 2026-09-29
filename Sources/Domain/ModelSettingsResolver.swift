@@ -117,6 +117,17 @@ enum ModelSettingsResolver {
         if providerType == .vercelAIGateway {
             return !vercelAIGatewayAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType == .cloudflareAIGateway {
+            return !cloudflareAIGatewayAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
+        if providerType == .minimax || providerType == .minimaxCodingPlan {
+            // MiniMax-M3.1-Flash-Preview always thinks (`disabled` and effort `none` 400);
+            // MiniMax-M3 and the M2.x line keep the default toggle.
+            return !ModelCapabilityRegistry.isMiniMaxAlwaysThinkingEffortModel(
+                for: providerType,
+                modelID: modelID
+            )
+        }
         if providerType == .opencodeGo {
             return !opencodeGoAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
@@ -285,6 +296,10 @@ enum ModelSettingsResolver {
         // Opus 5.5 (2026-09-22): adaptive thinking cannot be disabled — both
         // `{type:"disabled"}` and `budget_tokens` are rejected, unlike Opus 5.
         "claude-opus-5-5",
+        // Sonnet 5.5 (2026-09-28): `{type:"disabled"}` returns 400 (its own what's-new
+        // points at `between_tools`), and `budget_tokens` 400s too — same always-on
+        // posture as Sonnet 5, so the Off row must not be offered.
+        "claude-sonnet-5-5",
         "claude-sonnet-5",
         "claude-fable-5",
         "claude-fable-5-1",
@@ -349,6 +364,10 @@ enum ModelSettingsResolver {
         // 2026-09-22) — unlike Opus 5, there is no off switch to pass through.
         "anthropic/claude-opus-5.5",
         "anthropic/claude-opus-5.5:batch",
+        // Sonnet 5.5 (2026-09-28): live /models reports `reasoning.mandatory: true`
+        // (Sonnet 5 itself reports false) — `disabled` 400s upstream, so no off switch.
+        "anthropic/claude-sonnet-5.5",
+        "anthropic/claude-sonnet-5.5:batch",
         "x-ai/grok-4.7",
         "x-ai/grok-4.6",
         "x-ai/grok-4.5",
@@ -402,10 +421,23 @@ enum ModelSettingsResolver {
         "anthropic/claude-opus-5.5",
         // The `-fast` serving tier carries the same upstream constraint.
         "anthropic/claude-opus-5.5-fast",
+        // Sonnet 5.5 (2026-09-28): the gateway publishes effort low…max only — no
+        // toggle, no `none` — and upstream `disabled` 400s.
+        "anthropic/claude-sonnet-5.5",
         // Sakana Fugu on Vercel publishes effort-only reasoning options
         // (high/xhigh/max, no toggle) — mandatory reasoning, like the OR copies.
         "sakana/fugu-max",
         "sakana/fugu-ultra-v2",
+    ]
+
+    /// Cloudflare AI Gateway IDs whose reasoning cannot be disabled. Exact-ID only,
+    /// limited to the models Cloudflare's own catalog JSON describes that way
+    /// (2026-09-23): Opus 5.5 lists "Adaptive Thinking: Always on", and Grok 4.7's
+    /// upstream reasoning cannot be turned off (xAI docs). The older Claude / Grok
+    /// rows on this gateway keep their previous toggleable default.
+    private static let cloudflareAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
+        "anthropic/claude-opus-5.5",
+        "xai/grok-4.7",
     ]
 
     /// Databricks foundation models where reasoning cannot be disabled.

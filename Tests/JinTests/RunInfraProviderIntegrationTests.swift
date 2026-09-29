@@ -18,15 +18,14 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
 
     func testSeededModelsMatchOfficialCatalog() {
         let seeded = ModelCatalog.seededModels(for: .runinfra)
+        // The five Model APIs runinfra.ai/llms.txt lists (2026-09-29). DeepSeek V4 Flash / V4 Pro,
+        // Qwen3.8 Flash Next and Qwen3.8 2.4T A95B left the library; they stay cataloged, unseeded.
         let expectedIDs = [
-            "deepseek-v4-flash",
+            "deepseek-v4-1-flash",
             "glm-5-3-flash",
-            "deepseek-v4-pro",
             "qwen3-8-27b",
-            "qwen3-8-flash-next",
             "ornith-1-5-35b",
             "nemotron-3-5-lightning-30b",
-            "qwen3-8-2-4t-a95b",
         ]
         XCTAssertEqual(seeded.map(\.id), expectedIDs)
 
@@ -37,7 +36,12 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
             XCTAssertTrue(info.capabilities.contains(.toolCalling), id)
             XCTAssertTrue(info.capabilities.contains(.reasoning), id)
             XCTAssertTrue(info.capabilities.contains(.promptCaching), id)
-            XCTAssertEqual(info.capabilities.contains(.vision), id == "qwen3-8-27b", id)
+            // "Accepted input: Text and images" on the model pages / named by the chat-completions contract.
+            XCTAssertEqual(
+                info.capabilities.contains(.vision),
+                ["qwen3-8-27b", "ornith-1-5-35b", "glm-5-3-flash"].contains(id),
+                id
+            )
             XCTAssertEqual(info.maxOutputTokens, 32_768, id)
             XCTAssertFalse(
                 ModelCapabilityRegistry.supportsWebSearch(for: .runinfra, modelID: id),
@@ -50,8 +54,8 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
         let config = DefaultProviderSeeds.runinfra
         XCTAssertEqual(config.type, .runinfra)
         XCTAssertEqual(config.baseURL, "https://api.runinfra.ai/v1")
-        XCTAssertEqual(config.models.map(\.id).first, "deepseek-v4-flash")
-        XCTAssertEqual(config.models.count, 8)
+        XCTAssertEqual(config.models.map(\.id).first, "deepseek-v4-1-flash")
+        XCTAssertEqual(config.models.count, 5)
         XCTAssertTrue(DefaultProviderSeeds.allProviders().contains(where: { $0.id == "runinfra" }))
 
         let adapter = RunInfraAdapter(providerConfig: config, apiKey: "test-key")
@@ -59,10 +63,43 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(baseURL, "https://api.runinfra.ai/v1")
     }
 
-    func testPreferredModelIsDeepSeekV4Flash() {
+    func testPreferredModelIsDeepSeekV41Flash() {
         let models = ModelCatalog.seededModels(for: .runinfra)
-        XCTAssertEqual(ChatModelSelectionSupport.preferredRunInfraModelOrder.first, "deepseek-v4-flash")
-        XCTAssertEqual(models.first?.id, "deepseek-v4-flash")
+        XCTAssertEqual(ChatModelSelectionSupport.preferredRunInfraModelOrder.first, "deepseek-v4-1-flash")
+        XCTAssertEqual(models.first?.id, "deepseek-v4-1-flash")
+        // The retired V4 Flash slug stays in the ladder as a legacy fallback only.
+        XCTAssertEqual(ChatModelSelectionSupport.preferredRunInfraModelOrder.dropFirst().first, "deepseek-v4-flash")
+    }
+
+    /// runinfra.ai/inference-api/deepseek-v4-1-flash (first listed 2026-09-29): 1,048,576
+    /// context, text-only, tools/JSON/streaming, reasoning on by default, effort band
+    /// unpublished — so toggle-only, never V4 Flash's none/low/medium/max.
+    func testDeepSeekV41FlashCatalogUsesPublishedSpecsOnly() {
+        let info = ModelCatalog.modelInfo(for: "deepseek-v4-1-flash", provider: .runinfra)
+        XCTAssertEqual(info.name, "DeepSeek V4.1 Flash")
+        XCTAssertEqual(info.contextWindow, 1_048_576)
+        XCTAssertEqual(info.maxOutputTokens, 32_768)
+        XCTAssertEqual(info.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertFalse(info.capabilities.contains(.vision))
+        XCTAssertEqual(info.reasoningConfig?.type, .toggle)
+        XCTAssertNil(info.reasoningConfig?.supportedEfforts)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "deepseek-v4-1-flash", provider: .runinfra))
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .runinfra, modelID: "deepseek-v4-1-flash")
+        )
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .runinfra, modelID: "deepseek-v4-1-flash"))
+        // Near-misses must not resolve.
+        for id in ["deepseek-v4-1-flash-fp8", "deepseek-v4-1", "deepseek-v4.1-flash"] {
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .runinfra), id)
+        }
+    }
+
+    func testModelsDroppedFromLibraryStayCatalogedButUnseeded() {
+        let seededIDs = Set(ModelCatalog.seededModels(for: .runinfra).map(\.id))
+        for id in ["deepseek-v4-flash", "deepseek-v4-pro", "qwen3-8-flash-next", "qwen3-8-2-4t-a95b"] {
+            XCTAssertFalse(seededIDs.contains(id), id)
+            XCTAssertNotNil(ModelCatalog.entry(for: id, provider: .runinfra), id)
+        }
     }
 
     func testFlashContextAndEffortBand() {
@@ -146,7 +183,7 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
     }
 
     func testToggleModels() {
-        for id in ["deepseek-v4-pro", "nemotron-3-5-lightning-30b", "ornith-1-5-35b", "glm-5-3-flash", "qwen3-8-flash-next"] {
+        for id in ["deepseek-v4-1-flash", "deepseek-v4-pro", "nemotron-3-5-lightning-30b", "ornith-1-5-35b", "glm-5-3-flash", "qwen3-8-flash-next"] {
             let info = ModelCatalog.modelInfo(for: id, provider: .runinfra)
             XCTAssertEqual(info.reasoningConfig?.type, .toggle, id)
             XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .runinfra, modelID: id), id)
@@ -155,6 +192,7 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
 
     func testHuggingFaceAliasesAreFullySupportedAndUnseeded() {
         let aliases: [(id: String, official: String, context: Int)] = [
+            ("deepseek-ai/DeepSeek-V4.1-Flash", "deepseek-v4-1-flash", 1_048_576),
             ("deepseek-ai/DeepSeek-V4-Flash-0731", "deepseek-v4-flash", 1_048_576),
             ("zai-org/GLM-5.3-Flash", "glm-5-3-flash", 1_048_576),
             ("deepseek-ai/DeepSeek-V4-Pro-0813", "deepseek-v4-pro", 1_048_576),

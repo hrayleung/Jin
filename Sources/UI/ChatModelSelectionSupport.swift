@@ -8,6 +8,7 @@ enum ChatModelSelectionSupport {
         "claude-opus-4-8",
         "claude-opus-4-7",
         "claude-opus-4-6",
+        "claude-sonnet-5-5",
         "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5-20250929",
@@ -100,6 +101,7 @@ enum ChatModelSelectionSupport {
         "accounts/fireworks/models/deepseek-v4-pro",
     ]
     static let preferredRunInfraModelOrder: [String] = [
+        "deepseek-v4-1-flash",
         "deepseek-v4-flash",
         "glm-5-3-flash",
         "deepseek-v4-pro",

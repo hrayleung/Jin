@@ -44,5 +44,32 @@ final class MiniMaxTokenPlanProviderIntegrationTests: XCTestCase {
         // M3 is the seeded flagship; reasoning is a toggle on the OpenAI-compatible surface.
         XCTAssertEqual(provider.models.first?.id, "MiniMax-M3")
         XCTAssertEqual(provider.models.first?.reasoningConfig?.type, .toggle)
+
+        // M3.1 Flash Preview is Token-Plan-only and seeded behind M3; it always thinks, so its
+        // reasoning is an effort band (no toggle) that cannot be switched off.
+        let m31 = provider.models.first(where: { $0.id == "MiniMax-M3.1-Flash-Preview" })
+        XCTAssertEqual(m31?.reasoningConfig?.type, .effort)
+        XCTAssertEqual(m31?.reasoningConfig?.defaultEffort, .max)
+        XCTAssertEqual(m31?.reasoningConfig?.supportedEfforts, [.low, .medium, .high, .xhigh, .max])
+        XCTAssertTrue(m31?.capabilities.contains(.vision) == true)
+        XCTAssertFalse(m31?.capabilities.contains(.videoInput) == true)
+    }
+
+    func testLegacyPersistedM31RowResolvesToTheAlwaysThinkingEffortBand() {
+        let legacy = ModelInfo(
+            id: "MiniMax-M3.1-Flash-Preview",
+            name: "MiniMax-M3.1-Flash-Preview",
+            capabilities: [.streaming, .toolCalling],
+            contextWindow: 128_000
+        )
+
+        let resolved = ModelSettingsResolver.resolve(model: legacy, providerType: .minimaxCodingPlan)
+        XCTAssertEqual(resolved.contextWindow, 1_000_000)
+        XCTAssertEqual(resolved.maxOutputTokens, 524_288)
+        XCTAssertTrue(resolved.capabilities.isSuperset(of: [.vision, .reasoning]))
+        XCTAssertEqual(resolved.reasoningConfig?.type, .effort)
+        XCTAssertEqual(resolved.reasoningConfig?.supportedEfforts, [.low, .medium, .high, .xhigh, .max])
+        XCTAssertFalse(resolved.reasoningCanDisable)
+        XCTAssertTrue(resolved.supportsOpenAIStyleReasoningEffort)
     }
 }

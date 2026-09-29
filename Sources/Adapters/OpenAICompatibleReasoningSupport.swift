@@ -369,6 +369,17 @@ enum OpenAICompatibleReasoningSupport {
         modelID: String
     ) {
         let lowerModelID = modelID.lowercased()
+
+        if ModelCapabilityRegistry.isMiniMaxAlwaysThinkingEffortModel(for: providerConfig.type, modelID: modelID) {
+            // MiniMax-M3.1-Flash-Preview always thinks: `thinking: {type: "disabled"}` and
+            // `reasoning_effort: "none"` both return HTTP 400, and `adaptive` is the only
+            // `thinking.type` it accepts. Depth is tuned with `reasoning_effort` instead
+            // (platform.minimax.io text-chat-openai OpenAPI, 2026-09-29).
+            body["thinking"] = ["type": "adaptive"]
+            body["reasoning_effort"] = miniMaxAlwaysThinkingEffortWireValue(from: reasoning)
+            return
+        }
+
         let isGLM53 = isZhipuGLM53ModelID(lowerModelID)
         let isDisabled = !isGLM53 && (!reasoning.enabled || reasoning.effort == ReasoningEffort.none)
 
@@ -387,6 +398,53 @@ enum OpenAICompatibleReasoningSupport {
         if isZhipuGLM52ModelID(lowerModelID) {
             let effort = reasoning.effort ?? .high
             body["reasoning_effort"] = (effort == .max || effort == .xhigh) ? "max" : "high"
+        }
+    }
+
+    /// Raw `providerSpecific` keys that would break MiniMax-M3.1-Flash-Preview's documented
+    /// always-thinking constraints: `thinking.type` other than `adaptive` and effort `none`
+    /// both return HTTP 400, and `reasoning_split: false` is unsupported. `applyReasoning`
+    /// already emits the valid values, and raw overrides are copied over the body afterwards,
+    /// so a stale one — e.g. left over from MiniMax-M3's toggle after a model switch inside the
+    /// same conversation — must not overwrite them. Reserved for this exact model only (M3 and
+    /// the M2.x line keep honoring raw overrides), the same way Mistral reserves its reasoning keys.
+    static func isReservedMiniMaxAlwaysThinkingOverride(
+        key: String,
+        value: Any,
+        providerConfig: ProviderConfig,
+        modelID: String
+    ) -> Bool {
+        guard ModelCapabilityRegistry.isMiniMaxAlwaysThinkingEffortModel(for: providerConfig.type, modelID: modelID) else {
+            return false
+        }
+
+        switch key {
+        case "thinking", "reasoning_effort":
+            return true
+        case "reasoning_split":
+            return (value as? Bool) == false
+        default:
+            return false
+        }
+    }
+
+    /// Published band is low/medium/high/xhigh/max (default max). An Off control cannot be
+    /// honored, so it degrades to the lowest rung rather than emitting a rejected `none`.
+    private static func miniMaxAlwaysThinkingEffortWireValue(from reasoning: ReasoningControls) -> String {
+        if !reasoning.enabled {
+            return "low"
+        }
+        switch reasoning.effort ?? .max {
+        case .none, .minimal, .low:
+            return "low"
+        case .medium:
+            return "medium"
+        case .high:
+            return "high"
+        case .xhigh:
+            return "xhigh"
+        case .max:
+            return "max"
         }
     }
 

@@ -189,6 +189,13 @@ enum AnthropicModelLimits {
         isModelFamily(lowercasedModelID, prefix: "claude-opus-4-6")
     }
 
+    /// Claude Sonnet 5 and Sonnet 5.5. The `claude-sonnet-5-` prefix also matches
+    /// `claude-sonnet-5-5` (released 2026-09-28), which shares the surface this
+    /// family flag encodes: adaptive thinking (never `disabled`, never `budget_tokens`),
+    /// the full low…max ladder, no sampling params, `display: "omitted"` by default,
+    /// 128k output. Its differences — default effort `high` on both, the new
+    /// `between_tools` thinking value, forced `tool_choice` 400s — need no gating
+    /// because Jin never emits those fields.
     static func isSonnet5(_ lowercasedModelID: String) -> Bool {
         isModelFamily(lowercasedModelID, prefix: "claude-sonnet-5")
     }

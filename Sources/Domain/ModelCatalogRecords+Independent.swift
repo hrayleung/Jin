@@ -55,11 +55,14 @@ extension ModelCatalog {
         // default effort flips to `medium` and thinking is adaptive-ONLY — both
         // `{type:"disabled"}` and `budget_tokens` 400, handled in AnthropicModelLimits.
         // Fast mode (`speed:"fast"`) is supported on the Claude API. Feature list:
-        // prompt caching (512 min), batch, Files API, PDF, vision, tools — code
-        // execution is not listed, so `.codeExecution` stays off. Forced tool use
-        // (`tool_choice` any/tool) 400s; Jin never emits those anyway.
+        // prompt caching (512 min), batch, Files API, PDF, vision, tools. Code
+        // execution is not on the model page's feature list, but the code-execution
+        // tool page's `supportedModels` names `claude-opus-5-5` (re-checked 2026-09-29),
+        // and `code_execution_20250825` — the version Jin sends — is accepted by every
+        // supported model. Forced tool use (`tool_choice` any/tool) 400s; Jin never
+        // emits those anyway.
         Record(id: "claude-opus-5-5", displayName: "Claude Opus 5.5",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
@@ -77,6 +80,24 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
         Record(id: "claude-opus-4-6", displayName: "Claude Opus 4.6",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        // Sonnet 5.5 (platform.claude.com models/sonnet-5-5 overview + what's-new, released
+        // 2026-09-28): 1M context / 128k output, text+image input, adaptive thinking on by
+        // default with the full low…max effort ladder and `high` as the default effort.
+        // Sonnet 5's always-on posture carries over: `{type:"disabled"}` and `budget_tokens`
+        // both 400 (the new `between_tools` value is the only lower setting and is not
+        // surfaced), so it joins the always-on set and Jin never emits either. Forced tool
+        // use (`tool_choice` any/tool) 400s — Jin never emits those. Non-default sampling
+        // params 400 (stripped by AnthropicModelLimits, which matches the `claude-sonnet-5`
+        // family prefix). Not in fast mode. Code execution: named in the code-execution
+        // tool page's `supportedModels`. Web search dynamic filtering: "Claude 4.6 and
+        // later". Vertex lists the same ID as a partner model Jin's Vertex adapter cannot
+        // call (see the note atop `vertexAIRecords`).
+        Record(id: "claude-sonnet-5-5", displayName: "Claude Sonnet 5.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,
                maxOutputTokens: 128_000,
@@ -1108,6 +1129,25 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 512_000,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        // MiniMax-M3.1-Flash-Preview (platform.minimax.io text-generation + text-chat-openai
+        // OpenAPI, announced 2026-09-27): "available only through Token Plan and MiniMax
+        // Code for now", so it lives on this provider only. 1,000,000 context; 128K
+        // recommended / 524,288 maximum `max_completion_tokens`; text+image+video input
+        // (`image_url` accepts URL or Base64 data URLs up to 10 MB) — `.vision` is claimed,
+        // `.videoInput` is not (needs a live known-answer probe; base64 video also wants
+        // `video/mov`). Unlike M3's `thinking` toggle, it ALWAYS thinks: `disabled` and
+        // effort `none` return HTTP 400, `thinking.type` only accepts `adaptive`, and depth
+        // is `reasoning_effort` low/medium/high/xhigh/max with `max` as the default —
+        // handled in OpenAICompatibleReasoningSupport. Seeded but not the default
+        // (M3 stays first). Prompt caching / web search / code execution are undocumented
+        // for this ID, so none are claimed.
+        Record(id: "MiniMax-M3.1-Flash-Preview", displayName: "MiniMax M3.1 Flash Preview",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: true),
         Record(id: "MiniMax-M2.7", displayName: "MiniMax M2.7",
                capabilities: [.streaming, .toolCalling, .reasoning],

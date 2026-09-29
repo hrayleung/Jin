@@ -112,6 +112,19 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // Claude Sonnet 5.5 (Databricks supported-models docs, 2026-09-29): endpoint
+        // `databricks-claude-sonnet-5-5`, "Supported inputs: text", tool use "through the
+        // Anthropic Messages API". Databricks publishes no context window, output limit or
+        // effort band for it (absent from the reasoning and region pages too), and routes
+        // Opus 5.5 / Fable 5.1 through `/serving-endpoints/anthropic/v1/messages`, which
+        // Jin's chat-completions `DatabricksAdapter` does not use — so this is a
+        // conservative catalog-only row (text + tools, the unknown-model default window)
+        // pending a live probe, not a supported one.
+        Record(id: "databricks-claude-sonnet-5-5", displayName: "Claude Sonnet 5.5",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
         Record(id: "databricks-claude-sonnet-5", displayName: "Claude Sonnet 5",
                capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,

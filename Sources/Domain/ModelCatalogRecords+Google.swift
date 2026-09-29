@@ -290,7 +290,11 @@ extension ModelCatalog {
         // NOTE (2026-09-22): Vertex lists Anthropic partner model `claude-opus-5-5`,
         // but Jin's Vertex adapter only speaks the Gemini `generateContent` API —
         // there is no `:rawPredict` Anthropic Messages path, so it is intentionally
-        // absent from this table (blocked-adapter).
+        // absent from this table (blocked-adapter). The same holds for
+        // `claude-sonnet-5-5` (GA 2026-09-28), the Meta partner model
+        // `meta/muse-spark-1.3` (Preview 2026-09-24) and the Live-API-only
+        // `gemini-3.8-live` (GA 2026-09-24, chat completions / Interactions
+        // "Not supported"), all listed on the 2026-09-29 census.
         // Seeded — live stable / current preview IDs only
         Record(id: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro (Preview)",
                capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
@@ -1793,6 +1797,51 @@ extension ModelCatalog {
                maxOutputTokens: 8_192,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
                                                      supportedEfforts: [.none, .minimal, .low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+
+        // --- OpenRouter live /models additions, fetched 2026-09-29 ---
+        // Claude Sonnet 5.5 (created 2026-09-28): DOTTED upstream ID like Opus 5.5.
+        // Live metadata: 1,000,000 / 128,000, text+image+file in, `reasoning.mandatory`
+        // = true with supported_efforts low…max and default `high` (Sonnet 5's own
+        // record stays `mandatory: false`). Upstream thinking cannot be disabled, so
+        // the ID joins openRouterAlwaysOnReasoningModelIDs and the full-ladder effort
+        // set. `temperature` is published, `top_p` is not. `.nativePDF`,
+        // `.videoInput` and `.codeExecution` are never claimed on this gateway.
+        Record(id: "anthropic/claude-sonnet-5.5", displayName: "Anthropic: Claude Sonnet 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // The `:batch` twin carries the same limits at half price and publishes no
+        // `temperature`. OpenRouter's batch docs describe `:batch` as batch-endpoint
+        // variants and never say the slug is callable on the sync API, so — unlike
+        // the older `:batch` rows — it is catalog-only until that is verified.
+        Record(id: "anthropic/claude-sonnet-5.5:batch", displayName: "Anthropic: Claude Sonnet 5.5 (Batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: false, isSeeded: false),
+        // Recraft V4.1 Flash (created 2026-09-23): text→image only, 65,536 context,
+        // no supported_parameters. Same OpenRouter image path as Ming Image Design
+        // (`modalities: ["image"]` via the Image only response mode). The Vercel copy
+        // stays catalog-only because that adapter has no image path.
+        Record(id: "recraft/recraft-v4.1-flash", displayName: "Recraft: Recraft V4.1 Flash",
+               capabilities: [.imageGeneration],
+               contextWindow: 65_536,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Ming Image 0.1 Design Layer (created 2026-09-23): text+image → image
+        // sibling of Ming Image Design. Context window is published as 0, so the
+        // same conservative prompt budget applies. The RGBA layer-output shape is
+        // undocumented on the gateway — only image input (.vision) is claimed.
+        Record(id: "inclusionai/ming-image-0.1-design-layer", displayName: "inclusionAI: Ming Image 0.1 Design Layer",
+               capabilities: [.vision, .imageGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
     ]
 }

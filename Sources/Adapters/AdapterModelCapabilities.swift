@@ -455,6 +455,9 @@ private let openRouterSamplingDeniedModelIDs: Set<String> = [
     // Anthropic always-on-thinking models — upstream rejects temperature when
     // thinking is enabled and these cannot disable it through OpenRouter.
     "anthropic/claude-opus-5.5:batch",
+    // Sonnet 5.5's `:batch` twin publishes no `temperature`/`top_p` (live /models
+    // 2026-09-29); the sync slug lists `temperature`, so it stays out, like Opus 5.5.
+    "anthropic/claude-sonnet-5.5:batch",
     "anthropic/claude-sonnet-5",
     "anthropic/claude-fable-5",
     "anthropic/claude-fable-5.1",

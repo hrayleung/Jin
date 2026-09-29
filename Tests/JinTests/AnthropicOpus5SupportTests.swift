@@ -271,8 +271,9 @@ final class AnthropicOpus5SupportTests: XCTestCase {
         XCTAssertTrue(opus55.capabilities.contains(.nativePDF))
         XCTAssertTrue(opus55.capabilities.contains(.promptCaching))
         XCTAssertTrue(opus55.capabilities.contains(.vision))
-        // Code execution is not listed on the Opus 5.5 feature table — unlike Opus 5.
-        XCTAssertFalse(opus55.capabilities.contains(.codeExecution))
+        // The model page's feature table omits code execution, but the code-execution tool
+        // page's `supportedModels` names `claude-opus-5-5` (re-read 2026-09-29).
+        XCTAssertTrue(opus55.capabilities.contains(.codeExecution))
     }
 
     func testOpus55CannotDisableThinking() {

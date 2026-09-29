@@ -135,6 +135,15 @@ enum OpenAICompatibleRequestSupport {
                 continue
             }
 
+            if OpenAICompatibleReasoningSupport.isReservedMiniMaxAlwaysThinkingOverride(
+                key: key,
+                value: value.value,
+                providerConfig: providerConfig,
+                modelID: modelID
+            ) {
+                continue
+            }
+
             body[key] = value.value
         }
     }
