@@ -10278,6 +10278,100 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
             XCTAssertEqual(reasoning["effort"] as? String, "max")
         }
     }
+
+    /// Review feedback on #490: raw `providerSpecific` overrides are copied over the request body
+    /// after reasoning is applied, so a stale `thinking` / `reasoning_effort` — e.g. left over from
+    /// MiniMax-M3's toggle after a model switch inside the same conversation — must not reach
+    /// MiniMax-M3.1-Flash-Preview, which returns HTTP 400 for both (and rejects `reasoning_split: false`).
+    func testMiniMaxM31ReservesReasoningFieldsFromRawProviderOverrides() async throws {
+        func runAdapter(
+            modelID: String,
+            controls: GenerationControls,
+            assertBody: @escaping ([String: Any]) throws -> Void
+        ) async throws {
+            let (configuration, protocolType) = makeMockedSessionConfiguration()
+            let networkManager = NetworkManager(configuration: configuration)
+            protocolType.requestHandler = { request in
+                let body = try XCTUnwrap(requestBodyData(request))
+                let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+                try assertBody(root)
+                let response: [String: Any] = [
+                    "id": "cmpl_minimax_overrides",
+                    "choices": [["message": ["role": "assistant", "content": "OK"], "finish_reason": "stop"]]
+                ]
+                return (
+                    HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    try JSONSerialization.data(withJSONObject: response)
+                )
+            }
+            let config = ProviderConfig(
+                id: "minimax-coding-plan",
+                name: "MiniMax Token Plan",
+                type: .minimaxCodingPlan,
+                apiKey: "ignored",
+                baseURL: "https://api.minimax.io/v1"
+            )
+            let adapter = OpenAICompatibleAdapter(providerConfig: config, apiKey: "k", networkManager: networkManager)
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("hi")])],
+                modelID: modelID,
+                controls: controls,
+                tools: [],
+                streaming: false
+            )
+            for try await _ in stream {}
+        }
+
+        let staleOverrides: [String: AnyCodable] = [
+            "thinking": AnyCodable(["type": "disabled"] as [String: Any]),
+            "reasoning_effort": AnyCodable("none"),
+            "reasoning_split": AnyCodable(false),
+            "top_k": AnyCodable(20),
+        ]
+
+        // Reasoning set: the valid adaptive / effort values survive the overrides; unrelated keys still pass.
+        try await runAdapter(
+            modelID: "MiniMax-M3.1-Flash-Preview",
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, effort: .max),
+                providerSpecific: staleOverrides
+            )
+        ) { root in
+            XCTAssertEqual((root["thinking"] as? [String: Any])?["type"] as? String, "adaptive")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "max")
+            XCTAssertNil(root["reasoning_split"])
+            XCTAssertEqual(root["top_k"] as? Int, 20)
+        }
+
+        // Reasoning never touched: the stale overrides are dropped, not sent (server default applies).
+        try await runAdapter(
+            modelID: "MiniMax-M3.1-Flash-Preview",
+            controls: GenerationControls(providerSpecific: staleOverrides)
+        ) { root in
+            XCTAssertNil(root["thinking"])
+            XCTAssertNil(root["reasoning_effort"])
+            XCTAssertNil(root["reasoning_split"])
+            XCTAssertEqual(root["top_k"] as? Int, 20)
+        }
+
+        // `reasoning_split: true` is valid for M3.1 and is not reserved.
+        try await runAdapter(
+            modelID: "MiniMax-M3.1-Flash-Preview",
+            controls: GenerationControls(providerSpecific: ["reasoning_split": AnyCodable(true)])
+        ) { root in
+            XCTAssertEqual(root["reasoning_split"] as? Bool, true)
+        }
+
+        // The reservation is exact-ID: MiniMax-M3 (toggle) keeps honoring raw overrides.
+        try await runAdapter(
+            modelID: "MiniMax-M3",
+            controls: GenerationControls(providerSpecific: staleOverrides)
+        ) { root in
+            XCTAssertEqual((root["thinking"] as? [String: Any])?["type"] as? String, "disabled")
+            XCTAssertEqual(root["reasoning_effort"] as? String, "none")
+            XCTAssertEqual(root["reasoning_split"] as? Bool, false)
+        }
+    }
 }
 
 // MARK: - URLProtocol stubbing
