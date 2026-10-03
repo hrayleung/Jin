@@ -24,6 +24,7 @@ enum XAIModelSupport {
     static let videoGenerationModelIDs: Set<String> = [
         "grok-imagine-video",
         "grok-imagine-video-1.5",
+        "grok-imagine-video-1.5-lite",
         "grok-imagine-video-1.5-preview",
         "grok-imagine-video-1.5-2026-05-30",
     ]
@@ -31,9 +32,13 @@ enum XAIModelSupport {
     /// Video-generation models that reject pure text-to-video and require an
     /// input image (image-to-video). Verified against the live xAI API, which
     /// returns `400 {"error":"Text-to-video is not supported for this model."}`
-    /// for these IDs. The base `grok-imagine-video` does support text-to-video.
+    /// for the non-lite IDs. `grok-imagine-video-1.5-lite` is grouped with them
+    /// — its docs print the same `text, image → video` boilerplate as the
+    /// verified-rejected siblings, so it is treated as image-required until a
+    /// live probe shows text-to-video works.
     static let imageRequiredVideoGenerationModelIDs: Set<String> = [
         "grok-imagine-video-1.5",
+        "grok-imagine-video-1.5-lite",
         "grok-imagine-video-1.5-preview",
         "grok-imagine-video-1.5-2026-05-30",
     ]

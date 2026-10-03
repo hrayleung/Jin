@@ -206,6 +206,9 @@ extension ModelCatalog {
                contextWindow: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // `openai/gpt-6.1-sol` appeared on Perplexity's Agent API pricing
+        // (2026-09-29) but is deliberately omitted: this adapter only speaks the
+        // Sonar Chat Completions surface, so the ID is not callable through it.
     ]
 
     // MARK: DeepInfra
@@ -876,6 +879,16 @@ extension ModelCatalog {
                contextWindow: 32_768,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        // Grok Imagine Video 1.5 Lite (docs.x.ai/developers/models/
+        // grok-imagine-video-1.5-lite, released ~2026-09-30): the light tier of
+        // the 1.5 video family, $0.020/s. Docs list text,image → video, but so do
+        // the 1.5 siblings whose live API rejects text-to-video — the Lite row is
+        // kept in the image-required set until a live probe proves t2v.
+        Record(id: "grok-imagine-video-1.5-lite", displayName: "Grok Imagine Video 1.5 Lite",
+               capabilities: [.videoGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         // Catalog-only (aliases / snapshots / retired discovery IDs)
         Record(id: "grok-4.20-multi-agent-0309", displayName: "Grok 4.20 Multi-Agent 0309",
                capabilities: [.streaming, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
@@ -1194,6 +1207,10 @@ extension ModelCatalog {
     // MARK: Fireworks
 
     static let fireworksRecords: [Record] = [
+        // `firerouter/opus` (fireworks.ai/models/fireworks/firerouter-opus, created
+        // 2026-09-28) is deliberately omitted: it is a FireConnect router that fans
+        // out to Claude Opus 5.5 + open models under BYOK Claude-plan auth, not a
+        // standard serverless chat model Jin's adapter can address.
         // Seeded
         // Kimi K3 (Fireworks serverless; verified against fireworks.ai/models/fireworks/kimi-k3
         // and models.dev `fireworks-ai`, 2026-07-29): 1,048,576 context / 131,072 output,

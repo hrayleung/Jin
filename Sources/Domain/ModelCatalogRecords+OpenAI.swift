@@ -35,6 +35,18 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
+        // GPT-6.1 Sol (developers.openai.com/api/docs/models/gpt-6.1-sol, released
+        // 2026-09-29): same 1,050,000 / 128,000 envelope, text+image input, reasoning
+        // effort low..max — `none` and `minimal` are not accepted, so the model is
+        // always-on and the declared band clamps an Off choice to `low`. Default
+        // medium per the family. Responses + Chat Completions.
+        Record(id: "gpt-6.1-sol", displayName: "GPT-6.1 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
         // GPT-5.6 ships as three tiers — Sol (flagship), Terra (balanced), Luna (fast) —
         // replacing the mini/nano naming (verified against the live 2026-07-09 model pages:
         // 1,050,000 context / 128,000 output, reasoning_effort none..max where `max` is new
@@ -1065,6 +1077,10 @@ extension ModelCatalog {
                contextWindow: 131_072,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // `@cf/cloudflare/clef` and `@cf/cloudflare/clef-flash` (Workers AI,
+        // released 2026-10-01) are deliberately omitted: they are decision
+        // models — they take state + typed questions and return probabilities,
+        // not chat completions — so there is no compatible send path to claim.
     ]
 
     // MARK: Vercel AI Gateway
@@ -1076,6 +1092,17 @@ extension ModelCatalog {
                contextWindow: 1_050_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        // GPT-6.1 Sol on Vercel (vercel.com/ai-gateway/models table, listed 2026-09-29+):
+        // chat, 1.1M context, reasoning + tool-use + vision + web-search +
+        // explicit/implicit caching tags. Same upstream band as OpenAI: low..max,
+        // no `none`/`minimal` — always-on reasoning.
+        Record(id: "openai/gpt-6.1-sol", displayName: "GPT-6.1 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: false),
         // GPT-6 Sol / Luna on Vercel (vercel.com/ai-gateway/models table, 2026-09-22):
         // chat models, 1.1M context, reasoning + tool-use + vision + web-search +
@@ -1774,5 +1801,25 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: false),
+
+        // --- Vercel AI Gateway models table additions, fetched 2026-10-03 ---
+        // Ling 3.1 Flash (released 2026-10-01 on OpenRouter; live on the Vercel
+        // gateway with `free, reasoning, tool-use, implicit-caching` tags):
+        // inclusionAI's hybrid-reasoning MoE, 262,144 context / 32,768 output,
+        // text-only. No effort values published → toggle.
+        Record(id: "inclusionai/ling-3.1-flash", displayName: "Ling 3.1 Flash",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Catalog-only — `spacexai/grok-imagine-video-1.5-lite` is video-generation
+        // output; Jin's Vercel adapter speaks chat completions only and has no
+        // video send path on this gateway (blocked-adapter).
+        Record(id: "spacexai/grok-imagine-video-1.5-lite", displayName: "Grok Imagine Video 1.5 Lite",
+               capabilities: [.videoGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
     ]
 }

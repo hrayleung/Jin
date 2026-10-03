@@ -55,6 +55,20 @@ extension ModelCatalog {
                contextWindow: 256_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // Catalog-only — Z.ai GLM 5.3 (docs.mistral.ai/models/zai-glm-5-3, GA
+        // 2026-09-28): third-party open-weight model hosted unmodified by Mistral.
+        // Text model on this endpoint (no vision), 1M context / 128K max output,
+        // function calling + structured outputs + prefix caching. Reasoning is
+        // always-on upstream (Z.AI rejects `thinking.type: disabled`); Mistral
+        // does not document a reasoning-effort field for this hosted model, so
+        // reasoningConfig stays nil — Jin sends no reasoning params and exposes
+        // no effort menu (same posture as mandatory-thinking models elsewhere).
+        Record(id: "zai-glm-5-3", displayName: "Z.ai GLM 5.3",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
         // Back-compat alias for the old short ID Jin previously seeded — keeps reasoning toggle
         // available for chats already pinned to this ID.
         Record(id: "mistral-medium-3.5", displayName: "Mistral Medium 3.5",

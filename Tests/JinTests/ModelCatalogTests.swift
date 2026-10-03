@@ -3984,4 +3984,135 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(tokenPlanSeeded.first, "MiniMax-M3")
         XCTAssertTrue(tokenPlanSeeded.contains("MiniMax-M3.1-Flash-Preview"))
     }
+
+    func testOctober2026Week1CatalogUsesExactIDsAndDeclaredBands() {
+        let solBand: [ReasoningEffort] = [.low, .medium, .high, .xhigh, .max]
+
+        // OpenAI — GPT-6.1 Sol (developers.openai.com model page, released 2026-09-29).
+        let openAISol = ModelCatalog.modelInfo(for: "gpt-6.1-sol", provider: .openai)
+        XCTAssertEqual(openAISol.name, "GPT-6.1 Sol")
+        XCTAssertEqual(openAISol.contextWindow, 1_050_000)
+        XCTAssertEqual(openAISol.maxOutputTokens, 128_000)
+        XCTAssertEqual(
+            openAISol.capabilities,
+            [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution]
+        )
+        XCTAssertEqual(openAISol.reasoningConfig?.type, .effort)
+        XCTAssertEqual(openAISol.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertEqual(openAISol.reasoningConfig?.supportedEfforts, solBand)
+        // The band has no `none`/`minimal` — reasoning is always-on upstream.
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openai, modelID: "gpt-6.1-sol"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .openai, modelID: "gpt-6.1-sol"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleVerbosity(for: .openai, modelID: "gpt-6.1-sol"))
+        XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: .openai, modelID: "gpt-6.1-sol"))
+        // Same Responses sampling restriction as the GPT-6 family.
+        XCTAssertFalse(
+            supportsOpenAIResponsesSamplingParameters(modelID: "gpt-6.1-sol", reasoningEnabled: true, providerType: .openai)
+        )
+        XCTAssertFalse(
+            supportsOpenAIResponsesSamplingParameters(modelID: "gpt-6.1-sol", reasoningEnabled: false, providerType: .openai)
+        )
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "gpt-6.1-sol", provider: .openai))
+        XCTAssertTrue(ModelCatalog.seededModels(for: .openai).contains(where: { $0.id == "gpt-6.1-sol" }))
+        // openaiWebSocket mirrors the OpenAI record (it has .streaming, so compatible).
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "gpt-6.1-sol", provider: .openaiWebSocket))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openaiWebSocket, modelID: "gpt-6.1-sol"))
+        // The sibling ID remains distinct — no prefix collapse.
+        XCTAssertNil(ModelCatalog.entry(for: "gpt-6.1-sol-pro", provider: .openai))
+
+        // OpenRouter — the five in-window adds (live /models created 2026-09-29…10-02).
+        let orSol = ModelCatalog.modelInfo(for: "openai/gpt-6.1-sol", provider: .openrouter)
+        XCTAssertEqual(orSol.contextWindow, 1_050_000)
+        XCTAssertEqual(orSol.maxOutputTokens, 128_000)
+        XCTAssertEqual(orSol.reasoningConfig?.supportedEfforts, solBand)
+        XCTAssertTrue(orSol.capabilities.contains(.vision))
+        XCTAssertFalse(orSol.capabilities.contains(.videoInput))
+        for id in ["openai/gpt-6.1-sol", "openai/gpt-6.1-sol-pro", "unbiased/pareto-26.10-preview"] {
+            let m = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(m.reasoningConfig?.supportedEfforts, solBand, id)
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: id), id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .openrouter), id)
+            XCTAssertTrue(openRouterOmitsSamplingParameters(modelID: id), id)
+        }
+        let orPareto = ModelCatalog.modelInfo(for: "unbiased/pareto-26.10-preview", provider: .openrouter)
+        XCTAssertEqual(orPareto.contextWindow, 1_048_576)
+        XCTAssertEqual(orPareto.maxOutputTokens, 131_072)
+        XCTAssertTrue(orPareto.capabilities.contains(.vision))
+        let orApodex = ModelCatalog.modelInfo(for: "apodex/apodex-1.1-mini:free", provider: .openrouter)
+        XCTAssertEqual(orApodex.contextWindow, 262_144)
+        XCTAssertEqual(orApodex.maxOutputTokens, 235_929)
+        XCTAssertEqual(orApodex.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(orApodex.reasoningConfig?.type, .toggle)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "apodex/apodex-1.1-mini:free", provider: .openrouter))
+        // The paid slug has no endpoint — no record.
+        XCTAssertNil(ModelCatalog.entry(for: "apodex/apodex-1.1-mini", provider: .openrouter))
+        let orLing = ModelCatalog.modelInfo(for: "inclusionai/ling-3.1-flash", provider: .openrouter)
+        XCTAssertEqual(orLing.contextWindow, 262_144)
+        XCTAssertEqual(orLing.maxOutputTokens, 32_768)
+        XCTAssertEqual(orLing.reasoningConfig?.type, .toggle)
+        XCTAssertFalse(orLing.capabilities.contains(.vision))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "inclusionai/ling-3.1-flash", provider: .openrouter))
+
+        // Vercel AI Gateway — GPT-6.1 Sol + Ling 3.1 Flash are live; the SpaceX
+        // video model is catalog-only (no Vercel video send path).
+        let vSol = ModelCatalog.modelInfo(for: "openai/gpt-6.1-sol", provider: .vercelAIGateway)
+        XCTAssertEqual(vSol.contextWindow, 1_050_000)
+        XCTAssertEqual(vSol.maxOutputTokens, 128_000)
+        XCTAssertEqual(vSol.reasoningConfig?.supportedEfforts, solBand)
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "openai/gpt-6.1-sol"))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "openai/gpt-6.1-sol", provider: .vercelAIGateway))
+        let vLing = ModelCatalog.modelInfo(for: "inclusionai/ling-3.1-flash", provider: .vercelAIGateway)
+        XCTAssertEqual(vLing.contextWindow, 262_144)
+        XCTAssertEqual(vLing.maxOutputTokens, 32_768)
+        XCTAssertEqual(vLing.reasoningConfig?.type, .toggle)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "inclusionai/ling-3.1-flash", provider: .vercelAIGateway))
+        let vVideo = ModelCatalog.modelInfo(for: "spacexai/grok-imagine-video-1.5-lite", provider: .vercelAIGateway)
+        XCTAssertEqual(vVideo.capabilities, [.videoGeneration])
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "spacexai/grok-imagine-video-1.5-lite", provider: .vercelAIGateway))
+        // The xAI (unprefixed) ID is not a Vercel record.
+        XCTAssertNil(ModelCatalog.entry(for: "grok-imagine-video-1.5-lite", provider: .vercelAIGateway))
+
+        // xAI — Grok Imagine Video 1.5 Lite: image-required until a live t2v probe.
+        let xVideo = ModelCatalog.modelInfo(for: "grok-imagine-video-1.5-lite", provider: .xai)
+        XCTAssertEqual(xVideo.capabilities, [.videoGeneration])
+        XCTAssertNil(xVideo.reasoningConfig)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "grok-imagine-video-1.5-lite", provider: .xai))
+        XCTAssertTrue(ModelCatalog.seededModels(for: .xai).contains(where: { $0.id == "grok-imagine-video-1.5-lite" }))
+        XCTAssertTrue(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video-1.5-lite"))
+        XCTAssertTrue(XAIModelSupport.requiresImageInputForVideoGeneration("grok-imagine-video-1.5-lite"))
+        XCTAssertFalse(XAIModelSupport.supportsTextToVideo("grok-imagine-video-1.5-lite"))
+        XCTAssertEqual(
+            XAIModelSupport.availableVideoModes(for: "grok-imagine-video-1.5-lite"),
+            [.auto, .imageToVideo]
+        )
+        XCTAssertFalse(XAIModelSupport.isVideoGenerationModelID("grok-imagine-video-1.5-pro"))
+
+        // Mistral — Z.ai GLM 5.3 (GA 2026-09-28): third-party hosted, reasoning
+        // always-on upstream; no effort menu until Mistral documents the field.
+        let mistralGLM = ModelCatalog.modelInfo(for: "zai-glm-5-3", provider: .mistral)
+        XCTAssertEqual(mistralGLM.name, "Z.ai GLM 5.3")
+        XCTAssertEqual(mistralGLM.contextWindow, 1_000_000)
+        XCTAssertEqual(mistralGLM.maxOutputTokens, 128_000)
+        XCTAssertEqual(mistralGLM.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertNil(mistralGLM.reasoningConfig)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "zai-glm-5-3", provider: .mistral))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "zai-glm-5-2", provider: .mistral))
+        // The Zhipu Coding Plan ID is a different provider — no cross-lookup.
+        XCTAssertNil(ModelCatalog.entry(for: "glm-5.3", provider: .mistral))
+
+        // Databricks — catalog-only until a Responses path exists (docs updated 2026-10-02).
+        let dbxSol = ModelCatalog.modelInfo(for: "databricks-gpt-6-1-sol", provider: .databricks)
+        XCTAssertEqual(dbxSol.contextWindow, 1_050_000)
+        XCTAssertEqual(dbxSol.maxOutputTokens, 128_000)
+        XCTAssertEqual(dbxSol.reasoningConfig?.supportedEfforts, solBand)
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .databricks, modelID: "databricks-gpt-6-1-sol"))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "databricks-gpt-6-1-sol", provider: .databricks))
+        XCTAssertFalse(ModelCatalog.seededModels(for: .databricks).contains(where: { $0.id == "databricks-gpt-6-1-sol" }))
+
+        // Blocked-adapter findings carry no catalog records.
+        XCTAssertNil(ModelCatalog.entry(for: "@cf/cloudflare/clef", provider: .cloudflareAIGateway))
+        XCTAssertNil(ModelCatalog.entry(for: "@cf/cloudflare/clef-flash", provider: .cloudflareAIGateway))
+        XCTAssertNil(ModelCatalog.entry(for: "firerouter/opus", provider: .fireworks))
+        XCTAssertNil(ModelCatalog.entry(for: "openai/gpt-6.1-sol", provider: .perplexity))
+    }
 }

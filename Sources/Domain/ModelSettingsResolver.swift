@@ -248,8 +248,11 @@ enum ModelSettingsResolver {
     /// OpenAI / OpenAI WebSocket IDs whose reasoning cannot be disabled.
     /// GPT-6 Astra reasoning is always-on (Responses API rejects reasoning.effort: "none"
     /// or disabled reasoning with HTTP 400).
+    /// GPT-6.1 Sol (2026-09-29) publishes effort low…max only — no `none`/`minimal`
+    /// (developers.openai.com/api/docs/models/gpt-6.1-sol) — so Off is never offered.
     private static let openAIAlwaysOnReasoningModelIDs: Set<String> = [
         "gpt-6-astra",
+        "gpt-6.1-sol",
     ]
 
     /// Exact-ID allowlist for SambaNova models where reasoning cannot be disabled.
@@ -393,6 +396,13 @@ enum ModelSettingsResolver {
         // Qwen3.8 Max Prime (2026-09-24) shares the cloud Max band
         // (minimal…xhigh, no `none`) and its always-on classification.
         "qwen/qwen3.8-max-prime",
+        // GPT-6.1 Sol (2026-09-29) publishes effort low…max only — no `none`/
+        // `minimal` — on both the base and reasoning-mode=pro variants.
+        "openai/gpt-6.1-sol",
+        "openai/gpt-6.1-sol-pro",
+        // Unbiased Pareto 26.10 Preview (2026-10-01) serves the same upstream
+        // model with the same low…max band.
+        "unbiased/pareto-26.10-preview",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /
@@ -428,6 +438,9 @@ enum ModelSettingsResolver {
         // (high/xhigh/max, no toggle) — mandatory reasoning, like the OR copies.
         "sakana/fugu-max",
         "sakana/fugu-ultra-v2",
+        // GPT-6.1 Sol (2026-09-29) publishes effort low…max only — no `none`/
+        // `minimal` — so an Off choice would 400 upstream.
+        "openai/gpt-6.1-sol",
     ]
 
     /// Cloudflare AI Gateway IDs whose reasoning cannot be disabled. Exact-ID only,
@@ -447,6 +460,8 @@ enum ModelSettingsResolver {
         // Opus 5.5 on FMAPI (docs.databricks.com supported-models, 2026-09-24):
         // adaptive thinking cannot be disabled; band is low…max.
         "databricks-claude-opus-5-5",
+        // GPT-6.1 Sol on FMAPI (2026-10-02): low…max band, no `none`/`minimal`.
+        "databricks-gpt-6-1-sol",
     ]
 
     /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list

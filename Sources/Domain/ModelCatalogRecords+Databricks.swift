@@ -179,6 +179,17 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: false, isSeeded: false),
+        // Catalog-only — `databricks-gpt-6-1-sol` (Databricks supported-models docs,
+        // updated 2026-10-02) is also a Responses-API-only endpoint (text+image
+        // input, OpenAI's 1,050,000 / 128,000 envelope, reasoning band low..max
+        // with no `none`/`minimal`); same chat/completions blocker as the rows above.
+        Record(id: "databricks-gpt-6-1-sol", displayName: "GPT-6.1 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: false, isSeeded: false),
         Record(id: "databricks-gpt-oss-20b", displayName: "GPT-OSS 20B",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 128_000,
