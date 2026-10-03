@@ -105,15 +105,15 @@ for bundle in "$ROOT/.build/release"/*.bundle "$ROOT/.build/arm64-apple-macosx/r
 done
 
 ARCH="arm64"
-BUILD_OUTPUT_DIR="$ROOT/.build/$ARCH-apple-macosx/release"
-# SwiftPM 6.4+ puts products under .build/release (a symlink into out/Products/Release)
-# and no longer creates the per-triple directory. Fall back to whichever exists.
-if [[ ! -d "$BUILD_OUTPUT_DIR" ]]; then
-  BUILD_OUTPUT_DIR="$ROOT/.build/release"
-fi
 
 echo "Building (Release) for Apple Silicon…"
 swift build -c release --disable-sandbox --arch "$ARCH"
+
+# Resolve the products dir AFTER building, from SwiftPM itself — its layout
+# changed in 6.4 (.build/release, no per-triple dir), and a stale
+# arm64-apple-macosx/release left by an older toolchain must not shadow the
+# fresh binary.
+BUILD_OUTPUT_DIR="$(swift build -c release --disable-sandbox --arch "$ARCH" --show-bin-path)"
 
 BIN="$BUILD_OUTPUT_DIR/$APP_NAME"
 if [[ ! -f "$BIN" ]]; then
