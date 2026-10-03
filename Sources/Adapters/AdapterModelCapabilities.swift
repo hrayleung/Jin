@@ -361,6 +361,11 @@ private let openAIResponsesSamplingDeniedExactModelIDs: Set<String> = [
     "gpt-6-astra-pro",
     "gpt-6-sol",
     "gpt-6-sol-pro",
+    // GPT-6.1 Sol (2026-09-29) is the same GPT-6 Sol reasoning family — OpenAI's
+    // model page lists only reasoning params; temperature/top_p are not
+    // documented and upstream rejects them for the base model.
+    "gpt-6.1-sol",
+    "gpt-6.1-sol-pro",
     "gpt-6-luna",
     "gpt-6-luna-pro",
     "gpt-daybreak-red-latest",
@@ -435,6 +440,13 @@ private let openRouterSamplingDeniedModelIDs: Set<String> = [
     "openai/gpt-6-sol:batch",
     "openai/gpt-6-sol-pro",
     "openai/gpt-6-sol-pro:batch",
+    // GPT-6.1 Sol (live /models, created 2026-09-29) — same reasoning-model
+    // sampling restriction as its GPT-6 Sol parent, base and `-pro` alike.
+    // `unbiased/pareto-26.10-preview` serves the same upstream model with the
+    // same supported_parameters (no temperature/top_p).
+    "openai/gpt-6.1-sol",
+    "openai/gpt-6.1-sol-pro",
+    "unbiased/pareto-26.10-preview",
     "openai/gpt-6-luna",
     "openai/gpt-6-luna:batch",
     "openai/gpt-6-luna-pro",

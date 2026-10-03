@@ -106,6 +106,11 @@ done
 
 ARCH="arm64"
 BUILD_OUTPUT_DIR="$ROOT/.build/$ARCH-apple-macosx/release"
+# SwiftPM 6.4+ puts products under .build/release (a symlink into out/Products/Release)
+# and no longer creates the per-triple directory. Fall back to whichever exists.
+if [[ ! -d "$BUILD_OUTPUT_DIR" ]]; then
+  BUILD_OUTPUT_DIR="$ROOT/.build/release"
+fi
 
 echo "Building (Release) for Apple Silicon…"
 swift build -c release --disable-sandbox --arch "$ARCH"

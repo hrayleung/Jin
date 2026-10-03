@@ -1153,6 +1153,15 @@ extension ModelCatalog {
                maxOutputTokens: 32_768,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: false),
+        // Ling 3.1 Flash (live /models, created 2026-10-02): hybrid-reasoning MoE
+        // (25B active / 560B total). 262,144 / 32,768, text-only, tools +
+        // `reasoning`/`include_reasoning` but no effort parameter → toggle.
+        Record(id: "inclusionai/ling-3.1-flash", displayName: "inclusionAI: Ling-3.1-Flash",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
         Record(id: "~anthropic/claude-opus-latest", displayName: "Anthropic: Claude Opus (Latest)",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1000000,
@@ -1216,6 +1225,28 @@ extension ModelCatalog {
                contextWindow: 262_144,
                maxOutputTokens: 131_072,
                reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Unbiased Pareto 26.10 Preview (live /models, created 2026-10-01). The
+        // card text is verbatim GPT-6.1 Sol — this slug is the same upstream.
+        // 1,048,576 / 131,072, text+image input, tools, structured outputs,
+        // reasoning_effort + verbosity. Declared band low..max mirrors the
+        // GPT-6.1 Sol record (no `none`/`minimal`).
+        Record(id: "unbiased/pareto-26.10-preview", displayName: "Unbiased: Pareto 26.10 Preview",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Apodex 1.1 Mini (live /models, created 2026-10-01): reasoning-first
+        // research/forecasting model. Only the `:free` slug has an endpoint.
+        // 262,144 / 235,929 per the live gateway, text-only, tools + structured
+        // outputs, `reasoning`/`include_reasoning` but no effort parameter → toggle.
+        Record(id: "apodex/apodex-1.1-mini:free", displayName: "Apodex: Apodex 1.1 Mini (Free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 235_929,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: false),
         // PrismML Ternary Bonsai 2 27B (created 2026-09-18). Live /models:
         // 262,144 / 32,768, text+image input, tools, reasoning fields.
@@ -1365,6 +1396,26 @@ extension ModelCatalog {
                contextWindow: 1050000,
                maxOutputTokens: 128000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
+        // GPT-6.1 Sol on OpenRouter (live /models, created 2026-09-29): upgrade to
+        // GPT-6 Sol, same 1.05M / 128K envelope and text+image+file input. The
+        // published effort band is low..max — `none`/`minimal` are not accepted, so
+        // reasoning is always-on and the declared band clamps an Off choice to `low`.
+        // The `-pro` twin serves the same model with reasoning.mode=pro; reasoning
+        // is mandatory there too. No `:batch` twins published yet.
+        Record(id: "openai/gpt-6.1-sol", displayName: "OpenAI: GPT-6.1 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6.1-sol-pro", displayName: "OpenAI: GPT-6.1 Sol Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: false),
         // Command A+ (created 2026-09-22): Cohere's flagship for enterprise agentic
         // work — 192K context per OpenRouter, text+image input, native tool calling

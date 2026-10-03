@@ -44,6 +44,8 @@ enum ModelCapabilityRegistry {
         "gpt-6-sol-pro",
         "gpt-6-luna",
         "gpt-6-luna-pro",
+        "gpt-6.1-sol",
+        "gpt-6.1-sol-pro",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
@@ -82,6 +84,8 @@ enum ModelCapabilityRegistry {
         "gpt-6-sol-pro",
         "gpt-6-luna",
         "gpt-6-luna-pro",
+        "gpt-6.1-sol",
+        "gpt-6.1-sol-pro",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
@@ -113,6 +117,7 @@ enum ModelCapabilityRegistry {
     private static let openAIStyleVerbosityModelIDs: Set<String> = [
         "gpt-6-astra",
         "gpt-6-sol",
+        "gpt-6.1-sol",
         "gpt-6-luna",
         "gpt-5.6",
         "gpt-5.6-sol",
@@ -360,6 +365,7 @@ enum ModelCapabilityRegistry {
     private static let openAICodeInterpreterSupportedModelIDs: Set<String> = [
         "gpt-6-astra",
         "gpt-6-sol",
+        "gpt-6.1-sol",
         "gpt-6-luna",
         "gpt-4.1",
         "gpt-4.1-2025-04-14",
