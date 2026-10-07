@@ -41,6 +41,8 @@ struct OpenRouterVideoGenerationControls: Codable {
 
 enum OpenRouterVideoAspectRatio: String, Codable, CaseIterable {
     case ratio1x1 = "1:1"
+    case ratio2x3 = "2:3"
+    case ratio3x2 = "3:2"
     case ratio3x4 = "3:4"
     case ratio4x3 = "4:3"
     case ratio9x16 = "9:16"
@@ -54,7 +56,9 @@ enum OpenRouterVideoAspectRatio: String, Codable, CaseIterable {
 enum OpenRouterVideoResolution: String, Codable, CaseIterable {
     case res480p = "480p"
     case res720p = "720p"
+    case res768p = "768p"
     case res1080p = "1080p"
+    case res2K = "2K"
 
     var displayName: String { rawValue }
 }
@@ -95,6 +99,18 @@ enum OpenRouterVideoModelSupport {
         .ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio21x9,
     ]
 
+    /// Grok Imagine Video 1.5 Lite (created 2026-10-06), per `/videos/models`:
+    /// aspect ratios 16:9/9:16/1:1/4:3/3:4/3:2/2:3, resolutions 480p/720p/1080p.
+    private static let grokImagineVideo15LiteAspectRatios: [OpenRouterVideoAspectRatio] = [
+        .ratio1x1, .ratio2x3, .ratio3x2, .ratio3x4, .ratio4x3, .ratio9x16, .ratio16x9,
+    ]
+
+    /// HeyGen Video 1 (created 2026-09-30), per `/videos/models`:
+    /// aspect ratios 21:9/16:9/4:3/1:1/3:4/9:16, resolutions 480p/768p/2K.
+    private static let heygenVideo1AspectRatios: [OpenRouterVideoAspectRatio] = [
+        .ratio1x1, .ratio3x4, .ratio4x3, .ratio9x16, .ratio16x9, .ratio21x9,
+    ]
+
     static func supportedDurations(for modelID: String) -> [Int] {
         switch modelID.lowercased() {
         case "bytedance/seedance-1-5-pro":
@@ -104,6 +120,10 @@ enum OpenRouterVideoModelSupport {
         case "bytedance/seedance-2.5":
             // API accepts every integer 4...30; curate the menu for scanability.
             return [4, 6, 8, 10, 12, 15, 20, 25, 30]
+        case "x-ai/grok-imagine-video-1.5-lite":
+            return Array(1...15)
+        case "heygen/heygen-video-1":
+            return Array(5...15)
         default:
             return [4, 6, 8, 10, 12]
         }
@@ -117,6 +137,10 @@ enum OpenRouterVideoModelSupport {
              "bytedance/seedance-2.0",
              "bytedance/seedance-2.0-fast":
             return genericAspectRatios
+        case "x-ai/grok-imagine-video-1.5-lite":
+            return grokImagineVideo15LiteAspectRatios
+        case "heygen/heygen-video-1":
+            return heygenVideo1AspectRatios
         default:
             return genericAspectRatios
         }
@@ -131,6 +155,10 @@ enum OpenRouterVideoModelSupport {
             return [.res480p, .res720p, .res1080p]
         case "bytedance/seedance-2.0-fast", "bytedance/seedance-2.5":
             return [.res480p, .res720p]
+        case "x-ai/grok-imagine-video-1.5-lite":
+            return [.res480p, .res720p, .res1080p]
+        case "heygen/heygen-video-1":
+            return [.res480p, .res768p, .res2K]
         default:
             return [.res480p, .res720p, .res1080p]
         }

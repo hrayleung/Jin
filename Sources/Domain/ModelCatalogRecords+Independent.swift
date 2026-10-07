@@ -490,6 +490,17 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
                                                      supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: false),
+        // Claude Sonnet 5.5 on DeepInfra (listed 2026-09-30, hyphenated slug like
+        // the Opus 5.5 row): Multimodal + Tools + Structured Output + Reasoning
+        // badges, 1,000,000 context. Adaptive thinking is mandatory upstream
+        // (added to deepInfraAlwaysOnReasoningModelIDs); band low…max.
+        Record(id: "anthropic/claude-sonnet-5-5", displayName: "Claude Sonnet 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
         // Tencent Hy4 preview on DeepInfra (deepinfra.com/tencent/Hy4-preview,
         // listed 2026-09-25): text-only, 1,048,576 context, Function Calling +
         // JSON. HF card (tencent/Hy4-preview) documents `no_think` toggle and a
@@ -941,6 +952,9 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // `grok-voice-transcribe-2.0` (docs.x.ai release notes, 2026-09) is
+        // deliberately NOT cataloged: it is a speech-to-text ID and Jin's xAI
+        // adapter has no STT request surface (blocked-adapter).
     ]
 
     // MARK: DeepSeek
@@ -2662,6 +2676,18 @@ extension ModelCatalog {
         // text+image, tools, reasoning_effort low..max (default unpublished —
         // .high is the conservative middle). Video is NOT claimed.
         Record(id: "space-bunny-free", displayName: "Space Bunny (Free)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Space Bunny (live /zen/go/v1/models, created 2026-10-07): the
+        // `-free` suffix was dropped upstream — same stealth model, same
+        // /chat/completions path, same 1,048,576 / 524,288 envelope and
+        // low…max effort band. `space-bunny-free` stays cataloged above for
+        // persisted conversations; the gateway may 404 the old slug.
+        Record(id: "space-bunny", displayName: "Space Bunny",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_048_576,
                maxOutputTokens: 524_288,

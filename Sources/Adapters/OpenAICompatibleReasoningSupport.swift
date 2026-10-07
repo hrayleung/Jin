@@ -192,6 +192,9 @@ enum OpenAICompatibleReasoningSupport {
         "mistral-medium-3.5",
         "mistral-small-4-0-26-03",
         "magistral-medium-1-2-25-09",
+        // mistral-large-4/-4-0 (Oct 2026 preview): reasoning_effort "none"/"high".
+        "mistral-large-4",
+        "mistral-large-4-0",
     ]
 
     private static let groqGPTOSSReasoningModelIDs: Set<String> = [

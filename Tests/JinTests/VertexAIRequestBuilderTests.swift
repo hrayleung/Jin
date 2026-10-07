@@ -205,6 +205,118 @@ final class VertexAIRequestBuilderTests: XCTestCase {
         XCTAssertNil(config["topP"])
     }
 
+    func testGenerationConfigForNanoBanana21OmitsUnsupportedParamsAndEmitsThinkingLevel() throws {
+        // Vertex model page (GA 2026-10-06): seed, topK, logprobs, temperature, topP
+        // "aren't supported ... returns an API error"; thinking levels are supported.
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let config = builder.makeGenerationConfig(
+            GenerationControls(
+                temperature: 0.4,
+                topP: 0.5,
+                reasoning: ReasoningControls(enabled: true, effort: .high),
+                imageGeneration: ImageGenerationControls(imageSize: .size2K, seed: 42)
+            ),
+            modelID: "gemini-nano-banana-2.1"
+        )
+
+        XCTAssertNil(config["temperature"])
+        XCTAssertNil(config["topP"])
+        XCTAssertNil(config["seed"])
+
+        let thinkingConfig = try XCTUnwrap(config["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(thinkingConfig["includeThoughts"] as? Bool, true)
+        XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "HIGH")
+        XCTAssertNil(thinkingConfig["thinkingBudget"])
+
+        XCTAssertEqual(config["responseModalities"] as? [String], ["TEXT", "IMAGE"])
+        let imageConfig = try XCTUnwrap(config["imageConfig"] as? [String: Any])
+        XCTAssertEqual(imageConfig["imageSize"] as? String, "2K")
+    }
+
+    func testGenerationConfigForNanoBanana21EmitsDeclaredThinkingLevels() throws {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let cases: [(ReasoningEffort, String)] = [
+            (.minimal, "MINIMAL"),
+            (.medium, "MEDIUM"),
+            (.high, "HIGH"),
+        ]
+        for (effort, expected) in cases {
+            let config = builder.makeGenerationConfig(
+                GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort)),
+                modelID: "gemini-nano-banana-2.1"
+            )
+            let thinkingConfig = try XCTUnwrap(config["thinkingConfig"] as? [String: Any])
+            XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, expected, "\(effort)")
+        }
+    }
+
+    func testGenerationConfigForNanoBanana21NeverEmitsThinkingBudget() throws {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        // Flash Image models accept thinkingLevel only; a stale budget selection
+        // must not serialize thinkingBudget.
+        let config = builder.makeGenerationConfig(
+            GenerationControls(reasoning: ReasoningControls(enabled: true, budgetTokens: 2048)),
+            modelID: "gemini-nano-banana-2.1"
+        )
+
+        let thinkingConfig = try XCTUnwrap(config["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(thinkingConfig["includeThoughts"] as? Bool, true)
+        XCTAssertNil(thinkingConfig["thinkingLevel"])
+        XCTAssertNil(thinkingConfig["thinkingBudget"])
+    }
+
+    func testGenerationConfigForFlashImageEmitsThinkingLevel() throws {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let config = builder.makeGenerationConfig(
+            GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            modelID: "gemini-3.1-flash-image"
+        )
+
+        let thinkingConfig = try XCTUnwrap(config["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "HIGH")
+    }
+
+    func testGenerationConfigForNanoBanana21PathQualifiedOmitsUnsupportedParams() {
+        let builder = VertexAIRequestBuilder(
+            providerConfig: makeVertexProviderConfig(),
+            serviceAccountJSON: makeVertexCredentials(),
+            modelSupport: VertexAIModelSupport()
+        )
+
+        let config = builder.makeGenerationConfig(
+            GenerationControls(
+                temperature: 0.4,
+                topP: 0.5,
+                imageGeneration: ImageGenerationControls(seed: 42)
+            ),
+            modelID: "publishers/google/models/gemini-nano-banana-2.1"
+        )
+
+        XCTAssertNil(config["temperature"])
+        XCTAssertNil(config["topP"])
+        XCTAssertNil(config["seed"])
+    }
+
     func testBuildRequestEchoesFunctionCallAndResponseIDs() throws {
         let builder = VertexAIRequestBuilder(
             providerConfig: makeVertexProviderConfig(),

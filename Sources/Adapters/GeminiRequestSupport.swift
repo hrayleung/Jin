@@ -152,10 +152,12 @@ enum GeminiRequestSupport {
         guard supportsImageSize(modelID) else { return false }
         // Pro Image: 1K/2K/4K only. Flash Image: 512px + 1K/2K/4K.
         // Flash-Lite Image: 1K only (docs: 1024px / 1K).
+        // Nano Banana 2.1: Flash-class but 1K/2K/4K only (no 512px).
         if GeminiModelConstants.isFlashLiteImageGenerationModel(modelID) {
             return imageSize == .size1K
         }
-        if GeminiModelConstants.isProImageGenerationModel(modelID) {
+        if GeminiModelConstants.isProImageGenerationModel(modelID)
+            || GeminiModelConstants.imageModelsWithout512pxModelIDs.contains(modelID.lowercased()) {
             return imageSize != .size512px
         }
         return true
@@ -173,6 +175,13 @@ enum GeminiRequestSupport {
 
     static func supportsThinkingLevel(_ modelID: String) -> Bool {
         supportsThinkingConfig(modelID)
+    }
+
+    /// Whether the model accepts a numeric `thinkingBudget` inside `thinkingConfig`.
+    /// Flash Image models accept `thinkingLevel` only.
+    static func supportsThinkingBudget(_ modelID: String) -> Bool {
+        supportsThinkingConfig(modelID)
+            && !GeminiModelConstants.isFlashImageGenerationModel(modelID)
     }
 
     private static func addSamplingControls(
@@ -214,7 +223,8 @@ enum GeminiRequestSupport {
                         modelID: modelID
                     )
                     thinkingConfig["thinkingLevel"] = mapEffortToThinkingLevel(normalizedEffort, modelID: modelID)
-                } else if let budget = reasoning.budgetTokens {
+                } else if let budget = reasoning.budgetTokens,
+                          supportsThinkingBudget(modelID) {
                     thinkingConfig["thinkingBudget"] = budget
                 }
 
@@ -239,7 +249,8 @@ enum GeminiRequestSupport {
         let responseMode = imageControls?.responseMode ?? .textAndImage
         config["responseModalities"] = responseMode.responseModalities
 
-        if let seed = imageControls?.seed {
+        if let seed = imageControls?.seed,
+           GeminiModelConstants.supportsImageSeed(modelID) {
             config["seed"] = seed
         }
 

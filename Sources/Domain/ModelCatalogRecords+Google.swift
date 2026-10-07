@@ -117,6 +117,17 @@ extension ModelCatalog {
                maxOutputTokens: 32_768,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
                isFullySupported: true, isSeeded: true),
+        // GA 2026-10-06. Docs: 131_072 input / 32_768 output; thinking
+        // minimal|medium|high (default medium); image sizes 1K/2K/4K (no 512px);
+        // no function calling on the image surface.
+        Record(id: "gemini-nano-banana-2.1", displayName: "Gemini Nano Banana 2.1",
+               capabilities: [.streaming, .vision, .reasoning, .nativePDF, .imageGeneration],
+               contextWindow: 131_072,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.minimal, .medium, .high]),
+               isFullySupported: true, isSeeded: true),
         // Docs: 65_536 input / 4_096 output; thinking minimal|high; image size 1K only.
         Record(id: "gemini-3.1-flash-lite-image", displayName: "Gemini 3.1 Flash-Lite Image",
                capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
@@ -313,6 +324,16 @@ extension ModelCatalog {
                contextWindow: 131_072,
                maxOutputTokens: 32_768,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal),
+               isFullySupported: true, isSeeded: true),
+        // GA 2026-10-06 on Vertex (same ID as Gemini API). Thinking
+        // minimal|medium|high (default medium); image sizes 1K/2K/4K (no 512px).
+        Record(id: "gemini-nano-banana-2.1", displayName: "Gemini Nano Banana 2.1",
+               capabilities: [.streaming, .vision, .reasoning, .nativePDF, .imageGeneration],
+               contextWindow: 131_072,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.minimal, .medium, .high]),
                isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3-flash-preview", displayName: "Gemini 3 Flash (Preview)",
                capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
@@ -1891,6 +1912,66 @@ extension ModelCatalog {
         // undocumented on the gateway — only image input (.vision) is claimed.
         Record(id: "inclusionai/ming-image-0.1-design-layer", displayName: "inclusionAI: Ming Image 0.1 Design Layer",
                capabilities: [.vision, .imageGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+
+        // --- 2026-09-30…10-06 OpenRouter additions (live GET /api/v1/models
+        // `created` stamps + /api/v1/images/models + /api/v1/videos/models) ---
+        // Gemini Nano Banana 2.1 (created 2026-10-06): text+image → text+image;
+        // OR reports 65,536 ctx / 58,982 max output and a minimal|high effort
+        // band — narrower than the upstream Google surface (131,072 / minimal|
+        // medium|high), so the record carries the gateway values.
+        Record(id: "google/gemini-nano-banana-2.1", displayName: "Google: Gemini Nano Banana 2.1",
+               capabilities: [.streaming, .vision, .reasoning, .imageGeneration],
+               contextWindow: 65_536,
+               maxOutputTokens: 58_982,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .minimal,
+                                                     supportedEfforts: [.minimal, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Mistral Large 4 (created 2026-10-06, upstream public preview same day):
+        // 524,288 ctx / 262,144 max output on OR — narrower than Mistral's own
+        // 1M figure; reasoning_effort none|high.
+        Record(id: "mistralai/mistral-large-4-0", displayName: "Mistral: Mistral Large 4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 524_288,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.none, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Hy-Image V3.5 Preview (created 2026-10-01): text+image → image,
+        // resolutions 1K/1.5K/2K/4K, up to 20 reference images. Context window is
+        // unpublished — same conservative prompt budget as other OR image models.
+        Record(id: "tencent/hy-image-v3.5-preview", displayName: "Tencent: Hy-Image V3.5 (Preview)",
+               capabilities: [.vision, .imageGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Seedream 5.0 Flash (created 2026-10-02): text+image → image,
+        // resolutions 1K/2K, up to 14 reference images.
+        Record(id: "bytedance-seed/seedream-5-0-flash", displayName: "ByteDance Seed: Seedream 5.0 Flash",
+               capabilities: [.vision, .imageGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // FLUX.3 Image (created 2026-10-06): text+image → image, resolutions
+        // 768/1K/1.5K/2K/4K, up to 10 reference images.
+        Record(id: "black-forest-labs/flux-3-image", displayName: "Black Forest Labs: FLUX.3 Image",
+               capabilities: [.vision, .imageGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Grok Imagine Video 1.5 Lite (created 2026-10-06): durations 1–15s,
+        // 480p/720p/1080p, aspect ratios 16:9/9:16/1:1/4:3/3:4/3:2/2:3.
+        Record(id: "x-ai/grok-imagine-video-1.5-lite", displayName: "xAI: Grok Imagine Video 1.5 Lite",
+               capabilities: [.videoGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // HeyGen Video 1 (created 2026-09-30): durations 5–15s, 480p/768p/2K,
+        // aspect ratios 21:9/16:9/4:3/1:1/3:4/9:16.
+        Record(id: "heygen/heygen-video-1", displayName: "HeyGen: HeyGen Video 1",
+               capabilities: [.videoGeneration],
                contextWindow: 32_768,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),

@@ -48,7 +48,8 @@ extension VertexAIRequestBuilder {
                 modelID: modelID
             )
             thinkingConfig["thinkingLevel"] = modelSupport.mapEffortToVertexLevel(normalizedEffort, modelID: modelID)
-        } else if let budget = reasoning.budgetTokens {
+        } else if let budget = reasoning.budgetTokens,
+                  modelSupport.supportsThinkingBudget(modelID) {
             thinkingConfig["thinkingBudget"] = budget
         }
 
@@ -65,7 +66,8 @@ extension VertexAIRequestBuilder {
 
         let imageControls = controls.imageGeneration
         config["responseModalities"] = (imageControls?.responseMode ?? .textAndImage).responseModalities
-        if let seed = imageControls?.seed {
+        if let seed = imageControls?.seed,
+           GeminiModelConstants.supportsImageSeed(modelID) {
             config["seed"] = seed
         }
 

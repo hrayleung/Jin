@@ -79,6 +79,45 @@ final class GeminiRequestSupportTests: XCTestCase {
         XCTAssertNil(config["topP"])
     }
 
+    func testGenerationConfigForNanoBanana21OmitsSeedAndBudgetAndEmitsThinkingLevel() throws {
+        // The Vertex model page documents seed/topK/logprobs/temperature/topP
+        // unsupported for this exact ID; the restriction is model-level on the
+        // shared generateContent schema.
+        let config = GeminiRequestSupport.generationConfig(
+            controls: GenerationControls(
+                temperature: 0.4,
+                topP: 0.5,
+                reasoning: ReasoningControls(enabled: true, effort: .high),
+                imageGeneration: ImageGenerationControls(imageSize: .size2K, seed: 42)
+            ),
+            modelID: "gemini-nano-banana-2.1"
+        )
+
+        XCTAssertNil(config["temperature"])
+        XCTAssertNil(config["topP"])
+        XCTAssertNil(config["seed"])
+
+        let thinkingConfig = try XCTUnwrap(config["thinkingConfig"] as? [String: Any])
+        XCTAssertEqual(thinkingConfig["includeThoughts"] as? Bool, true)
+        XCTAssertEqual(thinkingConfig["thinkingLevel"] as? String, "HIGH")
+        XCTAssertNil(thinkingConfig["thinkingBudget"])
+
+        let imageConfig = try XCTUnwrap(config["imageConfig"] as? [String: Any])
+        XCTAssertEqual(imageConfig["imageSize"] as? String, "2K")
+
+        // A stale budget-only selection must not serialize thinkingBudget
+        // (Flash Image models accept thinkingLevel only).
+        let budgetOnly = GeminiRequestSupport.generationConfig(
+            controls: GenerationControls(
+                reasoning: ReasoningControls(enabled: true, budgetTokens: 2048)
+            ),
+            modelID: "gemini-nano-banana-2.1"
+        )
+        let budgetThinking = try XCTUnwrap(budgetOnly["thinkingConfig"] as? [String: Any])
+        XCTAssertNil(budgetThinking["thinkingLevel"])
+        XCTAssertNil(budgetThinking["thinkingBudget"])
+    }
+
     func testGenerationConfigNeverSendsMinimalThinkingLevelForGemini37Flash() throws {
         // Docs (2026-08-13): thinking_level="MINIMAL" is an API validation error on 3.7 Flash,
         // so a carried-over `.minimal`/`.none` selection must fold down to LOW on the wire.

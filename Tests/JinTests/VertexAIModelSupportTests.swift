@@ -38,9 +38,17 @@ final class VertexAIModelSupportTests: XCTestCase {
     func testThinkingConfigSupportExcludesGemini3ImagePreviewModels() {
         let support = VertexAIModelSupport()
 
+        // Pro Image models do not accept thinkingConfig generation fields.
         XCTAssertTrue(support.supportsThinking("gemini-3-pro-image-preview"))
         XCTAssertFalse(support.supportsThinkingConfig("gemini-3-pro-image-preview"))
-        XCTAssertFalse(support.supportsThinkingConfig("gemini-3.1-flash-image-preview"))
+
+        // Flash Image models accept thinkingLevel but not thinkingBudget.
+        for id in ["gemini-3.1-flash-image-preview", "gemini-nano-banana-2.1"] {
+            XCTAssertTrue(support.supportsThinkingConfig(id), id)
+            XCTAssertTrue(support.supportsThinkingLevel(id), id)
+            XCTAssertFalse(support.supportsThinkingBudget(id), id)
+        }
+        XCTAssertTrue(support.supportsThinkingBudget("gemini-3.5-flash"))
     }
 
     func testKnownImagenModelsAreClassifiedExplicitly() {

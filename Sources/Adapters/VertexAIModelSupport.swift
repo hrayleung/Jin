@@ -95,7 +95,8 @@ struct VertexAIModelSupport {
         if GeminiModelConstants.isFlashLiteImageGenerationModel(modelID) {
             return imageSize == .size1K
         }
-        if GeminiModelConstants.isProImageGenerationModel(modelID) {
+        if GeminiModelConstants.isProImageGenerationModel(modelID)
+            || GeminiModelConstants.imageModelsWithout512pxModelIDs.contains(modelID.lowercased()) {
             return imageSize != .size512px
         }
         return true
@@ -132,14 +133,20 @@ struct VertexAIModelSupport {
 
     func supportsThinkingConfig(_ modelID: String) -> Bool {
         // Pro Image models do not accept thinkingConfig generation fields.
-        // Flash Image models accept thinking level but not full thinkingConfig budgets.
+        // Flash Image models accept thinking level but not thinking budgets.
         supportsThinking(modelID)
             && !GeminiModelConstants.isProImageGenerationModel(modelID)
-            && !GeminiModelConstants.isFlashImageGenerationModel(modelID)
     }
 
     func supportsThinkingLevel(_ modelID: String) -> Bool {
         supportsThinkingConfig(modelID)
+    }
+
+    /// Whether the model accepts a numeric `thinkingBudget` inside `thinkingConfig`.
+    /// Flash Image models accept `thinkingLevel` only.
+    func supportsThinkingBudget(_ modelID: String) -> Bool {
+        supportsThinkingConfig(modelID)
+            && !GeminiModelConstants.isFlashImageGenerationModel(modelID)
     }
 
     func supportsNativePDF(_ modelID: String) -> Bool {
@@ -227,6 +234,11 @@ struct VertexAIModelSupport {
 
         if GeminiModelConstants.gemini25TextModelIDs.contains(lower) {
             return ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+        }
+        if lower == "gemini-nano-banana-2.1" {
+            return ModelReasoningConfig(
+                type: .effort, defaultEffort: .medium,
+                supportedEfforts: [.minimal, .medium, .high])
         }
         if lower == "gemini-3.1-flash-lite-preview"
             || lower == "gemini-3.1-flash-lite"
