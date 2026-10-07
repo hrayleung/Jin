@@ -62,13 +62,16 @@ enum GeminiModelConstants {
 
     /// Exact IDs where custom temperature / topP / topK are ignored or deprecated.
     /// Docs (Vertex 3.6 Flash / 3.5 Flash-Lite model pages + Gemini API 2026-07-21 changelog;
-    /// 3.7 Flash "What's new" migration guide, 2026-08-13: "Strip temperature, top_p, and top_k").
+    /// 3.7 Flash "What's new" migration guide, 2026-08-13: "Strip temperature, top_p, and top_k";
+    /// Nano Banana 2.1 Vertex model page, GA 2026-10-06: seed/topK/logprobs/temperature/topP
+    /// "aren't supported ... Setting any of these parameters returns an API error").
     static let customSamplingUnsupportedModelIDs: Set<String> = [
         "gemini-3.8-flash",
         "gemini-3.8-flash-preview",
         "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash-lite",
+        "gemini-nano-banana-2.1",
     ]
 
     /// Gemini models that support native image generation (lowercased).
@@ -103,6 +106,14 @@ enum GeminiModelConstants {
     /// Nano Banana 2.1 (ai.google.dev image-generation table, 2026-10-06) lists
     /// 1K/2K/4K columns only.
     static let imageModelsWithout512pxModelIDs: Set<String> = [
+        "gemini-nano-banana-2.1",
+    ]
+
+    /// Exact image model IDs whose `seed` generation field is documented
+    /// unsupported. Nano Banana 2.1 (Vertex model page, GA 2026-10-06):
+    /// seed/topK/logprobs/temperature/topP "aren't supported ... Setting any of
+    /// these parameters returns an API error". Other image models accept seed.
+    static let imageSeedUnsupportedModelIDs: Set<String> = [
         "gemini-nano-banana-2.1",
     ]
 
@@ -191,6 +202,12 @@ enum GeminiModelConstants {
     /// `google-vertex-ai/google/...`) so proxied requests suppress the same fields.
     static func supportsCustomSamplingParameters(_ modelID: String) -> Bool {
         !customSamplingUnsupportedModelIDs.contains(canonicalTerminalModelID(modelID))
+    }
+
+    /// Whether the image model accepts a `seed` generation field.
+    /// Path-qualified IDs are canonicalized first (same forms as sampling above).
+    static func supportsImageSeed(_ modelID: String) -> Bool {
+        !imageSeedUnsupportedModelIDs.contains(canonicalTerminalModelID(modelID))
     }
 
     /// Terminal model ID from path-qualified forms used by Gemini/Vertex routing.

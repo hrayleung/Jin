@@ -177,6 +177,13 @@ enum GeminiRequestSupport {
         supportsThinkingConfig(modelID)
     }
 
+    /// Whether the model accepts a numeric `thinkingBudget` inside `thinkingConfig`.
+    /// Flash Image models accept `thinkingLevel` only.
+    static func supportsThinkingBudget(_ modelID: String) -> Bool {
+        supportsThinkingConfig(modelID)
+            && !GeminiModelConstants.isFlashImageGenerationModel(modelID)
+    }
+
     private static func addSamplingControls(
         to config: inout [String: Any],
         controls: GenerationControls,
@@ -216,7 +223,8 @@ enum GeminiRequestSupport {
                         modelID: modelID
                     )
                     thinkingConfig["thinkingLevel"] = mapEffortToThinkingLevel(normalizedEffort, modelID: modelID)
-                } else if let budget = reasoning.budgetTokens {
+                } else if let budget = reasoning.budgetTokens,
+                          supportsThinkingBudget(modelID) {
                     thinkingConfig["thinkingBudget"] = budget
                 }
 
@@ -241,7 +249,8 @@ enum GeminiRequestSupport {
         let responseMode = imageControls?.responseMode ?? .textAndImage
         config["responseModalities"] = responseMode.responseModalities
 
-        if let seed = imageControls?.seed {
+        if let seed = imageControls?.seed,
+           GeminiModelConstants.supportsImageSeed(modelID) {
             config["seed"] = seed
         }
 
