@@ -3930,8 +3930,6 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .cloudflareAIGateway, modelID: "xai/grok-4.7"))
         // Older Claude rows on this gateway keep their previous toggleable default.
         XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .cloudflareAIGateway, modelID: "anthropic/claude-opus-5"))
-        // Sonnet 5.5 is not on Cloudflare (its model page 404s) — no record.
-        XCTAssertNil(ModelCatalog.entry(for: "anthropic/claude-sonnet-5.5", provider: .cloudflareAIGateway))
 
         // Ramp Router — callable ID inferred from the docs label, so unseeded; band = sonnet-5's.
         let routerSonnet = ModelCatalog.modelInfo(for: "claude-sonnet-5-5", provider: .router)
@@ -4114,5 +4112,179 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertNil(ModelCatalog.entry(for: "@cf/cloudflare/clef-flash", provider: .cloudflareAIGateway))
         XCTAssertNil(ModelCatalog.entry(for: "firerouter/opus", provider: .fireworks))
         XCTAssertNil(ModelCatalog.entry(for: "openai/gpt-6.1-sol", provider: .perplexity))
+    }
+
+    /// Census additions for 2026-09-30…10-07: Gemini Nano Banana 2.1 (Gemini API,
+    /// Vertex, OpenRouter, Vercel), Mistral Large 4 (Mistral, OpenRouter, Vercel),
+    /// OpenRouter image/video rows, Cloudflare + DeepInfra hosted Sonnet 5.5,
+    /// OpenCode Go's `space-bunny` rename, and the Vercel blocked-adapter rows.
+    func testOctober2026Week2CatalogUsesExactIDsAndDeclaredBands() {
+        let fullLadder: [ReasoningEffort] = [.low, .medium, .high, .xhigh, .max]
+
+        // Gemini API — Nano Banana 2.1 (GA 2026-10-06): 131,072 / 32,768,
+        // image generation, effort minimal/medium/high default medium, no 512px.
+        let nano = ModelCatalog.modelInfo(for: "gemini-nano-banana-2.1", provider: .gemini)
+        XCTAssertEqual(nano.name, "Gemini Nano Banana 2.1")
+        XCTAssertEqual(nano.contextWindow, 131_072)
+        XCTAssertEqual(nano.maxOutputTokens, 32_768)
+        XCTAssertEqual(
+            nano.capabilities,
+            [.streaming, .vision, .reasoning, .nativePDF, .imageGeneration]
+        )
+        XCTAssertEqual(nano.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertEqual(nano.reasoningConfig?.supportedEfforts, [.minimal, .medium, .high])
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "gemini-nano-banana-2.1", provider: .gemini))
+        XCTAssertTrue(ModelCatalog.seededModels(for: .gemini).contains(where: { $0.id == "gemini-nano-banana-2.1" }))
+        XCTAssertTrue(GeminiModelConstants.isImageGenerationModel("gemini-nano-banana-2.1"))
+        XCTAssertTrue(GeminiModelConstants.isFlashImageGenerationModel("gemini-nano-banana-2.1"))
+        XCTAssertFalse(GeminiRequestSupport.supportsImageSize("gemini-nano-banana-2.1", imageSize: .size512px))
+        XCTAssertTrue(GeminiRequestSupport.supportsImageSize("gemini-nano-banana-2.1", imageSize: .size2K))
+        // The 512px-capable flash sibling is unaffected.
+        XCTAssertTrue(GeminiRequestSupport.supportsImageSize("gemini-3.1-flash-image", imageSize: .size512px))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .gemini, modelID: "gemini-nano-banana-2.1"),
+            [.minimal, .medium, .high]
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.supportedCurrentModelImageSizes(lowerModelID: "gemini-nano-banana-2.1"),
+            [.size1K, .size2K, .size4K]
+        )
+        XCTAssertEqual(
+            ChatModelCapabilitySupport.supportedCurrentModelImageAspectRatios(lowerModelID: "gemini-nano-banana-2.1"),
+            ImageAspectRatio.nanoBanana2SupportedCases
+        )
+        XCTAssertTrue(ChatModelCapabilitySupport.supportsCurrentModelImageSizeControl(lowerModelID: "gemini-nano-banana-2.1"))
+
+        // Vertex — same ID, same envelope.
+        let vNano = ModelCatalog.modelInfo(for: "gemini-nano-banana-2.1", provider: .vertexai)
+        XCTAssertEqual(vNano.contextWindow, 131_072)
+        XCTAssertEqual(vNano.maxOutputTokens, 32_768)
+        XCTAssertEqual(vNano.reasoningConfig?.supportedEfforts, [.minimal, .medium, .high])
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "gemini-nano-banana-2.1", provider: .vertexai))
+        XCTAssertTrue(ModelCatalog.seededModels(for: .vertexai).contains(where: { $0.id == "gemini-nano-banana-2.1" }))
+
+        // Mistral — Large 4 seeded (public preview 2026-10-06), 1M context,
+        // reasoning_effort none|high.
+        let large4 = ModelCatalog.modelInfo(for: "mistral-large-4", provider: .mistral)
+        XCTAssertEqual(large4.contextWindow, 1_000_000)
+        XCTAssertEqual(large4.capabilities, [.streaming, .toolCalling, .vision, .reasoning])
+        XCTAssertEqual(large4.reasoningConfig?.supportedEfforts, [.none, .high])
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "mistral-large-4", provider: .mistral))
+        XCTAssertTrue(ModelCatalog.seededModels(for: .mistral).contains(where: { $0.id == "mistral-large-4" }))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "mistral-large-4-0", provider: .mistral))
+        XCTAssertFalse(ModelCatalog.seededModels(for: .mistral).contains(where: { $0.id == "mistral-large-4-0" }))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .mistral, modelID: "mistral-large-4"),
+            [.none, .high]
+        )
+
+        // OpenRouter — seven in-window rows (created 2026-09-30…10-06).
+        let orNano = ModelCatalog.modelInfo(for: "google/gemini-nano-banana-2.1", provider: .openrouter)
+        XCTAssertEqual(orNano.contextWindow, 65_536)
+        XCTAssertEqual(orNano.maxOutputTokens, 58_982)
+        // OR publishes a narrower band than upstream — minimal|high, no medium.
+        XCTAssertEqual(orNano.reasoningConfig?.supportedEfforts, [.minimal, .high])
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "google/gemini-nano-banana-2.1"),
+            [.minimal, .high]
+        )
+        XCTAssertTrue(orNano.capabilities.contains(.imageGeneration))
+        let orLarge = ModelCatalog.modelInfo(for: "mistralai/mistral-large-4-0", provider: .openrouter)
+        XCTAssertEqual(orLarge.contextWindow, 524_288)
+        XCTAssertEqual(orLarge.maxOutputTokens, 262_144)
+        XCTAssertEqual(orLarge.reasoningConfig?.supportedEfforts, [.none, .high])
+        XCTAssertTrue(orLarge.capabilities.isSuperset(of: [.toolCalling, .vision, .reasoning]))
+        for id in ["tencent/hy-image-v3.5-preview", "bytedance-seed/seedream-5-0-flash",
+                   "black-forest-labs/flux-3-image"] {
+            let m = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(m.capabilities, [.vision, .imageGeneration], id)
+            XCTAssertNil(m.reasoningConfig, id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .openrouter), id)
+            XCTAssertEqual(ModelSettingsResolver.inferModelType(capabilities: m.capabilities, modelID: id), .image, id)
+        }
+        for id in ["x-ai/grok-imagine-video-1.5-lite", "heygen/heygen-video-1"] {
+            let m = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(m.capabilities, [.videoGeneration], id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .openrouter), id)
+        }
+        XCTAssertEqual(
+            OpenRouterVideoModelSupport.supportedDurations(for: "x-ai/grok-imagine-video-1.5-lite"),
+            Array(1...15)
+        )
+        XCTAssertEqual(
+            OpenRouterVideoModelSupport.supportedResolutions(for: "x-ai/grok-imagine-video-1.5-lite"),
+            [.res480p, .res720p, .res1080p]
+        )
+        XCTAssertEqual(
+            OpenRouterVideoModelSupport.supportedDurations(for: "heygen/heygen-video-1"),
+            Array(5...15)
+        )
+        XCTAssertEqual(
+            OpenRouterVideoModelSupport.supportedResolutions(for: "heygen/heygen-video-1"),
+            [.res480p, .res768p, .res2K]
+        )
+        // Neither video model claims audio/watermark or the Seedance passthrough slug.
+        for id in ["x-ai/grok-imagine-video-1.5-lite", "heygen/heygen-video-1"] {
+            XCTAssertFalse(OpenRouterVideoModelSupport.supportsAudio(for: id), id)
+            XCTAssertFalse(OpenRouterVideoModelSupport.supportsWatermark(for: id), id)
+            XCTAssertNil(OpenRouterVideoModelSupport.providerPassthroughSlug(for: id), id)
+        }
+
+        // Cloudflare AI Gateway — dotted Sonnet 5.5 slug, always-on thinking upstream.
+        let cfSonnet = ModelCatalog.modelInfo(for: "anthropic/claude-sonnet-5.5", provider: .cloudflareAIGateway)
+        XCTAssertEqual(cfSonnet.contextWindow, 1_000_000)
+        XCTAssertEqual(cfSonnet.maxOutputTokens, 128_000)
+        XCTAssertEqual(cfSonnet.reasoningConfig?.supportedEfforts, fullLadder)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "anthropic/claude-sonnet-5.5", provider: .cloudflareAIGateway))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .cloudflareAIGateway, modelID: "anthropic/claude-sonnet-5.5"))
+        XCTAssertNil(ModelCatalog.entry(for: "anthropic/claude-sonnet-5-5", provider: .cloudflareAIGateway))
+
+        // Vercel AI Gateway — Mistral Large 4 + NB2.1 fully supported; the media/
+        // embedding/rerank/evaluation rows are catalog-only (blocked-adapter).
+        let vLarge = ModelCatalog.modelInfo(for: "mistral/mistral-large-4", provider: .vercelAIGateway)
+        XCTAssertEqual(vLarge.contextWindow, 524_288)
+        XCTAssertEqual(vLarge.maxOutputTokens, 262_144)
+        XCTAssertEqual(vLarge.reasoningConfig?.supportedEfforts, [.none, .low, .medium, .high])
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "mistral/mistral-large-4", provider: .vercelAIGateway))
+        let verNano = ModelCatalog.modelInfo(for: "google/gemini-nano-banana-2.1", provider: .vercelAIGateway)
+        XCTAssertEqual(verNano.contextWindow, 131_072)
+        XCTAssertEqual(verNano.maxOutputTokens, 32_768)
+        XCTAssertEqual(verNano.reasoningConfig?.supportedEfforts, [.minimal, .medium, .high])
+        XCTAssertTrue(verNano.capabilities.contains(.imageGeneration))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "google/gemini-nano-banana-2.1", provider: .vercelAIGateway))
+        for id in ["bfl/flux-3-image", "topaz/wonder-3.5", "topaz/proteus",
+                   "topaz/starlight-precise-2.6", "cohere/embed-v5.0-fast",
+                   "cohere/embed-v5.0-pro", "voyage/rerank-3", "voyage/rerank-3-lite",
+                   "convaiinnovations/laya", "convaiinnovations/laya-free",
+                   "openai/gpt-6-luna-decisions", "microsoft/mai-transcribe-2-streaming",
+                   "microsoft/mai-voice-2.1", "microsoft/mai-voice-2.1-flash"] {
+            XCTAssertNotNil(ModelCatalog.entry(for: id, provider: .vercelAIGateway), id)
+            XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .vercelAIGateway), id)
+        }
+
+        // DeepInfra — hyphenated Sonnet 5.5 hosted copy (listed 2026-09-30).
+        let diSonnet = ModelCatalog.modelInfo(for: "anthropic/claude-sonnet-5-5", provider: .deepinfra)
+        XCTAssertEqual(diSonnet.contextWindow, 1_000_000)
+        XCTAssertEqual(diSonnet.maxOutputTokens, 128_000)
+        XCTAssertTrue(diSonnet.capabilities.isSuperset(of: [.streaming, .toolCalling, .vision, .reasoning]))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "anthropic/claude-sonnet-5-5", provider: .deepinfra))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .deepinfra, modelID: "anthropic/claude-sonnet-5-5"))
+        XCTAssertNil(ModelCatalog.entry(for: "anthropic/claude-sonnet-5.5", provider: .deepinfra))
+
+        // OpenCode Go — `space-bunny` is the renamed live ID; `-free` stays
+        // cataloged for persisted chats. Neither routes to Anthropic/Responses.
+        for id in ["space-bunny", "space-bunny-free"] {
+            let m = ModelCatalog.modelInfo(for: id, provider: .opencodeGo)
+            XCTAssertEqual(m.contextWindow, 1_048_576, id)
+            XCTAssertEqual(m.maxOutputTokens, 524_288, id)
+            XCTAssertEqual(m.reasoningConfig?.supportedEfforts, fullLadder, id)
+            XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .opencodeGo), id)
+            XCTAssertFalse(OpenCodeGoAdapter.anthropicMessagesModelIDs.contains(id), id)
+            XCTAssertFalse(OpenCodeGoAdapter.openAIResponsesModelIDs.contains(id), id)
+        }
+
+        // Blocked-adapter findings carry no catalog records on their providers.
+        XCTAssertNil(ModelCatalog.entry(for: "grok-voice-transcribe-2.0", provider: .xai))
+        XCTAssertNil(ModelCatalog.entry(for: "gpt-6-luna-decisions", provider: .openai))
     }
 }

@@ -105,7 +105,11 @@ extension GeminiAdapter {
         var reasoningConfig: ModelReasoningConfig?
         if supportsThinking(id) && isGeminiModel {
             caps.insert(.reasoning)
-            if GeminiModelConstants.isFlashImageGenerationModel(id)
+            if lower == "gemini-nano-banana-2.1" {
+                reasoningConfig = ModelReasoningConfig(
+                    type: .effort, defaultEffort: .medium,
+                    supportedEfforts: [.minimal, .medium, .high])
+            } else if GeminiModelConstants.isFlashImageGenerationModel(id)
                 || lower == "gemini-3.1-flash-lite-preview"
                 || lower == "gemini-3.1-flash-lite"
                 || lower == "gemini-3.5-flash-lite" {

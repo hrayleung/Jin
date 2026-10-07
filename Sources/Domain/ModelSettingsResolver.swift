@@ -289,6 +289,9 @@ enum ModelSettingsResolver {
         // Opus 5.5 hosted copy (listed 2026-09-23): adaptive thinking is
         // mandatory upstream, and its published band is low…max with no `none`.
         "anthropic/claude-opus-5-5",
+        // Sonnet 5.5 hosted copy (listed 2026-09-30): same adaptive-only
+        // constraint upstream — `disabled` 400s, no `none` in the band.
+        "anthropic/claude-sonnet-5-5",
     ]
 
     /// Anthropic IDs whose adaptive thinking cannot be turned off. Exact-ID only.
@@ -451,6 +454,9 @@ enum ModelSettingsResolver {
     private static let cloudflareAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
         "anthropic/claude-opus-5.5",
         "xai/grok-4.7",
+        // Sonnet 5.5 (listed on the gateway 2026-10): adaptive-only thinking
+        // upstream — `disabled` 400s, so Off is never offered on this copy either.
+        "anthropic/claude-sonnet-5.5",
     ]
 
     /// Databricks foundation models where reasoning cannot be disabled.

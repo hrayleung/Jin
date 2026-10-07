@@ -95,7 +95,8 @@ struct VertexAIModelSupport {
         if GeminiModelConstants.isFlashLiteImageGenerationModel(modelID) {
             return imageSize == .size1K
         }
-        if GeminiModelConstants.isProImageGenerationModel(modelID) {
+        if GeminiModelConstants.isProImageGenerationModel(modelID)
+            || GeminiModelConstants.imageModelsWithout512pxModelIDs.contains(modelID.lowercased()) {
             return imageSize != .size512px
         }
         return true
@@ -227,6 +228,11 @@ struct VertexAIModelSupport {
 
         if GeminiModelConstants.gemini25TextModelIDs.contains(lower) {
             return ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+        }
+        if lower == "gemini-nano-banana-2.1" {
+            return ModelReasoningConfig(
+                type: .effort, defaultEffort: .medium,
+                supportedEfforts: [.minimal, .medium, .high])
         }
         if lower == "gemini-3.1-flash-lite-preview"
             || lower == "gemini-3.1-flash-lite"

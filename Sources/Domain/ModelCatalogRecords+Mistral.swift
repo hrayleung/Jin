@@ -14,6 +14,15 @@ extension ModelCatalog {
                contextWindow: 262_144,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        // Mistral Large 4 (public preview 2026-10-06, docs.mistral.ai changelog
+        // + model card): 1M context, multimodal, function calling, structured
+        // outputs, reasoning_effort none|high (default high).
+        Record(id: "mistral-large-4", displayName: "Mistral Large 4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.none, .high]),
+               isFullySupported: true, isSeeded: true),
         Record(id: "mistral-small-4-0-26-03", displayName: "Mistral Small 4",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 262_144,
@@ -68,6 +77,14 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                maxOutputTokens: 128_000,
                reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Catalog-only alias: Mistral also publishes the `mistral-large-4-0`
+        // spelling (model card versioned ID); same specs as `mistral-large-4`.
+        Record(id: "mistral-large-4-0", displayName: "Mistral Large 4.0",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.none, .high]),
                isFullySupported: true, isSeeded: false),
         // Back-compat alias for the old short ID Jin previously seeded — keeps reasoning toggle
         // available for chats already pinned to this ID.

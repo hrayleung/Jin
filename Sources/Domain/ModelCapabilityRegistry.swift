@@ -163,6 +163,12 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-flash-lite-image",
     ]
 
+    /// Gemini Nano Banana 2.1 supports MINIMAL/MEDIUM(default)/HIGH
+    /// (ai.google.dev model card, 2026-10-06).
+    private static let geminiNanoBanana21EffortModelIDs: Set<String> = [
+        "gemini-nano-banana-2.1",
+    ]
+
     /// Gemini 3.1 Pro supports LOW/MEDIUM/HIGH.
     private static let gemini31ProEffortModelIDs: Set<String> = [
         "gemini-3.1-pro-preview",
@@ -555,6 +561,10 @@ enum ModelCapabilityRegistry {
     /// (matches the native gemini31FlashImageEffortModelIDs band).
     private static let openRouterMinimalHighEffortModelIDs: Set<String> = [
         "google/gemini-3.1-flash-lite-image",
+        // google/gemini-nano-banana-2.1 (created 2026-10-06): OR publishes
+        // reasoning_options minimal|high — narrower than upstream's
+        // minimal|medium|high, so this set is checked before the Gemini policy.
+        "google/gemini-nano-banana-2.1",
     ]
     /// Thinking Machines Inkling accepts the full none/minimal/low/medium/high/max
     /// band with no xhigh (OpenRouter supported_efforts, verified 2026-07-18).
@@ -981,6 +991,14 @@ enum ModelCapabilityRegistry {
         "mistral-small-4-0-26-03",
         "magistral-medium-1-2-25-09",
     ]
+    /// Mistral's reasoning guide documents `reasoning_effort` values `none` (minimal
+    /// thinking, thinking chunk omitted) and `high` (full thinking chunk) for Mistral
+    /// models; `mistral-large-4(-0)` is listed as supporting adjustable reasoning
+    /// (docs.mistral.ai capabilities/reasoning, 2026-10).
+    private static let mistralNoneHighReasoningEffortModelIDs: Set<String> = [
+        "mistral-large-4",
+        "mistral-large-4-0",
+    ]
     private static let googleModelPrefixes = [
         "google/",
         "google-ai-studio/",
@@ -1396,6 +1414,8 @@ enum ModelCapabilityRegistry {
             return [.low, .medium, .high]
         case .vercelAIGateway where xAIStandardEffortWithNoneModelIDs.contains(lowerModelID):
             return [.none, .low, .medium, .high]
+        case .mistral where mistralNoneHighReasoningEffortModelIDs.contains(lowerModelID):
+            return [.none, .high]
         case .mistral where mistralHighOnlyReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .fireworks where fireworksDeepSeekV4ProModelIDs.contains(lowerModelID):
@@ -1507,6 +1527,14 @@ enum ModelCapabilityRegistry {
         case .gemini, .vertexai:
             return supportedGeminiThinkingEfforts(lowerModelID: lowerModelID)
         case .openrouter, .vercelAIGateway, .cloudflareAIGateway:
+            // OpenRouter publishes its own effort band per model; where it is
+            // narrower than the upstream Google surface (e.g. nano-banana-2.1 is
+            // minimal|high on OR vs minimal|medium|high upstream) the gateway
+            // band wins.
+            if providerType == .openrouter,
+               openRouterMinimalHighEffortModelIDs.contains(lowerModelID) {
+                return [.minimal, .high]
+            }
             let canonical = canonicalGoogleModelID(lowerModelID: lowerModelID)
             guard isKnownGeminiEffortPolicyModel(canonical) else { return nil }
             return supportedGeminiThinkingEfforts(lowerModelID: canonical)
@@ -1517,6 +1545,7 @@ enum ModelCapabilityRegistry {
 
     private static func isKnownGeminiEffortPolicyModel(_ lowerModelID: String) -> Bool {
         gemini31FlashImageEffortModelIDs.contains(lowerModelID)
+            || geminiNanoBanana21EffortModelIDs.contains(lowerModelID)
             || gemini3FlashEffortModelIDs.contains(lowerModelID)
             || gemini37FlashEffortModelIDs.contains(lowerModelID)
             || gemini31ProEffortModelIDs.contains(lowerModelID)
@@ -1525,6 +1554,9 @@ enum ModelCapabilityRegistry {
 
     private static func supportedGeminiThinkingEfforts(lowerModelID: String) -> [ReasoningEffort] {
         let id = canonicalGoogleModelID(lowerModelID: lowerModelID)
+        if geminiNanoBanana21EffortModelIDs.contains(id) {
+            return [.minimal, .medium, .high]
+        }
         if gemini31FlashImageEffortModelIDs.contains(id) {
             return [.minimal, .high]
         }
@@ -1659,6 +1691,13 @@ enum ModelCapabilityRegistry {
     static func defaultReasoningConfig(for providerType: ProviderType?, modelID: String) -> ModelReasoningConfig? {
         let lowerModelID = modelID.lowercased()
         let shape = requestShape(for: providerType, modelID: modelID)
+
+        if providerType == .mistral,
+           mistralNoneHighReasoningEffortModelIDs.contains(lowerModelID) {
+            return ModelReasoningConfig(
+                type: .effort, defaultEffort: .high,
+                supportedEfforts: [.none, .high])
+        }
 
         if providerType == .mistral,
            mistralHighOnlyReasoningEffortModelIDs.contains(lowerModelID) {

@@ -35,6 +35,10 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: true),
+        // `gpt-6-luna-decisions` (OpenAI release notes 2026-10-06) is deliberately
+        // NOT cataloged here: it is served only through the Decisions API beta
+        // (predicate/choice/score evaluation), a surface Jin does not implement
+        // (blocked-adapter). The Vercel gateway twin is cataloged catalog-only.
         // GPT-6.1 Sol (developers.openai.com/api/docs/models/gpt-6.1-sol, released
         // 2026-09-29): same 1,050,000 / 128,000 envelope, text+image input, reasoning
         // effort low..max — `none` and `minimal` are not accepted, so the model is
@@ -666,6 +670,18 @@ extension ModelCatalog {
                contextWindow: 1_000_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Claude Sonnet 5.5 (Cloudflare AI catalog, listed 2026-10): DOTTED slug
+        // `anthropic/claude-sonnet-5.5`, matching the 5.5 convention. 1,000,000 /
+        // 128,000, adaptive thinking always-on upstream (Off is never offered —
+        // see cloudflareAIGatewayAlwaysOnReasoningModelIDs), effort low…max.
+        // `.nativePDF` stays off on this gateway.
+        Record(id: "anthropic/claude-sonnet-5.5", displayName: "Claude Sonnet 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
                                                      supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: false),
         Record(id: "anthropic/claude-opus-5", displayName: "Claude Opus 5",
@@ -1818,6 +1834,113 @@ extension ModelCatalog {
         // video send path on this gateway (blocked-adapter).
         Record(id: "spacexai/grok-imagine-video-1.5-lite", displayName: "Grok Imagine Video 1.5 Lite",
                capabilities: [.videoGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+
+        // --- Vercel AI Gateway models table additions, fetched 2026-10-07 ---
+        // Mistral Large 4 (released 2026-10-06): 524,288 / 262,144 on the
+        // gateway (upstream advertises 1M), text+image input, reasoning +
+        // structured-output + tool-use + vision tags. reasoning_options publish
+        // a toggle AND effort none/low/medium/high.
+        Record(id: "mistral/mistral-large-4", displayName: "Mistral Large 4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 524_288,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.none, .low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Gemini Nano Banana 2.1 (released 2026-10-06): type "language" on the
+        // gateway, so it is chat-servable with inline image output — same shape
+        // as the gemini-3.1-flash-image-preview row. 131,072 / 32,768, tags
+        // image-generation + implicit-caching + reasoning + vision. Effort
+        // minimal/medium/high, default medium per upstream.
+        Record(id: "google/gemini-nano-banana-2.1", displayName: "Gemini Nano Banana 2.1",
+               capabilities: [.streaming, .vision, .reasoning, .promptCaching, .imageGeneration],
+               contextWindow: 131_072,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.minimal, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+
+        // Catalog-only (blocked-adapter) — Jin's Vercel adapter speaks chat
+        // completions only; these exact IDs need image/video/embedding/
+        // reranking/transcription/speech/evaluation request paths that do not
+        // exist on this provider.
+        // `bfl/flux-3-image` + `topaz/wonder-3.5` (image type, text→image).
+        Record(id: "bfl/flux-3-image", displayName: "FLUX 3 Image",
+               capabilities: [.imageGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "topaz/wonder-3.5", displayName: "Topaz Wonder 3.5",
+               capabilities: [.imageGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        // `topaz/proteus`, `topaz/starlight-precise-2.6` (video type).
+        Record(id: "topaz/proteus", displayName: "Topaz Proteus",
+               capabilities: [.videoGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "topaz/starlight-precise-2.6", displayName: "Topaz Starlight Precise 2.6",
+               capabilities: [.videoGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        // `cohere/embed-v5.0-*` (embedding), `voyage/rerank-3*` (reranking),
+        // `convaiinnovations/laya*` + `openai/gpt-6-luna-decisions` (evaluation)
+        // carry no chat capability flags so they can never render as chat models.
+        Record(id: "cohere/embed-v5.0-fast", displayName: "Cohere Embed v5.0 Fast",
+               capabilities: [],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "cohere/embed-v5.0-pro", displayName: "Cohere Embed v5.0 Pro",
+               capabilities: [],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "voyage/rerank-3", displayName: "Voyage Rerank 3",
+               capabilities: [],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "voyage/rerank-3-lite", displayName: "Voyage Rerank 3 Lite",
+               capabilities: [],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "convaiinnovations/laya", displayName: "ConvAI Laya",
+               capabilities: [],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "convaiinnovations/laya-free", displayName: "ConvAI Laya (Free)",
+               capabilities: [],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "openai/gpt-6-luna-decisions", displayName: "GPT-6 Luna Decisions",
+               capabilities: [],
+               contextWindow: 1_050_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        // Microsoft audio surface: `mai-transcribe-2-streaming` is WebSocket
+        // transcription, `mai-voice-2.1*` are TTS (speech type).
+        Record(id: "microsoft/mai-transcribe-2-streaming", displayName: "MAI Transcribe 2 (Streaming)",
+               capabilities: [.audio],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "microsoft/mai-voice-2.1", displayName: "MAI Voice 2.1",
+               capabilities: [.audio],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "microsoft/mai-voice-2.1-flash", displayName: "MAI Voice 2.1 Flash",
+               capabilities: [.audio],
                contextWindow: 32_768,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
