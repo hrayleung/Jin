@@ -141,12 +141,14 @@ extension ModelCatalog {
         // unless `thinking.display` is "summarized". Not fast mode and not always-on.
         // Code execution: the migration guide accepts `code_execution_20250825` and later.
         // Dynamic filtering: the web-search tool page says "Claude 4.6 and later".
-        // `.nativePDF` is not claimed — the Anthropic overview is text and images. The
-        // Vertex partner card lists PDF, but that adapter cannot call this ID (see the
+        // The overview modality line is text and images. PDF is still native: the
+        // PDF support page says every active model accepts document blocks, and the
+        // context-window page caps a Haiku 5.5 request at 600 PDF pages. The Vertex
+        // partner card also lists PDF, but that adapter cannot call this ID (see the
         // note atop `vertexAIRecords`). Prompt caching is the same `cache_control`
         // surface as the other current Claude records.
         Record(id: "claude-haiku-5-5", displayName: "Claude Haiku 5.5",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .codeExecution],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_000_000,
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),

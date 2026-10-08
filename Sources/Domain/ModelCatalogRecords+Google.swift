@@ -1943,11 +1943,12 @@ extension ModelCatalog {
         // Claude Haiku 5.5 (openrouter.ai/anthropic/claude-haiku-5.5, published
         // 2026-10-07). DOTTED slug, so it does not hit `AnthropicModelLimits`.
         // Page: text and image, 1,000,000 context, maximum output 128,000.
-        // Adaptive thinking can be turned off at low, medium, and high only —
-        // no xhigh, max, PDF, or named default. Default `medium` mirrors
-        // Anthropic and is a follow-up if OpenRouter later names one. Not
-        // always-on, no `:batch` twin, and prompt caching is not claimed (the
-        // page does not say it). `.nativePDF` stays off on this gateway.
+        // Adaptive thinking can be turned off at low, medium, and high. The page
+        // does not publish xhigh or max, and `GET /api/v1/models` for this slug
+        // 404s, so the band stays at the three named levels rather than copying
+        // Anthropic's ladder. No named default — `medium` mirrors Anthropic.
+        // Not always-on. Prompt caching is not claimed (the page does not say
+        // it). `.nativePDF` stays off on this gateway.
         Record(id: "anthropic/claude-haiku-5.5", displayName: "Anthropic: Claude Haiku 5.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_000_000,
@@ -1955,6 +1956,20 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
                                                      supportedEfforts: [.low, .medium, .high]),
                isFullySupported: true, isSeeded: false),
+        // The `:batch` twin (openrouter.ai/anthropic/claude-haiku-5.5:batch) repeats
+        // the same description at half price ($0.05 / $0.25 per MTok) and the same
+        // 1M context. Max output is carried from the sync sibling, the same way as
+        // Sonnet 5.5's batch row. OpenRouter's batch docs describe `:batch` as a
+        // batch-endpoint variant and never say the slug is callable on the sync
+        // API, so it stays catalog-only. The models API 404s for this slug too,
+        // so sampling parameters are not added to the deny list.
+        Record(id: "anthropic/claude-haiku-5.5:batch", displayName: "Anthropic: Claude Haiku 5.5 (Batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: false, isSeeded: false),
         // Hy-Image V3.5 Preview (created 2026-10-01): text+image → image,
         // resolutions 1K/1.5K/2K/4K, up to 20 reference images. Context window is
         // unpublished — same conservative prompt budget as other OR image models.

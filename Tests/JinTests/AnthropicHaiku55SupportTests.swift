@@ -20,12 +20,12 @@ final class AnthropicHaiku55SupportTests: XCTestCase {
         XCTAssertEqual(haiku.reasoningConfig?.type, .effort)
         XCTAssertEqual(haiku.reasoningConfig?.defaultEffort, .medium)
         for capability: ModelCapability in [
-            .streaming, .toolCalling, .vision, .reasoning, .promptCaching, .codeExecution,
+            .streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution,
         ] {
             XCTAssertTrue(haiku.capabilities.contains(capability), "\(capability)")
         }
-        // Anthropic's overview is text and images. PDF is on the Vertex partner card only.
-        XCTAssertFalse(haiku.capabilities.contains(.nativePDF))
+        // PDF support: every active Claude model accepts document blocks, including
+        // this one (600 pages on the 1M window). The overview line only says text and images.
         XCTAssertFalse(haiku.capabilities.contains(.videoInput))
         XCTAssertFalse(haiku.capabilities.contains(.audio))
 
@@ -38,7 +38,8 @@ final class AnthropicHaiku55SupportTests: XCTestCase {
     func testHaiku55IsFullySupportedOnAnthropicAndManagedAgentsButNearMissesAreNot() {
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "claude-haiku-5-5", provider: .anthropic))
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "claude-haiku-5-5", provider: .claudeManagedAgents))
-        XCTAssertFalse(JinModelSupport.supportsNativePDF(providerType: .anthropic, modelID: "claude-haiku-5-5"))
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .anthropic, modelID: "claude-haiku-5-5"))
+        XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: .claudeManagedAgents, modelID: "claude-haiku-5-5"))
         for id in [
             "claude-haiku-5",
             "claude-haiku-5-5-custom",
@@ -198,10 +199,9 @@ final class AnthropicHaiku55SupportTests: XCTestCase {
             XCTAssertEqual(resolved.contextWindow, 1_000_000, "\(providerType)")
             XCTAssertEqual(resolved.maxOutputTokens, 128_000, "\(providerType)")
             XCTAssertTrue(
-                resolved.capabilities.isSuperset(of: [.vision, .reasoning, .promptCaching, .codeExecution]),
+                resolved.capabilities.isSuperset(of: [.vision, .reasoning, .promptCaching, .nativePDF, .codeExecution]),
                 "\(providerType)"
             )
-            XCTAssertFalse(resolved.capabilities.contains(.nativePDF), "\(providerType)")
             XCTAssertEqual(resolved.reasoningConfig?.type, .effort, "\(providerType)")
             XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .medium, "\(providerType)")
             XCTAssertTrue(resolved.reasoningCanDisable, "\(providerType)")
@@ -256,7 +256,19 @@ final class AnthropicHaiku55SupportTests: XCTestCase {
             ),
             lowToHigh
         )
-        XCTAssertNil(ModelCatalog.entry(for: "anthropic/claude-haiku-5.5:batch", provider: .openrouter))
+        let openRouterBatch = ModelCatalog.modelInfo(for: "anthropic/claude-haiku-5.5:batch", provider: .openrouter)
+        XCTAssertEqual(openRouterBatch.contextWindow, 1_000_000)
+        XCTAssertEqual(openRouterBatch.maxOutputTokens, 128_000)
+        XCTAssertEqual(openRouterBatch.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertEqual(openRouterBatch.reasoningConfig?.supportedEfforts, lowToHigh)
+        XCTAssertFalse(openRouterBatch.capabilities.contains(.nativePDF))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "anthropic/claude-haiku-5.5:batch", provider: .openrouter))
+        XCTAssertFalse(
+            ModelCatalog.seededModels(for: .openrouter).contains(where: { $0.id == "anthropic/claude-haiku-5.5:batch" })
+        )
+        XCTAssertTrue(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "anthropic/claude-haiku-5.5:batch")
+        )
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "anthropic/claude-haiku-5-5", provider: .openrouter))
 
         let vercel = ModelCatalog.modelInfo(for: "anthropic/claude-haiku-5.5", provider: .vercelAIGateway)
