@@ -182,7 +182,6 @@ private struct WindowChromeObserverModifier: ViewModifier {
         }
 
         private func applyWindowChrome(for window: NSWindow) {
-            applyWindowStyle(for: window)
             if window.titleVisibility != .hidden {
                 window.titleVisibility = .hidden
             }
@@ -198,37 +197,11 @@ private struct WindowChromeObserverModifier: ViewModifier {
             window.standardWindowButton(.closeButton)?.isHidden = false
             window.standardWindowButton(.miniaturizeButton)?.isHidden = false
             window.standardWindowButton(.zoomButton)?.isHidden = false
-            // Kill any toolbar AppKit injects. NavigationSplitView may insert
-            // a unified titlebar strip on macOS 26 (chat actions and the
-            // model picker now live in the SwiftUI `.toolbar { }` declared
-            // by ChatView, which the system renders into that strip).
-            // Removing AppKit's injected toolbar here prevents it from
-            // re-reserving the top strip during state transitions or
-            // fullscreen changes, which would otherwise re-introduce the
-            // empty top-band the user reported above the sidebar.
-            if window.toolbar != nil {
-                window.toolbar = nil
-            }
+            // Leave `window.toolbar`, `.fullSizeContentView`, and
+            // `titlebarAppearsTransparent` alone. The system window style
+            // owns Liquid Glass; clearing the toolbar or forcing an opaque
+            // title bar in fullscreen flattens it.
             publishChromeLayout(for: window)
-        }
-
-        private func applyWindowStyle(for window: NSWindow) {
-            let isFullScreen = window.styleMask.contains(.fullScreen)
-            if isFullScreen {
-                // Keep fullscreen top chrome opaque so sidebar separators do not bleed into the drop-down bar.
-                if window.styleMask.contains(.fullSizeContentView) {
-                    window.styleMask.remove(.fullSizeContentView)
-                }
-            } else {
-                // Merge the title-bar region into app content so custom sidebar chrome can sit flush at the top.
-                if !window.styleMask.contains(.fullSizeContentView) {
-                    window.styleMask.insert(.fullSizeContentView)
-                }
-            }
-            let shouldBeTransparent = !isFullScreen
-            if window.titlebarAppearsTransparent != shouldBeTransparent {
-                window.titlebarAppearsTransparent = shouldBeTransparent
-            }
         }
 
         private func publishChromeLayout(for window: NSWindow) {

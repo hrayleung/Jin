@@ -67,6 +67,7 @@ struct ContentView: View {
 
     var body: some View {
         contentPresentations(rootSplitView)
+            .jinSystemTitlebarMaterial()
             .background {
                 ShortcutHintHostWindowReader { window in
                     shortcutHintController.registerHostWindow(window)
@@ -135,6 +136,7 @@ struct ContentView: View {
                 isSidebarVisible: isSidebarVisible,
                 action: toggleSidebarVisibility
             )
+            .jinSystemToolbarButton()
         }
     }
 
@@ -215,16 +217,16 @@ struct ContentView: View {
                     mainWindowIsFullScreen: mainWindowChromeLayout.isFullScreen
                 )
                 .id(conversation.id)
-                .background(JinSemanticColor.detailSurface)
+                .background(JinSemanticColor.windowCanvas)
                 .environmentObject(ttsPlaybackManager)
             } else {
                 ContentViewEmptyDetailView(
                     onNewChat: createNewConversation
                 )
-                .background(JinSemanticColor.detailSurface)
+                .background(JinSemanticColor.windowCanvas)
             }
         }
-        .background { JinSemanticColor.detailSurface.ignoresSafeArea() }
+        .background { JinSemanticColor.windowCanvas.ignoresSafeArea() }
         .overlay(alignment: .top) {
             ContentViewTTSMiniPlayerOverlay(
                 manager: ttsPlaybackManager,

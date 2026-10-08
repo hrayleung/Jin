@@ -107,14 +107,12 @@ struct JinApp: App {
                 // every session a resident web-content process (~tens of MB)
                 // for a block type most conversations never contain.
             }
-            // No window customization. Reference Tahoe-native apps (Chops,
-            // Apple's own) use plain WindowGroup + NavigationSplitView and
-            // let the system handle title bar, sidebar Liquid Glass, traffic
-            // lights, fullscreen transitions. Every customization we tried
-            // (.windowStyle hiddenTitleBar, containerBackground thinMaterial,
-            // WindowChromeCompat NSWindow hacks) fought Tahoe and produced
-            // either double-bordered glass or jumping layouts.
+            // No hidden title bar and no custom window material. Those fight
+            // the system sidebar. `.unified` is the system document-window
+            // toolbar: Liquid Glass on macOS 26+, the standard unified bar
+            // on 14/15.
         }
+        .windowToolbarStyle(.unified)
         .commands {
             ChatCommands(shortcutsStore: shortcutsStore)
         }

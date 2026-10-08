@@ -385,7 +385,7 @@ struct ChatView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .buttonStyle(.bordered)
+            .jinLabeledToolbarButton()
             .help(shortcutsStore.helpText("Choose model", for: .openModelPicker))
             .shortcutHint(.openModelPicker, placement: .overlayBottom)
             .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
@@ -403,6 +403,7 @@ struct ChatView: View {
                 Image(systemName: isStarred ? "star.fill" : "star")
                     .foregroundStyle(isStarred ? Color.orange : Color.primary)
             }
+            .jinSystemToolbarButton()
             .help(shortcutsStore.helpText(isStarred ? "Unstar chat" : "Star chat", for: .toggleStarChat))
             .shortcutHint(.toggleStarChat, placement: .overlayBottom)
 
@@ -411,12 +412,14 @@ struct ChatView: View {
             } label: {
                 Image(systemName: "slider.horizontal.3")
             }
+            .jinSystemToolbarButton()
             .help(shortcutsStore.helpText("Assistant Settings", for: .openAssistantSettings))
             .shortcutHint(.openAssistantSettings, placement: .overlayBottom)
 
             Button(role: .destructive, action: onRequestDeleteConversation) {
                 Image(systemName: "trash")
             }
+            .jinSystemToolbarButton()
             .help(shortcutsStore.helpText("Delete chat", for: .deleteChat))
             .shortcutHint(.deleteChat, placement: .overlayBottom)
         }
