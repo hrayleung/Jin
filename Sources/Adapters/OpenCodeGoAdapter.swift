@@ -45,6 +45,9 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         "claude-sonnet-4-5",
         "claude-sonnet-4",
         "claude-haiku-4-5",
+        // Haiku 5.5 (opencode.ai/docs/go endpoint table, 2026-10-07): exact ID on
+        // /zen/go/v1/messages. Do not prefix-match `claude-haiku-5`.
+        "claude-haiku-5-5",
         "claude-3-5-haiku",
     ]
 

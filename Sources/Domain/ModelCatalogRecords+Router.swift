@@ -103,6 +103,22 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: false, isSeeded: false),
+        // Router supported-models table (fetched 2026-10-08): label `haiku-5-5`
+        // under [Anthropic] — $0.10/$0.50, 1,000,000 / 128,000, effort band
+        // none…max (routerFullLadderEffortModelIDs). The table is display-only
+        // ("These display labels are not necessarily valid model values") and
+        // `GET /v1/models` needs a key, so the `claude-` prefix is inferred the
+        // same way as `sonnet-5-5` → `claude-sonnet-5-5`. The bare label
+        // `haiku-5-5` is not stored. Unseeded and not fully supported until a
+        // keyed listing confirms the callable ID. Default mirrors Anthropic's
+        // `medium` (the table does not name one). Vision is claimed from the
+        // origin card; the display table does not publish modalities.
+        Record(id: "claude-haiku-5-5", displayName: "Claude Haiku 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: false, isSeeded: false),
         Record(id: "claude-sonnet-5", displayName: "Claude Sonnet 5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_000_000,

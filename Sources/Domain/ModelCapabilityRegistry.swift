@@ -407,7 +407,8 @@ enum ModelCapabilityRegistry {
     /// Exact model IDs that Anthropic currently documents as supporting the code execution tool.
     /// Includes Fable 5 / Mythos 5 (restored 2026-07 docs list code execution under Supported features).
     /// Mirrors the tool page's `supportedModels` front matter (re-read 2026-09-29), which also
-    /// names Opus 5.5 and Sonnet 5.5.
+    /// names Opus 5.5 and Sonnet 5.5. Haiku 5.5 (2026-10-07) is added from its migration
+    /// guide, which accepts `code_execution_20250825` and later — exact ID only.
     private static let anthropicCodeExecutionSupportedModelIDs: Set<String> = [
         "claude-fable-5-1",
         "claude-mythos-5-1",
@@ -424,6 +425,7 @@ enum ModelCapabilityRegistry {
         "claude-sonnet-4-5-20250929",
         "claude-opus-4-5-20251101",
         "claude-haiku-4-5-20251001",
+        "claude-haiku-5-5",
         "claude-opus-4-1-20250805",
         "claude-opus-4-20250514",
         "claude-sonnet-4-20250514",
@@ -792,6 +794,10 @@ enum ModelCapabilityRegistry {
         // the same none…max ladder as `sonnet-5` (callable ID inferred, see the record).
         "claude-sonnet-5-5",
         "claude-sonnet-5",
+        // docs.router.com supported-models (fetched 2026-10-08): label `haiku-5-5`
+        // publishes none…max. Callable ID inferred as `claude-haiku-5-5`. Haiku 4.5
+        // stays on the none…xhigh band and is not moved here.
+        "claude-haiku-5-5",
         "grok-4.20-multi-agent-0309",
     ]
     /// Router band `none, minimal, low, medium, high, xhigh`.
@@ -1994,8 +2000,9 @@ enum ModelCapabilityRegistry {
     /// Documented list includes Fable 5.1 / Mythos 5.1, Fable 5, Mythos 5, Opus 5,
     /// Opus 4.8/4.7/4.6, Sonnet 5/4.6. Dynamic filtering is "Claude 4.6 and later"
     /// plus Mythos; Fable 5.1 is the Fable 5 successor (2026-09-01), Opus 5.5
-    /// (2026-09-22) and Sonnet 5.5 (2026-09-28) are later than 4.6 with server-side
-    /// tool support.
+    /// (2026-09-22), Sonnet 5.5 (2026-09-28), and Haiku 5.5 (2026-10-07) are later
+    /// than 4.6. The tool page says dynamic filtering is available with Claude 4.6
+    /// and later; the check stays an exact ID, not a prefix.
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
         let lower = modelID.lowercased()
@@ -2011,5 +2018,6 @@ enum ModelCapabilityRegistry {
             || lower == "claude-sonnet-5-5"
             || lower == "claude-sonnet-5"
             || lower == "claude-sonnet-4-6"
+            || lower == "claude-haiku-5-5"
     }
 }

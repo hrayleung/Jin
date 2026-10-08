@@ -60,7 +60,7 @@ final class RouterProviderIntegrationTests: XCTestCase {
     /// Router's published docs table lists display labels that are *not* callable.
     /// If someone ever "fixes" the catalog from that table, this fails.
     func testDocsTableLabelsAreNotTreatedAsModelIDs() {
-        for label in ["opus-5", "sonnet-5", "haiku-4-5", "fable-5", "kimi-k3", "glm-5p2", "deepseek-v4-pro"] {
+        for label in ["opus-5", "sonnet-5", "haiku-4-5", "haiku-5-5", "fable-5", "kimi-k3", "glm-5p2", "deepseek-v4-pro"] {
             XCTAssertFalse(
                 ModelCatalog.isFullySupported(modelID: label, provider: .router),
                 "\(label) is a display label, not a Router model ID"

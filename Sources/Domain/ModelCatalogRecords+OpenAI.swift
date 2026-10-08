@@ -1781,6 +1781,24 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
                                                      supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: false),
+        // Claude Haiku 5.5 (vercel.com changelog 2026-10-07 + model page
+        // ai-gateway/models/claude-haiku-5.5). DOTTED slug. Model cap is
+        // 1,000,000 / 128,000 (the Bedrock provider row's 64k output is not the
+        // model cap). Effort low, medium, high, xhigh, and max. Thinking can be
+        // turned off — the changelog allows that at low/medium/high, and the
+        // OpenAI-compatible gateway sends a single `reasoning.effort` (Off is
+        // `none`, which is mutually exclusive with xhigh/max). Not always-on.
+        // Default `medium` mirrors Anthropic; the changelog does not name one.
+        // The page documents PDF, but `.nativePDF` stays off on this gateway,
+        // same as the Sonnet 5.5 row. Web-search keywords on the page do not
+        // turn on `supportsWebSearch` for `.vercelAIGateway`.
+        Record(id: "anthropic/claude-haiku-5.5", displayName: "Claude Haiku 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
         // Ember-1 (released 2026-09-23): Fireworks' research-preview reasoning model
         // built on Kimi K3. 1,048,576 context AND output per the live gateway,
         // text+image input, tools. Vercel publishes reasoning as toggle + effort
