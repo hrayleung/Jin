@@ -235,7 +235,7 @@ extension ChatView {
                 composerHeight = nextHeight
             }
         }
-        .background(JinSemanticColor.surface)
+        .background(JinSemanticColor.windowCanvas)
         .animation(.easeInOut(duration: 0.18), value: isArtifactPaneVisible)
     }
 
@@ -250,7 +250,7 @@ extension ChatView {
     @ViewBuilder
     var messageStageBottomFade: some View {
         ChatStageBottomFadeView(
-            surfaceColor: JinSemanticColor.surface,
+            surfaceColor: JinSemanticColor.windowCanvas,
             composerHeight: composerHeight,
             isComposerHidden: isComposerHidden,
             isExpandedComposerPresented: isExpandedComposerPresented

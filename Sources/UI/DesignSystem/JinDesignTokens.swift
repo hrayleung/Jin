@@ -182,6 +182,19 @@ enum JinSemanticColor {
     /// `raisedSurface` for the composer anchor.
     static let detailSurface = surface
 
+    /// Main-window canvas on macOS 26+. Liquid Glass samples whatever sits
+    /// under the toolbar and sidebar. A private hex (`surface` is #FBFBFC)
+    /// does not track the system's window background or the Liquid Glass
+    /// tint slider, so on macOS 27.2 the title bar resolves to a solid slab
+    /// with a hard separator. Sheets and cards keep `surface`.
+    static var windowCanvas: Color {
+        if #available(macOS 26.0, *) {
+            Color(nsColor: .windowBackgroundColor)
+        } else {
+            detailSurface
+        }
+    }
+
     /// Migration alias. Legacy call sites that re-apply `.opacity(0.3–0.7)`
     /// now produce a clearly visible hairline because the base is already an
     /// opaque-equivalent token (rather than the near-invisible system color).
