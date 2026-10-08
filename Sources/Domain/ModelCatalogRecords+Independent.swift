@@ -133,6 +133,24 @@ extension ModelCatalog {
                maxOutputTokens: 64_000,
                reasoningConfig: ModelReasoningConfig(type: .budget, defaultBudget: 1024),
                isFullySupported: true, isSeeded: true),
+        // Haiku 5.5 (platform.claude.com models/haiku-5-5 overview + what's-new, released
+        // 2026-10-07): 1M context / 128k output, text+image input. Adaptive thinking is on
+        // by default and turns off with `{type:"disabled"}` at high or below; xhigh/max
+        // paired with disabled 400s (clamped like Opus 5). Ladder low…max, default medium.
+        // Non-default sampling params and `budget_tokens` 400. Thinking text stays omitted
+        // unless `thinking.display` is "summarized". Not fast mode and not always-on.
+        // Code execution: the migration guide accepts `code_execution_20250825` and later.
+        // Dynamic filtering: the web-search tool page says "Claude 4.6 and later".
+        // `.nativePDF` is not claimed — the Anthropic overview is text and images. The
+        // Vertex partner card lists PDF, but that adapter cannot call this ID (see the
+        // note atop `vertexAIRecords`). Prompt caching is the same `cache_control`
+        // surface as the other current Claude records.
+        Record(id: "claude-haiku-5-5", displayName: "Claude Haiku 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .codeExecution],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: true),
         Record(id: "claude-haiku-4-5-20251001", displayName: "Claude Haiku 4.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 200_000,
@@ -2223,6 +2241,25 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 500_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        // Claude Haiku 5.5 (opencode.ai/docs/go endpoint table, 2026-10-07): exact ID
+        // `claude-haiku-5-5` on /zen/go/v1/messages via the Anthropic delegate.
+        // Routing is the exact ID in `OpenCodeGoAdapter.anthropicModelIDs` — a
+        // `claude-haiku-5` prefix would also catch the unrelated fixture ID.
+        // Origin limits: 1,000,000 / 128,000, text+image, adaptive thinking that
+        // can be disabled at high or below, effort low…max, default medium.
+        // Not always-on. `.nativePDF`, `.codeExecution`, and web search stay off
+        // on Go (the gateway hosts none of those tools). Seeded after glm-5.3 so
+        // the first-launch default is unchanged. Session-header behavior is unchanged.
+        Record(id: "claude-haiku-5-5", displayName: "Claude Haiku 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort,
+                   defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]
+               ),
                isFullySupported: true, isSeeded: true),
         // GPT-5.6 Luna is served on the OpenAI **Responses** API (alongside grok-4.6 and
         // Muse Spark): opencode.ai/docs/go's endpoint table maps it to /zen/go/v1/responses via

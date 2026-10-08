@@ -125,6 +125,24 @@ extension ModelCatalog {
                contextWindow: 128_000,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
+        // Claude Haiku 5.5 (Databricks supported-models docs, published 2026-10-07):
+        // endpoint `databricks-claude-haiku-5-5`. Inputs text and image. Tool use is
+        // "through the Anthropic Messages API", which `DatabricksAdapter` chat
+        // completions does not speak — same catalog-only posture as Sonnet 5.5.
+        // Effort is only low/medium/high (omitted → medium; reasoning can be
+        // disabled). Context window and max output are unpublished, so the window
+        // stays the unknown-model default and no output cap is recorded. Not added
+        // to `DatabricksGateway.curatedAnthropicModels` (that list is fully
+        // supported BYOK vision chat, and this row is not).
+        Record(id: "databricks-claude-haiku-5-5", displayName: "Claude Haiku 5.5",
+               capabilities: [.streaming, .toolCalling, .vision],
+               contextWindow: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort,
+                   defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]
+               ),
+               isFullySupported: false, isSeeded: false),
         Record(id: "databricks-claude-sonnet-5", displayName: "Claude Sonnet 5",
                capabilities: [.streaming, .toolCalling, .vision],
                contextWindow: 200_000,

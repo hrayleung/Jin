@@ -4,7 +4,7 @@ enum AnthropicModelLimits {
     static func supportsAdaptiveThinking(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
         return isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
-            || isOpus46(lower) || isSonnet5(lower) || isSonnet46(lower)
+            || isOpus46(lower) || isSonnet5(lower) || isSonnet46(lower) || isHaiku55(lower)
     }
 
     static func supportsEffort(for modelID: String) -> Bool {
@@ -26,21 +26,22 @@ enum AnthropicModelLimits {
     /// (`claude-opus-5-5`), but the Opus 5.5 docs state thinking is adaptive-ONLY —
     /// `{type: "disabled"}` and `budget_tokens` both return 400, so nothing may be
     /// emitted for it at all.
-    /// Opus 5 additionally caps the effort it accepts alongside a disabled thinking
-    /// block — see `disabledThinkingRequiresEffortAtMostHigh`.
+    /// Opus 5 and Haiku 5.5 additionally cap the effort they accept alongside a
+    /// disabled thinking block — see `disabledThinkingRequiresEffortAtMostHigh`.
     static func requiresExplicitThinkingDisabled(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
-        return isOpus5(lower) && !isOpus55(lower)
+        return (isOpus5(lower) && !isOpus55(lower)) || isHaiku55(lower)
     }
 
-    /// Opus 5 accepts `thinking: {type: "disabled"}` only at effort `high` or below;
-    /// pairing it with `xhigh`/`max` returns a 400. The API validates this per request,
-    /// so every call site that can emit both fields has to clamp, not just the first.
-    /// Opus 5.5 is excluded: it never accepts a disabled thinking block, so there is
-    /// no effort pairing to clamp.
+    /// Opus 5 and Haiku 5.5 accept `thinking: {type: "disabled"}` only at effort
+    /// `high` or below; pairing it with `xhigh`/`max` returns a 400. The API
+    /// validates this per request, so every call site that can emit both fields
+    /// has to clamp, not just the first. Opus 5.5 is excluded: it never accepts
+    /// a disabled thinking block, so there is no effort pairing to clamp.
+    /// Haiku 5.5's effort page (2026-10-07) is the same pairing rule.
     static func disabledThinkingRequiresEffortAtMostHigh(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
-        return isOpus5(lower) && !isOpus55(lower)
+        return (isOpus5(lower) && !isOpus55(lower)) || isHaiku55(lower)
     }
 
     static func supportsDeepSeekV4OutputConfigEffort(for modelID: String) -> Bool {
@@ -50,7 +51,7 @@ enum AnthropicModelLimits {
     static func supportsXHighEffort(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
         return isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
-            || isSonnet5(lower)
+            || isSonnet5(lower) || isHaiku55(lower)
     }
 
     /// Fast mode (beta: research preview) is documented for the exact model IDs
@@ -72,7 +73,7 @@ enum AnthropicModelLimits {
         // Opus 4.6 supports max only.
         let lower = modelID.lowercased()
         return isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
-            || isOpus46(lower) || isSonnet5(lower)
+            || isOpus46(lower) || isSonnet5(lower) || isHaiku55(lower)
     }
 
     static func supportsSamplingParameters(for modelID: String) -> Bool {
@@ -83,7 +84,7 @@ enum AnthropicModelLimits {
         // adaptive-thinking models: strip it.
         let lower = modelID.lowercased()
         return !(isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
-            || isSonnet5(lower))
+            || isSonnet5(lower) || isHaiku55(lower))
     }
 
     static func requiresExplicitThinkingDisplay(for modelID: String) -> Bool {
@@ -93,14 +94,14 @@ enum AnthropicModelLimits {
         // reasoning.
         let lower = modelID.lowercased()
         return isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
-            || isSonnet5(lower)
+            || isSonnet5(lower) || isHaiku55(lower)
     }
 
     static func maxOutputTokens(for modelID: String) -> Int? {
         let lower = modelID.lowercased()
 
         if isFableMythos5(lower) || isOpus5(lower) || isOpus48(lower) || isOpus47(lower)
-            || isOpus46(lower) || isSonnet5(lower) {
+            || isOpus46(lower) || isSonnet5(lower) || isHaiku55(lower) {
             return 128_000
         }
 
@@ -198,6 +199,21 @@ enum AnthropicModelLimits {
     /// because Jin never emits those fields.
     static func isSonnet5(_ lowercasedModelID: String) -> Bool {
         isModelFamily(lowercasedModelID, prefix: "claude-sonnet-5")
+    }
+
+    /// Claude Haiku 5.5 (`claude-haiku-5-5`, released 2026-10-07). The hyphenated
+    /// suffix also matches future dated snapshots (`claude-haiku-5-5-YYYYMMDD`).
+    /// The prefix is `claude-haiku-5-5`, not `claude-haiku-5`: the shorter prefix
+    /// would also match the unrelated fixture ID `claude-haiku-5`. OpenRouter and
+    /// Vercel publish the dotted slug `anthropic/claude-haiku-5.5`, which does
+    /// not match — those gateways keep their own effort bands.
+    ///
+    /// Surface this flag encodes: adaptive thinking (on by default, disable with
+    /// `{type:"disabled"}` only at high or below), the low…max ladder, no sampling
+    /// params, `display: "omitted"` unless opted into `"summarized"`, 128k output.
+    /// It is not fast mode and thinking is not always-on.
+    static func isHaiku55(_ lowercasedModelID: String) -> Bool {
+        isModelFamily(lowercasedModelID, prefix: "claude-haiku-5-5")
     }
 
     private static func isSonnet46(_ lowercasedModelID: String) -> Bool {

@@ -12,6 +12,7 @@ enum ChatModelSelectionSupport {
         "claude-sonnet-5",
         "claude-sonnet-4-6",
         "claude-sonnet-4-5-20250929",
+        "claude-haiku-5-5",
     ]
     static let preferredFireworksModelOrder: [String] = [
         "kimi-k3",

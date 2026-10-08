@@ -302,10 +302,11 @@ extension ModelCatalog {
         // but Jin's Vertex adapter only speaks the Gemini `generateContent` API —
         // there is no `:rawPredict` Anthropic Messages path, so it is intentionally
         // absent from this table (blocked-adapter). The same holds for
-        // `claude-sonnet-5-5` (GA 2026-09-28), the Meta partner model
-        // `meta/muse-spark-1.3` (Preview 2026-09-24) and the Live-API-only
+        // `claude-sonnet-5-5` (GA 2026-09-28), `claude-haiku-5-5` (GA 2026-10-07,
+        // partner card: text/image/PDF in, 1,000,000 / 128,000), the Meta partner
+        // model `meta/muse-spark-1.3` (Preview 2026-09-24) and the Live-API-only
         // `gemini-3.8-live` (GA 2026-09-24, chat completions / Interactions
-        // "Not supported"), all listed on the 2026-09-29 census.
+        // "Not supported").
         // Seeded — live stable / current preview IDs only
         Record(id: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro (Preview)",
                capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
@@ -1938,6 +1939,21 @@ extension ModelCatalog {
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
                                                      supportedEfforts: [.none, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Claude Haiku 5.5 (openrouter.ai/anthropic/claude-haiku-5.5, published
+        // 2026-10-07). DOTTED slug, so it does not hit `AnthropicModelLimits`.
+        // Page: text and image, 1,000,000 context, maximum output 128,000.
+        // Adaptive thinking can be turned off at low, medium, and high only —
+        // no xhigh, max, PDF, or named default. Default `medium` mirrors
+        // Anthropic and is a follow-up if OpenRouter later names one. Not
+        // always-on, no `:batch` twin, and prompt caching is not claimed (the
+        // page does not say it). `.nativePDF` stays off on this gateway.
+        Record(id: "anthropic/claude-haiku-5.5", displayName: "Anthropic: Claude Haiku 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high]),
                isFullySupported: true, isSeeded: false),
         // Hy-Image V3.5 Preview (created 2026-10-01): text+image → image,
         // resolutions 1K/1.5K/2K/4K, up to 20 reference images. Context window is
