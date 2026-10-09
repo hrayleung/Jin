@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
+struct XAIImageGenerationMenuView: View {
     let isConfigured: Bool
     let supportsResolution: Bool
     let supportsQuality: Bool
@@ -8,7 +8,6 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
     let selectedAspectRatio: XAIAspectRatio?
     let currentResolution: XAIImageResolution?
     let currentQuality: XAIImageQuality?
-    let menuItemLabel: (String, Bool) -> MenuItemLabel
     let onSetCount: (Int?) -> Void
     let onSetAspectRatio: (XAIAspectRatio?) -> Void
     let onSetResolution: (XAIImageResolution?) -> Void
@@ -23,32 +22,24 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
         Divider()
 
         Menu(countMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default", isSelected: currentCount == nil) {
                 onSetCount(nil)
-            } label: {
-                menuItemLabel("Default", currentCount == nil)
             }
             ForEach([1, 2, 4], id: \.self) { count in
-                Button {
+                JinMenuSelectionItem("\(count)", isSelected: currentCount == count) {
                     onSetCount(count)
-                } label: {
-                    menuItemLabel("\(count)", currentCount == count)
                 }
             }
         }
         .id("xai-image-count-\(currentCount.map(String.init) ?? "default")")
 
         Menu(aspectMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default", isSelected: selectedAspectRatio == nil) {
                 onSetAspectRatio(nil)
-            } label: {
-                menuItemLabel("Default", selectedAspectRatio == nil)
             }
             ForEach(XAIAspectRatio.allCases, id: \.self) { ratio in
-                Button {
+                JinMenuSelectionItem(ratio.displayName, isSelected: selectedAspectRatio == ratio) {
                     onSetAspectRatio(ratio)
-                } label: {
-                    menuItemLabel(ratio.displayName, selectedAspectRatio == ratio)
                 }
             }
         }
@@ -56,16 +47,12 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
         if supportsResolution {
             Menu(resolutionMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default", isSelected: currentResolution == nil) {
                     onSetResolution(nil)
-                } label: {
-                    menuItemLabel("Default", currentResolution == nil)
                 }
                 ForEach(XAIImageResolution.allCases, id: \.self) { resolution in
-                    Button {
+                    JinMenuSelectionItem(resolution.displayName, isSelected: currentResolution == resolution) {
                         onSetResolution(resolution)
-                    } label: {
-                        menuItemLabel(resolution.displayName, currentResolution == resolution)
                     }
                 }
             }
@@ -74,16 +61,12 @@ struct XAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
         if supportsQuality {
             Menu(qualityMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default", isSelected: currentQuality == nil) {
                     onSetQuality(nil)
-                } label: {
-                    menuItemLabel("Default", currentQuality == nil)
                 }
                 ForEach(XAIModelSupport.image2QualityOptions, id: \.self) { quality in
-                    Button {
+                    JinMenuSelectionItem(quality.displayName, isSelected: currentQuality == quality) {
                         onSetQuality(quality)
-                    } label: {
-                        menuItemLabel(quality.displayName, currentQuality == quality)
                     }
                 }
             }

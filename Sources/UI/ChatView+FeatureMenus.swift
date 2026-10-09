@@ -7,17 +7,18 @@ extension ChatView {
 
     @ViewBuilder
     var openAIServiceTierMenuContent: some View {
-        Button { setOpenAIServiceTier(nil) } label: {
-            menuItemLabel("Auto (OpenAI default)", isSelected: controls.openAIServiceTier == nil)
+        JinMenuSelectionItem("Auto (OpenAI default)", isSelected: controls.openAIServiceTier == nil) {
+            setOpenAIServiceTier(nil)
         }
 
         Divider()
 
         ForEach(OpenAIServiceTier.allCases, id: \.self) { serviceTier in
-            Button {
+            JinMenuSelectionItem(
+                serviceTier.displayName,
+                isSelected: controls.openAIServiceTier == serviceTier
+            ) {
                 setOpenAIServiceTier(serviceTier)
-            } label: {
-                menuItemLabel(serviceTier.displayName, isSelected: controls.openAIServiceTier == serviceTier)
             }
         }
     }
@@ -247,9 +248,6 @@ extension ChatView {
             xaiImageSearchBinding: xaiImageSearchBinding,
             xaiVideoUnderstandingBinding: xaiVideoUnderstandingBinding,
             anthropicDynamicFilteringBinding: anthropicDynamicFilteringBinding,
-            menuItemLabel: { title, isSelected in
-                menuItemLabel(title, isSelected: isSelected)
-            },
             onSetSearchEnginePreference: { useJinSearch in
                 setSearchEnginePreference(useJinSearch: useJinSearch)
             },
@@ -335,9 +333,6 @@ extension ChatView {
             onReset: {
                 controls = ChatAuxiliaryControlSupport.resetContextCache(controls: controls)
                 persistControlsToConversation()
-            },
-            menuItemLabel: { title, isSelected in
-                menuItemLabel(title, isSelected: isSelected)
             }
         )
     }

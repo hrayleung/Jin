@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ContextCacheControlMenuView<MenuItemLabel: View>: View {
+struct ContextCacheControlMenuView: View {
     let effectiveMode: ContextCacheMode
     let supportsExplicitContextCacheMode: Bool
     let showsReset: Bool
@@ -9,21 +9,14 @@ struct ContextCacheControlMenuView<MenuItemLabel: View>: View {
     let onSetExplicit: () -> Void
     let onConfigure: () -> Void
     let onReset: () -> Void
-    let menuItemLabel: (String, Bool) -> MenuItemLabel
 
     var body: some View {
-        Button(action: onTurnOff) {
-            menuItemLabel("Off", effectiveMode == .off)
-        }
+        JinMenuSelectionItem("Off", isSelected: effectiveMode == .off, action: onTurnOff)
 
-        Button(action: onSetImplicit) {
-            menuItemLabel("Implicit", effectiveMode == .implicit)
-        }
+        JinMenuSelectionItem("Implicit", isSelected: effectiveMode == .implicit, action: onSetImplicit)
 
         if supportsExplicitContextCacheMode {
-            Button(action: onSetExplicit) {
-                menuItemLabel("Explicit", effectiveMode == .explicit)
-            }
+            JinMenuSelectionItem("Explicit", isSelected: effectiveMode == .explicit, action: onSetExplicit)
         }
 
         Divider()

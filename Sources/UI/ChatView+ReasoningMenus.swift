@@ -71,9 +71,6 @@ extension ChatView {
             fireworksReasoningHistoryLabel: { option in
                 fireworksReasoningHistoryLabel(for: option)
             },
-            menuItemLabel: { title, isSelected in
-                menuItemLabel(title, isSelected: isSelected)
-            },
             onSetReasoningOff: {
                 setReasoningOff()
             },
@@ -218,20 +215,6 @@ extension ChatView {
                 persistControlsToConversation()
             }
         )
-    }
-
-    func menuItemLabel(_ title: String, isSelected: Bool) -> some View {
-        // Leading checkmark is the reliable macOS menu selection affordance;
-        // trailing Spacer checkmarks collapse / vanish in nested Menu flyouts.
-        HStack(spacing: 8) {
-            Image(systemName: "checkmark")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.primary)
-                .opacity(isSelected ? 1 : 0)
-                .frame(width: 14, alignment: .center)
-            Text(title)
-                .fixedSize()
-        }
     }
 
     var availableReasoningEffortLevels: [ReasoningEffort] {
