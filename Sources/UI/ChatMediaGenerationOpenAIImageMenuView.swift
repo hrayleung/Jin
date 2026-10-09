@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
+struct OpenAIImageGenerationMenuView: View {
     let isConfigured: Bool
     let availableSizes: [OpenAIImageSize]
     let supportsCustomSizeEditor: Bool
@@ -19,7 +19,6 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
     let currentOutputCompression: Int?
     let currentModeration: OpenAIImageModeration?
     let currentInputFidelity: OpenAIImageInputFidelity?
-    let menuItemLabel: (String, Bool) -> MenuItemLabel
     let onSetCount: (Int?) -> Void
     let onSetSize: (OpenAIImageSize?) -> Void
     let onShowCustomSizeEditor: () -> Void
@@ -45,42 +44,32 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
         Divider()
 
         Menu(countMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default (1)", isSelected: currentCount == nil) {
                 onSetCount(nil)
-            } label: {
-                menuItemLabel("Default (1)", currentCount == nil)
             }
             ForEach([1, 2, 4], id: \.self) { count in
-                Button {
+                JinMenuSelectionItem("\(count)", isSelected: currentCount == count) {
                     onSetCount(count)
-                } label: {
-                    menuItemLabel("\(count)", currentCount == count)
                 }
             }
         }
         .id("openai-image-count-\(currentCount.map(String.init) ?? "default")")
 
         Menu(sizeMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default", isSelected: currentSize == nil) {
                 onSetSize(nil)
-            } label: {
-                menuItemLabel("Default", currentSize == nil)
             }
             ForEach(availableSizes, id: \.self) { size in
-                Button {
+                JinMenuSelectionItem(size.displayName, isSelected: currentSize == size) {
                     onSetSize(size)
-                } label: {
-                    menuItemLabel(size.displayName, currentSize == size)
                 }
             }
 
             if supportsCustomSizeEditor {
                 Divider()
-                Button {
+                let title = currentSizeIsCustom ? "Custom (\(currentSize?.displayName ?? ""))…" : "Custom…"
+                JinMenuSelectionItem(title, isSelected: currentSizeIsCustom) {
                     onShowCustomSizeEditor()
-                } label: {
-                    let title = currentSizeIsCustom ? "Custom (\(currentSize?.displayName ?? ""))…" : "Custom…"
-                    menuItemLabel(title, currentSizeIsCustom)
                 }
             }
         }
@@ -88,16 +77,12 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
         if !availableQualities.isEmpty {
             Menu(qualityMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default", isSelected: currentQuality == nil) {
                     onSetQuality(nil)
-                } label: {
-                    menuItemLabel("Default", currentQuality == nil)
                 }
                 ForEach(availableQualities, id: \.self) { quality in
-                    Button {
+                    JinMenuSelectionItem(quality.displayName, isSelected: currentQuality == quality) {
                         onSetQuality(quality)
-                    } label: {
-                        menuItemLabel(quality.displayName, currentQuality == quality)
                     }
                 }
             }
@@ -106,16 +91,12 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
         if showsStyle {
             Menu(styleMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default (Vivid)", isSelected: currentStyle == nil) {
                     onSetStyle(nil)
-                } label: {
-                    menuItemLabel("Default (Vivid)", currentStyle == nil)
                 }
                 ForEach(OpenAIImageStyle.allCases, id: \.self) { style in
-                    Button {
+                    JinMenuSelectionItem(style.displayName, isSelected: currentStyle == style) {
                         onSetStyle(style)
-                    } label: {
-                        menuItemLabel(style.displayName, currentStyle == style)
                     }
                 }
             }
@@ -124,16 +105,12 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
         if !availableBackgrounds.isEmpty {
             Menu(backgroundMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default (Auto)", isSelected: currentBackground == nil) {
                     onSetBackground(nil)
-                } label: {
-                    menuItemLabel("Default (Auto)", currentBackground == nil)
                 }
                 ForEach(availableBackgrounds, id: \.self) { background in
-                    Button {
+                    JinMenuSelectionItem(background.displayName, isSelected: currentBackground == background) {
                         onSetBackground(background)
-                    } label: {
-                        menuItemLabel(background.displayName, currentBackground == background)
                     }
                 }
             }
@@ -142,16 +119,12 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
         if showsOutputFormat {
             Menu(outputFormatMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default (PNG)", isSelected: currentOutputFormat == nil) {
                     onSetOutputFormat(nil)
-                } label: {
-                    menuItemLabel("Default (PNG)", currentOutputFormat == nil)
                 }
                 ForEach(OpenAIImageOutputFormat.allCases, id: \.self) { format in
-                    Button {
+                    JinMenuSelectionItem(format.displayName, isSelected: currentOutputFormat == format) {
                         onSetOutputFormat(format)
-                    } label: {
-                        menuItemLabel(format.displayName, currentOutputFormat == format)
                     }
                 }
             }
@@ -160,16 +133,12 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
         if showsOutputFormat, (currentOutputFormat == .jpeg || currentOutputFormat == .webp) {
             Menu(compressionMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default (100)", isSelected: currentOutputCompression == nil) {
                     onSetOutputCompression(nil)
-                } label: {
-                    menuItemLabel("Default (100)", currentOutputCompression == nil)
                 }
                 ForEach([25, 50, 75, 100], id: \.self) { level in
-                    Button {
+                    JinMenuSelectionItem("\(level)%", isSelected: currentOutputCompression == level) {
                         onSetOutputCompression(level)
-                    } label: {
-                        menuItemLabel("\(level)%", currentOutputCompression == level)
                     }
                 }
             }
@@ -178,16 +147,12 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
         if showsModeration {
             Menu(moderationMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default (Auto)", isSelected: currentModeration == nil) {
                     onSetModeration(nil)
-                } label: {
-                    menuItemLabel("Default (Auto)", currentModeration == nil)
                 }
                 ForEach(OpenAIImageModeration.allCases, id: \.self) { moderation in
-                    Button {
+                    JinMenuSelectionItem(moderation.displayName, isSelected: currentModeration == moderation) {
                         onSetModeration(moderation)
-                    } label: {
-                        menuItemLabel(moderation.displayName, currentModeration == moderation)
                     }
                 }
             }
@@ -196,16 +161,12 @@ struct OpenAIImageGenerationMenuView<MenuItemLabel: View>: View {
 
         if showsInputFidelity {
             Menu(inputFidelityMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default (Low)", isSelected: currentInputFidelity == nil) {
                     onSetInputFidelity(nil)
-                } label: {
-                    menuItemLabel("Default (Low)", currentInputFidelity == nil)
                 }
                 ForEach(OpenAIImageInputFidelity.allCases, id: \.self) { fidelity in
-                    Button {
+                    JinMenuSelectionItem(fidelity.displayName, isSelected: currentInputFidelity == fidelity) {
                         onSetInputFidelity(fidelity)
-                    } label: {
-                        menuItemLabel(fidelity.displayName, currentInputFidelity == fidelity)
                     }
                 }
             }

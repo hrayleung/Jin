@@ -2,6 +2,22 @@ import XCTest
 @testable import Jin
 
 final class ModelSettingsSheetSupportTests: XCTestCase {
+    func testReenablingReasoningAfterPersistedOffOverrideHasAnEditableMode() {
+        XCTAssertEqual(
+            ModelSettingsSheetSupport.editableReasoningType(for: ModelReasoningConfig(type: .none)),
+            .effort
+        )
+        XCTAssertEqual(ModelSettingsSheetSupport.editableReasoningType(for: nil), .effort)
+    }
+
+    func testReasoningEditorPreservesConfiguredModes() {
+        for type in [ReasoningConfigType.effort, .budget, .toggle] {
+            XCTAssertEqual(
+                ModelSettingsSheetSupport.editableReasoningType(for: ModelReasoningConfig(type: type)), type
+            )
+        }
+    }
+
     func testPositiveIntegerParsesTrimmedPositiveInteger() {
         XCTAssertEqual(
             ModelSettingsSheetSupport.positiveInteger(from: " \n 128000\t "),

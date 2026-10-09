@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ReasoningControlMenuView<MenuItemLabel: View>: View {
+struct ReasoningControlMenuView: View {
     let reasoningConfig: ModelReasoningConfig?
     let supportsReasoningDisableToggle: Bool
     let isReasoningEnabled: Bool
@@ -24,7 +24,6 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
     let fireworksReasoningHistory: String?
     let budgetTokensLabel: String
     let fireworksReasoningHistoryLabel: (String) -> String
-    let menuItemLabel: (String, Bool) -> MenuItemLabel
     let onSetReasoningOff: () -> Void
     let onSetReasoningOn: () -> Void
     let onOpenThinkingBudgetEditor: () -> Void
@@ -39,23 +38,20 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
     var body: some View {
         if let reasoningConfig, reasoningConfig.type != .none {
             if supportsReasoningDisableToggle {
-                Button(action: onSetReasoningOff) {
-                    menuItemLabel(
-                        "Off",
-                        ChatReasoningSupport.isReasoningOffMenuSelected(
-                            isReasoningEnabled: isReasoningEnabled,
-                            currentEffort: currentReasoningEffort,
-                            includesDisableToggle: true
-                        )
-                    )
-                }
+                JinMenuSelectionItem(
+                    "Off",
+                    isSelected: ChatReasoningSupport.isReasoningOffMenuSelected(
+                        isReasoningEnabled: isReasoningEnabled,
+                        currentEffort: currentReasoningEffort,
+                        includesDisableToggle: true
+                    ),
+                    action: onSetReasoningOff
+                )
             }
 
             switch reasoningConfig.type {
             case .toggle:
-                Button(action: onSetReasoningOn) {
-                    menuItemLabel("On", isReasoningEnabled)
-                }
+                JinMenuSelectionItem("On", isSelected: isReasoningEnabled, action: onSetReasoningOn)
 
                 if supportsCerebrasPreservedThinkingToggle {
                     Divider()
@@ -65,18 +61,16 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
 
             case .effort:
                 if isAnthropicProvider {
-                    Button(action: onOpenThinkingBudgetEditor) {
-                        menuItemLabel("Configure thinking…", isReasoningEnabled)
-                    }
+                    JinMenuSelectionItem(
+                        "Configure thinking…", isSelected: isReasoningEnabled, action: onOpenThinkingBudgetEditor
+                    )
                 } else {
                     ForEach(menuEffortLevels, id: \.self) { level in
-                        Button {
+                        JinMenuSelectionItem(
+                            effortLabel(for: level),
+                            isSelected: isReasoningEnabled && currentReasoningEffort == level
+                        ) {
                             onSetReasoningEffort(level)
-                        } label: {
-                            menuItemLabel(
-                                effortLabel(for: level),
-                                isReasoningEnabled && currentReasoningEffort == level
-                            )
                         }
                     }
                 }
@@ -88,10 +82,11 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
                         .foregroundStyle(.secondary)
 
                     ForEach(ReasoningSummary.allCases, id: \.self) { summary in
-                        Button {
+                        JinMenuSelectionItem(
+                            summary.displayName,
+                            isSelected: currentReasoningSummary == summary
+                        ) {
                             onSetReasoningSummary(summary)
-                        } label: {
-                            menuItemLabel(summary.displayName, currentReasoningSummary == summary)
                         }
                     }
                 }
@@ -101,15 +96,11 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
                     Text("Mode")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button {
+                    JinMenuSelectionItem("Standard", isSelected: !isProModeEnabled) {
                         onSetProMode(false)
-                    } label: {
-                        menuItemLabel("Standard", !isProModeEnabled)
                     }
-                    Button {
+                    JinMenuSelectionItem("Pro", isSelected: isProModeEnabled) {
                         onSetProMode(true)
-                    } label: {
-                        menuItemLabel("Pro", isProModeEnabled)
                     }
                     .help("Uses more model work for higher reliability (GPT-5.6 reasoning.mode=pro).")
                 }
@@ -119,16 +110,12 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
                     Text("Reasoning context")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button {
+                    JinMenuSelectionItem("Default", isSelected: currentReasoningContext == nil) {
                         onSetReasoningContext(nil)
-                    } label: {
-                        menuItemLabel("Default", currentReasoningContext == nil)
                     }
                     ForEach(ReasoningContextMode.allCases, id: \.self) { mode in
-                        Button {
+                        JinMenuSelectionItem(mode.displayName, isSelected: currentReasoningContext == mode) {
                             onSetReasoningContext(mode)
-                        } label: {
-                            menuItemLabel(mode.displayName, currentReasoningContext == mode)
                         }
                     }
                     .help("Controls multi-turn reuse of prior reasoning items (Responses API reasoning.context).")
@@ -139,16 +126,12 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
                     Text("Verbosity")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Button {
+                    JinMenuSelectionItem("Default", isSelected: currentTextVerbosity == nil) {
                         onSetTextVerbosity(nil)
-                    } label: {
-                        menuItemLabel("Default", currentTextVerbosity == nil)
                     }
                     ForEach(TextVerbosity.allCases, id: \.self) { level in
-                        Button {
+                        JinMenuSelectionItem(level.displayName, isSelected: currentTextVerbosity == level) {
                             onSetTextVerbosity(level)
-                        } label: {
-                            menuItemLabel(level.displayName, currentTextVerbosity == level)
                         }
                     }
                 }
@@ -159,28 +142,24 @@ struct ReasoningControlMenuView<MenuItemLabel: View>: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    Button {
+                    JinMenuSelectionItem("Default (model)", isSelected: fireworksReasoningHistory == nil) {
                         onSetFireworksReasoningHistory(nil)
-                    } label: {
-                        menuItemLabel("Default (model)", fireworksReasoningHistory == nil)
                     }
 
                     ForEach(fireworksReasoningHistoryOptions, id: \.self) { option in
-                        Button {
+                        JinMenuSelectionItem(
+                            fireworksReasoningHistoryLabel(option),
+                            isSelected: fireworksReasoningHistory == option
+                        ) {
                             onSetFireworksReasoningHistory(option)
-                        } label: {
-                            menuItemLabel(
-                                fireworksReasoningHistoryLabel(option),
-                                fireworksReasoningHistory == option
-                            )
                         }
                     }
                 }
 
             case .budget:
-                Button(action: onOpenThinkingBudgetEditor) {
-                    menuItemLabel("Budget tokens… (\(budgetTokensLabel))", isReasoningEnabled)
-                }
+                JinMenuSelectionItem(
+                    "Budget tokens… (\(budgetTokensLabel))", isSelected: isReasoningEnabled, action: onOpenThinkingBudgetEditor
+                )
 
             case .none:
                 EmptyView()

@@ -60,9 +60,11 @@ struct JinSettingsControlRow<Control: View>: View {
                 JinSettingsRowLabel(title)
                     .accessibilityLabeledPair(role: .label, id: title, in: labelPair)
 
-                control()
-                    .frame(maxWidth: .infinity, alignment: controlAlignment)
-                    .accessibilityLabeledPair(role: .content, id: title, in: labelPair)
+                VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                    control()
+                }
+                .frame(maxWidth: .infinity, alignment: controlAlignment)
+                .accessibilityLabeledPair(role: .content, id: title, in: labelPair)
             }
 
             if let supportingText, !supportingText.isEmpty {

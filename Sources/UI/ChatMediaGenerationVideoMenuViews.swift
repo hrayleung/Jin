@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
+struct GoogleVideoGenerationMenuView: View {
     let productLabel: String
     let showsDuration: Bool
     let showsPersonGeneration: Bool
@@ -13,7 +13,6 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
     let currentResolution: GoogleVideoResolution?
     let currentPersonGeneration: GoogleVideoPersonGeneration?
     let generateAudioBinding: Binding<Bool>
-    let menuItemLabel: (String, Bool) -> MenuItemLabel
     let onSetDurationSeconds: (Int?) -> Void
     let onSetAspectRatio: (GoogleVideoAspectRatio?) -> Void
     let onSetResolution: (GoogleVideoResolution?) -> Void
@@ -29,16 +28,12 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
 
         if showsDuration {
             Menu(durationMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default", isSelected: currentDurationSeconds == nil) {
                     onSetDurationSeconds(nil)
-                } label: {
-                    menuItemLabel("Default", currentDurationSeconds == nil)
                 }
                 ForEach([4, 6, 8], id: \.self) { seconds in
-                    Button {
+                    JinMenuSelectionItem("\(seconds)s", isSelected: currentDurationSeconds == seconds) {
                         onSetDurationSeconds(seconds)
-                    } label: {
-                        menuItemLabel("\(seconds)s", currentDurationSeconds == seconds)
                     }
                 }
             }
@@ -46,16 +41,12 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
         }
 
         Menu(aspectMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default (16:9)", isSelected: currentAspectRatio == nil) {
                 onSetAspectRatio(nil)
-            } label: {
-                menuItemLabel("Default (16:9)", currentAspectRatio == nil)
             }
             ForEach(availableAspectRatios, id: \.self) { ratio in
-                Button {
+                JinMenuSelectionItem(ratio.displayName, isSelected: currentAspectRatio == ratio) {
                     onSetAspectRatio(ratio)
-                } label: {
-                    menuItemLabel(ratio.displayName, currentAspectRatio == ratio)
                 }
             }
         }
@@ -63,16 +54,12 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
 
         if !availableResolutions.isEmpty {
             Menu(resolutionMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default (720p)", isSelected: currentResolution == nil) {
                     onSetResolution(nil)
-                } label: {
-                    menuItemLabel("Default (720p)", currentResolution == nil)
                 }
                 ForEach(availableResolutions, id: \.self) { resolution in
-                    Button {
+                    JinMenuSelectionItem(resolution.displayName, isSelected: currentResolution == resolution) {
                         onSetResolution(resolution)
-                    } label: {
-                        menuItemLabel(resolution.displayName, currentResolution == resolution)
                     }
                 }
             }
@@ -81,16 +68,15 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
 
         if showsPersonGeneration {
             Menu(personGenerationMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default", isSelected: currentPersonGeneration == nil) {
                     onSetPersonGeneration(nil)
-                } label: {
-                    menuItemLabel("Default", currentPersonGeneration == nil)
                 }
                 ForEach(GoogleVideoPersonGeneration.allCases, id: \.self) { personGeneration in
-                    Button {
+                    JinMenuSelectionItem(
+                        personGeneration.displayName,
+                        isSelected: currentPersonGeneration == personGeneration
+                    ) {
                         onSetPersonGeneration(personGeneration)
-                    } label: {
-                        menuItemLabel(personGeneration.displayName, currentPersonGeneration == personGeneration)
                     }
                 }
             }
@@ -136,7 +122,7 @@ struct GoogleVideoGenerationMenuView<MenuItemLabel: View>: View {
     }
 }
 
-struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
+struct XAIVideoGenerationMenuView: View {
     let isConfigured: Bool
     let currentMode: XAIVideoMode
     let currentDuration: Int?
@@ -148,7 +134,6 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
     let showsAspectAndResolution: Bool
     let durationOptions: [Int]
     let durationHelpLabel: String
-    let menuItemLabel: (String, Bool) -> MenuItemLabel
     /// Always receive a concrete mode (including `.auto`) so selection can persist + show checkmarks.
     let onSetMode: (XAIVideoMode) -> Void
     let onSetDuration: (Int?) -> Void
@@ -166,10 +151,8 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
         // Title includes the active mode so the choice is visible even before opening the submenu.
         Menu(ChatAuxiliaryControlSupport.nestedMenuTitle("Mode", current: currentMode.displayName)) {
             ForEach(availableModes, id: \.self) { mode in
-                Button {
+                JinMenuSelectionItem(mode.displayName, isSelected: mode == currentMode) {
                     onSetMode(mode)
-                } label: {
-                    menuItemLabel(mode.displayName, mode == currentMode)
                 }
             }
         }
@@ -178,16 +161,12 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
 
         if showsDuration {
             Menu(durationMenuTitle) {
-                Button {
+                JinMenuSelectionItem(durationHelpLabel, isSelected: currentDuration == nil) {
                     onSetDuration(nil)
-                } label: {
-                    menuItemLabel(durationHelpLabel, currentDuration == nil)
                 }
                 ForEach(durationOptions, id: \.self) { seconds in
-                    Button {
+                    JinMenuSelectionItem("\(seconds)s", isSelected: currentDuration == seconds) {
                         onSetDuration(seconds)
-                    } label: {
-                        menuItemLabel("\(seconds)s", currentDuration == seconds)
                     }
                 }
             }
@@ -196,35 +175,27 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
 
         if showsAspectAndResolution {
             Menu(aspectMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default (16:9)", isSelected: currentAspectRatio == nil) {
                     onSetAspectRatio(nil)
-                } label: {
-                    menuItemLabel("Default (16:9)", currentAspectRatio == nil)
                 }
                 ForEach(
                     [XAIAspectRatio.ratio1x1, .ratio16x9, .ratio9x16, .ratio4x3, .ratio3x4, .ratio3x2, .ratio2x3],
                     id: \.self
                 ) { ratio in
-                    Button {
+                    JinMenuSelectionItem(ratio.displayName, isSelected: currentAspectRatio == ratio) {
                         onSetAspectRatio(ratio)
-                    } label: {
-                        menuItemLabel(ratio.displayName, currentAspectRatio == ratio)
                     }
                 }
             }
             .id("xai-video-aspect-\(currentAspectRatio?.rawValue ?? "default")")
 
             Menu(resolutionMenuTitle) {
-                Button {
+                JinMenuSelectionItem("Default (480p)", isSelected: currentResolution == nil) {
                     onSetResolution(nil)
-                } label: {
-                    menuItemLabel("Default (480p)", currentResolution == nil)
                 }
                 ForEach(availableResolutions, id: \.self) { resolution in
-                    Button {
+                    JinMenuSelectionItem(resolution.displayName, isSelected: currentResolution == resolution) {
                         onSetResolution(resolution)
-                    } label: {
-                        menuItemLabel(resolution.displayName, currentResolution == resolution)
                     }
                 }
             }
@@ -259,7 +230,7 @@ struct XAIVideoGenerationMenuView<MenuItemLabel: View>: View {
     }
 }
 
-struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
+struct OpenRouterVideoGenerationMenuView: View {
     let isConfigured: Bool
     let supportedDurations: [Int]
     let supportedAspectRatios: [OpenRouterVideoAspectRatio]
@@ -272,7 +243,6 @@ struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
     let showsWatermarkToggle: Bool
     let generateAudioBinding: Binding<Bool>
     let watermarkBinding: Binding<Bool>
-    let menuItemLabel: (String, Bool) -> MenuItemLabel
     let onSetDurationSeconds: (Int?) -> Void
     let onSetAspectRatio: (OpenRouterVideoAspectRatio?) -> Void
     let onSetResolution: (OpenRouterVideoResolution?) -> Void
@@ -287,64 +257,48 @@ struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
         Divider()
 
         Menu(durationMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default", isSelected: currentDurationSeconds == nil) {
                 onSetDurationSeconds(nil)
-            } label: {
-                menuItemLabel("Default", currentDurationSeconds == nil)
             }
             ForEach(supportedDurations, id: \.self) { seconds in
-                Button {
+                JinMenuSelectionItem("\(seconds)s", isSelected: currentDurationSeconds == seconds) {
                     onSetDurationSeconds(seconds)
-                } label: {
-                    menuItemLabel("\(seconds)s", currentDurationSeconds == seconds)
                 }
             }
         }
         .id("openrouter-video-duration-\(currentDurationSeconds.map(String.init) ?? "default")")
 
         Menu(aspectMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default", isSelected: currentAspectRatio == nil) {
                 onSetAspectRatio(nil)
-            } label: {
-                menuItemLabel("Default", currentAspectRatio == nil)
             }
             ForEach(supportedAspectRatios, id: \.self) { ratio in
-                Button {
+                JinMenuSelectionItem(ratio.displayName, isSelected: currentAspectRatio == ratio) {
                     onSetAspectRatio(ratio)
-                } label: {
-                    menuItemLabel(ratio.displayName, currentAspectRatio == ratio)
                 }
             }
         }
         .id("openrouter-video-aspect-\(currentAspectRatio?.rawValue ?? "default")")
 
         Menu(resolutionMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default", isSelected: currentResolution == nil) {
                 onSetResolution(nil)
-            } label: {
-                menuItemLabel("Default", currentResolution == nil)
             }
             ForEach(supportedResolutions, id: \.self) { resolution in
-                Button {
+                JinMenuSelectionItem(resolution.displayName, isSelected: currentResolution == resolution) {
                     onSetResolution(resolution)
-                } label: {
-                    menuItemLabel(resolution.displayName, currentResolution == resolution)
                 }
             }
         }
         .id("openrouter-video-resolution-\(currentResolution?.rawValue ?? "default")")
 
         Menu(imageModeMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default (Smart)", isSelected: currentImageInputMode == nil) {
                 onSetImageInputMode(nil)
-            } label: {
-                menuItemLabel("Default (Smart)", currentImageInputMode == nil)
             }
             ForEach(OpenRouterVideoImageInputMode.allCases, id: \.self) { mode in
-                Button {
+                JinMenuSelectionItem(mode.displayName, isSelected: currentImageInputMode == mode) {
                     onSetImageInputMode(mode)
-                } label: {
-                    menuItemLabel(mode.displayName, currentImageInputMode == mode)
                 }
             }
         }
@@ -393,7 +347,7 @@ struct OpenRouterVideoGenerationMenuView<MenuItemLabel: View>: View {
     }
 }
 
-struct TogetherVideoGenerationMenuView<MenuItemLabel: View>: View {
+struct TogetherVideoGenerationMenuView: View {
     let isConfigured: Bool
     let supportedDurations: [Int]
     let supportedAspectRatios: [TogetherVideoAspectRatio]
@@ -404,7 +358,6 @@ struct TogetherVideoGenerationMenuView<MenuItemLabel: View>: View {
     let currentImageInputMode: TogetherVideoImageInputMode?
     let showsAudioToggle: Bool
     let generateAudioBinding: Binding<Bool>
-    let menuItemLabel: (String, Bool) -> MenuItemLabel
     let onSetDurationSeconds: (Int?) -> Void
     let onSetAspectRatio: (TogetherVideoAspectRatio?) -> Void
     let onSetResolution: (TogetherVideoResolution?) -> Void
@@ -419,64 +372,48 @@ struct TogetherVideoGenerationMenuView<MenuItemLabel: View>: View {
         Divider()
 
         Menu(durationMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default", isSelected: currentDurationSeconds == nil) {
                 onSetDurationSeconds(nil)
-            } label: {
-                menuItemLabel("Default", currentDurationSeconds == nil)
             }
             ForEach(supportedDurations, id: \.self) { seconds in
-                Button {
+                JinMenuSelectionItem("\(seconds)s", isSelected: currentDurationSeconds == seconds) {
                     onSetDurationSeconds(seconds)
-                } label: {
-                    menuItemLabel("\(seconds)s", currentDurationSeconds == seconds)
                 }
             }
         }
         .id("together-video-duration-\(currentDurationSeconds.map(String.init) ?? "default")")
 
         Menu(aspectMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default", isSelected: currentAspectRatio == nil) {
                 onSetAspectRatio(nil)
-            } label: {
-                menuItemLabel("Default", currentAspectRatio == nil)
             }
             ForEach(supportedAspectRatios, id: \.self) { ratio in
-                Button {
+                JinMenuSelectionItem(ratio.displayName, isSelected: currentAspectRatio == ratio) {
                     onSetAspectRatio(ratio)
-                } label: {
-                    menuItemLabel(ratio.displayName, currentAspectRatio == ratio)
                 }
             }
         }
         .id("together-video-aspect-\(currentAspectRatio?.rawValue ?? "default")")
 
         Menu(resolutionMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default", isSelected: currentResolution == nil) {
                 onSetResolution(nil)
-            } label: {
-                menuItemLabel("Default", currentResolution == nil)
             }
             ForEach(supportedResolutions, id: \.self) { resolution in
-                Button {
+                JinMenuSelectionItem(resolution.displayName, isSelected: currentResolution == resolution) {
                     onSetResolution(resolution)
-                } label: {
-                    menuItemLabel(resolution.displayName, currentResolution == resolution)
                 }
             }
         }
         .id("together-video-resolution-\(currentResolution?.rawValue ?? "default")")
 
         Menu(imageModeMenuTitle) {
-            Button {
+            JinMenuSelectionItem("Default (Smart)", isSelected: currentImageInputMode == nil) {
                 onSetImageInputMode(nil)
-            } label: {
-                menuItemLabel("Default (Smart)", currentImageInputMode == nil)
             }
             ForEach(TogetherVideoImageInputMode.allCases, id: \.self) { mode in
-                Button {
+                JinMenuSelectionItem(mode.displayName, isSelected: currentImageInputMode == mode) {
                     onSetImageInputMode(mode)
-                } label: {
-                    menuItemLabel(mode.displayName, currentImageInputMode == mode)
                 }
             }
         }

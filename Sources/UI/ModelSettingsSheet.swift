@@ -42,7 +42,7 @@ struct ModelSettingsSheet: View {
         _maxOutputTokensText = State(initialValue: model.overrides?.maxOutputTokens.map(String.init) ?? "")
         _capabilities = State(initialValue: resolved.capabilities)
         _reasoningEnabled = State(initialValue: resolvedReasoning?.type != ReasoningConfigType.none && resolvedReasoning != nil)
-        _reasoningType = State(initialValue: resolvedReasoning?.type ?? .effort)
+        _reasoningType = State(initialValue: ModelSettingsSheetSupport.editableReasoningType(for: resolvedReasoning))
         _reasoningEffort = State(initialValue: normalizedInitialEffort)
         _reasoningBudgetText = State(initialValue: resolvedReasoning?.defaultBudget.map(String.init) ?? "")
         _reasoningCanDisable = State(initialValue: resolved.reasoningCanDisable)

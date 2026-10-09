@@ -29,6 +29,9 @@ struct JinSearchField: View {
 
             TextField("", text: $text, prompt: Text(prompt))
                 .textFieldStyle(.plain)
+                .labelsHidden()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.leading)
                 .font(.body)
                 .focused(fieldFocus)
                 .accessibilityLabel(prompt)

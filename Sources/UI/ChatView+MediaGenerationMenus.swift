@@ -16,9 +16,6 @@ extension ChatView {
                 selectedAspectRatio: controls.xaiImageGeneration?.aspectRatio ?? controls.xaiImageGeneration?.size?.mappedAspectRatio,
                 currentResolution: controls.xaiImageGeneration?.resolution,
                 currentQuality: controls.xaiImageGeneration?.quality,
-                menuItemLabel: { title, isSelected in
-                    menuItemLabel(title, isSelected: isSelected)
-                },
                 onSetCount: { value in
                     updateXAIImageGeneration { $0.count = value }
                 },
@@ -67,9 +64,6 @@ extension ChatView {
                 currentOutputCompression: controls.openaiImageGeneration?.outputCompression,
                 currentModeration: controls.openaiImageGeneration?.moderation,
                 currentInputFidelity: controls.openaiImageGeneration?.inputFidelity,
-                menuItemLabel: { title, isSelected in
-                    menuItemLabel(title, isSelected: isSelected)
-                },
                 onSetCount: { value in
                     updateOpenAIImageGeneration { $0.count = value }
                 },
@@ -195,9 +189,6 @@ extension ChatView {
                         updateGoogleVideoGeneration { $0.generateAudio = newValue ? true : nil }
                     }
                 ),
-                menuItemLabel: { title, isSelected in
-                    menuItemLabel(title, isSelected: isSelected)
-                },
                 onSetDurationSeconds: { value in
                     updateGoogleVideoGeneration { $0.durationSeconds = value }
                 },
@@ -236,9 +227,6 @@ extension ChatView {
                 durationHelpLabel: mode == .extendVideo
                     ? "Default (6s extension)"
                     : "Default (8s)",
-                menuItemLabel: { title, isSelected in
-                    menuItemLabel(title, isSelected: isSelected)
-                },
                 onSetMode: { value in
                     updateXAIVideoGeneration { draft in
                         // Always store a concrete mode (including .auto) so the checkmark
@@ -293,9 +281,6 @@ extension ChatView {
                         updateOpenRouterVideoGeneration { $0.watermark = newValue ? true : nil }
                     }
                 ),
-                menuItemLabel: { title, isSelected in
-                    menuItemLabel(title, isSelected: isSelected)
-                },
                 onSetDurationSeconds: { value in
                     updateOpenRouterVideoGeneration { $0.durationSeconds = value }
                 },
@@ -330,9 +315,6 @@ extension ChatView {
                         updateTogetherVideoGeneration { $0.generateAudio = newValue ? true : nil }
                     }
                 ),
-                menuItemLabel: { title, isSelected in
-                    menuItemLabel(title, isSelected: isSelected)
-                },
                 onSetDurationSeconds: { value in
                     updateTogetherVideoGeneration { $0.durationSeconds = value }
                 },

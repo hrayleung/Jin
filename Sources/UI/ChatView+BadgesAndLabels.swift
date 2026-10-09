@@ -158,77 +158,61 @@ extension ChatView {
     @ViewBuilder
     var pdfProcessingMenuContent: some View {
         if supportsNativePDF {
-            Button { setPDFProcessingMode(.native) } label: {
-                menuItemLabel(
-                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .native),
-                    isSelected: resolvedPDFProcessingMode == .native
-                )
-            }
+            JinMenuSelectionItem(
+                ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .native),
+                isSelected: resolvedPDFProcessingMode == .native
+            ) { setPDFProcessingMode(.native) }
         }
 
         if ChatModelCapabilitySupport.supportsPagesAsImages(
             supportsNativePDF: supportsNativePDF,
             supportsVision: supportsVision
         ) {
-            Button { setPDFProcessingMode(.pagesAsImages) } label: {
-                menuItemLabel(
-                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .pagesAsImages),
-                    isSelected: resolvedPDFProcessingMode == .pagesAsImages
-                )
-            }
+            JinMenuSelectionItem(
+                ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .pagesAsImages),
+                isSelected: resolvedPDFProcessingMode == .pagesAsImages
+            ) { setPDFProcessingMode(.pagesAsImages) }
         }
 
         if mistralOCRPluginEnabled {
-            Button { setPDFProcessingMode(.mistralOCR) } label: {
-                menuItemLabel(
-                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .mistralOCR),
-                    isSelected: resolvedPDFProcessingMode == .mistralOCR
-                )
-            }
+            JinMenuSelectionItem(
+                ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .mistralOCR),
+                isSelected: resolvedPDFProcessingMode == .mistralOCR
+            ) { setPDFProcessingMode(.mistralOCR) }
         }
 
         if mineruOCRPluginEnabled {
-            Button { setPDFProcessingMode(.mineruOCR) } label: {
-                menuItemLabel(
-                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .mineruOCR),
-                    isSelected: resolvedPDFProcessingMode == .mineruOCR
-                )
-            }
+            JinMenuSelectionItem(
+                ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .mineruOCR),
+                isSelected: resolvedPDFProcessingMode == .mineruOCR
+            ) { setPDFProcessingMode(.mineruOCR) }
         }
 
         if deepSeekOCRPluginEnabled {
-            Button { setPDFProcessingMode(.deepSeekOCR) } label: {
-                menuItemLabel(
-                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .deepSeekOCR),
-                    isSelected: resolvedPDFProcessingMode == .deepSeekOCR
-                )
-            }
+            JinMenuSelectionItem(
+                ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .deepSeekOCR),
+                isSelected: resolvedPDFProcessingMode == .deepSeekOCR
+            ) { setPDFProcessingMode(.deepSeekOCR) }
         }
 
         if openRouterOCRPluginEnabled {
-            Button { setPDFProcessingMode(.openRouterOCR) } label: {
-                menuItemLabel(
-                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .openRouterOCR),
-                    isSelected: resolvedPDFProcessingMode == .openRouterOCR
-                )
-            }
+            JinMenuSelectionItem(
+                ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .openRouterOCR),
+                isSelected: resolvedPDFProcessingMode == .openRouterOCR
+            ) { setPDFProcessingMode(.openRouterOCR) }
         }
 
         if firecrawlOCRPluginEnabled {
-            Button { setPDFProcessingMode(.firecrawlOCR) } label: {
-                menuItemLabel(
-                    ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .firecrawlOCR),
-                    isSelected: resolvedPDFProcessingMode == .firecrawlOCR
-                )
-            }
+            JinMenuSelectionItem(
+                ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .firecrawlOCR),
+                isSelected: resolvedPDFProcessingMode == .firecrawlOCR
+            ) { setPDFProcessingMode(.firecrawlOCR) }
         }
 
-        Button { setPDFProcessingMode(.macOSExtract) } label: {
-            menuItemLabel(
-                ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .macOSExtract),
-                isSelected: resolvedPDFProcessingMode == .macOSExtract
-            )
-        }
+        JinMenuSelectionItem(
+            ChatModelCapabilitySupport.pdfProcessingMenuTitle(mode: .macOSExtract),
+            isSelected: resolvedPDFProcessingMode == .macOSExtract
+        ) { setPDFProcessingMode(.macOSExtract) }
 
         if resolvedPDFProcessingMode == .mistralOCR, !mistralOCRConfigured {
             Divider()
@@ -262,9 +246,7 @@ extension ChatView {
             Divider()
             Menu {
                 ForEach(FirecrawlPDFParserMode.allCases, id: \.rawValue) { mode in
-                    Button { setFirecrawlPDFParserMode(mode) } label: {
-                        menuItemLabel(mode.displayName, isSelected: resolvedFirecrawlPDFParserMode == mode)
-                    }
+                    JinMenuSelectionItem(mode.displayName, isSelected: resolvedFirecrawlPDFParserMode == mode) { setFirecrawlPDFParserMode(mode) }
                 }
             } label: {
                 Text("Firecrawl parser mode: \(resolvedFirecrawlPDFParserMode.displayName)")

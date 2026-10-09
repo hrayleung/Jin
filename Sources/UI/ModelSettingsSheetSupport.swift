@@ -1,6 +1,12 @@
 import Foundation
 
 enum ModelSettingsSheetSupport {
+    /// `.none` is a persisted off override, not a choice in the enabled editor.
+    static func editableReasoningType(for config: ModelReasoningConfig?) -> ReasoningConfigType {
+        guard let type = config?.type, type != .none else { return .effort }
+        return type
+    }
+
     enum OptionalPositiveIntegerDraft: Equatable {
         case empty
         case value(Int)
