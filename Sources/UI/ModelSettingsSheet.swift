@@ -30,7 +30,10 @@ struct ModelSettingsSheet: View {
 
         let resolved = ModelSettingsResolver.resolve(model: model, providerType: providerType)
         let resolvedReasoning = resolved.reasoningConfig
-        let initialEffort = resolvedReasoning?.defaultEffort ?? .medium
+        let editableReasoning = ModelSettingsSheetSupport.editableReasoningConfig(
+            for: model, providerType: providerType
+        )
+        let initialEffort = editableReasoning.defaultEffort ?? .medium
         let normalizedInitialEffort = ModelCapabilityRegistry.normalizedReasoningEffort(
             initialEffort,
             for: providerType,
@@ -42,9 +45,9 @@ struct ModelSettingsSheet: View {
         _maxOutputTokensText = State(initialValue: model.overrides?.maxOutputTokens.map(String.init) ?? "")
         _capabilities = State(initialValue: resolved.capabilities)
         _reasoningEnabled = State(initialValue: resolvedReasoning?.type != ReasoningConfigType.none && resolvedReasoning != nil)
-        _reasoningType = State(initialValue: ModelSettingsSheetSupport.editableReasoningType(for: resolvedReasoning))
+        _reasoningType = State(initialValue: editableReasoning.type)
         _reasoningEffort = State(initialValue: normalizedInitialEffort)
-        _reasoningBudgetText = State(initialValue: resolvedReasoning?.defaultBudget.map(String.init) ?? "")
+        _reasoningBudgetText = State(initialValue: editableReasoning.defaultBudget.map(String.init) ?? "")
         _reasoningCanDisable = State(initialValue: resolved.reasoningCanDisable)
         _webSearchSupported = State(initialValue: resolved.supportsWebSearch)
     }
