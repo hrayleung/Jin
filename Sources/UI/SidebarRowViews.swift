@@ -303,16 +303,7 @@ struct AssistantTileView: View {
         .background {
             if isSelected || isHovered {
                 RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                    .fill(isSelected ? JinSemanticColor.selectedSurface : JinSemanticColor.subtleSurface)
-            }
-        }
-        .overlay {
-            if isSelected || isHovered {
-                RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                    .stroke(
-                        isSelected ? JinSemanticColor.selectedStroke : JinSemanticColor.borderSubtle,
-                        lineWidth: JinStrokeWidth.hairline
-                    )
+                    .fill(isSelected ? JinSemanticColor.selectedSurface : JinSemanticColor.hoverFill)
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous))

@@ -4,6 +4,7 @@ import Foundation
 enum JinResourceBundle {
     private static let bundleName = "Jin_Jin.bundle"
     private static let fallbackSearchDepth = 5
+    private final class BundleLocator: NSObject {}
 
     static let bundle: Bundle? = {
         for candidateURL in candidateURLs() {
@@ -53,19 +54,25 @@ enum JinResourceBundle {
             )
         }
 
-        for ancestor in ancestorURLs(startingAt: mainBundleURL, depth: fallbackSearchDepth) {
-            urls.append(ancestor.appendingPathComponent(bundleName, isDirectory: true))
-            urls.append(
-                ancestor
-                    .appendingPathComponent("Contents", isDirectory: true)
-                    .appendingPathComponent("Resources", isDirectory: true)
-                    .appendingPathComponent(bundleName, isDirectory: true)
-            )
-            urls.append(
-                ancestor
-                    .appendingPathComponent("Resources", isDirectory: true)
-                    .appendingPathComponent(bundleName, isDirectory: true)
-            )
+        // In XCTest, Bundle.main belongs to Xcode's runner. Locate the bundle
+        // containing Jin's code as well, so SwiftPM's current products directory
+        // works without assuming a particular .build/<triple>/<config> layout.
+        let codeBundleURL = Bundle(for: BundleLocator.self).bundleURL.standardizedFileURL
+        for bundleURL in [mainBundleURL, codeBundleURL] {
+            for ancestor in ancestorURLs(startingAt: bundleURL, depth: fallbackSearchDepth) {
+                urls.append(ancestor.appendingPathComponent(bundleName, isDirectory: true))
+                urls.append(
+                    ancestor
+                        .appendingPathComponent("Contents", isDirectory: true)
+                        .appendingPathComponent("Resources", isDirectory: true)
+                        .appendingPathComponent(bundleName, isDirectory: true)
+                )
+                urls.append(
+                    ancestor
+                        .appendingPathComponent("Resources", isDirectory: true)
+                        .appendingPathComponent(bundleName, isDirectory: true)
+                )
+            }
         }
 
         let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)

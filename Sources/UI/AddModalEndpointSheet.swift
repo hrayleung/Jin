@@ -16,57 +16,34 @@ struct AddModalEndpointSheet: View {
     @State private var lookupError: String?
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: JinSpacing.large) {
-                    JinSettingsCard(spacing: JinSpacing.large) {
-                        fieldBlock(
-                            title: "Endpoint URL",
-                            prompt: "https://workspace--app-server.us-west.modal.direct",
-                            helperText: helperText,
-                            helperIsError: resolvedHost == nil && hasTypedEndpoint,
-                            text: $rawEndpoint,
-                            monospaced: true
-                        )
-
-                        fieldBlock(
-                            title: "Name",
-                            prompt: "Optional",
-                            helperText: nil,
-                            helperIsError: false,
-                            text: $nickname,
-                            monospaced: false
-                        )
-                    }
-
-                    if let lookupError {
-                        Text(lookupError)
+        JinSheet("Add Endpoint") {
+            JinSettingsPage(horizontalPadding: 0, verticalPadding: 0) {
+                JinSettingsSection("Endpoint") {
+                    JinSettingsTextFieldRow(
+                        "URL", prompt: "https://…modal.direct", text: $rawEndpoint, usesMonospacedFont: true)
+                    JinSettingsTextFieldRow("Display name", prompt: "Optional", text: $nickname)
+                    if let helperText {
+                        Text(helperText)
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(resolvedHost == nil && hasTypedEndpoint ? Color.orange : Color.secondary)
                     }
-                }
-                .padding(JinSpacing.xLarge)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .background(JinSemanticColor.detailSurface)
-            .navigationTitle("Add Endpoint")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .disabled(isLookingUp)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if isLookingUp {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Button("Add") { addEndpoint() }
-                            .disabled(!canAdd)
+                    if let lookupError {
+                        JinSettingsErrorText(text: lookupError)
                     }
                 }
             }
+        } actions: {
+            Button("Cancel") { dismiss() }
+                .disabled(isLookingUp)
+                .keyboardShortcut(.cancelAction)
+            if isLookingUp {
+                ProgressView().controlSize(.small)
+            }
+            Button(isLookingUp ? "Adding…" : "Add") { addEndpoint() }
+                .disabled(!canAdd)
+                .keyboardShortcut(.defaultAction)
         }
-        .frame(minWidth: 520, minHeight: 320)
+        .frame(width: 560, height: 340)
     }
 
     private var hasTypedEndpoint: Bool {
@@ -88,43 +65,6 @@ struct AddModalEndpointSheet: View {
             return "That’s Modal’s shared catalog host, not a model endpoint."
         }
         return "Use the endpoint URL from the Modal dashboard."
-    }
-
-    private func fieldBlock(
-        title: String,
-        prompt: String,
-        helperText: String?,
-        helperIsError: Bool,
-        text: Binding<String>,
-        monospaced: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(title)
-                .font(.subheadline.weight(.medium))
-
-            TextField("", text: text, prompt: Text(prompt))
-                .font(monospaced ? .system(.body, design: .monospaced) : .body)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, JinSpacing.medium)
-                .padding(.vertical, 10)
-                .background {
-                    RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                        .fill(JinSemanticColor.textSurface)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                        .stroke(JinSemanticColor.separator.opacity(0.55), lineWidth: JinStrokeWidth.hairline)
-                }
-                .onSubmit {
-                    if canAdd { addEndpoint() }
-                }
-
-            if let helperText, !helperText.isEmpty {
-                Text(helperText)
-                    .font(.caption)
-                    .foregroundStyle(helperIsError ? Color.orange : Color.secondary)
-            }
-        }
     }
 
     private func addEndpoint() {

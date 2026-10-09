@@ -12,13 +12,12 @@ enum JinThemeResolver {
 
     /// Hairline border that strengthens under increased contrast.
     static func borderHairline(contrast: ColorSchemeContrast) -> Color {
-        contrast == .increased ? JinSemanticColor.borderEmphasized : JinSemanticColor.borderSubtle
+        contrast == .increased ? Color.primary.opacity(0.45) : JinSemanticColor.borderSubtle
     }
 
-    /// Defined border. Currently constant; kept as a hook for a future
-    /// `borderStrong` level if needed.
+    /// Keeps control edges visible when Increase Contrast is enabled.
     static func borderDefined(contrast: ColorSchemeContrast) -> Color {
-        JinSemanticColor.borderEmphasized
+        contrast == .increased ? Color.primary.opacity(0.55) : JinSemanticColor.borderEmphasized
     }
 }
 

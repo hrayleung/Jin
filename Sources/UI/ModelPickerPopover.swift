@@ -24,7 +24,27 @@ struct ModelPickerPopover: View {
     @State private var searchText = ""
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                ModelPickerSearchField(
+                    searchText: $searchText,
+                    placeholder: searchPlaceholder
+                )
+                .frame(maxWidth: .infinity)
+
+                ModelPickerScopeControl(selection: $scope)
+                    .fixedSize()
+            }
+            .padding(.horizontal, ModelPickerLayout.searchInset)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+
+            Rectangle()
+                .fill(JinSemanticColor.borderSubtle)
+                .frame(height: JinStrokeWidth.hairline)
+                .padding(.horizontal, ModelPickerLayout.rowInset)
+                .accessibilityHidden(true)
+
             if let managedAgentContext {
                 ModelPickerManagedAgentSummaryCard(
                     provider: managedAgentContext.provider,
@@ -34,32 +54,17 @@ struct ModelPickerPopover: View {
                     onRefresh: managedAgentContext.onRefresh,
                     onOpenSettings: managedAgentContext.onOpenSettings
                 )
+                .padding(.horizontal, 10)
+                .padding(.top, 8)
             }
-
-            ModelPickerSearchField(
-                searchText: $searchText,
-                placeholder: searchPlaceholder
-            )
-
-            Picker("", selection: $scope) {
-                ForEach(ModelPickerScope.allCases) { scope in
-                    Text(scope.rawValue).tag(scope)
-                }
-            }
-            .pickerStyle(.segmented)
 
             modelList
+                .padding(.top, 2)
+                .padding(.bottom, 6)
         }
-        .padding(12)
-        .frame(width: 360, height: 520)
-        .jinAdaptiveBackground(
-            RoundedRectangle(cornerRadius: 14, style: .continuous),
-            material: .ultraThinMaterial
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(JinSemanticColor.borderEmphasized, lineWidth: JinStrokeWidth.hairline)
-        )
+        .frame(width: ModelPickerLayout.width, height: ModelPickerLayout.height)
+        // NSPopover supplies the material and edge. Stacking more materials
+        // behind the search field and list amplifies the OS tint and highlights.
     }
 
     private var trimmedSearchText: String {
@@ -105,44 +110,46 @@ struct ModelPickerPopover: View {
                 )
             } else {
                 List {
+                    // Headers are rows, not `Section` headers. A section
+                    // header is an opaque AppKit group row, so "Anthropic"
+                    // painted a white bar across the popover material.
                     if let managedAgentContext, shouldShowManagedAgentSection {
-                        Section {
-                            managedAgentSectionRows(managedAgentContext)
-                        } header: {
-                            ModelPickerManagedAgentSectionHeader()
-                        }
+                        ModelPickerManagedAgentSectionHeader()
+                            .modelPickerListRowStyle()
+                        managedAgentSectionRows(managedAgentContext)
                     }
 
                     ForEach(sections) { section in
-                        Section {
-                            ForEach(
-                                ModelPickerSupport.scopedModels(
-                                    providerID: section.provider.id,
-                                    models: section.models
-                                )
-                            ) { scopedModel in
-                                let model = scopedModel.model
-                                ModelPickerRow(
-                                    model: model,
-                                    isSelected: isSelected(providerID: section.provider.id, modelID: model.id),
-                                    isFavorite: favoritesStore.isFavorite(providerID: section.provider.id, modelID: model.id),
-                                    onToggleFavorite: {
-                                        favoritesStore.toggle(providerID: section.provider.id, modelID: model.id)
-                                    },
-                                    onSelect: {
-                                        onSelect(section.provider.id, model.id)
-                                    }
-                                )
-                                .modelPickerListRowStyle()
-                            }
-                        } header: {
-                            ModelPickerProviderSectionHeader(provider: section.provider)
+                        ModelPickerProviderSectionHeader(provider: section.provider)
+                            .modelPickerListRowStyle()
+                        ForEach(
+                            ModelPickerSupport.scopedModels(
+                                providerID: section.provider.id,
+                                models: section.models
+                            )
+                        ) { scopedModel in
+                            let model = scopedModel.model
+                            ModelPickerRow(
+                                model: model,
+                                isSelected: isSelected(providerID: section.provider.id, modelID: model.id),
+                                isFavorite: favoritesStore.isFavorite(
+                                    providerID: section.provider.id, modelID: model.id),
+                                onToggleFavorite: {
+                                    favoritesStore.toggle(providerID: section.provider.id, modelID: model.id)
+                                },
+                                onSelect: {
+                                    onSelect(section.provider.id, model.id)
+                                }
+                            )
+                            .modelPickerListRowStyle()
                         }
                     }
                 }
                 .listStyle(.plain)
+                .environment(\.defaultMinListRowHeight, 0)
                 .scrollContentBackground(.hidden)
-                .modelPickerListSurface()
+                .contentMargins(.vertical, 0, for: .scrollContent)
+                .contentMargins(.horizontal, 0, for: .scrollContent)
             }
         }
         .task(id: managedAgentContext?.provider.id ?? "") {
@@ -163,7 +170,7 @@ struct ModelPickerPopover: View {
             ModelPickerManagedAgentEmptyRow(
                 text: ModelPickerSupport.managedAgentEmptyRowText(trimmedSearchText: trimmedSearchText)
             )
-            .modelPickerListRowStyle(leading: 12)
+            .modelPickerListRowStyle(leading: ModelPickerLayout.headingInset)
         } else {
             ForEach(filteredManagedAgents) { agent in
                 ModelPickerManagedAgentRow(

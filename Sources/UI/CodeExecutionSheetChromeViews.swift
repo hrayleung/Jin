@@ -35,7 +35,7 @@ struct CodeExecutionOpenAISettingsCard: View {
     }
 
     private var modeRow: some View {
-        JinFormFieldRow("Mode") {
+        JinSettingsControlRow("Mode") {
             JinSettingsSegmentedPicker("Mode", selection: $useExistingContainer) {
                 Text("Auto").tag(false)
                 Text("Existing").tag(true)
@@ -44,7 +44,7 @@ struct CodeExecutionOpenAISettingsCard: View {
     }
 
     private var existingContainerRow: some View {
-        JinFormFieldRow("Container ID", supportingText: "Reuses an existing container.") {
+        JinSettingsControlRow("Container ID", supportingText: "Reuses an existing container.") {
             JinSettingsTextField("cntr_...", text: $existingContainerID, usesMonospacedFont: true)
         }
     }
@@ -56,7 +56,7 @@ struct CodeExecutionOpenAISettingsCard: View {
     }
 
     private var memoryLimitRow: some View {
-        JinFormFieldRow("Memory limit", supportingText: "Optional.") {
+        JinSettingsControlRow("Memory limit") {
             JinSettingsMenuPicker("Memory limit", selection: $memoryLimit) {
                 Text("Provider default").tag("")
                 Text("1g").tag("1g")
@@ -68,7 +68,7 @@ struct CodeExecutionOpenAISettingsCard: View {
     }
 
     private var fileIDsRow: some View {
-        JinFormFieldRow("Extra file IDs", supportingText: "One file ID per line or comma-separated.") {
+        JinSettingsBlockRow("Extra file IDs", supportingText: "One file ID per line or comma-separated.") {
             JinSettingsTextEditor(text: $fileIDsDraft, minHeight: 84)
         }
     }
@@ -90,7 +90,7 @@ struct CodeExecutionAnthropicSettingsCard: View {
     }
 
     private var containerIDRow: some View {
-        JinFormFieldRow("Container ID", supportingText: "Optional.") {
+        JinSettingsControlRow("Container ID", supportingText: "Leave empty to create a new container.") {
             JinSettingsTextField("container_...", text: $containerID, usesMonospacedFont: true)
         }
     }
@@ -111,9 +111,6 @@ struct CodeExecutionProviderInfoCard: View {
         HStack(alignment: .center, spacing: JinSpacing.small) {
             Text(title)
                 .font(.headline)
-            Spacer()
-            Text("No extra settings")
-                .jinTagStyle()
         }
     }
 

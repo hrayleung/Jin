@@ -11,7 +11,7 @@ struct AnthropicWebSearchSheetView: View {
     var onSave: () -> Void
 
     var body: some View {
-        NavigationStack {
+        JinSheet("Web Search") {
             ScrollView {
                 VStack(alignment: .leading, spacing: JinSpacing.large) {
                     AnthropicWebSearchDomainFilteringCard(
@@ -26,18 +26,15 @@ struct AnthropicWebSearchSheetView: View {
                 .padding(JinSpacing.large)
             }
             .background {
-                JinSemanticColor.detailSurface
+                JinSemanticColor.pageBackdrop
                     .ignoresSafeArea()
             }
-            .navigationTitle("Web Search")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onCancel() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { onSave() }
-                }
-            }
+        } actions: {
+            Button("Cancel") { onCancel() }
+                .keyboardShortcut(.cancelAction)
+
+            Button("Save") { onSave() }
+                .keyboardShortcut(.defaultAction)
         }
         .frame(minWidth: 520, idealWidth: 580, minHeight: 400, idealHeight: 480)
     }

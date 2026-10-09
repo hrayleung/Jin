@@ -10,9 +10,9 @@ struct ChatNamingPluginSettingsView: View {
     @AppStorage(AppPreferenceKeys.chatNamingPromptTemplate) private var chatNamingPromptTemplate = ""
 
     var body: some View {
-        JinSettingsPage {
+        JinSettingsPage(title: "Chat Naming") {
             JinSettingsSection("Chat Naming") {
-                Picker("Rename Mode", selection: $chatNamingMode) {
+                JinSettingsPickerRow("Rename Mode", selection: $chatNamingMode) {
                     ForEach(ChatNamingMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
@@ -22,7 +22,7 @@ struct ChatNamingPluginSettingsView: View {
                     Text("No providers with chat-capable models found. Add or enable a chat model under Settings → Providers.")
                         .jinInfoCallout()
                 } else {
-                    Picker("Provider", selection: $chatNamingProviderID) {
+                    JinSettingsPickerRow("Provider", selection: $chatNamingProviderID) {
                         ForEach(providerOptions, id: \.id) { provider in
                             Text(provider.name).tag(provider.id)
                         }
@@ -33,7 +33,7 @@ struct ChatNamingPluginSettingsView: View {
 
                     let models = modelsForSelectedProvider
                     if !models.isEmpty {
-                        Picker("Model", selection: $chatNamingModelID) {
+                        JinSettingsPickerRow("Model", selection: $chatNamingModelID) {
                             ForEach(models) { model in
                                 Text(model.name).tag(model.id)
                             }
@@ -47,22 +47,12 @@ struct ChatNamingPluginSettingsView: View {
 
             JinSettingsSection("Prompt Template") {
                 VStack(alignment: .leading, spacing: JinSpacing.small) {
-                    ZStack(alignment: .topLeading) {
-                        TextEditor(text: $chatNamingPromptTemplate)
-                            .font(.system(.body, design: .monospaced))
-                            .frame(minHeight: 200)
-                            .scrollContentBackground(.hidden)
-                            .padding(JinSpacing.medium)
-                            .jinSurface(.neutral, cornerRadius: JinRadius.small)
-
-                        if chatNamingPromptTemplate.isEmpty {
-                            Text(ConversationTitleGenerator.defaultPromptTemplate)
-                                .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                                .padding(JinSpacing.medium + 4)
-                                .allowsHitTesting(false)
-                        }
-                    }
+                    JinSettingsTextEditor(
+                        text: $chatNamingPromptTemplate,
+                        placeholder: ConversationTitleGenerator.defaultPromptTemplate,
+                        minHeight: 200
+                    )
+                    .accessibilityLabel("Chat title prompt template")
 
                     HStack(alignment: .center) {
                         Text("Placeholders: \(ConversationTitleGenerator.maxCharactersPlaceholder) (character limit), \(ConversationTitleGenerator.languagePlaceholder) (detected user language).")
@@ -79,7 +69,6 @@ struct ChatNamingPluginSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Chat Naming")
         .onAppear {
             ensureValidSelection()
         }

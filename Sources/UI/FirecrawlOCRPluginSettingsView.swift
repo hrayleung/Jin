@@ -17,13 +17,14 @@ struct FirecrawlOCRPluginSettingsView: View {
     }
 
     var body: some View {
-        JinSettingsPage(maxWidth: 620) {
+        JinSettingsPage(title: "Firecrawl OCR", maxWidth: 620) {
             JinSettingsSection(
                 "Connection",
                 detail: "Shared with the Web Search plugin."
             ) {
                 JinSettingsSecureFieldRow(
                     "API Key",
+                    prompt: "Paste API key",
                     text: $apiKey,
                     isRevealed: $isKeyVisible,
                     usesMonospacedFont: true,
@@ -50,7 +51,6 @@ struct FirecrawlOCRPluginSettingsView: View {
 
             r2RequirementCallout
         }
-        .navigationTitle("Firecrawl OCR")
         .task {
             await loadExistingKey()
             hasLoadedKey = true
@@ -61,6 +61,7 @@ struct FirecrawlOCRPluginSettingsView: View {
         }
         .onDisappear {
             autoSaveTask?.cancel()
+            if hasLoadedKey { persistAPIKey(trimmedAPIKey) }
         }
     }
 

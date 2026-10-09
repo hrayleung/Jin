@@ -16,36 +16,33 @@ struct ImageGenerationSheetView: View {
     var onSave: () -> Bool
 
     var body: some View {
-        NavigationStack {
-            Form {
+        JinSheet("Image Generation") {
+            JinSettingsPage(horizontalPadding: 0, verticalPadding: 0) {
                 outputSection
                 if providerType == .vertexai {
                     vertexSection
                 }
                 errorSection
             }
-            .navigationTitle("Image Generation")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onCancel() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        if onSave() {
-                            onCancel()
-                        }
-                    }
-                    .disabled(!isValid)
+        } actions: {
+            Button("Cancel") { onCancel() }
+                .keyboardShortcut(.cancelAction)
+
+            Button("Save") {
+                if onSave() {
+                    onCancel()
                 }
             }
+            .disabled(!isValid)
+            .keyboardShortcut(.defaultAction)
         }
-        .frame(width: 500)
+        .frame(width: 520, height: providerType == .vertexai ? 600 : 420)
     }
 
     // MARK: - Sections
 
     private var outputSection: some View {
-        Section("Output") {
+        JinSettingsSection("Output") {
             Picker(
                 "Response",
                 selection: Binding(
@@ -78,12 +75,12 @@ struct ImageGenerationSheetView: View {
                 }
             }
 
-            JinSettingsTextField("Seed (optional)", text: $seedDraft, usesMonospacedFont: true)
+            JinSettingsTextFieldRow("Seed", prompt: "Optional", text: $seedDraft, usesMonospacedFont: true)
         }
     }
 
     private var vertexSection: some View {
-        Section("Vertex") {
+        JinSettingsSection("Vertex") {
             Picker("Person generation", selection: $draft.vertexPersonGeneration) {
                 Text("Default").tag(Optional<VertexImagePersonGeneration>.none)
                 ForEach(VertexImagePersonGeneration.allCases, id: \.self) { item in
@@ -98,8 +95,8 @@ struct ImageGenerationSheetView: View {
                 }
             }
 
-            JinSettingsTextField(
-                "JPEG quality 0-100 (optional)",
+            JinSettingsTextFieldRow(
+                "JPEG Quality", prompt: "0–100, optional",
                 text: $compressionQualityDraft,
                 usesMonospacedFont: true
             )

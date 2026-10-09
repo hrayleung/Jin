@@ -71,7 +71,7 @@ struct ClaudeManagedAgentSessionConfigurationSection: View {
                 .buttonStyle(.borderless)
             }
 
-            HStack(alignment: .top, spacing: JinSpacing.medium) {
+            VStack(alignment: .leading, spacing: JinSpacing.medium) {
                 agentConfigurationCard
                 environmentConfigurationCard
             }
@@ -121,15 +121,14 @@ struct ClaudeManagedAgentCustomLabelsSection: View {
 
     var body: some View {
         JinSettingsCard(
-            surface: isExpanded || hasCustomLabels ? .raised : .subtle,
+            surface: .group,
             padding: JinSpacing.medium
         ) {
             DisclosureGroup(isExpanded: $isExpanded) {
                 VStack(alignment: .leading, spacing: JinSpacing.small) {
-                    TextField("Agent Name", text: $agentDisplayNameDraft, prompt: Text("Claude coding agent"))
-                        .textFieldStyle(.roundedBorder)
-                    TextField("Environment Name", text: $environmentDisplayNameDraft, prompt: Text("macOS workspace"))
-                        .textFieldStyle(.roundedBorder)
+                    JinSettingsTextFieldRow("Agent name", prompt: "Claude coding agent", text: $agentDisplayNameDraft)
+                    JinSettingsTextFieldRow(
+                        "Environment name", prompt: "macOS workspace", text: $environmentDisplayNameDraft)
                 }
                 .padding(.top, JinSpacing.small)
             } label: {
@@ -166,7 +165,7 @@ private struct ClaudeManagedAgentConfigurationSummaryRow: View {
         }
         .padding(.horizontal, JinSpacing.small)
         .padding(.vertical, JinSpacing.small - 1)
-        .jinSurface(.subtle, cornerRadius: JinRadius.small)
+
     }
 }
 
@@ -182,11 +181,9 @@ private struct ClaudeManagedAgentResourceSelectionCard<Resource: Identifiable>: 
     let resourceName: (Resource) -> String
 
     var body: some View {
-        ClaudeManagedAgentSelectionCard(title: title, systemImage: systemImage) {
+        JinSettingsControlRow(title, controlAlignment: .leading) {
             resourcePicker
-
-            TextField(textFieldPrompt, text: $draftID)
-                .textFieldStyle(.roundedBorder)
+            JinSettingsTextField(textFieldPrompt, text: $draftID, usesMonospacedFont: true)
         }
     }
 
@@ -208,34 +205,5 @@ private struct ClaudeManagedAgentResourceSelectionCard<Resource: Identifiable>: 
             .labelsHidden()
             .pickerStyle(.menu)
         }
-    }
-}
-
-private struct ClaudeManagedAgentSelectionCard<Content: View>: View {
-    private let title: String
-    private let systemImage: String
-    @ViewBuilder private let content: Content
-
-    init(
-        title: String,
-        systemImage: String,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.title = title
-        self.systemImage = systemImage
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Label(title, systemImage: systemImage)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            content
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(JinSpacing.small + 2)
-        .jinSurface(.subtle, cornerRadius: JinRadius.medium)
     }
 }

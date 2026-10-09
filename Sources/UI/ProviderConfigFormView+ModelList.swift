@@ -18,18 +18,7 @@ extension ProviderConfigFormView {
     }
 
     private var modelSearchRow: some View {
-        HStack(spacing: JinSpacing.small) {
-            Image(systemName: "magnifyingglass")
-                .font(.body)
-                .foregroundStyle(JinSemanticColor.textSecondary)
-                .accessibilityHidden(true)
-
-            TextField("Search models", text: $modelSearchText)
-                .textFieldStyle(.plain)
-                .labelsHidden()
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Search models")
+        JinSearchField(text: $modelSearchText, prompt: "Search models", chrome: .borderless)
     }
 
     private func modelActionsRow(_ state: ProviderFormSupport.ModelListState) -> some View {
@@ -75,8 +64,13 @@ extension ProviderConfigFormView {
                 Label("Keep Enabled Only", systemImage: "power")
             }
             .disabled(!state.canKeepEnabledModels)
+            Divider()
+            Button("Delete All Models…", role: .destructive) {
+                showingDeleteAllModelsConfirmation = true
+            }
+            .disabled(state.isEmpty)
         } label: {
-            Image(systemName: "ellipsis.circle")
+            Image(systemName: "ellipsis")
                 .foregroundStyle(.secondary)
         }
         .menuStyle(.borderlessButton)
@@ -144,43 +138,25 @@ extension ProviderConfigFormView {
     }
 
     private func modelsFooterActions(_ state: ProviderFormSupport.ModelListState) -> some View {
-        HStack {
-            Button("Fetch from Provider") {
+        HStack(spacing: 8) {
+            Button(isFetchingModels ? "Fetching…" : "Fetch Models") {
                 Task { await fetchModels() }
             }
             .disabled(isFetchModelsDisabled)
-
-            if isFetchingModels {
-                ProgressView().scaleEffect(0.5)
-            }
-
-            Spacer()
-
+            if isFetchingModels { ProgressView().controlSize(.small) }
+            Spacer(minLength: 8)
             if providerType == .modal {
-                Button {
-                    showingAddEndpoint = true
-                } label: {
-                    Label("Add Endpoint", systemImage: "link.badge.plus")
+                Menu("Add") {
+                    Button("Add Endpoint…") { showingAddEndpoint = true }
+                    Button("Add Model…") { showingAddModel = true }
                 }
-                .buttonStyle(.borderless)
+                .fixedSize()
+            } else {
+                Button("Add Model…") { showingAddModel = true }
             }
-
-            Button {
-                showingAddModel = true
-            } label: {
-                Label(providerType == .modal ? "Add Model" : "Add", systemImage: "plus")
-            }
-            .buttonStyle(.borderless)
-
-            Button {
-                showingDeleteAllModelsConfirmation = true
-            } label: {
-                Label("Clear", systemImage: "trash")
-            }
-            .disabled(state.isEmpty)
-            .buttonStyle(.borderless)
         }
     }
+
 }
 
 private struct ProviderModelListRow: View {
@@ -200,9 +176,7 @@ private struct ProviderModelListRow: View {
                         .lineLimit(1)
 
                     if isFullySupported {
-                        Text(JinModelSupport.fullSupportSymbol)
-                            .jinTagStyle(foreground: .green)
-                            .help("Jin full support")
+                        ModelSupportIndicator()
                     }
 
                     if model.overrides != nil {
@@ -243,8 +217,10 @@ private struct ProviderModelListRow: View {
                 action: onDelete
             )
 
-            Toggle("", isOn: $isEnabled)
+            Toggle("Enable \(model.name)", isOn: $isEnabled)
                 .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: onEdit)
@@ -258,6 +234,7 @@ private struct ProviderModelActionButton: View {
     private let role: ButtonRole?
     private let isVisible: Bool
     private let action: () -> Void
+    @FocusState private var isFocused: Bool
 
     init(
         systemImage: String,
@@ -284,6 +261,8 @@ private struct ProviderModelActionButton: View {
         }
         .buttonStyle(.plain)
         .help(help)
-        .opacity(isVisible ? 1 : 0)
+        .accessibilityLabel(help)
+        .focused($isFocused)
+        .opacity(isVisible || isFocused ? 1 : 0)
     }
 }

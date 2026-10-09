@@ -47,10 +47,12 @@ struct OpenAIImageCustomSizeSheetView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Custom Size") {
-                    JinSettingsTextField("2048x1152", text: $draftText, usesMonospacedFont: true)
+        JinSheet("Custom Size") {
+            JinSettingsPage(horizontalPadding: 0, verticalPadding: 0) {
+                JinSettingsSection("Dimensions") {
+                    JinSettingsTextFieldRow(
+                        "Width × height", prompt: "2048x1152", text: $draftText, usesMonospacedFont: true
+                    )
                         .onChange(of: draftText) { _, _ in
                             validationError = nil
                         }
@@ -67,31 +69,28 @@ struct OpenAIImageCustomSizeSheetView: View {
                     }
                 }
             }
-            .navigationTitle("Custom Size")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onCancel()
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        guard let parsedSize else {
-                            validationError = OpenAIImageCustomSizeSheetSupport.invalidSizeMessage
-                            return
-                        }
-                        if let error = currentValidationError {
-                            validationError = error
-                            return
-                        }
-                        onSave(parsedSize)
-                        dismiss()
-                    }
-                    .disabled(!canSubmit)
-                }
+        } actions: {
+            Button("Cancel") {
+                onCancel()
+                dismiss()
             }
+            .keyboardShortcut(.cancelAction)
+
+            Button("Save") {
+                guard let parsedSize else {
+                    validationError = OpenAIImageCustomSizeSheetSupport.invalidSizeMessage
+                    return
+                }
+                if let error = currentValidationError {
+                    validationError = error
+                    return
+                }
+                onSave(parsedSize)
+                dismiss()
+            }
+            .disabled(!canSubmit)
+            .keyboardShortcut(.defaultAction)
         }
-        .frame(width: 520)
+        .frame(width: 520, height: 360)
     }
 }

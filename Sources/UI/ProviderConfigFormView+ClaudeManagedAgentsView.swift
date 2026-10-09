@@ -3,7 +3,7 @@ import SwiftUI
 extension ProviderConfigFormView {
 
     var claudeManagedDefaultsSection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+        Group {
             claudeManagedDefaultsHeader
 
             if let claudeManagedResourceError, !claudeManagedResourceError.isEmpty {
@@ -11,9 +11,11 @@ extension ProviderConfigFormView {
             }
 
             managedAgentPicker
-            managedAgentManualEntry
             managedEnvironmentPicker
-            managedEnvironmentManualEntry
+            DisclosureGroup("Enter IDs Manually") {
+                managedAgentManualEntry
+                managedEnvironmentManualEntry
+            }
             selectedManagedDefaultsSummary
             manualManagedDefaultsHint
         }
@@ -47,11 +49,7 @@ extension ProviderConfigFormView {
     }
 
     private var managedAgentPicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Default Agent")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
+        JinSettingsControlRow("Default Agent") {
             Picker(
                 "",
                 selection: Binding<String>(
@@ -83,11 +81,8 @@ extension ProviderConfigFormView {
 
     private var managedAgentManualEntry: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Agent ID")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            JinSettingsTextField("agent_...", text: $claudeManagedAgentIDDraft, usesMonospacedFont: true)
+            JinSettingsTextFieldRow(
+                "Agent ID", prompt: "agent_…", text: $claudeManagedAgentIDDraft, usesMonospacedFont: true)
 
             HStack(spacing: JinSpacing.small) {
                 Button("Use ID") {
@@ -105,11 +100,7 @@ extension ProviderConfigFormView {
     }
 
     private var managedEnvironmentPicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Default Environment")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
+        JinSettingsControlRow("Default Environment") {
             Picker(
                 "",
                 selection: Binding<String>(
@@ -141,11 +132,8 @@ extension ProviderConfigFormView {
 
     private var managedEnvironmentManualEntry: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Environment ID")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            JinSettingsTextField("env_...", text: $claudeManagedEnvironmentIDDraft, usesMonospacedFont: true)
+            JinSettingsTextFieldRow(
+                "Environment ID", prompt: "env_…", text: $claudeManagedEnvironmentIDDraft, usesMonospacedFont: true)
 
             HStack(spacing: JinSpacing.small) {
                 Button("Use ID") {

@@ -1,278 +1,40 @@
 import SwiftUI
-import SwiftData
 
-// MARK: - List Views
+enum SettingsDestination: Hashable {
+    case general(GeneralSettingsCategory)
+    case provider(String)
+    case server(String)
+    case plugin(String)
+}
 
 extension SettingsView {
-    var providersList: some View {
-        settingsInsetList {
-            List(filteredProviders, selection: $selectedProviderID) { provider in
-                NavigationLink(value: provider.id) {
-                    HStack(spacing: JinSpacing.small + 2) {
-                        ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 16)
-                            .frame(width: 20, height: 20)
-                            .opacity(provider.isEnabled ? 1 : 0.4)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(provider.name)
-                                .font(.system(.body, design: .default))
-                                .fontWeight(.medium)
-                            Text(ProviderType(rawValue: provider.typeRaw)?.displayName ?? provider.typeRaw)
-                                .font(.system(.caption, design: .default))
-                                .foregroundColor(.secondary)
-                        }
-                        .opacity(provider.isEnabled ? 1 : 0.4)
-
-                        Spacer()
-                    }
-                    .padding(.vertical, JinSpacing.xSmall)
+    var navigationSelection: Binding<SettingsDestination?> {
+        Binding(
+            get: {
+                switch selectedSection {
+                case .general, .none: return .general(resolvedSelectedGeneralCategory ?? .appearance)
+                case .providers: return resolvedSelectedProviderID.map(SettingsDestination.provider)
+                case .mcpServers: return resolvedSelectedServerID.map(SettingsDestination.server)
+                case .plugins: return resolvedSelectedPluginID.map(SettingsDestination.plugin)
                 }
-                .contextMenu {
-                    Button {
-                        provider.isEnabled.toggle()
-                        try? modelContext.save()
-                    } label: {
-                        Label(
-                            provider.isEnabled ? "Disable Provider" : "Enable Provider",
-                            systemImage: provider.isEnabled ? "xmark.circle" : "checkmark.circle"
-                        )
-                    }
-
-                    Divider()
-
-                    Button(role: .destructive) {
-                        requestDeleteProvider(provider)
-                    } label: {
-                        Label("Delete Provider", systemImage: "trash")
-                    }
+            },
+            set: { destination in
+                guard let destination else { return }
+                switch destination {
+                case .general(let category):
+                    selectedSection = .general
+                    selectedGeneralCategory = category
+                case .provider(let id):
+                    selectedSection = .providers
+                    selectedProviderID = id
+                case .server(let id):
+                    selectedSection = .mcpServers
+                    selectedServerID = id
+                case .plugin(let id):
+                    selectedSection = .plugins
+                    selectedPluginID = id
                 }
             }
-        }
-        .onDeleteCommand {
-            requestDeleteSelectedProvider()
-        }
-        .overlay {
-            settingsSearchUnavailableView(isEmpty: filteredProviders.isEmpty)
-        }
-    }
-
-    var generalCategoriesList: some View {
-        settingsInsetList {
-            List(GeneralSettingsCategory.allCases, selection: $selectedGeneralCategory) { category in
-                NavigationLink(value: category) {
-                    HStack(spacing: JinSpacing.small + 2) {
-                        Image(systemName: category.systemImage)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 20, height: 20)
-
-                        Text(category.label)
-                            .font(.system(.body, design: .default))
-                            .fontWeight(.medium)
-                            .lineLimit(1)
-                    }
-                    .padding(.vertical, JinSpacing.xSmall)
-                }
-            }
-        }
-    }
-
-    var pluginsList: some View {
-        settingsInsetList {
-            List(filteredPlugins, selection: $selectedPluginID) { plugin in
-                let isSelected = selectedPluginID == plugin.id
-
-                HStack(spacing: JinSpacing.small + 2) {
-                    Image(systemName: plugin.systemImage)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 20, height: 20)
-
-                    Text(plugin.name)
-                        .font(.system(.body, design: .default))
-                        .fontWeight(.medium)
-                        .lineLimit(isSelected ? nil : 1)
-                        .truncationMode(.tail)
-                        .fixedSize(horizontal: false, vertical: isSelected)
-                        .layoutPriority(1)
-
-                    Spacer(minLength: JinSpacing.small)
-
-                    Toggle("", isOn: pluginEnabledBinding(for: plugin.id))
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
-                        .frame(width: 38, alignment: .trailing)
-                        .help(isPluginEnabled(plugin.id) ? "Disable plugin" : "Enable plugin")
-                }
-                .padding(.vertical, JinSpacing.xSmall)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    guard selectedPluginID != plugin.id else { return }
-                    selectedPluginID = plugin.id
-                }
-                .tag(plugin.id)
-            }
-        }
-        .overlay {
-            settingsSearchUnavailableView(isEmpty: filteredPlugins.isEmpty)
-        }
-    }
-
-    var providersListWithActions: some View {
-        settingsListWithActions(
-            addAccessibilityLabel: "Add Provider",
-            deleteDisabled: selectedProviderID == nil,
-            onAdd: { showingAddProvider = true },
-            onDelete: { requestDeleteSelectedProvider() }
-        ) {
-            providersList
-        }
-    }
-
-    var mcpServersList: some View {
-        settingsInsetList {
-            List(filteredMCPServers, selection: $selectedServerID) { server in
-                NavigationLink(value: server.id) {
-                    HStack(spacing: JinSpacing.small + 2) {
-                        ZStack(alignment: .bottomTrailing) {
-                            MCPIconView(iconID: server.resolvedMCPIconID, fallbackSystemName: "server.rack", size: 14)
-                                .frame(width: 20, height: 20)
-                                .jinSurface(.subtle, cornerRadius: JinRadius.small)
-
-                            Circle()
-                                .fill(server.isEnabled ? Color.green : Color.gray)
-                                .frame(width: 7, height: 7)
-                                .overlay(
-                                    Circle()
-                                        .stroke(JinSemanticColor.panelSurface, lineWidth: 1)
-                                )
-                                .offset(x: 1, y: 1)
-                        }
-                        .frame(width: 24, height: 24)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(server.name)
-                                .font(.system(.body, design: .default))
-                                .fontWeight(.medium)
-                            Text(server.transportSummary)
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-
-                        Spacer()
-
-                        Text(server.transportKind == .http ? "HTTP" : "STDIO")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .jinSurface(.outlined, cornerRadius: JinRadius.small)
-                    }
-                    .padding(.vertical, JinSpacing.xSmall)
-                }
-                .contextMenu {
-                    Button(role: .destructive) {
-                        requestDeleteServer(server)
-                    } label: {
-                        Label("Delete MCP Server", systemImage: "trash")
-                    }
-                }
-            }
-        }
-        .onDeleteCommand {
-            requestDeleteSelectedServer()
-        }
-        .overlay {
-            settingsSearchUnavailableView(isEmpty: filteredMCPServers.isEmpty)
-        }
-    }
-
-    var mcpServersListWithActions: some View {
-        settingsListWithActions(
-            addAccessibilityLabel: "Add MCP Server",
-            deleteDisabled: selectedServerID == nil,
-            onAdd: { showingAddServer = true },
-            onDelete: { requestDeleteSelectedServer() }
-        ) {
-            mcpServersList
-        }
-    }
-
-    private func settingsListWithActions<ListContent: View>(
-        addAccessibilityLabel: String,
-        deleteDisabled: Bool,
-        onAdd: @escaping () -> Void,
-        onDelete: @escaping () -> Void,
-        @ViewBuilder list: () -> ListContent
-    ) -> some View {
-        VStack(spacing: 0) {
-            list()
-
-            Divider()
-
-            settingsActionBar {
-                settingsAddButton(accessibilityLabel: addAccessibilityLabel, action: onAdd)
-
-                Spacer(minLength: JinSpacing.small)
-
-                settingsDeleteButton(isDisabled: deleteDisabled, action: onDelete)
-            }
-        }
-    }
-
-    private func settingsAddButton(accessibilityLabel: String, action: @escaping () -> Void) -> some View {
-        Button {
-            action()
-        } label: {
-            Label("Add", systemImage: "plus")
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .help(accessibilityLabel)
-        .accessibilityLabel(accessibilityLabel)
-    }
-
-    private func settingsDeleteButton(isDisabled: Bool, action: @escaping () -> Void) -> some View {
-        Button(role: .destructive) {
-            action()
-        } label: {
-            Label("Delete", systemImage: "trash")
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .disabled(isDisabled)
-        .keyboardShortcut(.delete, modifiers: [.command])
-    }
-
-    func settingsActionBar<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: JinSpacing.small) {
-            content()
-        }
-        .padding(JinSpacing.medium)
-        .background(JinSemanticColor.surface)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(JinSemanticColor.borderSubtle)
-                .frame(height: JinStrokeWidth.hairline)
-        }
-    }
-
-    private func settingsInsetList<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        // The list inherits the sheet surface — no inset tint. The previous
-        // panelSurface fill created a visibly different middle column, which
-        // read as arbitrary against the white sidebar / detail pane.
-        content()
-            .listStyle(.inset)
-            .scrollContentBackground(.hidden)
-            .background(JinSemanticColor.surface)
-    }
-
-    @ViewBuilder
-    private func settingsSearchUnavailableView(isEmpty: Bool) -> some View {
-        if !trimmedSearchText.isEmpty, isEmpty {
-            ContentUnavailableView.search(text: trimmedSearchText)
-        }
+        )
     }
 }

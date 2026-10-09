@@ -39,7 +39,7 @@ struct CloudflareR2UploadPluginSettingsView: View {
     }
 
     var body: some View {
-        JinSettingsPage {
+        JinSettingsPage(title: "Cloudflare R2 Upload") {
             JinSettingsSection(
                 "Credentials",
                 detail: "Open dash.cloudflare.com to manage R2 API tokens."
@@ -76,7 +76,7 @@ struct CloudflareR2UploadPluginSettingsView: View {
 
                 PluginCredentialActionsView(
                     canTestConnection: canTest,
-                    canClear: true,
+                    canClear: !configurationIsEmpty(draftConfiguration),
                     isTesting: isTesting,
                     statusMessage: statusMessage,
                     statusIsError: statusIsError,
@@ -86,7 +86,6 @@ struct CloudflareR2UploadPluginSettingsView: View {
                 )
             }
         }
-        .navigationTitle("Cloudflare R2 Upload")
         .task {
             await loadExistingSettings()
         }
@@ -98,6 +97,7 @@ struct CloudflareR2UploadPluginSettingsView: View {
         .onChange(of: keyPrefix) { _, _ in scheduleAutoSaveIfNeeded() }
         .onDisappear {
             autoSaveTask?.cancel()
+            if hasLoadedSettings { persistConfiguration(draftConfiguration, showSavedStatus: false) }
         }
     }
 

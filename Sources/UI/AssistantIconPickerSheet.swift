@@ -11,9 +11,14 @@ struct AssistantIconPickerSheet: View {
     @State private var isEmojiCatalogLoading = false
 
     var body: some View {
-        NavigationStack {
+        JinSheet("Choose Icon") {
             VStack(spacing: 0) {
-                tabPicker
+                HStack(spacing: 12) {
+                    JinSearchField(text: $searchText, prompt: searchPrompt, focusesOnAppear: true)
+                    tabPicker.fixedSize()
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 12)
 
                 Divider()
                     .opacity(0.4)
@@ -38,8 +43,6 @@ struct AssistantIconPickerSheet: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .background(JinSemanticColor.detailSurface)
-            .navigationTitle("Choose Icon")
-            .searchable(text: $searchText, prompt: searchPrompt)
             .onChange(of: searchText) { _, _ in
                 guard tab == .emoji else { return }
                 rebuildEmojiDisplayItems()
@@ -55,20 +58,17 @@ struct AssistantIconPickerSheet: View {
                     rebuildEmojiDisplayItems(for: "")
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+        } actions: {
+            Button("Cancel") {
                         dismiss()
                     }
-                }
+            .keyboardShortcut(.cancelAction)
 
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
+            Button("Done") {
                         selectedIcon = draftIcon
                         dismiss()
                     }
-                }
-            }
+            .keyboardShortcut(.defaultAction)
         }
         .frame(minWidth: 560, minHeight: 620)
         .onAppear {
@@ -86,9 +86,8 @@ struct AssistantIconPickerSheet: View {
             }
         }
         .labelsHidden()
-        .pickerStyle(.segmented)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
+        .pickerStyle(.menu)
+        .controlSize(.small)
     }
 
     private var searchPrompt: String {

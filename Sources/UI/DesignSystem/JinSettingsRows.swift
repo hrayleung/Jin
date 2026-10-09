@@ -55,22 +55,23 @@ struct JinSettingsControlRow<Control: View>: View {
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: JinSettingsMetrics.labelColumnSpacing) {
-            JinSettingsRowLabel(title)
-                .accessibilityLabeledPair(role: .label, id: title, in: labelPair)
+        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+            HStack(alignment: .firstTextBaseline, spacing: JinSettingsMetrics.labelColumnSpacing) {
+                JinSettingsRowLabel(title)
+                    .accessibilityLabeledPair(role: .label, id: title, in: labelPair)
 
-            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
                 control()
                     .frame(maxWidth: .infinity, alignment: controlAlignment)
-
-                if let supportingText, !supportingText.isEmpty {
-                    Text(supportingText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                    .accessibilityLabeledPair(role: .content, id: title, in: labelPair)
             }
-            .accessibilityLabeledPair(role: .content, id: title, in: labelPair)
+
+            if let supportingText, !supportingText.isEmpty {
+                Text(supportingText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 }

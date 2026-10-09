@@ -76,10 +76,9 @@ private struct MCPIconPickerSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        JinSheet("MCP Icons") {
             VStack(spacing: JinSpacing.medium) {
-                TextField("Search MCP icon", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
+                JinSearchField(text: $searchText, prompt: "Search MCP icons", focusesOnAppear: true)
 
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: JinSpacing.medium) {
@@ -91,22 +90,23 @@ private struct MCPIconPickerSheet: View {
                     }
                     .padding(.vertical, JinSpacing.small)
                 }
-                .jinSurface(.raised, cornerRadius: JinRadius.medium)
-            }
-            .padding(JinSpacing.medium)
-            .navigationTitle("MCP Icons")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        selectedIconID = draftIconID
-                        dismiss()
+                .overlay {
+                    if !searchText.isEmpty && filteredIcons.isEmpty {
+                        ContentUnavailableView.search(text: searchText)
                     }
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, JinSpacing.medium)
+        } actions: {
+            Button("Cancel") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+
+            Button("Done") {
+                selectedIconID = draftIconID
+                dismiss()
+            }
+            .keyboardShortcut(.defaultAction)
         }
         .frame(minWidth: 560, minHeight: 460)
         .onAppear {
@@ -158,8 +158,6 @@ private struct MCPIconPickerIconCell: View {
                 ZStack(alignment: .bottomTrailing) {
                     MCPIconView(iconID: iconID, size: 26)
                         .frame(width: 40, height: 40)
-                        .jinSurface(.subtle, cornerRadius: JinRadius.medium)
-
                     if isSelected {
                         selectionIndicator
                     }
@@ -167,14 +165,21 @@ private struct MCPIconPickerIconCell: View {
 
                 Text(title)
                     .font(.caption)
-                    .lineLimit(1)
+                    .lineLimit(2, reservesSpace: true)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, JinSpacing.small)
             .padding(.horizontal, JinSpacing.xSmall)
-            .jinSurface(isSelected ? .selected : .neutral, cornerRadius: JinRadius.medium)
+            .background(
+                isSelected ? JinSemanticColor.selectedSurface : Color.clear,
+                in: RoundedRectangle(cornerRadius: JinRadius.small)
+            )
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
         }
         .buttonStyle(.plain)
+        .help(title)
+        .accessibilityLabel(title)
     }
 
     private var selectionIndicator: some View {

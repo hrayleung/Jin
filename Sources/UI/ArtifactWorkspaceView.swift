@@ -86,87 +86,81 @@ struct ArtifactWorkspaceView: View {
     }
 
     private var header: some View {
-        HStack(spacing: JinSpacing.small) {
-            VStack(alignment: .leading, spacing: 4) {
-                if showsArtifactPicker {
-                    Picker("Artifact", selection: artifactSelectionBinding) {
-                        ForEach(availableArtifactIDs, id: \.self) { artifactID in
-                            let title = catalog.latestVersion(for: artifactID)?.title ?? artifactID
-                            Text(title).tag(Optional(artifactID))
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Group {
+                    if showsArtifactPicker {
+                        Picker("Artifact", selection: artifactSelectionBinding) {
+                            ForEach(availableArtifactIDs, id: \.self) { artifactID in
+                                Text(catalog.latestVersion(for: artifactID)?.title ?? artifactID).tag(
+                                    Optional(artifactID))
+                            }
+                        }
+                        .labelsHidden()
+                    } else {
+                        Text(selectedArtifact?.title ?? "Artifacts")
+                            .font(.headline)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+
+                if let artifact = selectedArtifact {
+                    Button {
+                        copySource(artifact.content)
+                    } label: {
+                        Image(systemName: isShowingCopyFeedback ? "checkmark" : "doc.on.doc")
+                    }
+                    .buttonStyle(JinIconButtonStyle(showBackground: false))
+                    .help(isShowingCopyFeedback ? "Copied" : "Copy source")
+                    .accessibilityLabel("Copy source")
+
+                    Button {
+                        export(artifact)
+                    } label: {
+                        Image(systemName: isShowingSaveFeedback ? "checkmark" : "square.and.arrow.down")
+                    }
+                    .buttonStyle(JinIconButtonStyle(showBackground: false))
+                    .help(isShowingSaveFeedback ? "Saved" : "Save artifact")
+                    .accessibilityLabel("Save artifact")
+                }
+
+                Button(action: onClose) { Image(systemName: "xmark") }
+                    .buttonStyle(JinIconButtonStyle(showBackground: false))
+                    .help("Close artifact pane")
+                    .accessibilityLabel("Close artifact pane")
+            }
+
+            HStack(spacing: 8) {
+                if let artifact = selectedArtifact {
+                    Text(artifact.contentType.rawValue.uppercased())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if showsVersionPicker {
+                    Picker("Revision", selection: versionSelectionBinding) {
+                        ForEach(availableVersions, id: \.id) { version in
+                            Text("Version \(version.version)").tag(Optional(version.version))
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 220, alignment: .leading)
-                } else {
-                    Text(selectedArtifact?.title ?? "Artifacts")
-                        .font(.headline)
-                        .lineLimit(1)
+                    .controlSize(.small)
+                    .fixedSize()
                 }
-
-                HStack(spacing: JinSpacing.xSmall) {
-                    if let artifact = selectedArtifact {
-                        ArtifactTypeBadge(contentType: artifact.contentType)
-                    }
-
-                    if showsVersionPicker, let artifact = selectedArtifact {
-                        Text("v\(artifact.version)")
-                            .jinTagStyle()
-                    }
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            Picker("", selection: $displayMode) {
-                ForEach(ArtifactWorkspaceSupport.DisplayMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(width: 150)
-
-            if showsVersionPicker {
-                Picker("Revision", selection: versionSelectionBinding) {
-                    ForEach(availableVersions, id: \.id) { version in
-                        Text("v\(version.version)").tag(Optional(version.version))
+                Spacer(minLength: 0)
+                Picker("Display", selection: $displayMode) {
+                    ForEach(ArtifactWorkspaceSupport.DisplayMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
                     }
                 }
                 .labelsHidden()
-                .frame(width: 72)
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .fixedSize()
             }
-
-            if let artifact = selectedArtifact {
-                Button {
-                    copySource(artifact.content)
-                } label: {
-                    Image(systemName: isShowingCopyFeedback ? "checkmark" : "doc.on.doc")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(isShowingCopyFeedback ? Color.accentColor : Color.primary)
-                }
-                .buttonStyle(JinIconButtonStyle(isActive: isShowingCopyFeedback, accentColor: .accentColor))
-                .help(isShowingCopyFeedback ? "Copied" : "Copy source")
-
-                Button {
-                    export(artifact)
-                } label: {
-                    Image(systemName: isShowingSaveFeedback ? "checkmark" : "arrow.down.circle")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(isShowingSaveFeedback ? Color.accentColor : Color.primary)
-                }
-                .buttonStyle(JinIconButtonStyle(isActive: isShowingSaveFeedback, accentColor: .accentColor))
-                .help(isShowingSaveFeedback ? "Saved" : "Save artifact")
-            }
-
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
-            }
-            .buttonStyle(JinIconButtonStyle(showBackground: false))
-            .help("Close artifact pane")
         }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, 12)
+        .padding(12)
     }
 
     private var artifactSelectionBinding: Binding<String?> {

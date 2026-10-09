@@ -7,6 +7,7 @@ extension TextToSpeechPluginSettingsView {
     func loadExistingKey() async {
         guard let preferenceKey = currentAPIKeyPreferenceKey else {
             await MainActor.run {
+                hasLoadedKey = false
                 apiKey = ""
                 lastPersistedAPIKey = ""
                 statusMessage = providerErrorMessage(for: providerRaw)
@@ -17,8 +18,10 @@ extension TextToSpeechPluginSettingsView {
 
         let existing = UserDefaults.standard.string(forKey: preferenceKey) ?? ""
         await MainActor.run {
+            guard preferenceKey == currentAPIKeyPreferenceKey else { return }
             apiKey = existing
             lastPersistedAPIKey = existing.trimmingCharacters(in: .whitespacesAndNewlines)
+            hasLoadedKey = true
         }
     }
 

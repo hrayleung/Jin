@@ -86,7 +86,7 @@ struct TextToSpeechPluginSettingsView: View {
     }
 
     var body: some View {
-        JinSettingsPage {
+        JinSettingsPage(title: "Text to Speech") {
             JinSettingsSection("Playback") {
                 JinSettingsToggleRow("Show floating mini player", isOn: $miniPlayerEnabled)
 
@@ -106,7 +106,11 @@ struct TextToSpeechPluginSettingsView: View {
                 }
                 .onChange(of: providerRaw) { oldProviderRaw, _ in
                     autoSaveTask?.cancel()
-                    persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
+                    if hasLoadedKey {
+                        persistAPIKeyIfNeeded(forProviderRaw: oldProviderRaw, showSavedStatus: false)
+                    }
+                    // The draft still belongs to the previous provider until loading finishes.
+                    hasLoadedKey = false
                     Task { await loadExistingKeyAndMaybeProviderResources() }
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
@@ -115,6 +119,7 @@ struct TextToSpeechPluginSettingsView: View {
             JinSettingsSection("Connection") {
                 JinSettingsSecureFieldRow(
                     "API Key",
+                    prompt: "Paste API key",
                     text: $apiKey,
                     isRevealed: $isKeyVisible,
                     revealHelp: "Show API key",
@@ -123,7 +128,7 @@ struct TextToSpeechPluginSettingsView: View {
 
                 PluginCredentialActionsView(
                     canTestConnection: !trimmedAPIKey.isEmpty,
-                    canClear: true,
+                    canClear: !trimmedAPIKey.isEmpty,
                     isTesting: isTesting,
                     showsProgress: isTesting || isLoadingModels || isLoadingVoices,
                     statusMessage: statusMessage,
@@ -136,10 +141,8 @@ struct TextToSpeechPluginSettingsView: View {
 
             providerSpecificSettings
         }
-        .navigationTitle("Text to Speech")
         .task {
             await loadExistingKeyAndMaybeProviderResources()
-            hasLoadedKey = true
         }
         .onChange(of: apiKey) { _, _ in
             guard hasLoadedKey else { return }
@@ -147,6 +150,7 @@ struct TextToSpeechPluginSettingsView: View {
         }
         .onDisappear {
             autoSaveTask?.cancel()
+            if hasLoadedKey { persistAPIKeyIfNeeded(forProviderRaw: providerRaw, showSavedStatus: false) }
         }
     }
 }

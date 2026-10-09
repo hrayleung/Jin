@@ -14,16 +14,16 @@ struct DefaultsSettingsView: View {
     @AppStorage(AppPreferenceKeys.newChatFixedMCPServerIDsJSON) private var newChatFixedMCPServerIDsJSON = "[]"
 
     var body: some View {
-        JinSettingsPage {
+        JinSettingsPage(title: "Defaults") {
             JinSettingsSection("New Chat Model") {
-                Picker("When starting a chat", selection: $newChatModelMode) {
+                JinSettingsPickerRow("When starting a chat", selection: $newChatModelMode) {
                     ForEach(NewChatModelMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
 
                 if newChatModelMode == .fixed {
-                    Picker("Provider", selection: $newChatFixedProviderID) {
+                    JinSettingsPickerRow("Provider", selection: $newChatFixedProviderID) {
                         ForEach(providers.filter(\.isEnabled), id: \.id) { provider in
                             Text(provider.name).tag(provider.id)
                         }
@@ -37,7 +37,7 @@ struct DefaultsSettingsView: View {
                         Text("No models found for this provider.")
                             .jinInfoCallout()
                     } else {
-                        Picker("Model", selection: $newChatFixedModelID) {
+                        JinSettingsPickerRow("Model", selection: $newChatFixedModelID) {
                             ForEach(models) { model in
                                 Text(model.name).tag(model.id)
                             }
@@ -50,7 +50,7 @@ struct DefaultsSettingsView: View {
             }
 
             JinSettingsSection("New Chat MCP") {
-                Picker("MCP Tools", selection: $newChatMCPMode) {
+                JinSettingsPickerRow("MCP Tools", selection: $newChatMCPMode) {
                     ForEach(NewChatMCPMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
@@ -91,7 +91,6 @@ struct DefaultsSettingsView: View {
                 }
             }
         }
-        .navigationTitle("Defaults")
         .onAppear {
             ensureValidFixedModelSelection()
         }

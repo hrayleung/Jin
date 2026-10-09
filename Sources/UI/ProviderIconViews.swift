@@ -108,10 +108,9 @@ private struct ProviderIconPickerSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        JinSheet("Provider Icons") {
             VStack(spacing: JinSpacing.medium) {
-                TextField("Search provider icon", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
+                JinSearchField(text: $searchText, prompt: "Search provider icons", focusesOnAppear: true)
 
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: JinSpacing.medium) {
@@ -123,22 +122,22 @@ private struct ProviderIconPickerSheet: View {
                     }
                     .padding(.vertical, JinSpacing.small)
                 }
-                .jinSurface(.raised, cornerRadius: JinRadius.medium)
-            }
-            .padding(JinSpacing.medium)
-            .navigationTitle("Provider Icons")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        selectedIconID = draftIconID
-                        dismiss()
+                .overlay {
+                    if !searchText.isEmpty && filteredIcons.isEmpty {
+                        ContentUnavailableView.search(text: searchText)
                     }
                 }
             }
+            .padding(JinSpacing.medium)
+        } actions: {
+            Button("Cancel") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+
+            Button("Done") {
+                        selectedIconID = draftIconID
+                        dismiss()
+                    }
+            .keyboardShortcut(.defaultAction)
         }
         .frame(minWidth: 640, minHeight: 520)
         .onAppear {
@@ -156,7 +155,7 @@ private struct ProviderIconPickerSheet: View {
                 ZStack(alignment: .bottomTrailing) {
                     ProviderIconView(iconID: defaultIconID, size: 26)
                         .frame(width: 40, height: 40)
-                        .jinSurface(.subtle, cornerRadius: JinRadius.medium)
+
 
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
@@ -174,7 +173,11 @@ private struct ProviderIconPickerSheet: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, JinSpacing.small)
             .padding(.horizontal, JinSpacing.xSmall)
-            .jinSurface(isSelected ? .selected : .neutral, cornerRadius: JinRadius.medium)
+            .background(
+                isSelected ? JinSemanticColor.selectedSurface : Color.clear,
+                in: RoundedRectangle(cornerRadius: JinRadius.small)
+            )
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
         }
         .buttonStyle(.plain)
     }
@@ -192,7 +195,7 @@ private struct ProviderIconPickerSheet: View {
                 ZStack(alignment: .bottomTrailing) {
                     ProviderIconView(iconID: icon.id, size: 26)
                         .frame(width: 40, height: 40)
-                        .jinSurface(.subtle, cornerRadius: JinRadius.medium)
+
 
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
@@ -210,7 +213,11 @@ private struct ProviderIconPickerSheet: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, JinSpacing.small)
             .padding(.horizontal, JinSpacing.xSmall)
-            .jinSurface(isSelected ? .selected : .neutral, cornerRadius: JinRadius.medium)
+            .background(
+                isSelected ? JinSemanticColor.selectedSurface : Color.clear,
+                in: RoundedRectangle(cornerRadius: JinRadius.small)
+            )
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
         }
         .buttonStyle(.plain)
     }

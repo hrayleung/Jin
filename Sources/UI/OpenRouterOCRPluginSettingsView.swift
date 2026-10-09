@@ -17,10 +17,11 @@ struct OpenRouterOCRPluginSettingsView: View {
     }
 
     var body: some View {
-        JinSettingsPage(maxWidth: 620) {
+        JinSettingsPage(title: "OpenRouter OCR", maxWidth: 620) {
             JinSettingsSection("Connection") {
                 JinSettingsSecureFieldRow(
                     "API Key",
+                    prompt: "Paste API key",
                     text: $apiKey,
                     isRevealed: $isKeyVisible,
                     revealHelp: "Show API key",
@@ -29,7 +30,7 @@ struct OpenRouterOCRPluginSettingsView: View {
 
                 PluginCredentialActionsView(
                     canTestConnection: !trimmedAPIKey.isEmpty,
-                    canClear: true,
+                    canClear: !trimmedAPIKey.isEmpty,
                     isTesting: isTesting,
                     statusMessage: statusMessage,
                     statusIsError: statusIsError,
@@ -46,7 +47,6 @@ struct OpenRouterOCRPluginSettingsView: View {
                 }
             }
         }
-        .navigationTitle("OpenRouter OCR")
         .task {
             await loadExistingSettings()
             hasLoadedSettings = true
@@ -61,6 +61,7 @@ struct OpenRouterOCRPluginSettingsView: View {
         }
         .onDisappear {
             autoSaveTask?.cancel()
+            if hasLoadedSettings { persistAPIKey(trimmedAPIKey) }
         }
     }
 

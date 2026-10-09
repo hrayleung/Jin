@@ -18,7 +18,7 @@ enum JinSettingsMetrics {
     static let labelColumnMinWidth: CGFloat = 128
 
     /// Ceiling, so one unusually long label can't squeeze the control column.
-    /// Labels wider than this truncate instead of stealing the field's width.
+    /// Longer labels wrap instead of stealing the field's width.
     static let labelColumnMaxWidth: CGFloat = 200
 
     /// Gutter between the label column and the control column.
@@ -90,8 +90,7 @@ struct JinSettingsRowLabel: View {
 
     var body: some View {
         Text(title)
-            .lineLimit(1)
-            .truncationMode(.tail)
+            .fixedSize(horizontal: false, vertical: true)
             .frame(width: columnWidth, alignment: .leading)
             .background(alignment: .leading) { intrinsicWidthProbe }
     }

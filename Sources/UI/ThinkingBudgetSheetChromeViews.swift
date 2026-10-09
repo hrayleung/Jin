@@ -31,7 +31,7 @@ struct ThinkingBudgetEditorCard: View {
     @ViewBuilder
     private var effortRow: some View {
         if usesEffortMode {
-            ThinkingBudgetSettingRow("Effort") {
+            JinSettingsControlRow("Effort") {
                 effortPicker
             }
         }
@@ -40,7 +40,7 @@ struct ThinkingBudgetEditorCard: View {
     @ViewBuilder
     private var thinkingDisplayRow: some View {
         if supportsThinkingDisplayControl {
-            ThinkingBudgetSettingRow("Visible thinking") {
+            JinSettingsControlRow("Visible thinking") {
                 thinkingDisplayPicker
             }
         }
@@ -53,21 +53,21 @@ struct ThinkingBudgetEditorCard: View {
             }
         }
         .labelsHidden()
-        .pickerStyle(.segmented)
-        .frame(width: 220)
+        .pickerStyle(.menu)
+        .controlSize(.small)
     }
 
     @ViewBuilder
     private var thinkingBudgetRow: some View {
         if !usesAdaptiveThinking {
-            ThinkingBudgetSettingRow("Thinking budget") {
+            JinSettingsControlRow("Thinking budget") {
                 ThinkingBudgetTokenField(text: $thinkingBudgetDraft)
             }
         }
     }
 
     private var maxOutputTokensRow: some View {
-        ThinkingBudgetSettingRow("Max output tokens") {
+        JinSettingsControlRow("Max output tokens") {
             maxOutputTokensControl
         }
     }
@@ -95,27 +95,15 @@ struct ThinkingBudgetEditorCard: View {
         }
     }
 
-    @ViewBuilder
     private var effortPicker: some View {
-        if supportedEffortLevels.count <= 4 {
-            Picker("Effort", selection: $effortSelection) {
-                ForEach(supportedEffortLevels, id: \.self) { level in
-                    Text(level.anthropicDisplayName).tag(level)
-                }
+        Picker("Effort", selection: $effortSelection) {
+            ForEach(supportedEffortLevels, id: \.self) { level in
+                Text(level.anthropicDisplayName).tag(level)
             }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(width: 320)
-        } else {
-            Picker("Effort", selection: $effortSelection) {
-                ForEach(supportedEffortLevels, id: \.self) { level in
-                    Text(level.anthropicDisplayName).tag(level)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 140)
         }
+        .labelsHidden()
+        .pickerStyle(.menu)
+        .controlSize(.small)
     }
 }
 
@@ -137,28 +125,6 @@ private struct ThinkingBudgetModeBanner: View {
             Spacer(minLength: 0)
         }
         .padding(.bottom, JinSpacing.xSmall)
-    }
-}
-
-private struct ThinkingBudgetSettingRow<Control: View>: View {
-    let title: String
-    @ViewBuilder let control: () -> Control
-
-    init(
-        _ title: String,
-        @ViewBuilder control: @escaping () -> Control
-    ) {
-        self.title = title
-        self.control = control
-    }
-
-    var body: some View {
-        HStack(alignment: .center, spacing: JinSpacing.medium) {
-            Text(title)
-                .font(.body)
-            Spacer(minLength: 0)
-            control()
-        }
     }
 }
 

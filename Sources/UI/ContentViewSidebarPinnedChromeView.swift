@@ -12,13 +12,6 @@ struct ContentViewSidebarPinnedChromeView: View {
     @Binding var isChatSelectionModeActive: Bool
     var searchFieldFocus: FocusState<Bool>.Binding
 
-    private var searchFieldIsActive: Bool {
-        ContentViewSidebarPinnedChromeSupport.isSearchFieldActive(
-            isFocused: searchFieldFocus.wrappedValue,
-            searchText: searchText
-        )
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             SidebarHeaderView(
@@ -40,54 +33,9 @@ struct ContentViewSidebarPinnedChromeView: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: JinSpacing.xSmall) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            TextField(text: $searchText, prompt: Text("Search chats")) {
-                EmptyView()
-            }
-            .textFieldStyle(.plain)
-            .font(.system(size: 15))
-            .focused(searchFieldFocus)
-            .accessibilityLabel("Search chats")
+        JinSearchField(text: $searchText, prompt: "Search chats", focus: searchFieldFocus)
             .help(shortcutsStore.helpText("Search chats", for: .searchChats))
-        }
         .shortcutHint(.searchChats, placement: .trailing)
         .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small + 2)
-        .background { searchFieldPlate }
-        .overlay { searchFieldStroke }
-        .padding(.horizontal, JinSpacing.medium)
-        .animation(.easeInOut(duration: 0.12), value: searchFieldIsActive)
-    }
-
-    /// On macOS 26+ this is a system glass capsule, the same material as a
-    /// sidebar search field. An opaque `subtleSurface` pill sat on the
-    /// Liquid Glass sidebar as a flat inner card. 14/15 have no glass
-    /// effect, so they keep the tinted fill.
-    @ViewBuilder
-    private var searchFieldPlate: some View {
-        let shape = RoundedRectangle(cornerRadius: 15, style: .continuous)
-        if #available(macOS 26.0, *) {
-            Color.clear
-                .glassEffect(.regular.interactive(), in: shape)
-        } else {
-            shape.fill(JinSemanticColor.subtleSurface)
-        }
-    }
-
-    @ViewBuilder
-    private var searchFieldStroke: some View {
-        if #available(macOS 26.0, *) {
-            EmptyView()
-        } else {
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(
-                    searchFieldIsActive ? JinSemanticColor.borderEmphasized : JinSemanticColor.borderSubtle,
-                    lineWidth: JinStrokeWidth.hairline
-                )
-        }
     }
 }

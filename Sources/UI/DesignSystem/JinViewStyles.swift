@@ -9,6 +9,8 @@ enum JinSurfaceVariant {
     case accent
     case tool
     case outlined
+    /// Settings group. System control fill, hairline, no shadow.
+    case group
 
     fileprivate var fill: Color {
         switch self {
@@ -28,6 +30,8 @@ enum JinSurfaceVariant {
             return JinSemanticColor.surface.opacity(0.5)
         case .outlined:
             return Color.clear
+        case .group:
+            return JinSemanticColor.controlGroup
         }
     }
 
@@ -37,7 +41,7 @@ enum JinSurfaceVariant {
             return JinSemanticColor.selectedStroke
         case .neutral, .accent, .tool:
             return Color.clear
-        case .raised, .subtle, .subtleStrong, .outlined:
+        case .raised, .subtle, .subtleStrong, .outlined, .group:
             return JinSemanticColor.borderSubtle
         }
     }
@@ -48,7 +52,7 @@ enum JinSurfaceVariant {
             return JinStrokeWidth.regular
         case .neutral, .accent, .tool:
             return 0
-        case .raised, .subtle, .subtleStrong, .outlined:
+        case .raised, .subtle, .subtleStrong, .outlined, .group:
             return JinStrokeWidth.hairline
         }
     }

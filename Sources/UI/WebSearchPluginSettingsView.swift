@@ -160,24 +160,10 @@ struct WebSearchPluginSettingsView: View {
     }
 
     private var formContent: some View {
-        JinSettingsPage {
-            JinSettingsSection(
-                "Jin Search",
-                detail: "When a chat uses Jin Search instead of a model’s native web search, these defaults apply."
-            ) {
-                JinSettingsToggleRow(
-                    "Enable",
-                    supportingText: configuredProviders.isEmpty
-                        ? "Add an API key below before chats can use Jin Search."
-                        : "\(WebSearchPluginSettingsSupport.configuredCountText(configuredProviders)) engines have keys.",
-                    isOn: $pluginEnabled
-                )
-            }
-
+        JinSettingsPage(title: "Web Search") {
             defaultsSection
             selectedEngineSection
         }
-        .navigationTitle("Web Search")
     }
 
     private var defaultsSection: some View {
@@ -195,15 +181,14 @@ struct WebSearchPluginSettingsView: View {
                 }
             }
 
-            Stepper(
+            JinSettingsStepperRow(
+                "Max results",
                 value: Binding(
                     get: { effectiveDefaultMaxResults },
                     set: { defaultMaxResults = WebSearchPluginSettingsSupport.effectiveMaxResults($0) }
                 ),
                 in: 1...50
-            ) {
-                Text("Max results: \(effectiveDefaultMaxResults)")
-            }
+            )
 
             JinSettingsPickerRow("Recency", selection: $defaultRecencyDays) {
                 ForEach(WebSearchPluginSettingsSupport.recencyChoices) { choice in

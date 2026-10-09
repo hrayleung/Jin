@@ -364,11 +364,8 @@ struct ChatView: View {
 
     @ToolbarContentBuilder
     var chatToolbarItems: some ToolbarContent {
-        // All chat-related items live in the trailing area. "Jin" stays as the
-        // window title at the center; model picker sits to its right (start
-        // of trailing group), followed by action icons. macOS doesn't expose
-        // a placement between `.principal` and `.primaryAction` — this is the
-        // closest "right of title, before actions" the API allows.
+        // One trailing group keeps model selection and chat actions anchored
+        // to the right edge, including when the sidebar is hidden.
         ToolbarItemGroup(placement: .primaryAction) {
             Button {
                 isModelPickerPresented = true
@@ -380,13 +377,16 @@ struct ChatView: View {
                         .font(.callout)
                         .fontWeight(.medium)
                         .lineLimit(1)
+                        .truncationMode(.middle)
                     Image(systemName: "chevron.down")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: 240)
             }
             .jinLabeledToolbarButton()
             .help(shortcutsStore.helpText("Choose model", for: .openModelPicker))
+            .accessibilityLabel("Choose model: \(currentModelName)")
             .shortcutHint(.openModelPicker, placement: .overlayBottom)
             .popover(isPresented: $isModelPickerPresented, arrowEdge: .bottom) {
                 modelPickerPopoverContent(includeManagedAgentSelection: true) { providerID, modelID in
@@ -394,7 +394,6 @@ struct ChatView: View {
                     isModelPickerPresented = false
                 }
             }
-
             let isStarred = conversationEntity.isStarred == true
             Button {
                 conversationEntity.isStarred = !isStarred

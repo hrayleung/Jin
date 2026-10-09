@@ -114,9 +114,9 @@ extension SettingsView {
         )
         let selection = SettingsSelectionSupport.validatedSelection(
             current,
-            providerIDs: filteredProviders.map(\.id),
-            serverIDs: filteredMCPServers.map(\.id),
-            pluginIDs: filteredPlugins.map(\.id)
+            providerIDs: providers.map(\.id),
+            serverIDs: mcpServers.map(\.id),
+            pluginIDs: Self.availablePlugins.map(\.id)
         )
         guard selection != current else { return }
 

@@ -25,9 +25,8 @@ struct UpdateSettingsVersionHero: View {
                         .jinInlineErrorText()
                 }
             }
-            .padding(JinSpacing.large)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .jinSurface(.subtle, cornerRadius: JinRadius.large)
         }
     }
 
@@ -91,36 +90,9 @@ struct UpdateSettingsVersionHero: View {
     }
 
     private var channelBadge: some View {
-        HStack(alignment: .center, spacing: 5) {
-            Circle()
-                .fill(allowPreRelease ? Color.orange : Color.green)
-                .frame(width: 6, height: 6)
-                .accessibilityHidden(true)
-
-            Text(allowPreRelease ? "Pre-release" : "Stable")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(allowPreRelease ? Color.orange : JinSemanticColor.textSecondary)
-        }
-        .padding(.horizontal, JinSpacing.small)
-        .padding(.vertical, 4)
-        .background(
-            Capsule(style: .continuous)
-                .fill(
-                    allowPreRelease
-                        ? Color.orange.opacity(0.12)
-                        : JinSemanticColor.subtleSurface
-                )
-        )
-        .overlay {
-            Capsule(style: .continuous)
-                .stroke(
-                    allowPreRelease
-                        ? Color.orange.opacity(0.28)
-                        : JinSemanticColor.borderSubtle,
-                    lineWidth: JinStrokeWidth.hairline
-                )
-        }
-        .padding(.top, 2)
+        Text(allowPreRelease ? "Pre-release channel" : "Stable channel")
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
 
     private var metadataRow: some View {
@@ -155,8 +127,8 @@ struct UpdateSettingsVersionHero: View {
             }
             .frame(minWidth: 168)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
+        .buttonStyle(.bordered)
+        .controlSize(.regular)
         .disabled(!canCheckForUpdates || sessionInProgress)
         .help(canCheckForUpdates ? "Check for a newer build" : "Update checks unavailable")
     }
@@ -226,31 +198,9 @@ struct UpdateSettingsPreferenceRow: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        HStack(alignment: .center, spacing: JinSpacing.medium) {
-            Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 28, height: 28)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(JinSemanticColor.accentSurface)
-                )
-                .accessibilityHidden(true)
-
-            Text(title)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-
-            Spacer(minLength: JinSpacing.medium)
-
-            Toggle(title, isOn: $isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
-        }
-        .padding(.vertical, 2)
-        .accessibilityElement(children: .combine)
+        JinSettingsToggleRow(title, isOn: $isOn)
     }
+
 }
 
 // MARK: - Formatting

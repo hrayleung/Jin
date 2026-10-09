@@ -53,7 +53,7 @@ struct ChatsSidebarSectionView: View {
                 chatsSection(grouped: grouped, hasConversations: !filtered.isEmpty, batch: batch)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .listStyle(.plain)
+            .listStyle(.sidebar)
             .contentMargins(.vertical, 0, for: .scrollContent)
             .overlayScrollerStyle()
             .scrollContentBackground(.hidden)
@@ -378,6 +378,20 @@ struct ChatsSidebarSectionView: View {
 
     // MARK: - Rows
 
+    private func periodHeader(_ period: String) -> some View {
+        Text(period)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, JinSpacing.medium)
+            .padding(.bottom, JinSpacing.xSmall + 1)
+            .accessibilityAddTraits(.isHeader)
+            .listRowInsets(EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .selectionDisabled()
+    }
+
     @ViewBuilder
     private func chatsSection(
         grouped: [(key: String, value: [ConversationEntity])],
@@ -386,52 +400,67 @@ struct ChatsSidebarSectionView: View {
     ) -> some View {
         if hasConversations {
             ForEach(grouped, id: \.key) { period, convs in
-                Section {
-                    ForEach(convs) { conversation in
-                        SidebarConversationItem(
-                            conversation: conversation,
-                            subtitle: "\(providerName(for: conversation)) \u{2022} \(modelName(for: conversation))",
-                            providerIconID: providerIconID(for: conversation),
-                            searchSnippet: searchSnippet(for: conversation),
-                            searchQuery: normalizedConversationSearchQuery,
-                            isRegeneratingTitle: regeneratingConversationID == conversation.id,
-                            selection: SidebarConversationSelectionState(
-                                isSelectionModeActive: isSelectionModeActive,
-                                isSelected: batch.ids.contains(conversation.id),
-                                batchCount: batch.count,
-                                shouldStarBatch: batch.shouldStar
-                            ),
-                            selectionActions: selectionActions(for: conversation, batch: batch),
-                            onToggleStar: { onToggleStar(conversation) },
-                            onRename: { onRename(conversation) },
-                            onRegenerateTitle: { onRegenerateTitle(conversation) },
-                            onDelete: { onDelete(conversation) }
-                        )
-                        .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                    }
-                    .onDelete { indexSet in
-                        onDeleteAtOffsets(indexSet, convs)
-                    }
-                } header: {
-                    Text(period)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, JinSpacing.medium + 2)
-                        .padding(.top, JinSpacing.medium)
-                        .padding(.bottom, JinSpacing.xSmall + 1)
+                // A `Section` header is an AppKit group row. It paints an
+                // opaque control background, which on the system sidebar
+                // material reads as a white bar ("Today") that the rows
+                // below — clear, so the material shows through — do not.
+                periodHeader(period)
+                ForEach(convs) { conversation in
+                    SidebarConversationItem(
+                        conversation: conversation,
+                        subtitle: "\(providerName(for: conversation)) \u{2022} \(modelName(for: conversation))",
+                        providerIconID: providerIconID(for: conversation),
+                        searchSnippet: searchSnippet(for: conversation),
+                        searchQuery: normalizedConversationSearchQuery,
+                        isRegeneratingTitle: regeneratingConversationID == conversation.id,
+                        selection: SidebarConversationSelectionState(
+                            isSelectionModeActive: isSelectionModeActive,
+                            isSelected: batch.ids.contains(conversation.id),
+                            batchCount: batch.count,
+                            shouldStarBatch: batch.shouldStar
+                        ),
+                        selectionActions: selectionActions(for: conversation, batch: batch),
+                        onToggleStar: { onToggleStar(conversation) },
+                        onRename: { onRename(conversation) },
+                        onRegenerateTitle: { onRegenerateTitle(conversation) },
+                        onDelete: { onDelete(conversation) }
+                    )
+                    .listRowInsets(EdgeInsets(top: 4, leading: 14, bottom: 4, trailing: 14))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                 }
-                .textCase(nil)
+                .onDelete { indexSet in
+                    onDeleteAtOffsets(indexSet, convs)
+                }
             }
         } else if !searchText.isEmpty {
-            ContentUnavailableView.search(text: searchText)
+            sidebarEmptyState(
+                title: "No matching chats",
+                detail: "Try another name or phrase."
+            )
         } else {
-            ContentUnavailableView {
-                Label("No Conversations", systemImage: "bubble.left.and.bubble.right")
-            } description: {
-                Text("Start a new chat to begin.")
-            }
+            sidebarEmptyState(
+                title: "No conversations yet",
+                detail: "Your chats will appear here."
+            )
         }
+    }
+
+    private func sidebarEmptyState(title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.secondary)
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 16)
+        .listRowInsets(EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .selectionDisabled()
     }
 }

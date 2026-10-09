@@ -23,7 +23,7 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
     @State private var areCustomLabelsExpanded = false
 
     var body: some View {
-        NavigationStack {
+        JinSheet("Claude Managed Agent") {
             ScrollView {
                 VStack(alignment: .leading, spacing: JinSpacing.medium) {
                     ClaudeManagedAgentProviderDefaultsSection(
@@ -56,18 +56,15 @@ struct ClaudeManagedAgentSessionSettingsSheetView: View {
                 .padding(JinSpacing.large)
             }
             .background {
-                JinSemanticColor.detailSurface
+                JinSemanticColor.pageBackdrop
                     .ignoresSafeArea()
             }
-            .navigationTitle("Claude Managed Agent")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onCancel() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { onSave() }
-                }
-            }
+        } actions: {
+            Button("Cancel") { onCancel() }
+                .keyboardShortcut(.cancelAction)
+
+            Button("Save") { onSave() }
+                .keyboardShortcut(.defaultAction)
         }
         .frame(minWidth: 560, idealWidth: 620, minHeight: 420, idealHeight: 500)
         .onAppear {

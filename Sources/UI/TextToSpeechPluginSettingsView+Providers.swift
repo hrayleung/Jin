@@ -141,7 +141,6 @@ extension TextToSpeechPluginSettingsView {
                 title: "Speed",
                 value: $openAISpeed,
                 range: 0.25...4.0,
-                step: 0.05,
                 valueWidth: 64
             )
 
@@ -295,7 +294,7 @@ extension TextToSpeechPluginSettingsView {
             }
             .disabled(lowLatencyStreaming && supportsStreaming)
 
-            Stepper("Optimize latency: \(elevenLabsOptimizeStreamingLatency)", value: $elevenLabsOptimizeStreamingLatency, in: 0...4)
+            JinSettingsStepperRow("Optimize latency", value: $elevenLabsOptimizeStreamingLatency, in: 0...4)
 
             JinSettingsToggleRow("Enable logging", isOn: $elevenLabsEnableLogging)
 
@@ -316,32 +315,28 @@ extension TextToSpeechPluginSettingsView {
                         JinSettingsSliderValueRow(
                             title: "Stability",
                             value: $elevenLabsStability,
-                            range: 0.0...1.0,
-                            step: 0.01
+                            range: 0.0...1.0
                         )
                     }
                     JinSettingsSliderValueRow(
                         title: "Similarity",
                         value: $elevenLabsSimilarityBoost,
-                        range: 0.0...1.0,
-                        step: 0.01
+                        range: 0.0...1.0
                     )
                     JinSettingsSliderValueRow(
                         title: "Style",
                         value: $elevenLabsStyle,
-                        range: 0.0...1.0,
-                        step: 0.01
+                        range: 0.0...1.0
                     )
                     // `speed` is rejected by the v3 models.
                     if currentSynthesisCapabilities?.supportsSpeed == true {
                         JinSettingsSliderValueRow(
                             title: "Speed",
                             value: $elevenLabsSpeed,
-                            range: 0.7...1.2,
-                            step: 0.01
+                            range: 0.7...1.2
                         )
                     }
-                    Toggle("Use speaker boost", isOn: $elevenLabsUseSpeakerBoost)
+                    JinSettingsToggleRow("Use speaker boost", isOn: $elevenLabsUseSpeakerBoost)
                 }
                 .padding(.top, 6)
             }

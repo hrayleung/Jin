@@ -6,23 +6,27 @@ struct ContentViewEmptyDetailView: View {
     var body: some View {
         VStack(spacing: JinSpacing.large) {
             Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 28, weight: .regular))
+                .foregroundStyle(JinSemanticColor.textTertiary)
+                .accessibilityHidden(true)
 
             VStack(spacing: JinSpacing.xSmall + 2) {
-                Text("No Conversation Selected")
+                Text("Start a conversation")
                     .font(.title3)
                     .fontWeight(.semibold)
 
-                Text("Pick a conversation from the sidebar, or start a new one.")
+                Text("Choose a chat from the sidebar, or start with something new.")
                     .font(.body)
                     .foregroundStyle(.secondary)
             }
             .multilineTextAlignment(.center)
+            .frame(maxWidth: 300)
 
-            Button("New Chat", action: onNewChat)
+            Button(action: onNewChat) {
+                Label("New Chat", systemImage: "square.and.pencil")
+            }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+            .controlSize(.regular)
         }
         .padding(.horizontal, JinSpacing.xLarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

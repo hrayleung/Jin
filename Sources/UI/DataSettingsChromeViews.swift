@@ -51,7 +51,7 @@ struct DataSettingsBreakdownSection: View {
 
     @ViewBuilder
     private var breakdownContent: some View {
-        if snapshots.isEmpty && !isCalculating {
+        if snapshots.isEmpty {
             emptyState
         } else {
             snapshotRows
@@ -59,8 +59,11 @@ struct DataSettingsBreakdownSection: View {
     }
 
     private var emptyState: some View {
-        Text("Calculating...")
-            .foregroundStyle(.tertiary)
+        HStack(spacing: 8) {
+            if isCalculating { ProgressView().controlSize(.small) }
+            Text(isCalculating ? "Calculating storage…" : "No storage information available.")
+                .foregroundStyle(.secondary)
+        }
     }
 
     @ViewBuilder
@@ -101,6 +104,7 @@ struct DataSettingsChatsSection: View {
         } label: {
             Label("Delete All Chats", systemImage: "trash")
         }
+        .disabled(chatCount == 0)
     }
 }
 

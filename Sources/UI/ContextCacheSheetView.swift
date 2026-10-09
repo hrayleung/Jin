@@ -21,7 +21,7 @@ struct ContextCacheSheetView: View {
     var onSave: () -> Bool
 
     var body: some View {
-        NavigationStack {
+        JinSheet("Context Cache") {
             ScrollView {
                 VStack(alignment: .leading, spacing: JinSpacing.large) {
                     ContextCacheBasicsCard(
@@ -51,23 +51,20 @@ struct ContextCacheSheetView: View {
                 .padding(JinSpacing.large)
             }
             .background {
-                JinSemanticColor.detailSurface
+                JinSemanticColor.pageBackdrop
                     .ignoresSafeArea()
             }
-            .navigationTitle("Context Cache")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onCancel() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        if onSave() {
-                            onCancel()
-                        }
-                    }
-                    .disabled(!isValid)
+        } actions: {
+            Button("Cancel") { onCancel() }
+                .keyboardShortcut(.cancelAction)
+
+            Button("Save") {
+                if onSave() {
+                    onCancel()
                 }
             }
+            .disabled(!isValid)
+            .keyboardShortcut(.defaultAction)
         }
         .frame(minWidth: 640, idealWidth: 700, minHeight: 480, idealHeight: 560)
     }

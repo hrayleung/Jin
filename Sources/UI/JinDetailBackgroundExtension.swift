@@ -15,7 +15,7 @@ struct JinDetailBackgroundExtension: ViewModifier {
             // detail is cheap, an open conversation is not. Extend only
             // the flat surface tint, which is what Landmarks / HIG show.
             content.background {
-                JinSemanticColor.windowCanvas
+                JinSemanticColor.detailSurface
                     .ignoresSafeArea()
                     .backgroundExtensionEffect()
             }

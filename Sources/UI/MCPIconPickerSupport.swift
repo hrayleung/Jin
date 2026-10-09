@@ -21,36 +21,15 @@ enum MCPIconPickerSupport {
     }
 
     static func displayName(for iconID: String) -> String {
-        switch iconID.lowercased() {
-        case "tinyfish": return "TinyFish"
-        case "context7": return "Context7"
-        case "playwright": return "Playwright"
-        case "linear": return "Linear"
-        case "slack": return "Slack"
-        case "stripe": return "Stripe"
-        case "sentry": return "Sentry"
-        case "supabase": return "Supabase"
-        case "huggingface": return "Hugging Face"
-        case "cloudflare": return "Cloudflare"
-        case "brave": return "Brave"
-        case "jina": return "Jina"
-        case "morph": return "Morph"
-        case "github": return "GitHub"
-        case "notion": return "Notion"
-        case "figma": return "Figma"
-        case "exa": return "Exa"
-        case "tavily": return "Tavily"
-        case "firecrawl": return "Firecrawl"
-        case "perplexity": return "Perplexity"
-        case "parallel": return "Parallel"
-        case "elevenlabs": return "ElevenLabs"
-        default: return iconID
-        }
+        MCPIconDisplayNames.byID[iconID.lowercased()] ?? iconID
     }
 
     static func selectableIcons(from icons: [MCPIcon], defaultIconID: String) -> [MCPIcon] {
         icons.filter { icon in
             icon.id.caseInsensitiveCompare(defaultIconID) != .orderedSame
+        }
+        .sorted {
+            displayName(for: $0.id).localizedCaseInsensitiveCompare(displayName(for: $1.id)) == .orderedAscending
         }
     }
 

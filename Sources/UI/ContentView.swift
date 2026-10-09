@@ -217,16 +217,16 @@ struct ContentView: View {
                     mainWindowIsFullScreen: mainWindowChromeLayout.isFullScreen
                 )
                 .id(conversation.id)
-                .background(JinSemanticColor.windowCanvas)
+                .background(JinSemanticColor.detailSurface)
                 .environmentObject(ttsPlaybackManager)
             } else {
                 ContentViewEmptyDetailView(
                     onNewChat: createNewConversation
                 )
-                .background(JinSemanticColor.windowCanvas)
+                .background(JinSemanticColor.detailSurface)
             }
         }
-        .background { JinSemanticColor.windowCanvas.ignoresSafeArea() }
+        .background { JinSemanticColor.detailSurface.ignoresSafeArea() }
         .overlay(alignment: .top) {
             ContentViewTTSMiniPlayerOverlay(
                 manager: ttsPlaybackManager,

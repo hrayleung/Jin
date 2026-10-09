@@ -20,20 +20,20 @@ struct JinSettingsFeatureToggleCard<AccessoryTags: View>: View {
 
     var body: some View {
         JinSettingsCard {
-            HStack(alignment: .center, spacing: JinSpacing.small) {
+            if title != "Basics" {
                 Text(title)
                     .font(.headline)
-
-                Spacer()
-
-                Text(isEnabled ? "On" : "Off")
-                    .jinTagStyle(foreground: isEnabled ? .accentColor : .secondary)
-
-                accessoryTags()
             }
 
-            Toggle(toggleTitle, isOn: $isEnabled)
-                .toggleStyle(.switch)
+            HStack {
+                Text(toggleTitle)
+                Spacer(minLength: 16)
+                Toggle(toggleTitle, isOn: $isEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+            }
+            accessoryTags()
         }
     }
 }

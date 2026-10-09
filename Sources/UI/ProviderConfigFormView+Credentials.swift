@@ -9,6 +9,7 @@ extension ProviderConfigFormView {
     var apiKeyField: some View {
         JinSettingsSecureFieldRow(
             apiKeyFieldTitle,
+            prompt: "Enter credential",
             text: $apiKey,
             isRevealed: $showingAPIKey,
             revealHelp: ProviderFormSupport.apiKeyRevealHelp(for: providerType),
@@ -41,7 +42,7 @@ extension ProviderConfigFormView {
             JinSettingsTextEditor(
                 text: $serviceAccountJSON,
                 placeholder: "Paste JSON content here…",
-                minHeight: 320
+                minHeight: 180
             )
         }
     }

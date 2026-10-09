@@ -30,59 +30,40 @@ struct ShortcutEditorSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            Text(action.title)
-                .font(.headline)
-
-            ShortcutRecorderCard(
-                binding: $draftBinding,
-                validationMessage: $validationMessage
-            )
-
-            HStack(spacing: JinSpacing.large) {
-                ShortcutEditorCurrentDefaultLabel(
-                    title: "Current",
-                    value: currentBinding?.displayLabel ?? "None"
-                )
-                ShortcutEditorCurrentDefaultLabel(
-                    title: "Default",
-                    value: defaultBinding?.displayLabel ?? "None"
-                )
-            }
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: JinSpacing.small) {
-                Button("Cancel", role: .cancel) {
-                    dismiss()
+        JinSheet(action.title) {
+            VStack(alignment: .leading, spacing: JinSpacing.large) {
+                ShortcutRecorderCard(binding: $draftBinding, validationMessage: $validationMessage)
+                HStack(spacing: JinSpacing.large) {
+                    ShortcutEditorCurrentDefaultLabel(title: "Current", value: currentBinding?.displayLabel ?? "None")
+                    ShortcutEditorCurrentDefaultLabel(title: "Default", value: defaultBinding?.displayLabel ?? "None")
                 }
-
-                Spacer()
-
-                Button("Disable") {
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 16)
+        } actions: {
+            Menu("More") {
+                Button("Disable Shortcut") {
                     draftBinding = nil
                     validationMessage = nil
                 }
-
                 Button("Restore Default") {
                     draftBinding = defaultBinding
                     validationMessage = nil
                 }
-
-                Button("Save") {
-                    if draftBinding == defaultBinding {
-                        onRestoreDefault()
-                    } else {
-                        onSave(draftBinding)
-                    }
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!canSave)
             }
+            .fixedSize()
+            Spacer()
+            Button("Cancel") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+            Button("Save") {
+                if draftBinding == defaultBinding { onRestoreDefault() } else { onSave(draftBinding) }
+                dismiss()
+            }
+            .keyboardShortcut(.defaultAction)
+            .disabled(!canSave)
         }
-        .padding(20)
-        .frame(width: 460, height: 250)
+        .frame(width: 480, height: 300)
         .onAppear {
             shortcutHintController.isCaptureActive = true
             validateDraftBinding()

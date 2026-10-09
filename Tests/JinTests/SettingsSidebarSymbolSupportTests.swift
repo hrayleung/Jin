@@ -90,7 +90,7 @@ final class SettingsSidebarSymbolSupportTests: XCTestCase {
         XCTAssertTrue(allowedLight.contains(light.name))
     }
 
-    func testSettingsSidebarDoesNotUseAutomaticSystemImageLabels() throws {
+    func testSettingsSidebarUsesMonochromeSymbolsWithoutSelectionEffects() throws {
         let settingsView = try sourceFile("Sources/UI/SettingsView.swift")
         XCTAssertFalse(settingsView.contains("Label(section.rawValue, systemImage:"))
         XCTAssertTrue(settingsView.contains("SettingsSidebarColumn("))
@@ -99,9 +99,10 @@ final class SettingsSidebarSymbolSupportTests: XCTestCase {
         XCTAssertFalse(sidebar.contains("NavigationLink(value:"))
         XCTAssertFalse(sidebar.contains("Label(section.rawValue, systemImage:"))
         XCTAssertTrue(sidebar.contains("symbolEffectsRemoved"))
-        XCTAssertTrue(sidebar.contains("listItemTint(.fixed"))
+        XCTAssertTrue(sidebar.contains("listItemTint(.monochrome)"))
         XCTAssertTrue(sidebar.contains("symbolRenderingMode(.monochrome)"))
-        XCTAssertTrue(sidebar.contains("renderingMode(.original)"))
+        XCTAssertTrue(sidebar.contains("contentTransition(.identity)"))
+        XCTAssertTrue(sidebar.contains("transaction(SettingsSidebarSymbolSupport.suppressAnimations)"))
     }
 
     private func sourceFile(_ relativePath: String) throws -> String {

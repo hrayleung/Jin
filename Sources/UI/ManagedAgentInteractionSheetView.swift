@@ -22,7 +22,7 @@ struct ManagedAgentInteractionSheetView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        JinSheet(request.title) {
             ScrollView {
                 VStack(alignment: .leading, spacing: JinSpacing.large) {
                     ManagedAgentInteractionHeaderCardView(
@@ -56,26 +56,23 @@ struct ManagedAgentInteractionSheetView: View {
                 .padding(JinSpacing.large)
             }
             .background {
-                JinSemanticColor.detailSurface
+                JinSemanticColor.pageBackdrop
                     .ignoresSafeArea()
             }
-            .navigationTitle(request.title)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onResolve(ManagedAgentInteractionSheetSupport.cancelResponse(for: request.kind))
-                    }
+        } actions: {
+            Button("Cancel") {
+                onResolve(ManagedAgentInteractionSheetSupport.cancelResponse(for: request.kind))
+            }
+            .keyboardShortcut(.cancelAction)
+
+            switch request.kind {
+            case .userInput:
+                Button("Submit") {
+                    submitUserInput()
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    switch request.kind {
-                    case .userInput:
-                        Button("Submit") {
-                            submitUserInput()
-                        }
-                    case .commandApproval, .fileChangeApproval:
-                        EmptyView()
-                    }
-                }
+                .keyboardShortcut(.defaultAction)
+            case .commandApproval, .fileChangeApproval:
+                EmptyView()
             }
         }
         .interactiveDismissDisabled(true)

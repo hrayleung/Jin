@@ -16,13 +16,13 @@ struct SidebarHeaderView: View {
         HStack(spacing: JinSpacing.small) {
             VStack(alignment: .leading, spacing: 1) {
                 Text("Chats")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
 
                 Text(assistantDisplayName)
-                    .font(.system(size: 13, weight: .regular))
+                    .font(.system(size: 11, weight: .regular))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -45,7 +45,7 @@ struct SidebarHeaderView: View {
                     .font(.system(size: JinControlMetrics.iconButtonGlyphSize, weight: .semibold))
                     .foregroundStyle(isChatSelectionModeActive ? Color.accentColor : Color.primary)
             }
-            .buttonStyle(JinIconButtonStyle(showBackground: false))
+            .buttonStyle(JinIconButtonStyle(isActive: isChatSelectionModeActive, showBackground: false))
             .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .selectChats))
             .help(shortcutsStore.helpText(
                 isChatSelectionModeActive ? "Done Selecting Chats" : "Select Chats",
@@ -61,6 +61,7 @@ struct SidebarHeaderView: View {
             .buttonStyle(JinIconButtonStyle(showBackground: false))
             .keyboardShortcut(shortcutsStore.keyboardShortcut(for: .newChat))
             .help(shortcutsStore.helpText("New Chat", for: .newChat))
+            .accessibilityLabel("New chat")
             .shortcutHint(.newChat, placement: .overlayBottom)
 
             Button(action: { openSettings() }) {
@@ -70,6 +71,7 @@ struct SidebarHeaderView: View {
             .buttonStyle(JinIconButtonStyle(showBackground: false))
             .keyboardShortcut(",", modifiers: [.command])
             .help("Settings (⌘,)")
+            .accessibilityLabel("Settings")
             .fixedShortcutHint(.command(","), placement: .overlayBottom)
         }
         .padding(.leading, leadingPadding)

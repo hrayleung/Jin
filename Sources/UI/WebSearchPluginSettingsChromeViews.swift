@@ -10,7 +10,7 @@ struct WebSearchAPIKeyRow: View {
         JinSettingsControlRow(label, controlAlignment: .leading) {
             HStack(spacing: JinSpacing.small) {
                 JinRevealableSecureField(
-                    prompt: "",
+                    prompt: "Paste API key",
                     text: $text,
                     isRevealed: $isRevealed,
                     usesMonospacedFont: true,

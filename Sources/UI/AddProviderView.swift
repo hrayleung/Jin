@@ -5,6 +5,7 @@ import AppKit
 #endif
 
 struct AddProviderView: View {
+    var onAdded: ((String) -> Void)?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -25,11 +26,11 @@ struct AddProviderView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        JinSheet("Add Provider") {
             JinSettingsPage(
                 maxWidth: prefersExpandedCredentialEditor ? 760 : 600,
-                horizontalPadding: 20,
-                verticalPadding: 20
+                horizontalPadding: 0,
+                verticalPadding: 0
             ) {
                 JinSettingsSection("Provider") {
                     VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
@@ -102,6 +103,7 @@ struct AddProviderView: View {
                     case .apiKey:
                         JinSettingsSecureFieldRow(
                             ProviderFormSupport.apiKeyFieldTitle(for: providerType),
+                            prompt: "Enter credential",
                             text: $apiKey,
                             isRevealed: $isKeyVisible,
                             revealHelp: ProviderFormSupport.apiKeyRevealHelp(for: providerType),
@@ -121,7 +123,7 @@ struct AddProviderView: View {
                             JinSettingsTextEditor(
                                 text: $serviceAccountJSON,
                                 placeholder: "Paste service account JSON here…",
-                                minHeight: 320,
+                                minHeight: 220,
                                 placeholderLeadingPadding: 4
                             )
                         }
@@ -133,21 +135,18 @@ struct AddProviderView: View {
                     }
                 }
             }
-            .navigationTitle("Add Provider")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { addProvider() }
-                        .disabled(isAddDisabled)
-                }
-            }
-            .frame(
-                width: addProviderWindowSize.width,
-                height: addProviderWindowSize.height
-            )
+
+
+        } actions: {
+            Button("Cancel") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+                .disabled(isSaving)
+
+            Button("Add") { addProvider() }
+                .disabled(isAddDisabled)
+                .keyboardShortcut(.defaultAction)
         }
+        .frame(width: addProviderWindowSize.width, height: addProviderWindowSize.height)
         #if os(macOS)
         .background(MovableWindowHelper())
         #endif
@@ -186,8 +185,15 @@ struct AddProviderView: View {
 
                 let entity = try ProviderConfigEntity.fromDomain(config)
 
-                await MainActor.run {
+                try await MainActor.run {
                     modelContext.insert(entity)
+                    do {
+                        try modelContext.save()
+                    } catch {
+                        modelContext.delete(entity)
+                        throw error
+                    }
+                    onAdded?(providerID)
                     dismiss()
                 }
             } catch {
@@ -212,7 +218,7 @@ struct AddProviderView: View {
         case .modal:
             return (600, 480)
         default:
-            return (600, 400)
+            return (600, 480)
         }
     }
 

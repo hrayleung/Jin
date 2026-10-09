@@ -10,8 +10,9 @@ extension CompactComposerOverlayView {
                 .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(JinIconButtonStyle(showBackground: false))
         .help(shortcutsStore.helpText("Hide composer", for: .toggleComposerVisibility))
+        .accessibilityLabel("Hide composer")
         .shortcutHint(.toggleComposerVisibility)
     }
 
@@ -24,8 +25,9 @@ extension CompactComposerOverlayView {
                 .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(JinIconButtonStyle(showBackground: false))
         .help(shortcutsStore.helpText("Expand composer", for: .expandComposer))
+        .accessibilityLabel("Expand composer")
         .shortcutHint(.expandComposer)
     }
 
@@ -35,12 +37,14 @@ extension CompactComposerOverlayView {
             Image(systemName: presentation.compactSystemImage)
                 .resizable()
                 .symbolRenderingMode(.hierarchical)
-                .frame(width: 22, height: 22)
+                .frame(width: 26, height: 26)
                 .foregroundStyle(isBusy ? Color.secondary : (canSendDraft ? Color.accentColor : .gray))
                 // Soft morph between send ↔ stop so the busy flip doesn't pop.
-                .contentTransition(.symbolEffect(.replace.downUp))
-                .animation(JinMotion.sendGlyph, value: presentation.compactSystemImage)
-                .animation(JinMotion.sendGlyph, value: isBusy)
+                .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace.downUp))
+                .animation(reduceMotion ? nil : JinMotion.sendGlyph, value: presentation.compactSystemImage)
+                .animation(reduceMotion ? nil : JinMotion.sendGlyph, value: isBusy)
+                .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(presentation.isDisabled)

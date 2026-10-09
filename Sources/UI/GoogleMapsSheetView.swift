@@ -22,7 +22,7 @@ struct GoogleMapsSheetView: View {
     #endif
 
     var body: some View {
-        NavigationStack {
+        JinSheet("Google Maps") {
             ScrollView {
                 VStack(alignment: .leading, spacing: JinSpacing.large) {
                     GoogleMapsBasicsCard(
@@ -55,23 +55,20 @@ struct GoogleMapsSheetView: View {
                 .padding(JinSpacing.large)
             }
             .background {
-                JinSemanticColor.detailSurface
+                JinSemanticColor.pageBackdrop
                     .ignoresSafeArea()
             }
-            .navigationTitle("Google Maps")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onCancel() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        if onSave() {
-                            onCancel()
-                        }
-                    }
-                    .disabled(!isValid)
+        } actions: {
+            Button("Cancel") { onCancel() }
+                .keyboardShortcut(.cancelAction)
+
+            Button("Save") {
+                if onSave() {
+                    onCancel()
                 }
             }
+            .disabled(!isValid)
+            .keyboardShortcut(.defaultAction)
         }
         .frame(minWidth: 560, idealWidth: 620, minHeight: 460, idealHeight: 540)
         .onAppear {
