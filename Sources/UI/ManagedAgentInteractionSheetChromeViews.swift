@@ -9,8 +9,9 @@ struct ManagedAgentInteractionSectionCardView<Content: View>: View {
 
     var body: some View {
         content
-            .padding(JinSpacing.large)
-            .jinSurface(.raised, cornerRadius: JinRadius.large)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .jinSurface(.group, cornerRadius: 10)
     }
 }
 

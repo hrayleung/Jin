@@ -87,4 +87,33 @@ final class MCPIconPickerSupportTests: XCTestCase {
             )
         )
     }
+
+    func testPickerSearchesDisplayNamesAndPreservesStoredIDs() {
+        let icons = [
+            MCPIcon(id: "claudecode", lightResourceName: "claudecode_light", darkResourceName: "claudecode_dark"),
+            MCPIcon(id: "cherrystudio", lightResourceName: "cherrystudio_light", darkResourceName: "cherrystudio_dark")
+        ]
+        XCTAssertEqual(
+            MCPIconPickerSupport.filteredIcons(from: icons, searchText: "Claude Code", defaultIconID: "mcp").map(\.id),
+            ["claudecode"]
+        )
+        XCTAssertEqual(
+            MCPIconPickerSupport.filteredIcons(from: icons, searchText: "cherrystudio", defaultIconID: "mcp").map(\.id),
+            ["cherrystudio"]
+        )
+        XCTAssertEqual(MCPIconPickerSupport.displayName(for: "CLAUDECODE"), "Claude Code")
+        XCTAssertEqual(MCPIconPickerSupport.displayName(for: "custom-server-icon"), "custom-server-icon")
+    }
+
+    func testPickerSortsByVisibleNameInsteadOfResourceID() {
+        let icons = [
+            MCPIcon(id: "bing", lightResourceName: "bing_light", darkResourceName: "bing_dark"),
+            MCPIcon(id: "claudecode", lightResourceName: "claudecode_light", darkResourceName: "claudecode_dark"),
+            MCPIcon(id: "mcp", lightResourceName: "mcp_light", darkResourceName: "mcp_dark")
+        ]
+        XCTAssertEqual(
+            MCPIconPickerSupport.filteredIcons(from: icons, searchText: "", defaultIconID: "mcp").map(\.id),
+            ["claudecode", "bing"]
+        )
+    }
 }

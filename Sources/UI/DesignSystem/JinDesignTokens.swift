@@ -9,9 +9,9 @@ enum JinSpacing {
 }
 
 enum JinRadius {
-    static let small: CGFloat = 8
-    static let medium: CGFloat = 12
-    static let large: CGFloat = 18
+    static let small: CGFloat = 6
+    static let medium: CGFloat = 10
+    static let large: CGFloat = 14
 }
 
 enum JinStrokeWidth {
@@ -29,24 +29,8 @@ enum JinControlMetrics {
 
 enum JinSemanticColor {
 
-    // MARK: - Surface system (4 distinct levels, each with a single purpose)
-    //
-    // Design philosophy:
-    //
-    //   1. ONE content surface. Chat content, top bar, sheets, detail panes —
-    //      everything that's a "work surface" uses `surface`. Feels like one
-    //      coherent canvas, not a patchwork of greys.
-    //   2. SIDEBAR recedes. `canvas` is the only place that's distinctly
-    //      dimmer. Hierarchy felt at a glance.
-    //   3. INLINE tints for islands. `subtleSurface` for pills, code blocks,
-    //      search field. Small "different element" cues, not whole panels.
-    //   4. ONE anchor card. `raisedSurface` (pure white in light) is reserved
-    //      for the composer — the single element that visibly *lifts* off the
-    //      page with a defined border and soft shadow. Nothing else uses it.
-    //
-    // Anything that previously needed `panelSurface` / `textSurface` /
-    // `detailSurface` collapses into these 4 — those names live on as
-    // aliases for migration but resolve to the same value as one of the four.
+    // Navigation keeps the system material. Reading surfaces and inset controls
+    // use stable, neutral tones so OS material changes don't flatten the content.
 
     /// Sidebar / global window chrome that should visually recede.
     static let canvas = Color(
@@ -54,8 +38,7 @@ enum JinSemanticColor {
         dark: Color(sRGB: 0x18181A)
     )
 
-    /// The single "content surface" — chat content, top bar, sheets, detail
-    /// panes all share this. Forms the visual baseline of the app.
+    /// Opaque reading surface for chat content and detail panes.
     static let surface = Color(
         light: Color(sRGB: 0xFBFBFC),
         dark: Color(sRGB: 0x1E1E20)
@@ -177,23 +160,34 @@ enum JinSemanticColor {
     /// Migration alias. Prefer `canvas`.
     static let sidebarSurface = canvas
 
-    /// Migration alias. Sheets and detail panes share the main content
-    /// `surface`. They ARE the work surface, not raised cards. Reserve
-    /// `raisedSurface` for the composer anchor.
+    /// Reading canvas, independent of the window chrome's glass tint.
     static let detailSurface = surface
 
-    /// Main-window canvas on macOS 26+. Liquid Glass samples whatever sits
-    /// under the toolbar and sidebar. A private hex (`surface` is #FBFBFC)
-    /// does not track the system's window background or the Liquid Glass
-    /// tint slider, so on macOS 27.2 the title bar resolves to a solid slab
-    /// with a hard separator. Sheets and cards keep `surface`.
-    static var windowCanvas: Color {
-        if #available(macOS 26.0, *) {
-            Color(nsColor: .windowBackgroundColor)
-        } else {
-            detailSurface
-        }
-    }
+    /// Used only where a view needs to match the system window chrome.
+    static var windowCanvas: Color { Color(nsColor: .windowBackgroundColor) }
+
+    /// Settings canvas and its inset groups maintain the same contrast in every
+    /// window state. Translucent group fills otherwise compound the OS tint.
+    static let pageBackdrop = Color(
+        light: Color(sRGB: 0xF5F5F7),
+        dark: Color(sRGB: 0x202022)
+    )
+
+    static let controlGroup = Color(
+        light: Color(sRGB: 0xFFFFFF),
+        dark: Color(sRGB: 0x2A2A2D)
+    )
+
+    /// Small controls inherit their containing surface without adding material.
+    static let controlFill = Color(
+        light: Color(sRGB: 0x000000, opacity: 0.035),
+        dark: Color(sRGB: 0xFFFFFF, opacity: 0.055)
+    )
+
+    static let hoverFill = Color(
+        light: Color(sRGB: 0x000000, opacity: 0.075),
+        dark: Color(sRGB: 0xFFFFFF, opacity: 0.10)
+    )
 
     /// Migration alias. Legacy call sites that re-apply `.opacity(0.3–0.7)`
     /// now produce a clearly visible hairline because the base is already an

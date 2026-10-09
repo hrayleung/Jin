@@ -26,10 +26,15 @@ struct AssistantSFSymbolPickerTile: View {
                 }
             }
             .frame(width: Self.tileSide, height: Self.tileSide)
-            .jinSurface(isSelected ? .selected : .neutral, cornerRadius: JinRadius.medium)
+            .background(
+                isSelected ? JinSemanticColor.selectedSurface : Color.clear,
+                in: RoundedRectangle(cornerRadius: JinRadius.small)
+            )
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(symbolName.replacingOccurrences(of: ".", with: " "))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -93,10 +98,15 @@ private struct AssistantEmojiPickerTile: View, Equatable {
                     .lineLimit(1)
             }
             .frame(width: Self.tileSide, height: Self.tileSide)
-            .jinSurface(isSelected ? .selected : .neutral, cornerRadius: JinRadius.medium)
+            .background(
+                isSelected ? JinSemanticColor.selectedSurface : Color.clear,
+                in: RoundedRectangle(cornerRadius: JinRadius.small)
+            )
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(emoji)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     static func == (lhs: AssistantEmojiPickerTile, rhs: AssistantEmojiPickerTile) -> Bool {

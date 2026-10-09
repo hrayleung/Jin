@@ -45,7 +45,7 @@ struct MinerUOCRPluginSettingsView: View {
     }
 
     var body: some View {
-        JinSettingsPage {
+        JinSettingsPage(title: "MinerU OCR") {
             JinSettingsSection("Account") {
                 JinSettingsSecureFieldRow(
                     "API Token",
@@ -70,7 +70,7 @@ struct MinerUOCRPluginSettingsView: View {
 
                 PluginCredentialActionsView(
                     canTestConnection: !trimmedToken.isEmpty,
-                    canClear: true,
+                    canClear: !trimmedToken.isEmpty || !trimmedUserIdentifier.isEmpty,
                     isTesting: isTesting,
                     statusMessage: statusMessage,
                     statusIsError: statusIsError,
@@ -88,7 +88,6 @@ struct MinerUOCRPluginSettingsView: View {
                 }
             }
         }
-        .navigationTitle("MinerU OCR")
         .task {
             await loadExistingSettings()
             hasLoadedSettings = true
@@ -98,6 +97,11 @@ struct MinerUOCRPluginSettingsView: View {
         .onChange(of: selectedLanguage) { _, _ in scheduleAutoSave() }
         .onDisappear {
             autoSaveTask?.cancel()
+            if hasLoadedSettings {
+                persistSettings(
+                    token: trimmedToken, userIdentifier: trimmedUserIdentifier,
+                    language: selectedLanguage.trimmedNonEmpty ?? MinerUOCRClient.Constants.defaultLanguage)
+            }
             validationTask?.cancel()
             validationTask = nil
         }

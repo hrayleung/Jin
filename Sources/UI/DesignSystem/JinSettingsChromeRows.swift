@@ -243,7 +243,16 @@ struct JinSettingsToggleRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Toggle(title, isOn: $isOn)
+            HStack(spacing: JinSpacing.medium) {
+                Text(title)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: JinSpacing.medium)
+                Toggle(title, isOn: $isOn)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .accessibilityLabel(title)
+            }
             if let supportingText, !supportingText.isEmpty {
                 Text(supportingText)
                     .font(.caption)
@@ -273,6 +282,9 @@ struct JinSettingsMenuPicker<SelectionValue: Hashable, Content: View>: View {
         Picker(title, selection: $selection) {
             content()
         }
+        .pickerStyle(.menu)
+        .controlSize(.small)
+        .labelsHidden()
     }
 }
 
@@ -296,6 +308,7 @@ struct JinSettingsSegmentedPicker<SelectionValue: Hashable, Content: View>: View
             content()
         }
         .pickerStyle(.segmented)
+        .labelsHidden()
     }
 }
 
@@ -318,16 +331,13 @@ struct JinSettingsPickerRow<SelectionValue: Hashable, Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+        JinSettingsControlRow(title, supportingText: supportingText) {
             Picker(title, selection: $selection) {
                 content()
             }
-            if let supportingText, !supportingText.isEmpty {
-                Text(supportingText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            .pickerStyle(.menu)
+            .controlSize(.small)
+            .labelsHidden()
         }
     }
 }
@@ -336,9 +346,7 @@ struct JinSettingsSliderValueRow: View {
     let title: String
     @Binding var value: Double
     let range: ClosedRange<Double>
-    /// Pass `nil` for a continuous slider. AppKit draws a tick mark per step, so
-    /// a fine step over a wide range renders a dotted track; quantize in the
-    /// binding instead when the value should still snap.
+    /// Pass `nil` for a continuous slider.
     var step: Double? = nil
     var valueWidth: CGFloat = 52
 
@@ -361,10 +369,10 @@ struct JinSettingsSliderValueRow: View {
     @ViewBuilder
     private var slider: some View {
         if let step {
-            Slider(value: $value, in: range, step: step)
+            Slider(value: $value, in: range, step: step) { Text(title) }
                 .labelsHidden()
         } else {
-            Slider(value: $value, in: range)
+            Slider(value: $value, in: range) { Text(title) }
                 .labelsHidden()
         }
     }

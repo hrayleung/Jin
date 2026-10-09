@@ -20,20 +20,12 @@ struct FetchedModelsSelectionHeaderBar: View {
             }
 
             HStack(spacing: JinSpacing.small) {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.tertiary)
-                    TextField("Search", text: $searchText)
-                        .textFieldStyle(.plain)
-                }
-                .padding(.horizontal, JinSpacing.small)
-                .padding(.vertical, 6)
-                .background(JinSemanticColor.subtleSurface, in: RoundedRectangle(cornerRadius: JinRadius.small))
+                JinSearchField(text: $searchText, prompt: "Search models", focusesOnAppear: true)
 
                 filterMenu
             }
         }
-        .padding(.horizontal, JinSpacing.large)
+        .padding(.horizontal, 20)
         .padding(.vertical, JinSpacing.medium)
     }
 
@@ -58,14 +50,7 @@ struct FetchedModelsSelectionHeaderBar: View {
                     .lineLimit(1)
             }
             .font(.subheadline)
-            .padding(.horizontal, JinSpacing.small)
-            .padding(.vertical, 6)
-            .background(
-                filterMode == .all
-                    ? JinSemanticColor.subtleSurface
-                    : JinSemanticColor.accentSurface,
-                in: RoundedRectangle(cornerRadius: JinRadius.small)
-            )
+
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
@@ -131,32 +116,21 @@ struct FetchedModelsSelectionBottomBar: View {
     let onDeselectAll: () -> Void
 
     var body: some View {
-        HStack {
-            Button(confirmButtonLabel) {
-                onConfirm()
+        HStack(spacing: 8) {
+            Menu("Selection") {
+                Button("Select All", action: onSelectAll).disabled(isSelectAllDisabled)
+                Button("Deselect All", action: onDeselectAll).disabled(isDeselectAllDisabled)
             }
-            .keyboardShortcut(.return, modifiers: .command)
-            .disabled(isConfirmDisabled)
-
-            Button("Cancel") {
-                onCancel()
-            }
-            .keyboardShortcut(.escape, modifiers: [])
-
+            .fixedSize()
             Spacer()
-
-            Button("Select All") {
-                onSelectAll()
-            }
-            .disabled(isSelectAllDisabled)
-
-            Button("Deselect All") {
-                onDeselectAll()
-            }
-            .disabled(isDeselectAllDisabled)
+            Button("Cancel", action: onCancel)
+                .keyboardShortcut(.cancelAction)
+            Button(confirmButtonLabel, action: onConfirm)
+                .keyboardShortcut(.defaultAction)
+                .disabled(isConfirmDisabled)
         }
         .controlSize(.regular)
-        .padding(.horizontal, JinSpacing.large)
+        .padding(.horizontal, 20)
         .padding(.vertical, JinSpacing.medium)
     }
 }
@@ -167,6 +141,7 @@ private struct FetchedModelsSelectionModelRow: View {
     let isSelected: Bool
     let isFullySupported: Bool
     let onToggle: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
         Button {
@@ -187,10 +162,11 @@ private struct FetchedModelsSelectionModelRow: View {
             existingBadge
             selectionGlyph
         }
-        .padding(.horizontal, JinSpacing.large)
+        .padding(.horizontal, 20)
         .padding(.vertical, JinSpacing.small)
         .contentShape(Rectangle())
-        .background(isSelected ? JinSemanticColor.selectedSurface : Color.clear)
+        .background(isHovered ? JinSemanticColor.subtleSurface : Color.clear)
+        .onHover { isHovered = $0 }
     }
 
     private var modelIdentity: some View {
@@ -222,10 +198,7 @@ private struct FetchedModelsSelectionModelRow: View {
     @ViewBuilder
     private var fullySupportedBadge: some View {
         if isFullySupported {
-            Image(systemName: "checkmark.seal.fill")
-                .font(.caption2)
-                .foregroundStyle(.green)
-                .help("Fully supported by Jin")
+            ModelSupportIndicator()
         }
     }
 

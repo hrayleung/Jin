@@ -1,6 +1,24 @@
 import Foundation
 
 enum SettingsSearchSupport {
+    static func filteredGeneralCategories(searchText: String) -> [GeneralSettingsCategory] {
+        filteredValues(GeneralSettingsCategory.allCases, searchText: searchText) { category, query in
+            matches(query, in: [category.label, category.subtitle, keywords(for: category)])
+        }
+    }
+
+    private static func keywords(for category: GeneralSettingsCategory) -> String {
+        switch category {
+        case .appearance:
+            return "light dark system font typography scrollbars minimap thinking code blocks line numbers"
+        case .chat: return "return enter send notifications diagnostics logs network trace"
+        case .shortcuts: return "keyboard keys command hotkey hints restore"
+        case .defaults: return "new chat model provider MCP tools servers"
+        case .updates: return "version build automatic beta release"
+        case .data: return "storage database cache attachments import export backup recovery delete"
+        }
+    }
+
     static func trimmedSearchText(_ searchText: String) -> String {
         searchText.trimmedNonEmpty ?? ""
     }

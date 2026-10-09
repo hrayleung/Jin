@@ -44,7 +44,20 @@ struct AddMCPServerConfigureSection: View {
                 importCard
             }
 
-            heroCard
+            if !preset.isBlankCanvas {
+                heroCard
+            } else if preset == .custom {
+                Text("Connect a local command or a remote HTTP server.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+            }
+
+            identityCard
+
+            if preset.isBlankCanvas {
+                transportCard
+            }
 
             if transportKind == .http {
                 JinSettingsCard {
@@ -64,22 +77,22 @@ struct AddMCPServerConfigureSection: View {
                 credentialCard(credential)
             }
 
-            identityCard
-
-            if preset == .custom {
-                transportCard
+            if preset.isBlankCanvas {
+                JinSettingsCard {
+                    additionalFields
+                }
             }
 
             advancedCard
         }
+        .jinSettingsLabelColumn()
     }
 
     private var heroCard: some View {
         JinSettingsCard(spacing: JinSpacing.medium, padding: JinSpacing.large) {
             HStack(alignment: .top, spacing: JinSpacing.medium) {
                 heroIcon
-                    .frame(width: 48, height: 48)
-                    .jinSurface(.subtle, cornerRadius: JinRadius.medium)
+                    .frame(width: 32, height: 32)
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
@@ -92,9 +105,7 @@ struct AddMCPServerConfigureSection: View {
                             Text(badge)
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(JinSemanticColor.textSecondary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .jinSurface(.outlined, cornerRadius: JinRadius.small)
+                                .fixedSize()
                         }
                     }
 
@@ -113,7 +124,9 @@ struct AddMCPServerConfigureSection: View {
 
             if let note = catalogItem?.note {
                 Text(note)
-                    .jinInfoCallout()
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -165,32 +178,23 @@ struct AddMCPServerConfigureSection: View {
             case .bearerToken(let title, let help),
                  .header(_, let title, let help),
                  .environment(_, let title, let help):
-                VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                    Text(title)
-                        .font(.subheadline.weight(.medium))
-                    JinRevealableSecureField(
-                        prompt: "",
-                        text: $credentialValue,
-                        isRevealed: $isCredentialVisible,
-                        usesMonospacedFont: true,
-                        revealHelp: "Show \(title.lowercased())",
-                        concealHelp: "Hide \(title.lowercased())"
-                    )
-                    Text(help)
-                        .font(.caption)
-                        .foregroundStyle(JinSemanticColor.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                JinSettingsSecureFieldRow(
+                    title,
+                    supportingText: help,
+                    text: $credentialValue,
+                    isRevealed: $isCredentialVisible,
+                    usesMonospacedFont: true,
+                    revealHelp: "Show \(title.lowercased())",
+                    concealHelp: "Hide \(title.lowercased())"
+                )
             case .pathArgument(let title, let help, let placeholder):
-                VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                    Text(title)
-                        .font(.subheadline.weight(.medium))
-                    JinSettingsTextField(placeholder, text: $credentialValue, usesMonospacedFont: true)
-                    Text(help)
-                        .font(.caption)
-                        .foregroundStyle(JinSemanticColor.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                JinSettingsTextFieldRow(
+                    title,
+                    prompt: placeholder,
+                    supportingText: help,
+                    text: $credentialValue,
+                    usesMonospacedFont: true
+                )
             }
         }
     }
@@ -201,11 +205,7 @@ struct AddMCPServerConfigureSection: View {
                 .font(.headline)
 
             VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                    Text("Name")
-                        .font(.subheadline.weight(.medium))
-                    JinSettingsTextField(text: $name)
-                }
+                JinSettingsTextFieldRow("Name", prompt: "Server name", text: $name)
 
                 JinSettingsToggleRow("Enabled", isOn: $isEnabled)
                 JinSettingsToggleRow(
@@ -238,7 +238,7 @@ struct AddMCPServerConfigureSection: View {
     private var importCard: some View {
         JinSettingsCard(spacing: JinSpacing.medium) {
             HStack {
-                Text("JSON")
+                Text("Import configuration")
                     .font(.headline)
                 Spacer()
                 Button("Import", action: onImport)
@@ -255,9 +255,10 @@ struct AddMCPServerConfigureSection: View {
                 Text(importError)
                     .jinInlineErrorText()
             } else {
-                Text("Accepts Claude Desktop mcpServers configs and single-server payloads. HTTP entries map to native HTTP transport.")
+                Text("Paste a Claude Desktop configuration or a single server’s JSON.")
                     .font(.caption)
                     .foregroundStyle(JinSemanticColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -269,11 +270,11 @@ struct AddMCPServerConfigureSection: View {
                     isAdvancedExpanded.toggle()
                 }
             } label: {
-                HStack(spacing: JinSpacing.small) {
+                HStack(spacing: 6) {
                     Image(systemName: isAdvancedExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 12)
+                        .frame(width: 8)
 
                     Text("Advanced")
                         .font(.subheadline.weight(.semibold))
@@ -289,23 +290,22 @@ struct AddMCPServerConfigureSection: View {
             if isAdvancedExpanded {
                 JinSettingsCard(spacing: JinSpacing.medium) {
                     VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                            Text("ID")
-                                .font(.subheadline.weight(.medium))
-                            JinSettingsTextField("exa", text: $id, usesMonospacedFont: true)
-                            Text("Short identifier used inside Jin.")
-                                .font(.caption)
-                                .foregroundStyle(JinSemanticColor.textSecondary)
-                        }
+                        JinSettingsTextFieldRow(
+                            "Server ID",
+                            prompt: "exa",
+                            supportingText: "Short identifier used inside Jin.",
+                            text: $id,
+                            usesMonospacedFont: true
+                        )
 
-                        JinSettingsControlRow("Icon") {
+                        JinSettingsControlRow("Icon", controlAlignment: .leading) {
                             MCPIconPickerField(
                                 selectedIconID: $iconID,
                                 defaultIconID: MCPIconCatalog.defaultIconID
                             )
                         }
 
-                        if preset != .custom {
+                        if !preset.isBlankCanvas {
                             JinSettingsPickerRow("Transport", selection: $transportKind) {
                                 Text("Local command").tag(MCPTransportKind.stdio)
                                 Text("Remote HTTP").tag(MCPTransportKind.http)
@@ -316,6 +316,9 @@ struct AddMCPServerConfigureSection: View {
                             } else {
                                 httpFields
                             }
+
+                            Divider()
+                            additionalFields
                         }
                     }
                 }
@@ -326,20 +329,20 @@ struct AddMCPServerConfigureSection: View {
     @ViewBuilder
     private var stdioFields: some View {
         VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            labeledField("Command", prompt: "npx", text: $command, monospaced: true)
+            JinSettingsTextFieldRow(
+                "Command",
+                prompt: "npx",
+                supportingText: MCPServerFormSupport.shouldShowNodeIsolationNote(command: command)
+                    ? "Runs with an isolated home folder and cache, outside your project."
+                    : nil,
+                text: $command,
+                usesMonospacedFont: true
+            )
             labeledField("Arguments", prompt: "-y package-name", text: $args, monospaced: true)
-
-            if MCPServerFormSupport.shouldShowNodeIsolationNote(command: command) {
-                Text("Node launchers run with an isolated HOME/cache, and start in a temporary folder so ~/.npmrc is not treated as a project config.")
-                    .font(.caption)
-                    .foregroundStyle(JinSemanticColor.textSecondary)
-            }
 
             MCPRemoteProxyHintView(command: command, argsText: args) { transport in
                 applyConvertedHTTP(transport)
             }
-
-            EnvironmentVariablesEditor(pairs: $envPairs)
         }
     }
 
@@ -349,14 +352,23 @@ struct AddMCPServerConfigureSection: View {
             labeledField("Endpoint URL", prompt: "https://mcp.example.com/mcp", text: $endpoint, monospaced: true)
             JinSettingsToggleRow(
                 "Streamable HTTP",
-                supportingText: "Leave on unless this server only accepts plain request/response HTTP.",
+                supportingText: "Turn off only if the server requires plain HTTP requests.",
                 isOn: $httpStreaming
             )
+        }
+    }
 
-            VStack(alignment: .leading, spacing: JinSpacing.small) {
-                Text("Additional headers")
-                    .font(.subheadline.weight(.medium))
-                EnvironmentVariablesEditor(pairs: $headerPairs)
+    private var additionalFields: some View {
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            Text(transportKind == .stdio ? "Environment" : "Additional headers")
+                .font(.headline)
+            if transportKind == .stdio {
+                EnvironmentVariablesEditor(pairs: $envPairs)
+                Text("Passed to the local command when it starts.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                EnvironmentVariablesEditor(pairs: $headerPairs, kind: .headers)
             }
         }
     }
@@ -384,10 +396,6 @@ struct AddMCPServerConfigureSection: View {
         text: Binding<String>,
         monospaced: Bool
     ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(title)
-                .font(.subheadline.weight(.medium))
-            JinSettingsTextField(prompt, text: text, usesMonospacedFont: monospaced)
-        }
+        JinSettingsTextFieldRow(title, prompt: prompt, text: text, usesMonospacedFont: monospaced)
     }
 }

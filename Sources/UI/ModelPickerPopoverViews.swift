@@ -3,32 +3,9 @@ import SwiftUI
 struct ModelPickerSearchField: View {
     @Binding var searchText: String
     let placeholder: String
-    @FocusState private var isFocused: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-
-            TextField(text: $searchText, prompt: Text(placeholder)) {
-                EmptyView()
-            }
-            .textFieldStyle(.plain)
-            .focused($isFocused)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .jinAdaptiveBackground(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(JinSemanticColor.borderEmphasized, lineWidth: JinStrokeWidth.hairline)
-        )
-        .task {
-            // Popover's window needs a tick to become key before
-            // first-responder hand-off lands.
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            isFocused = true
-        }
+        JinSearchField(text: $searchText, prompt: placeholder, focusesOnAppear: true, chrome: .borderless)
     }
 }
 
@@ -104,16 +81,9 @@ struct ModelPickerHeaderActionButton: View {
                 .font(.system(size: 12, weight: .semibold))
                 .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
         }
-        .buttonStyle(.plain)
-        .background(
-            Circle()
-                .fill(JinSemanticColor.surface.opacity(0.7))
-        )
-        .overlay(
-            Circle()
-                .stroke(JinSemanticColor.separator.opacity(0.35), lineWidth: JinStrokeWidth.hairline)
-        )
+        .buttonStyle(JinIconButtonStyle(showBackground: false))
         .help(helpText)
+        .accessibilityLabel(helpText)
     }
 }
 
@@ -129,7 +99,6 @@ struct ModelPickerEmptyStateView: View {
             description: Text(description)
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .modelPickerListSurface()
     }
 }
 
@@ -137,32 +106,15 @@ struct ModelPickerProviderSectionHeader: View {
     let provider: ProviderConfigEntity
 
     var body: some View {
-        HStack(spacing: 6) {
-            ProviderIconView(iconID: provider.resolvedProviderIconID, fallbackSystemName: "network", size: 12)
-                .frame(width: 12, height: 12)
-
-            Text(provider.name)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-        }
-        .textCase(nil)
-        .padding(.top, 6)
-        .padding(.bottom, 2)
+        Text(provider.name)
+            .modelPickerSectionHeading()
     }
 }
 
 struct ModelPickerManagedAgentSectionHeader: View {
     var body: some View {
         Text("Agents")
-            .font(.caption)
-            .fontWeight(.semibold)
-            .foregroundStyle(.secondary)
-            .textCase(nil)
-            .padding(.top, 6)
-            .padding(.bottom, 2)
+            .modelPickerSectionHeading()
     }
 }
 
@@ -193,13 +145,21 @@ struct ModelPickerManagedAgentRow: View {
     let agent: ClaudeManagedAgentDescriptor
     let isSelected: Bool
     let onSelect: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 10) {
+            HStack(spacing: ModelPickerLayout.labelSpacing) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: ModelPickerLayout.symbolWidth, height: 18)
+                    .opacity(isSelected ? 1 : 0)
+                    .accessibilityHidden(true)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(agent.name)
                         .font(.system(.body, design: .default))
+                        .fontWeight(isSelected ? .medium : .regular)
                         .lineLimit(1)
 
                     if let subtitle, !subtitle.isEmpty {
@@ -210,17 +170,19 @@ struct ModelPickerManagedAgentRow: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-                if isSelected {
-                    Text("Current")
-                        .jinTagStyle(foreground: .accentColor)
-                }
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 10)
-            .jinSurface(isSelected ? .selected : .subtle, cornerRadius: JinRadius.small)
+            .padding(.vertical, 4)
+            .padding(.horizontal, ModelPickerLayout.contentInset)
+            .frame(minHeight: ModelPickerLayout.rowHeight)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .background {
+            RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+                .fill(isHovered ? JinSemanticColor.hoverFill : (isSelected ? JinSemanticColor.controlFill : .clear))
+        }
+        .onHover { isHovered = $0 }
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private var subtitle: String? {
@@ -237,36 +199,51 @@ struct ModelPickerRow: View {
     let isFavorite: Bool
     let onToggleFavorite: () -> Void
     let onSelect: () -> Void
+    @State private var isHovered = false
+    @FocusState private var isFavoriteFocused: Bool
 
     var body: some View {
-        ZStack {
-            selectionBackground
-            rowContent
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
-        }
+        rowContent
+            .background(selectionBackground)
+            .contentShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
+            .onHover { isHovered = $0 }
+            .contextMenu {
+                Button(isFavorite ? "Remove from Favorites" : "Add to Favorites", action: onToggleFavorite)
+            }
     }
 
     private var selectionBackground: some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.clear)
+        RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
+            .fill(isHovered ? JinSemanticColor.hoverFill : (isSelected ? JinSemanticColor.controlFill : .clear))
     }
 
     private var rowContent: some View {
-        HStack(spacing: 10) {
-            modelName
+        HStack(spacing: 2) {
+            // Separate buttons avoid nesting the favorite action inside a row
+            // gesture, and make model selection available to keyboard/VoiceOver.
+            Button(action: onSelect) {
+                HStack(spacing: ModelPickerLayout.labelSpacing) {
+                    selectionIndicator
+                    modelName
+                }
+                .padding(.leading, ModelPickerLayout.contentInset)
+                .padding(.vertical, 4)
+                .frame(minHeight: ModelPickerLayout.rowHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+            .accessibilityAction(named: isFavorite ? "Remove from Favorites" : "Add to Favorites", onToggleFavorite)
+
             favoriteButton
-            selectionIndicator
+                .padding(.trailing, 4)
         }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 10)
     }
 
     private var modelName: some View {
         Text(model.name)
             .font(.system(.body, design: .default))
+            .fontWeight(isSelected ? .medium : .regular)
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -276,42 +253,46 @@ struct ModelPickerRow: View {
             onToggleFavorite()
         } label: {
             Image(systemName: isFavorite ? "star.fill" : "star")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(isFavorite ? Color.orange : Color.secondary)
-                .frame(width: 22, height: 22)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(.secondary)
+                .opacity(isFavorite || isHovered || isFavoriteFocused ? 1 : 0)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(JinIconButtonStyle(showBackground: false, size: 26))
+        .focused($isFavoriteFocused)
         .help(isFavorite ? "Unfavorite" : "Favorite")
+        .accessibilityLabel(isFavorite ? "Remove \(model.name) from favorites" : "Add \(model.name) to favorites")
     }
 
     @ViewBuilder
     private var selectionIndicator: some View {
         if isSelected {
             Image(systemName: "checkmark")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 22, height: 22)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: ModelPickerLayout.symbolWidth, height: 18)
+                .accessibilityHidden(true)
         } else {
-            Color.clear.frame(width: 22, height: 22)
+            Color.clear.frame(width: ModelPickerLayout.symbolWidth, height: 18)
         }
     }
 }
 
 extension View {
-    func modelPickerListSurface() -> some View {
-        jinAdaptiveBackground(
-            RoundedRectangle(cornerRadius: 12, style: .continuous),
-            material: .thinMaterial
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(JinSemanticColor.borderSubtle, lineWidth: JinStrokeWidth.hairline)
-        )
-    }
-
-    func modelPickerListRowStyle(leading: CGFloat = 8) -> some View {
-        listRowInsets(EdgeInsets(top: 2, leading: leading, bottom: 2, trailing: 8))
+    func modelPickerListRowStyle(leading: CGFloat = 0) -> some View {
+        listRowInsets(EdgeInsets(top: 0, leading: leading, bottom: 0, trailing: 0))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
+    }
+
+    func modelPickerSectionHeading() -> some View {
+        font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+            .textCase(nil)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, ModelPickerLayout.headingInset)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
+            .accessibilityAddTraits(.isHeader)
+            .selectionDisabled()
     }
 }

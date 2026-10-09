@@ -8,12 +8,20 @@ struct MCPRemoteProxyHintView: View {
     var body: some View {
         if let proxy = MCPRemoteProxyCommand.parse(commandLine: command, argsText: argsText) {
             VStack(alignment: .leading, spacing: JinSpacing.small) {
-                Text("This command only proxies \(proxy.endpoint.absoluteString) through Node. Jin can connect to that URL directly over HTTP — no npx or mcp-remote required.")
-                    .jinInfoCallout()
+                Text("Jin can connect to this server directly over HTTP.")
+                    .font(.callout)
+
+                Text(proxy.endpoint.absoluteString)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Button("Switch to Remote HTTP") {
                     onConvert(proxy.httpTransport)
                 }
+                .controlSize(.small)
+                .fixedSize()
             }
         }
     }

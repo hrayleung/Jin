@@ -238,7 +238,7 @@ extension ChatView {
                 activeColor: activeColor
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(JinIconButtonStyle(showBackground: false))
         .disabled(disabled)
         .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
         .overlay(alignment: .topTrailing) {
@@ -252,6 +252,7 @@ extension ChatView {
             }
         }
         .help(shortcut.map { shortcutsStore.helpText(help, for: $0) } ?? help)
+        .accessibilityLabel(help)
         .accessibilityValue(badgeText ?? "")
         .shortcutHint(shortcut, available: !disabled, placement: shortcutPlacement)
     }
@@ -287,6 +288,7 @@ extension ChatView {
             }
         }
         .help(help)
+        .accessibilityLabel(help)
         .accessibilityValue(badgeText ?? "")
     }
 }

@@ -10,14 +10,14 @@ extension ProviderConfigFormView {
 
         return providerFormPresentations(
             providerFormLifecycle(
-                providerFormPage(modelList).navigationTitle(provider.name)
+                providerFormPage(modelList)
             ),
             modelList: modelList
         )
     }
 
     func providerFormPage(_ modelList: ProviderFormSupport.ModelListState) -> some View {
-        JinSettingsPage(maxWidth: providerType == .vertexai ? 820 : 760) {
+        JinSettingsPage(title: provider.name, maxWidth: providerType == .vertexai ? 820 : 760) {
             providerConfigurationSection
             providerSecondarySection(modelList)
         }
@@ -94,7 +94,9 @@ extension ProviderConfigFormView {
         if providerType == .modal {
             EmptyView()
         } else if let providerType, let defaultBaseURL = providerType.defaultBaseURL {
-            JinSettingsControlRow("Base URL", controlAlignment: .leading) {
+            JinSettingsControlRow(
+                "Base URL", supportingText: "Uses the provider default when empty.", controlAlignment: .leading
+            ) {
                 HStack(alignment: .center, spacing: JinSpacing.small) {
                     JinSettingsTextField(
                         defaultBaseURL,
@@ -110,12 +112,6 @@ extension ProviderConfigFormView {
                     .buttonStyle(.borderless)
                     .font(.caption)
 
-                    Text("Default if empty")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .frame(alignment: .trailing)
                 }
             }
 

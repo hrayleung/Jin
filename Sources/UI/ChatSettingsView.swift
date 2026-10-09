@@ -9,13 +9,12 @@ struct ChatSettingsView: View {
     @AppStorage(AppPreferenceKeys.chatDiagnosticLoggingEnabled) private var chatDiagnosticLoggingEnabled = false
 
     var body: some View {
-        JinSettingsPage {
+        JinSettingsPage(title: "Chat") {
             sendBehaviorSection
+            notificationsSection
             networkTraceSection
             chatDiagnosticsSection
-            notificationsSection
         }
-        .navigationTitle("Chat")
         .task {
             await refreshNotificationAuthorization()
         }

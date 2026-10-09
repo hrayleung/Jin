@@ -6,96 +6,38 @@ struct AddMCPServerCatalogSection: View {
     let items: [MCPServerCatalogItem]
     let onSelect: (AddMCPServerPreset) -> Void
 
-    private let columns = [
-        GridItem(.adaptive(minimum: 216, maximum: 320), spacing: JinSpacing.medium, alignment: .top)
-    ]
-
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.large) {
-            header
-            searchField
-            categoryChips
-            entryRow
-            catalogGrid
-        }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text("Choose a server")
-                .font(.title2.weight(.semibold))
-            Text("Start from a known MCP server, or add your own.")
-                .font(.callout)
-                .foregroundStyle(JinSemanticColor.textSecondary)
-        }
-    }
-
-    private var searchField: some View {
-        HStack(spacing: JinSpacing.small) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(JinSemanticColor.textTertiary)
-                .font(.body.weight(.medium))
-
-            TextField(text: $searchText, prompt: Text("Search servers")) {
-                Text("Search servers")
-            }
-                .textFieldStyle(.plain)
-                .font(.body)
-        }
-        .padding(.horizontal, JinSpacing.medium)
-        .padding(.vertical, JinSpacing.small + 2)
-        .jinSurface(.subtle, cornerRadius: JinRadius.medium)
-        .accessibilityLabel("Search MCP servers")
-    }
-
-    private var categoryChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: JinSpacing.small) {
-                ForEach(MCPServerCatalogCategory.allCases) { item in
-                    AddMCPServerCategoryChip(
-                        title: item.title,
-                        isSelected: category == item
-                    ) {
-                        category = item
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                JinSearchField(text: $searchText, prompt: "Search servers", focusesOnAppear: true)
+                Picker("Category", selection: $category) {
+                    ForEach(MCPServerCatalogCategory.allCases) { item in
+                        Text(item.title).tag(item)
                     }
                 }
-            }
-        }
-    }
-
-    private var entryRow: some View {
-        HStack(spacing: JinSpacing.medium) {
-            AddMCPServerEntryButton(
-                title: "Custom",
-                subtitle: "Command or HTTP",
-                systemImage: "plus.square.dashed"
-            ) {
-                onSelect(.custom)
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .fixedSize()
             }
 
-            AddMCPServerEntryButton(
-                title: "Import JSON",
-                subtitle: "Claude Desktop config",
-                systemImage: "square.and.arrow.down"
-            ) {
-                onSelect(.importJSON)
+            HStack(spacing: 12) {
+                Button("Add Custom Server…", systemImage: "plus") { onSelect(.custom) }
+                Button("Import JSON…", systemImage: "square.and.arrow.down") { onSelect(.importJSON) }
             }
-        }
-    }
+            .controlSize(.small)
+            .padding(.bottom, 4)
 
-    @ViewBuilder
-    private var catalogGrid: some View {
-        if items.isEmpty {
-            Text("No servers match that search.")
-                .font(.callout)
-                .foregroundStyle(JinSemanticColor.textSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, JinSpacing.small)
-        } else {
-            LazyVGrid(columns: columns, spacing: JinSpacing.medium) {
-                ForEach(items) { item in
-                    AddMCPServerCatalogCard(item: item) {
-                        onSelect(item.preset)
+            if items.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+                    .frame(maxWidth: .infinity)
+            } else {
+                LazyVStack(spacing: 0) {
+                    ForEach(items) { item in
+                        AddMCPServerCatalogRow(item: item) { onSelect(item.preset) }
+                        if item.id != items.last?.id {
+                            Divider().padding(.leading, 54)
+                        }
                     }
                 }
             }
@@ -103,101 +45,48 @@ struct AddMCPServerCatalogSection: View {
     }
 }
 
-private struct AddMCPServerCategoryChip: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, JinSpacing.medium)
-                .padding(.vertical, 6)
-                .jinSurface(isSelected ? .selected : .subtle, cornerRadius: JinRadius.small)
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-private struct AddMCPServerEntryButton: View {
-    let title: String
-    let subtitle: String
-    let systemImage: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: JinSpacing.medium) {
-                Image(systemName: systemImage)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
-                    .jinSurface(.subtle, cornerRadius: JinRadius.small)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.body.weight(.semibold))
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(JinSemanticColor.textSecondary)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(JinSpacing.medium)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .jinSurface(.raised, cornerRadius: JinRadius.large)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-struct AddMCPServerCatalogCard: View {
+private struct AddMCPServerCatalogRow: View {
     let item: MCPServerCatalogItem
     let action: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                HStack(alignment: .top, spacing: JinSpacing.small) {
-                    AddMCPServerCatalogIcon(item: item, size: 28)
-                        .frame(width: 36, height: 36)
-                        .jinSurface(.subtle, cornerRadius: JinRadius.small)
-
-                    Spacer(minLength: 0)
-
-                    if let badge = item.transportBadge {
-                        Text(badge)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(JinSemanticColor.textSecondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .jinSurface(.outlined, cornerRadius: JinRadius.small)
-                    }
-                }
-
+            HStack(alignment: .top, spacing: 14) {
+                AddMCPServerCatalogIcon(item: item, size: 26)
+                    .frame(width: 30)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(item.title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-
+                    Text(item.title).font(.body.weight(.medium))
                     Text(item.summary)
-                        .font(.caption)
-                        .foregroundStyle(JinSemanticColor.textSecondary)
-                        .lineLimit(2)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 12)
+                if let badge = item.transportBadge {
+                    Text(badge)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 3)
             }
-            .padding(JinSpacing.medium)
-            .frame(maxWidth: .infinity, minHeight: 124, alignment: .topLeading)
-            .jinSurface(.raised, cornerRadius: JinRadius.large)
-            .contentShape(RoundedRectangle(cornerRadius: JinRadius.large, style: .continuous))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isHovered ? JinSemanticColor.subtleSurface : Color.clear,
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(item.summary)
+        .onHover { isHovered = $0 }
+        .accessibilityElement(children: .combine)
     }
 }
 

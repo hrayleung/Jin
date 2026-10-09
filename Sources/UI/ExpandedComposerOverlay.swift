@@ -50,7 +50,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
 
     @State private var isEditorFocused = false
 
-    private let panelCornerRadius: CGFloat = 26
+    private let panelCornerRadius: CGFloat = JinRadius.large
 
     init(
         composerTextStore: ComposerTextStore,
@@ -230,18 +230,7 @@ struct ExpandedComposerOverlay<ControlsRow: View>: View {
     }
 
     private var sheetBackground: some View {
-        ZStack {
-            JinSemanticColor.panelSurface
-
-            LinearGradient(
-                colors: [
-                    Color.accentColor.opacity(reduceMotion ? 0.04 : 0.08),
-                    JinSemanticColor.panelSurface.opacity(0.0)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
+        JinSemanticColor.pageBackdrop
     }
 
     private var panelShell: some View {

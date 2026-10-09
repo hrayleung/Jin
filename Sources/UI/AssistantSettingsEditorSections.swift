@@ -22,14 +22,20 @@ struct AssistantSettingsIdentityHeader: View {
 
             VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
                 TextField(text: $name, prompt: Text("Assistant name")) { EmptyView() }
+                    .labelsHidden()
                     .font(.title2)
                     .fontWeight(.semibold)
                     .textFieldStyle(.plain)
+                    .multilineTextAlignment(.leading)
+                    .accessibilityLabel("Assistant name")
 
                 TextField(text: $assistantDescription, prompt: Text("Short description\u{2026}")) { EmptyView() }
+                    .labelsHidden()
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .textFieldStyle(.plain)
+                    .multilineTextAlignment(.leading)
+                    .accessibilityLabel("Short description")
             }
 
             Spacer(minLength: 0)
@@ -112,12 +118,12 @@ struct AssistantGenerationDefaultsSection: View {
                     )
                     .frame(maxWidth: 160)
 
+                    Spacer(minLength: JinSpacing.small)
+
                     Button("Clear", action: clearMaxOutputTokens)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .disabled(maxOutputTokens == nil)
-
-                    Spacer(minLength: 0)
                 }
             }
         }
@@ -133,12 +139,11 @@ struct AssistantConversationLimitsSection: View {
             "Conversation Limits",
             detail: "Oldest messages are dropped as the conversation grows."
         ) {
-            Picker("Truncate History", selection: $truncateMessagesSetting) {
+            JinSettingsPickerRow("Truncate History", selection: $truncateMessagesSetting) {
                 ForEach(AssistantTruncateHistorySetting.allCases) { item in
                     Text(item.label).tag(item)
                 }
             }
-            .pickerStyle(.segmented)
 
             if truncateMessagesSetting == .on {
                 JinSettingsControlRow("Keep Last Messages") {

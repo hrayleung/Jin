@@ -26,24 +26,17 @@ extension View {
         modifier(JinSystemTitlebarMaterialModifier())
     }
 
-    /// Toolbar icon. Liquid Glass capsule on macOS 26+. Older systems keep
-    /// the default toolbar button, which is what these controls already used.
-    @ViewBuilder
+    /// Let the toolbar own grouping, material, and the keyboard focus ring.
+    /// Explicit `.glass` gives every icon a separate capsule on newer systems.
     func jinSystemToolbarButton() -> some View {
-        if #available(macOS 26.0, *) {
-            buttonStyle(.glass)
-        } else {
-            self
-        }
+        buttonStyle(.automatic)
     }
 
-    /// Labeled toolbar control. macOS 14/15 keep the bordered style this
-    /// button had; macOS 26+ uses the system glass capsule instead of a
-    /// legacy bordered button sitting on the glass bar.
+    /// A model selector shares the system toolbar treatment with other items.
     @ViewBuilder
     func jinLabeledToolbarButton() -> some View {
         if #available(macOS 26.0, *) {
-            buttonStyle(.glass)
+            buttonStyle(.automatic)
         } else {
             buttonStyle(.bordered)
         }
@@ -77,8 +70,8 @@ private struct JinSystemTitlebarMaterialAnchor: NSViewRepresentable {
             if window.titlebarSeparatorStyle != .none {
                 window.titlebarSeparatorStyle = .none
             }
-            if window.toolbarStyle != .unified {
-                window.toolbarStyle = .unified
+                if window.toolbarStyle != .unifiedCompact {
+                    window.toolbarStyle = .unifiedCompact
             }
         }
     }

@@ -46,17 +46,13 @@ struct ComposerControlBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 7, weight: .bold, design: .rounded))
+            .font(.system(size: 8, weight: .medium))
             .foregroundStyle(isActive ? activeColor : .secondary)
             .padding(.horizontal, 3)
             .padding(.vertical, 1)
             .background(
                 Capsule()
                     .fill(JinSemanticColor.raisedSurface)
-            )
-            .overlay(
-                Capsule()
-                    .stroke(isActive ? activeColor.opacity(0.35) : JinSemanticColor.separator.opacity(0.5), lineWidth: 0.5)
             )
             .lineLimit(1)
             .fixedSize()
@@ -87,13 +83,13 @@ struct ComposerControlIconLabel: View {
 
     var body: some View {
         Image(systemName: systemName)
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: 14, weight: .regular))
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(isActive ? activeColor : Color.secondary)
             .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
             .background(
-                Circle()
-                    .fill(isActive ? activeColor.opacity(0.14) : Color.clear)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isActive ? activeColor.opacity(0.10) : Color.clear)
             )
             .transaction { transaction in
                 transaction.disablesAnimations = true

@@ -15,7 +15,7 @@ struct UpdateSettingsView: View {
     }
 
     var body: some View {
-        JinSettingsPage {
+        JinSettingsPage(title: "Updates") {
             UpdateSettingsVersionHero(
                 version: currentVersion,
                 build: currentBuild,
@@ -35,7 +35,6 @@ struct UpdateSettingsView: View {
                 allowPreRelease: preReleaseBinding
             )
         }
-        .navigationTitle("Updates")
         .onAppear {
             checkError = nil
             updateManager.refreshPublishedProperties()

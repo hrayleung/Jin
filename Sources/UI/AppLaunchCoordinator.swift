@@ -144,7 +144,7 @@ struct AppRecoveryView: View {
         VStack(alignment: .leading, spacing: JinSpacing.large) {
             VStack(alignment: .leading, spacing: JinSpacing.small) {
                 Text("Data Recovery Needed")
-                    .font(.largeTitle.weight(.semibold))
+                    .font(.title2.weight(.semibold))
 
                 Text(recoveryState.issueDescription)
                     .foregroundStyle(.secondary)
@@ -188,7 +188,7 @@ struct AppRecoveryView: View {
                 }
             }
 
-            HStack(spacing: JinSpacing.medium) {
+            VStack(alignment: .leading, spacing: JinSpacing.small) {
                 if !healthySnapshots.isEmpty {
                     Button("Restore Latest Healthy Snapshot") {
                         Task { await launchCoordinator.restoreLatestHealthySnapshot() }

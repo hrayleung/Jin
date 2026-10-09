@@ -106,8 +106,7 @@ extension SpeechToTextPluginSettingsView {
             JinSettingsSliderValueRow(
                 title: "Temperature",
                 value: $openRouterTemperature,
-                range: 0.0...1.0,
-                step: 0.05
+                range: 0.0...1.0
             )
 
             timestampGranularityDisclosure(provider: .openRouter)
@@ -153,7 +152,7 @@ extension SpeechToTextPluginSettingsView {
                 .help("Annotate which speaker is talking.")
 
             if elevenLabsDiarize {
-                Stepper("Max speakers: \(elevenLabsNumSpeakers)", value: $elevenLabsNumSpeakers, in: 1...32)
+                JinSettingsStepperRow("Max speakers", value: $elevenLabsNumSpeakers, in: 1...32)
             }
 
             // The API enum is word | character; "None" simply omits the parameter.
@@ -175,8 +174,7 @@ extension SpeechToTextPluginSettingsView {
             JinSettingsSliderValueRow(
                 title: "Temperature",
                 value: $elevenLabsTemperature,
-                range: 0.0...2.0,
-                step: 0.05
+                range: 0.0...2.0
             )
         }
     }
@@ -296,8 +294,7 @@ extension SpeechToTextPluginSettingsView {
                 JinSettingsSliderValueRow(
                     title: "Temperature",
                     value: temperature,
-                    range: 0.0...1.0,
-                    step: 0.05
+                    range: 0.0...1.0
                 )
             }
 

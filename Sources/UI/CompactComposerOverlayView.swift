@@ -5,6 +5,7 @@ import AppKit
 
 struct CompactComposerOverlayView<ControlsRow: View>: View {
     @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @Environment(\.colorSchemeContrast) private var contrast
     @EnvironmentObject var shortcutsStore: AppShortcutsStore
 
     // Deliberately *not* observed here: reading `text` from this body would
@@ -157,21 +158,25 @@ struct CompactComposerOverlayView<ControlsRow: View>: View {
             .padding(.horizontal, JinSpacing.medium)
             .padding(.vertical, JinSpacing.medium + 2)
             .frame(maxWidth: ChatConversationLayoutMetrics.composerMaxWidth)
-            // Claude-style defined card. White fill + 1pt borderEmphasized
-            // gives the composer real definition without going gray. The
-            // ambient shadow lifts it off the page — referenced ChatGPT /
-            // Linear / iMessage all use this micro-shadow pattern in light.
+            // One opaque writing surface with a restrained focus ring. No
+            // material swaps while typing, hovering, or scrolling the timeline.
             .background {
                 shape.fill(JinSemanticColor.raisedSurface)
             }
             .overlay(
-                shape.stroke(JinSemanticColor.borderEmphasized, lineWidth: JinStrokeWidth.regular)
+                shape.strokeBorder(
+                    isComposerFocused
+                        ? Color.accentColor.opacity(0.45) : JinThemeResolver.borderDefined(contrast: contrast),
+                    lineWidth: isComposerFocused || contrast == .increased ? 1 : JinStrokeWidth.hairline
+                )
+                .allowsHitTesting(false)
             )
             .overlay(
                 shape.stroke(
                     isComposerDropTargeted ? Color.accentColor : Color.clear,
                     lineWidth: JinStrokeWidth.emphasized
                 )
+                .allowsHitTesting(false)
             )
             .jinBorderBeam(
                 isActive: isBusy || isRecording || isPreparingToSend,

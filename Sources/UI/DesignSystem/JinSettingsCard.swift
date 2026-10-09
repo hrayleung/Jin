@@ -8,10 +8,10 @@ struct JinSettingsCard<Content: View>: View {
     private let content: () -> Content
 
     init(
-        surface: JinSurfaceVariant = .raised,
+        surface: JinSurfaceVariant = .group,
         spacing: CGFloat = JinSpacing.medium,
-        padding: CGFloat = JinSpacing.large,
-        cornerRadius: CGFloat = JinRadius.large,
+        padding: CGFloat = 14,
+        cornerRadius: CGFloat = 10,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.surface = surface
@@ -25,6 +25,7 @@ struct JinSettingsCard<Content: View>: View {
         VStack(alignment: .leading, spacing: spacing) {
             content()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(padding)
         .jinSurface(surface, cornerRadius: cornerRadius)
     }

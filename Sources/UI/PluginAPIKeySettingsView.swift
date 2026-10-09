@@ -32,10 +32,11 @@ struct PluginAPIKeySettingsView: View {
     }
 
     var body: some View {
-        JinSettingsPage {
+        JinSettingsPage(title: title) {
             JinSettingsSection("Connection") {
                 JinSettingsSecureFieldRow(
                     "API Key",
+                    prompt: "Paste API key",
                     text: $apiKey,
                     isRevealed: $isKeyVisible,
                     revealHelp: "Show API key",
@@ -44,7 +45,7 @@ struct PluginAPIKeySettingsView: View {
 
                 PluginCredentialActionsView(
                     canTestConnection: !trimmedAPIKey.isEmpty,
-                    canClear: true,
+                    canClear: !trimmedAPIKey.isEmpty,
                     isTesting: isTesting,
                     statusMessage: statusMessage,
                     statusIsError: statusIsError,
@@ -59,7 +60,6 @@ struct PluginAPIKeySettingsView: View {
                 }
             }
         }
-        .navigationTitle(title)
         .task {
             await loadExistingKey()
             hasLoadedKey = true
@@ -70,6 +70,7 @@ struct PluginAPIKeySettingsView: View {
         }
         .onDisappear {
             autoSaveTask?.cancel()
+            if hasLoadedKey { persistAPIKey(trimmedAPIKey) }
         }
     }
 

@@ -7,57 +7,25 @@ extension ProviderConfigFormView {
     var openRouterUsageSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("API Usage")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
+                Text("API Usage").font(.callout.weight(.medium))
                 Spacer()
-
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(openRouterUsageStatusColor)
-                        .frame(width: 8, height: 8)
-                    Text(openRouterUsageStatusLabel)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                if openRouterUsageStatus == .loading {
+                    ProgressView().controlSize(.small)
                 }
+                Button("Refresh", systemImage: "arrow.clockwise") {
+                    Task { await refreshOpenRouterUsage(force: true) }
+                }
+                .controlSize(.small)
+                .disabled(isOpenRouterUsageRefreshDisabled)
             }
 
             if let usage = openRouterUsage {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 8, height: 8)
-
-                    Text("Current key used \(formatUSD(usage.used)) (Remaining: \(usage.remainingText(formatter: formatUSD)))")
-                        .foregroundStyle(.secondary)
-                }
+                LabeledContent("Used", value: formatUSD(usage.used))
+                LabeledContent("Remaining", value: usage.remainingText(formatter: formatUSD))
             } else {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(openRouterUsageStatusColor)
-                        .frame(width: 8, height: 8)
-
-                    Text(openRouterUsageHintText)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            HStack {
-                Button {
-                    Task { await refreshOpenRouterUsage(force: true) }
-                } label: {
-                    Label("Refresh Usage", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(.borderless)
-                .disabled(isOpenRouterUsageRefreshDisabled)
-
-                if openRouterUsageStatus == .loading {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                }
-
-                Spacer()
+                Text(openRouterUsageHintText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if case .failure(let message) = openRouterUsageStatus {
@@ -183,21 +151,6 @@ extension ProviderConfigFormView {
 
     var isOpenRouterUsageRefreshDisabled: Bool {
         openRouterUsagePresentation.isRefreshDisabled
-    }
-
-    var openRouterUsageStatusLabel: String {
-        openRouterUsagePresentation.statusLabel
-    }
-
-    var openRouterUsageStatusColor: Color {
-        switch openRouterUsageStatus {
-        case .observed:
-            return .green
-        case .loading:
-            return .orange
-        case .idle, .failure:
-            return .secondary
-        }
     }
 
     var openRouterUsageHintText: String {

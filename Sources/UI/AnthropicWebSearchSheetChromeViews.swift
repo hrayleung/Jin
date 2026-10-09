@@ -95,14 +95,14 @@ struct AnthropicWebSearchUserLocationCard: View {
     }
 
     private var cityRegionRow: some View {
-        HStack(spacing: JinSpacing.medium) {
+        HStack(alignment: .top, spacing: JinSpacing.medium) {
             cityFieldRow
             regionFieldRow
         }
     }
 
     private var countryTimezoneRow: some View {
-        HStack(spacing: JinSpacing.medium) {
+        HStack(alignment: .top, spacing: JinSpacing.medium) {
             countryFieldRow
             timezoneFieldRow
         }

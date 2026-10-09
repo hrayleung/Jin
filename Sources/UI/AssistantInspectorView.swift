@@ -7,20 +7,17 @@ struct AssistantInspectorView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        JinSheet("Assistant Settings") {
             AssistantSettingsEditorView(
                 assistant: assistant
             )
-            .navigationTitle("Assistant Settings")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                }
+        } actions: {
+            Button("Done") {
+                dismiss()
             }
+            .keyboardShortcut(.defaultAction)
         }
+        .onExitCommand { dismiss() }
         // Flexible ScrollView content makes AppKit settle the sheet on `minWidth`
         // rather than `idealWidth`, so the two match on purpose.
         .frame(minWidth: 620, idealWidth: 620, minHeight: 520, idealHeight: 700)

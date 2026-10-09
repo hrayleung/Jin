@@ -4,33 +4,47 @@ struct JinIconButtonStyle: ButtonStyle {
     var isActive: Bool = false
     var accentColor: Color = .accentColor
     var showBackground: Bool = true
-
-    @Environment(\.isEnabled) private var isEnabled
+    var size: CGFloat = JinControlMetrics.iconButtonHitSize
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .frame(width: JinControlMetrics.iconButtonHitSize, height: JinControlMetrics.iconButtonHitSize)
-            .background {
-                if showBackground {
-                    Circle()
-                        .fill(backgroundFill(isPressed: configuration.isPressed))
-                }
-            }
-            .overlay {
-                if showBackground {
-                    Circle()
-                        .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
-                }
-            }
-            .opacity(isEnabled ? 1 : 0.5)
-            .scaleEffect(configuration.isPressed ? 0.95 : 1)
-            .animation(.easeInOut(duration: 0.12), value: configuration.isPressed)
+        IconButton(configuration: configuration, style: self)
     }
 
-    private func backgroundFill(isPressed: Bool) -> Color {
-        if isActive {
-            return accentColor.opacity(isPressed ? 0.28 : 0.18)
+    private struct IconButton: View {
+        let configuration: ButtonStyleConfiguration
+        let style: JinIconButtonStyle
+
+        @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.colorSchemeContrast) private var contrast
+        @State private var isHovered = false
+
+        var body: some View {
+            configuration.label
+                .frame(width: style.size, height: style.size)
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .background {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(backgroundFill)
+                }
+                .overlay {
+                    if contrast == .increased, style.showBackground || style.isActive {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(JinThemeResolver.borderHairline(contrast: contrast), lineWidth: 1)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .opacity(isEnabled ? 1 : 0.4)
+                .onHover { isHovered = $0 }
         }
-        return JinSemanticColor.subtleSurface.opacity(isPressed ? 1 : 0.75)
+
+        private var backgroundFill: Color {
+            if style.isActive {
+                return style.accentColor.opacity(configuration.isPressed ? 0.22 : 0.12)
+            }
+            if isEnabled, configuration.isPressed || isHovered {
+                return JinSemanticColor.hoverFill.opacity(configuration.isPressed ? 1 : 0.75)
+            }
+            return style.showBackground ? JinSemanticColor.controlFill : .clear
+        }
     }
 }

@@ -29,70 +29,38 @@ struct AppearanceSettingsView: View {
     }
 
     var body: some View {
-        JinSettingsPage {
+        JinSettingsPage(title: "Appearance") {
             JinSettingsSection("Theme") {
-                JinSettingsPickerRow("Mode", selection: $appAppearanceMode) {
-                    ForEach(AppAppearanceMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-
-                JinSettingsToggleRow(
-                    "Overlay Scrollbars",
-                    supportingText: "Fade in during scroll, hide when idle.",
-                    isOn: $useOverlayScrollbars
-                )
+                AppearanceModePicker(selection: $appAppearanceMode)
+                    .padding(.vertical, 6)
             }
 
-            JinSettingsSection("Fonts") {
+            JinSettingsSection("Typography") {
                 JinSettingsControlRow("App Font") {
-                    fontPickerButton(title: appFontDisplayName) {
-                        showingAppFontPicker = true
-                    }
+                    fontPickerButton(title: appFontDisplayName) { showingAppFontPicker = true }
                 }
-
                 JinSettingsControlRow("Code Font") {
-                    fontPickerButton(title: codeFontDisplayName) {
-                        showingCodeFontPicker = true
-                    }
+                    fontPickerButton(title: codeFontDisplayName) { showingCodeFontPicker = true }
                 }
             }
 
-            JinSettingsSection("Chat") {
+            JinSettingsSection("Conversation") {
+                JinSettingsToggleRow("Overlay Scrollbars", isOn: $useOverlayScrollbars)
                 JinSettingsToggleRow(
                     "Conversation Minimap",
-                    supportingText: "A rail of turn markers along the left edge of the chat. Hover to preview, click to jump.",
+                    supportingText: "Preview and jump between turns from the edge of the chat.",
                     isOn: $showConversationMinimap
                 )
-            }
-
-            JinSettingsSection("Code Blocks") {
-                JinSettingsToggleRow("Show Line Numbers", isOn: $codeBlockShowLineNumbers)
-            }
-
-            JinSettingsSection(
-                "Thinking Blocks",
-                detail: "Controls whether thinking stays open while a reply streams."
-            ) {
-                JinSettingsPickerRow("Display Mode", selection: thinkingDisplayMode) {
-                    ForEach(ThinkingBlockDisplayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
+                JinSettingsToggleRow("Code Line Numbers", isOn: $codeBlockShowLineNumbers)
+                JinSettingsPickerRow("Thinking", selection: thinkingDisplayMode) {
+                    ForEach(ThinkingBlockDisplayMode.allCases) { mode in Text(mode.label).tag(mode) }
+                }
+                JinSettingsPickerRow("Code Execution", selection: codeExecutionDisplayMode) {
+                    ForEach(CodeExecutionDisplayMode.allCases) { mode in Text(mode.label).tag(mode) }
                 }
             }
 
-            JinSettingsSection(
-                "Code Execution",
-                detail: "Controls whether code-execution activities stay open while a reply streams."
-            ) {
-                JinSettingsPickerRow("Display Mode", selection: codeExecutionDisplayMode) {
-                    ForEach(CodeExecutionDisplayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-            }
         }
-        .navigationTitle("Appearance")
         .sheet(isPresented: $showingAppFontPicker) {
             FontPickerSheet(
                 title: "App Font",

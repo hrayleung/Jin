@@ -20,7 +20,8 @@ struct ThinkingBudgetSheetView: View {
     var onSave: () -> Void
 
     var body: some View {
-        NavigationStack {
+        JinSheet("Thinking") {
+            ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 ThinkingBudgetEditorCard(
                     usesAdaptiveThinking: usesAdaptiveThinking,
@@ -38,21 +39,19 @@ struct ThinkingBudgetSheetView: View {
                 Spacer(minLength: JinSpacing.medium)
             }
             .padding(JinSpacing.large)
+            }
             .background {
-                JinSemanticColor.detailSurface
+                JinSemanticColor.pageBackdrop
                     .ignoresSafeArea()
             }
-            .navigationTitle("Thinking")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onCancel() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { onSave() }
-                        .disabled(!isValid)
-                }
-            }
+        } actions: {
+            Button("Cancel") { onCancel() }
+                .keyboardShortcut(.cancelAction)
+
+            Button("Save") { onSave() }
+                .disabled(!isValid)
+                .keyboardShortcut(.defaultAction)
         }
-        .frame(width: 480)
+        .frame(width: 500, height: 380)
     }
 }

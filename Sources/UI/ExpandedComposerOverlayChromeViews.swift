@@ -40,17 +40,8 @@ private struct ExpandedComposerHeaderActionButton: View {
             Image(systemName: systemName)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 42, height: 32)
-                .background(
-                    RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                        .fill(JinSemanticColor.subtleSurface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                        .stroke(JinSemanticColor.separator.opacity(0.45), lineWidth: JinStrokeWidth.hairline)
-                )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(JinIconButtonStyle(showBackground: false))
         .help(help)
         .accessibilityLabel(help)
     }
@@ -69,8 +60,7 @@ struct ExpandedComposerAccessorySection<Content: View>: View {
 
             content()
         }
-        .padding(JinSpacing.medium)
-        .jinSurface(.subtle, cornerRadius: JinRadius.large)
+        .padding(.vertical, JinSpacing.small)
     }
 }
 
@@ -82,9 +72,8 @@ struct ExpandedComposerControlsSection<ControlsRow: View>: View {
             controlsRow()
                 .padding(.vertical, 2)
         }
-        .padding(JinSpacing.medium)
+        .padding(.vertical, JinSpacing.xSmall)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .jinSurface(.subtle, cornerRadius: JinRadius.large)
     }
 }
 

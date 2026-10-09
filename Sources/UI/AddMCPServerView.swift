@@ -5,6 +5,7 @@ import AppKit
 #endif
 
 struct AddMCPServerView: View {
+    var onAdded: ((String) -> Void)?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -46,7 +47,7 @@ struct AddMCPServerView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        JinSheet("Add MCP Server") {
             ScrollView {
                 Group {
                     switch step {
@@ -92,34 +93,23 @@ struct AddMCPServerView: View {
                 .frame(maxWidth: 760, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .top)
             }
-            .background(JinSemanticColor.detailSurface)
-            .navigationTitle(step == .catalog ? "Add MCP Server" : configureTitle)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    if step == .configure {
-                        Button("Back") { step = .catalog }
-                    } else {
-                        Button("Cancel") { dismiss() }
-                    }
-                }
+            .background(JinSemanticColor.pageBackdrop)
 
-                ToolbarItem(placement: .confirmationAction) {
-                    if step == .configure {
-                        Button("Add", action: addServer)
-                            .disabled(isAddDisabled)
-                    }
-                }
-            }
             .onExitCommand { dismiss() }
-            .frame(
-                minWidth: 680,
-                idealWidth: 740,
-                maxWidth: 820,
-                minHeight: 560,
-                idealHeight: 700,
-                maxHeight: 820
-            )
+
+        } actions: {
+            if step == .configure {
+                Button("Back") { step = .catalog }
+            }
+            Button("Cancel") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+            if step == .configure {
+                Button("Add", action: addServer)
+                    .disabled(isAddDisabled)
+                    .keyboardShortcut(.defaultAction)
+            }
         }
+        .frame(minWidth: 640, idealWidth: 700, minHeight: 540, idealHeight: 640)
         #if os(macOS)
         .background(MovableWindowHelper())
         #endif
@@ -127,10 +117,6 @@ struct AddMCPServerView: View {
 
     private var filteredCatalogItems: [MCPServerCatalogItem] {
         MCPServerCatalog.filtered(query: searchText, category: category)
-    }
-
-    private var configureTitle: String {
-        MCPServerCatalog.item(for: preset)?.title ?? preset.rawValue
     }
 
     private var isAddDisabled: Bool {
@@ -231,8 +217,14 @@ struct AddMCPServerView: View {
         }
 
         modelContext.insert(server)
-        try? modelContext.save()
-        dismiss()
+        do {
+            try modelContext.save()
+            onAdded?(server.id)
+            dismiss()
+        } catch {
+            modelContext.delete(server)
+            importError = error.localizedDescription
+        }
     }
 
     private var transportBuildRequest: MCPServerTransportDraftSupport.BuildRequest {

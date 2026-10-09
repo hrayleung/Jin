@@ -52,39 +52,40 @@ struct AddModelSheet: View {
     @State private var editingModel: ModelInfo?
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: JinSpacing.large) {
-                        headerSection
-                        identitySection
-                        settingsSection
-                    }
-                    .padding(JinSpacing.xLarge)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        JinSheet("Add Model") {
+            JinSettingsPage(horizontalPadding: 0, verticalPadding: 0) {
+                JinSettingsSection("Model") {
+                    JinSettingsTextFieldRow(
+                        providerType == .modal ? "Model ID or URL" : "Model ID",
+                        prompt: providerType == .modal ? "Model ID or endpoint URL" : "Exact provider model ID",
+                        supportingText: "Use the model ID supplied by your provider.",
+                        text: $modelID,
+                        usesMonospacedFont: true
+                    )
+                    JinSettingsTextFieldRow("Display name", prompt: "Optional", text: $nickname)
                 }
-            }
-            .background {
-                LinearGradient(
-                    colors: [
-                        JinSemanticColor.detailSurface,
-                        JinSemanticColor.surface.opacity(0.92)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            }
-            .navigationTitle("Add Model")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { addModel() }
+                JinSettingsSection("Capabilities") {
+                    Button(
+                        customOverrides == nil ? "Configure Model Settings…" : "Edit Model Settings…",
+                        action: openModelSettings
+                    )
                         .disabled(!canAddModel)
+                    Text(
+                        canAddModel
+                            ? "Review token limits, supported inputs, and reasoning options."
+                            : "Enter a model ID to configure its capabilities."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
             }
+        } actions: {
+            Button("Cancel") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+
+            Button("Add") { addModel() }
+                .disabled(!canAddModel)
+                .keyboardShortcut(.defaultAction)
         }
         .sheet(item: $editingModel) { model in
             ModelSettingsSheet(
@@ -95,7 +96,7 @@ struct AddModelSheet: View {
                 }
             )
         }
-        .frame(minWidth: 560, minHeight: 360)
+        .frame(width: 560, height: 440)
     }
 
     private var trimmedNickname: String {
@@ -116,134 +117,6 @@ struct AddModelSheet: View {
 
     private var canAddModel: Bool {
         AddModelSheetSupport.canAddModel(modelID: modelID, providerType: providerType)
-    }
-
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text("Custom model entry")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.primary)
-        }
-    }
-
-    private var identitySection: some View {
-        JinSettingsCard(spacing: JinSpacing.large) {
-            Text("Identity")
-                .font(.headline)
-                .foregroundStyle(.primary)
-
-            VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                fieldBlock(
-                    title: "Nickname",
-                    prompt: "Optional display name",
-                    helperText: nil,
-                    text: $nickname,
-                    monospaced: false
-                )
-
-                fieldBlock(
-                    title: providerType == .modal ? "Model ID or endpoint URL" : "Model ID",
-                    prompt: providerType == .modal
-                        ? "Qwen/Qwen3.8-2.4T-A95B or https://…modal.direct"
-                        : "Required (for example: gpt-5.2-codex)",
-                    helperText: providerType == .modal
-                        ? nil
-                        : "Must match the provider model ID exactly.",
-                    text: $modelID,
-                    monospaced: true
-                )
-            }
-        }
-    }
-
-    private var settingsSection: some View {
-        JinSettingsCard(surface: .subtleStrong) {
-            HStack(spacing: JinSpacing.small) {
-                Label("Advanced Overrides", systemImage: "slider.horizontal.3")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-
-                if customOverrides != nil {
-                    Text("Configured")
-                        .jinTagStyle(foreground: .accentColor)
-                }
-            }
-
-            Button(action: openModelSettings) {
-                HStack(spacing: JinSpacing.small) {
-                    Image(systemName: customOverrides == nil ? "gearshape" : "slider.horizontal.3")
-                        .foregroundStyle(canAddModel ? Color.accentColor : Color.secondary)
-                    Text(customOverrides == nil ? "Configure Model Settings" : "Edit Model Settings")
-                        .fontWeight(.medium)
-                        .foregroundStyle(.primary)
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, JinSpacing.medium)
-                .padding(.vertical, JinSpacing.medium)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            .background {
-                RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                    .fill(canAddModel ? JinSemanticColor.accentSurface : JinSemanticColor.subtleSurface)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: JinRadius.medium, style: .continuous)
-                    .stroke(
-                        canAddModel ? Color.accentColor.opacity(0.32) : JinSemanticColor.separator.opacity(0.5),
-                        lineWidth: JinStrokeWidth.hairline
-                    )
-            }
-            .disabled(!canAddModel)
-
-            if !canAddModel {
-                Text("Enter Model ID first.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private func fieldBlock(
-        title: String,
-        prompt: String,
-        helperText: String?,
-        text: Binding<String>,
-        monospaced: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(title)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.primary)
-
-            TextField("", text: text, prompt: Text(prompt))
-                .font(monospaced ? .system(.body, design: .monospaced) : .body)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, JinSpacing.medium)
-                .padding(.vertical, 10)
-                .background {
-                    RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                        .fill(JinSemanticColor.textSurface)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                        .stroke(JinSemanticColor.separator.opacity(0.55), lineWidth: JinStrokeWidth.hairline)
-                }
-                .onSubmit {
-                    if canAddModel {
-                        addModel()
-                    }
-                }
-
-            if let helperText, !helperText.isEmpty {
-                Text(helperText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
     }
 
     private func openModelSettings() {

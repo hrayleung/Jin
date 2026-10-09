@@ -7,7 +7,7 @@ struct KeyboardShortcutsSettingsView: View {
     @State private var editingAction: AppShortcutAction?
 
     var body: some View {
-        JinSettingsPage {
+        JinSettingsPage(title: "Keyboard Shortcuts") {
             JinSettingsSection("Discovery") {
                 JinSettingsToggleRow(
                     "Hold ⌘ to preview shortcuts",
@@ -31,7 +31,6 @@ struct KeyboardShortcutsSettingsView: View {
                 .disabled(!hasCustomizations)
             }
         }
-        .navigationTitle("Keyboard Shortcuts")
         .onChange(of: showShortcutHints) { _, enabled in
             shortcutHintController.isEnabled = enabled
         }

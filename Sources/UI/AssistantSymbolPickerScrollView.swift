@@ -33,7 +33,7 @@ struct AssistantSymbolPickerScrollView: View {
     private func symbolCategorySection(_ category: AssistantIconCategory) -> some View {
         VStack(alignment: .leading, spacing: JinSpacing.medium) {
             Text(category.name)
-                .font(.headline)
+                .font(.callout.weight(.medium))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
 
@@ -61,8 +61,7 @@ struct AssistantSymbolPickerScrollView: View {
                 }
             }
         }
-        .padding(12)
-        .jinSurface(.raised, cornerRadius: JinRadius.medium)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func symbolRows(for category: AssistantIconCategory) -> [[String]] {

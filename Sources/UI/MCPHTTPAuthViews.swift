@@ -19,71 +19,15 @@ struct MCPHTTPAuthViews: View {
     @State private var signedInExpiry: Date?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.medium) {
-            if !compact {
-                Text("Authentication")
-                    .font(.headline)
-            }
-
-            if showsMethodPicker {
-                LabeledContent("Method") {
-                    Picker("Method", selection: $httpAuthKind) {
-                        ForEach(availableAuthKinds, id: \.self) { kind in
-                            Text(kind.title).tag(kind)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
+        Group {
+            if compact {
+                authenticationFields
+            } else {
+                VStack(alignment: .leading, spacing: JinSpacing.medium) {
+                    Text("Authentication")
+                        .font(.headline)
+                    authenticationFields
                 }
-            }
-
-            switch httpAuthKind {
-            case .oauth:
-                oauthBody
-            case .bearerToken:
-                VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                    tokenField(
-                        title: isParallelSearchMCP ? "API key" : "Bearer token",
-                        text: $bearerToken,
-                        isRevealed: $isBearerTokenVisible
-                    )
-                    if isParallelSearchMCP {
-                        Text("Sent as Authorization: Bearer. Get a key at platform.parallel.ai.")
-                            .font(.caption)
-                            .foregroundStyle(JinSemanticColor.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else if MCPHTTPAuthentication.FormKind.isGitHubRemoteMCP(endpoint) {
-                        Text("GitHub’s remote MCP uses a personal access token. Create one at github.com/settings/tokens.")
-                            .font(.caption)
-                            .foregroundStyle(JinSemanticColor.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            case .customHeader:
-                VStack(alignment: .leading, spacing: JinSpacing.small) {
-                    labeled("Header name") {
-                        JinSettingsTextField("X-API-Key", text: $authHeaderName, usesMonospacedFont: true)
-                    }
-                    tokenField(
-                        title: "Header value",
-                        text: $authHeaderValue,
-                        isRevealed: $isHeaderValueVisible
-                    )
-                }
-            case .none:
-                Text(
-                    isParallelSearchMCP
-                        ? "Parallel Search works without an account at lower rate limits. Sign in or add an API key for higher limits."
-                        : "This server doesn’t need credentials."
-                )
-                    .font(.caption)
-                    .foregroundStyle(JinSemanticColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if let authenticationError {
-                Text(authenticationError)
-                    .jinInlineErrorText()
             }
         }
         .onAppear {
@@ -103,46 +47,89 @@ struct MCPHTTPAuthViews: View {
         .onReceive(NotificationCenter.default.publisher(for: .mcpOAuthStatusDidChange)) { _ in
             refreshStatus()
         }
+        .environment(\.jinSettingsFieldChrome, compact ? .plain : .roundedBorder)
+    }
+
+    @ViewBuilder
+    private var authenticationFields: some View {
+        if showsMethodPicker {
+            JinSettingsPickerRow("Method", supportingText: noAuthenticationHelp, selection: $httpAuthKind) {
+                ForEach(availableAuthKinds, id: \.self) { kind in
+                    Text(kind.title).tag(kind)
+                }
+            }
+        }
+
+        switch httpAuthKind {
+        case .oauth:
+            oauthBody
+        case .bearerToken:
+            tokenField(
+                title: isParallelSearchMCP ? "API key" : "Bearer token",
+                supportingText: bearerTokenHelp,
+                text: $bearerToken,
+                isRevealed: $isBearerTokenVisible
+            )
+        case .customHeader:
+            JinSettingsTextFieldRow(
+                "Header name", prompt: "X-API-Key", text: $authHeaderName, usesMonospacedFont: true
+            )
+            tokenField(
+                title: "Header value",
+                text: $authHeaderValue,
+                isRevealed: $isHeaderValueVisible
+            )
+        case .none:
+            if !showsMethodPicker, let noAuthenticationHelp {
+                Text(noAuthenticationHelp)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+
+        if let authenticationError {
+            Text(authenticationError)
+                .jinInlineErrorText()
+        }
     }
 
     private var oauthBody: some View {
         VStack(alignment: .leading, spacing: JinSpacing.small) {
-            HStack(spacing: JinSpacing.small) {
-                Circle()
-                    .fill(isSignedIn ? Color.green : Color.secondary.opacity(0.35))
-                    .frame(width: 8, height: 8)
-                Text(statusText)
-                    .font(.subheadline.weight(.medium))
-                Spacer()
-            }
+            JinSettingsControlRow("Account", supportingText: accountHelp, controlAlignment: .leading) {
+                HStack(spacing: JinSpacing.small) {
+                    Text(isSignedIn ? "Signed in" : "Not signed in")
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
 
-            Text(oauthHelpText)
-                .font(.caption)
-                .foregroundStyle(JinSemanticColor.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: JinSpacing.small)
 
-            HStack(spacing: JinSpacing.small) {
-                Button {
-                    Task { await signIn() }
-                } label: {
-                    HStack(spacing: 6) {
-                        if isSigningIn {
-                            ProgressView()
-                                .controlSize(.small)
+                    HStack(spacing: JinSpacing.small) {
+                        Button {
+                            Task { await signIn() }
+                        } label: {
+                            HStack(spacing: 6) {
+                                if isSigningIn {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                }
+                                Text(isSignedIn ? "Sign in again" : "Sign in")
+                            }
                         }
-                        Text(isSignedIn ? "Sign in again" : "Sign in")
-                    }
-                }
-                .disabled(isSigningIn || MCPServerFormSupport.parsedEndpoint(endpoint) == nil)
+                        .disabled(isSigningIn || MCPServerFormSupport.parsedEndpoint(endpoint) == nil)
 
-                if isSignedIn {
-                    Button("Sign out", role: .destructive) {
-                        if let url = MCPServerFormSupport.parsedEndpoint(endpoint) {
-                            MCPOAuthCoordinator.signOut(endpoint: url, legacyServerID: serverID)
+                        if isSignedIn {
+                            Button("Sign out", role: .destructive) {
+                                if let url = MCPServerFormSupport.parsedEndpoint(endpoint) {
+                                    MCPOAuthCoordinator.signOut(endpoint: url, legacyServerID: serverID)
+                                }
+                                refreshStatus()
+                            }
+                            .disabled(isSigningIn)
                         }
-                        refreshStatus()
                     }
-                    .disabled(isSigningIn)
+                    .controlSize(.small)
+                    .fixedSize()
                 }
             }
 
@@ -155,27 +142,20 @@ struct MCPHTTPAuthViews: View {
 
     private func tokenField(
         title: String,
+        supportingText: String? = nil,
         text: Binding<String>,
         isRevealed: Binding<Bool>
     ) -> some View {
-        labeled(title) {
-            JinRevealableSecureField(
-                prompt: "",
-                text: text,
-                isRevealed: isRevealed,
-                usesMonospacedFont: true,
-                revealHelp: "Show \(title.lowercased())",
-                concealHelp: "Hide \(title.lowercased())"
-            )
-        }
-    }
-
-    private func labeled<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            Text(title)
-                .font(.subheadline.weight(.medium))
-            content()
-        }
+        JinSettingsSecureFieldRow(
+            title,
+            prompt: "Enter credential",
+            supportingText: supportingText,
+            text: text,
+            isRevealed: isRevealed,
+            usesMonospacedFont: true,
+            revealHelp: "Show \(title.lowercased())",
+            concealHelp: "Hide \(title.lowercased())"
+        )
     }
 
     private var availableAuthKinds: [MCPHTTPAuthentication.FormKind] {
@@ -184,9 +164,26 @@ struct MCPHTTPAuthViews: View {
 
     private var oauthHelpText: String {
         if isParallelSearchMCP {
-            return "Opens your browser and signs in with Parallel. Tokens stay on this Mac. For anonymous light use, switch Method to None."
+            return "Sign in with Parallel in your browser. Choose None to use anonymous access."
         }
-        return "Opens your browser and uses the official MCP OAuth 2.1 flow (PKCE). Tokens stay on this Mac."
+        return "Sign in through your browser. Credentials stay on this Mac."
+    }
+
+    private var noAuthenticationHelp: String? {
+        guard httpAuthKind == .none else { return nil }
+        return isParallelSearchMCP
+            ? "Anonymous access has lower rate limits. Sign in or add an API key for higher limits."
+            : "Choose a method if your server requires credentials."
+    }
+
+    private var bearerTokenHelp: String? {
+        if isParallelSearchMCP {
+            return "Get an API key at platform.parallel.ai."
+        }
+        if MCPHTTPAuthentication.FormKind.isGitHubRemoteMCP(endpoint) {
+            return "Use a personal access token from github.com/settings/tokens."
+        }
+        return nil
     }
 
     private var isParallelSearchMCP: Bool {
@@ -200,14 +197,11 @@ struct MCPHTTPAuthViews: View {
         }
     }
 
-    private var statusText: String {
-        if isSignedIn {
-            if let signedInExpiry {
-                return "Signed in · expires \(signedInExpiry.formatted(date: .abbreviated, time: .shortened))"
-            }
-            return "Signed in"
+    private var accountHelp: String {
+        if isSignedIn, let signedInExpiry {
+            return "Expires \(signedInExpiry.formatted(date: .abbreviated, time: .shortened))."
         }
-        return "Not signed in"
+        return isSignedIn ? "Credentials stay on this Mac." : oauthHelpText
     }
 
     private func refreshStatus() {

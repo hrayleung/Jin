@@ -107,12 +107,10 @@ struct JinApp: App {
                 // every session a resident web-content process (~tens of MB)
                 // for a block type most conversations never contain.
             }
-            // No hidden title bar and no custom window material. Those fight
-            // the system sidebar. `.unified` is the system document-window
-            // toolbar: Liquid Glass on macOS 26+, the standard unified bar
-            // on 14/15.
+            // Keep the system toolbar and sidebar material, with the compact
+            // document-window height used by the window chrome modifier.
         }
-        .windowToolbarStyle(.unified)
+        .windowToolbarStyle(.unifiedCompact)
         .commands {
             ChatCommands(shortcutsStore: shortcutsStore)
         }
@@ -160,4 +158,3 @@ struct JinApp: App {
         AppPostLaunchMaintenance.mergeRefreshedModels(latestModels: latestModels, existingModels: existingModels)
     }
 }
-

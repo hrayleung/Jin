@@ -13,26 +13,24 @@ struct MCPServerToolsSection: View {
     let onViewSchema: (MCPToolInfo) -> Void
 
     var body: some View {
-        JinSettingsCard {
-            VStack(alignment: .leading, spacing: JinSpacing.medium) {
-                Text("Tools")
-                    .font(.headline)
-
-                Text("Check the connection to list tools. Turn a tool off to hide it from the model.")
-                    .font(.caption)
-                    .foregroundStyle(JinSemanticColor.textSecondary)
-
-                verificationActions
-                verificationError
-                toolGrid
-            }
-            .animation(.easeInOut(duration: 0.18), value: verifyError)
-            .animation(.easeInOut(duration: 0.18), value: tools.count)
+        VStack(alignment: .leading, spacing: JinSpacing.medium) {
+            verificationActions
+            verificationError
+            toolList
         }
+        .animation(.easeInOut(duration: 0.18), value: verifyError)
+        .animation(.easeInOut(duration: 0.18), value: tools.count)
     }
 
     private var verificationActions: some View {
-        HStack {
+        HStack(spacing: JinSpacing.medium) {
+            Text(tools.isEmpty ? "Connect to see available tools." : toolCountSummary)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: JinSpacing.small)
+
             Button {
                 onVerify()
             } label: {
@@ -44,17 +42,22 @@ struct MCPServerToolsSection: View {
                     Text(tools.isEmpty ? "Check connection" : "Refresh tools")
                 }
             }
+            .fixedSize()
             .disabled(verifying || hasTransportValidationError)
-
-            Spacer()
 
             if !tools.isEmpty {
                 Button("Hide") {
                     onHide()
                 }
+                .fixedSize()
                 .disabled(verifying)
             }
         }
+        .controlSize(.small)
+    }
+
+    private var toolCountSummary: String {
+        tools.count == 1 ? "1 tool" : "\(tools.count) tools"
     }
 
     @ViewBuilder
@@ -66,19 +69,24 @@ struct MCPServerToolsSection: View {
                     .jinInlineErrorText()
 
                 if let verifyErrorDetails, !verifyErrorDetails.isEmpty {
-                    Text(verifyErrorDetails)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(JinSpacing.small)
-                        .jinSurface(.outlined, cornerRadius: JinRadius.small)
+                    DisclosureGroup("Connection details") {
+                        VStack(alignment: .leading, spacing: JinSpacing.small) {
+                            Text(verifyErrorDetails)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Button("Copy Details") {
-                        PasteboardSupport.writeString(
-                            [verifyError, verifyErrorDetails].joined(separator: "\n\n")
-                        )
+                            Button("Copy details") {
+                                PasteboardSupport.writeString(
+                                    [verifyError, verifyErrorDetails].joined(separator: "\n\n")
+                                )
+                            }
+                            .controlSize(.small)
+                        }
+                        .padding(.top, JinSpacing.small)
                     }
-                    .font(.caption)
+                    .font(.callout)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -86,15 +94,12 @@ struct MCPServerToolsSection: View {
     }
 
     @ViewBuilder
-    private var toolGrid: some View {
+    private var toolList: some View {
         if !tools.isEmpty {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 240), spacing: 12, alignment: .topLeading)],
-                alignment: .leading,
-                spacing: 12
-            ) {
+            LazyVStack(alignment: .leading, spacing: JinSpacing.medium) {
                 ForEach(tools) { tool in
-                    MCPToolCardView(
+                    Divider()
+                    MCPToolRowView(
                         tool: tool,
                         isEnabled: Binding(
                             get: { isToolEnabled(tool) },
@@ -108,7 +113,6 @@ struct MCPServerToolsSection: View {
                     )
                 }
             }
-            .padding(.top, 8)
         }
     }
 }
@@ -118,22 +122,59 @@ struct MCPToolSchemaSheet: View {
     let onDone: () -> Void
 
     var body: some View {
-        NavigationStack {
+        JinSheet(tool.displayName) {
             ScrollView {
-                if let schemaText = formattedSchemaText(tool.inputSchema) {
-                    MCPToolSchemaPanelView(text: schemaText, usesMonospacedFont: true)
-                } else {
-                    MCPToolSchemaPanelView(text: "No schema available.")
+                VStack(alignment: .leading, spacing: JinSpacing.large) {
+                    if tool.displayName != tool.name || !tool.description.isEmpty {
+                        VStack(alignment: .leading, spacing: JinSpacing.small) {
+                            if tool.displayName != tool.name {
+                                HStack(spacing: JinSpacing.small) {
+                                    Text(tool.name)
+                                        .font(.callout.monospaced())
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                        .help(tool.name)
+
+                                    Spacer(minLength: 0)
+
+                                    Button {
+                                        PasteboardSupport.writeString(tool.name)
+                                    } label: {
+                                        Image(systemName: "doc.on.doc")
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .help("Copy tool ID")
+                                    .accessibilityLabel("Copy tool ID")
+                                }
+                            }
+                            if !tool.description.isEmpty {
+                                Text(tool.description)
+                                    .font(.body)
+                                    .lineSpacing(2)
+                            }
+                        }
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(alignment: .leading, spacing: JinSpacing.small) {
+                        Text("Input schema")
+                            .font(.headline)
+                        MCPToolSchemaPanelView(
+                            text: formattedSchemaText(tool.inputSchema) ?? "No schema available.",
+                            usesMonospacedFont: true
+                        )
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
             }
-            .background(JinSemanticColor.detailSurface)
-            .navigationTitle(tool.name)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Done") { onDone() }
-                }
-            }
+        } actions: {
+            Button("Done", action: onDone)
+                .keyboardShortcut(.defaultAction)
         }
+        .onExitCommand(perform: onDone)
         .frame(minWidth: 520, minHeight: 420)
     }
 
@@ -154,46 +195,62 @@ private struct MCPToolSchemaPanelView: View {
             .font(usesMonospacedFont ? .system(.caption, design: .monospaced) : .caption)
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(JinSpacing.medium)
             .jinSurface(.outlined, cornerRadius: JinRadius.medium)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-private struct MCPToolCardView: View {
+private struct MCPToolRowView: View {
     let tool: MCPToolInfo
     @Binding var isEnabled: Bool
     let viewSchema: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            Text(tool.displayName)
-                .font(.headline)
+        HStack(alignment: .top, spacing: JinSpacing.large) {
+            VStack(alignment: .leading, spacing: JinSpacing.small) {
+                VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
+                    Text(tool.displayName)
+                        .font(.body.weight(.medium))
+                        .fixedSize(horizontal: false, vertical: true)
 
-            if tool.displayName != tool.name {
-                Text(tool.name)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+                    if tool.displayName != tool.name {
+                        Text(tool.name)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                            .help(tool.name)
+                    }
+                }
+
+                if !tool.description.isEmpty {
+                    Text(tool.description)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineSpacing(2)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            if !tool.description.isEmpty {
-                Text(tool.description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(4)
+            VStack(alignment: .trailing, spacing: JinSpacing.small) {
+                Toggle("Enable \(tool.displayName)", isOn: $isEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                Button("Details…", action: viewSchema)
+                    .font(.callout)
+                    .buttonStyle(.borderless)
+                    .help("View full description and input schema")
+                    .accessibilityLabel("Details for \(tool.displayName)")
             }
-
-            Button("\u{2026} View Input Schema") {
-                viewSchema()
-            }
-            .font(.caption)
-            .buttonStyle(.link)
-
-            Toggle("Enable", isOn: $isEnabled)
-                .toggleStyle(.checkbox)
+            .fixedSize()
         }
-        .padding(JinSpacing.medium)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .jinSurface(.outlined, cornerRadius: JinRadius.medium)
     }
 }

@@ -25,7 +25,7 @@ struct DataSettingsView: View {
     }
 
     var body: some View {
-        JinSettingsPage {
+        JinSettingsPage(title: "Data") {
             DataSettingsStorageSection(
                 totalBytes: totalBytes,
                 snapshots: snapshots,
@@ -53,7 +53,6 @@ struct DataSettingsView: View {
                 onImportRecoveryPack: importRecoveryPack
             )
         }
-        .navigationTitle("Data")
         .task {
             if snapshots.isEmpty {
                 recalculate()

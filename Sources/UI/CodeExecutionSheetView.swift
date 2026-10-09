@@ -13,7 +13,7 @@ struct CodeExecutionSheetView: View {
     var onSave: () -> Bool
 
     var body: some View {
-        NavigationStack {
+        JinSheet("Code Execution") {
             ScrollView {
                 VStack(alignment: .leading, spacing: JinSpacing.large) {
                     CodeExecutionBasicsCard(isEnabled: $draft.enabled)
@@ -27,23 +27,20 @@ struct CodeExecutionSheetView: View {
                 .padding(JinSpacing.large)
             }
             .background {
-                JinSemanticColor.detailSurface
+                JinSemanticColor.pageBackdrop
                     .ignoresSafeArea()
             }
-            .navigationTitle("Code Execution")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onCancel() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        if onSave() {
-                            onCancel()
-                        }
-                    }
-                    .disabled(!isValid)
+        } actions: {
+            Button("Cancel") { onCancel() }
+                .keyboardShortcut(.cancelAction)
+
+            Button("Save") {
+                if onSave() {
+                    onCancel()
                 }
             }
+            .disabled(!isValid)
+            .keyboardShortcut(.defaultAction)
         }
         .frame(minWidth: 560, idealWidth: 620, minHeight: 380, idealHeight: 460)
         .onChange(of: openAIUseExistingContainer) { _, useExisting in

@@ -60,8 +60,8 @@ struct MessageRowHeaderView: View {
             // No trailing Spacer: the user bubble sizes itself to its content
             // (up to `userBubbleMaxWidth`). A greedy Spacer would pin every
             // bubble — even a two-word one — to that maximum.
-            Text(ChatConversationMinimapGeometry.userRoleLabel)
-                .jinSectionHeader()
+            Text("You")
+                .font(.caption.weight(.medium))
                 .foregroundStyle(JinSemanticColor.textTertiary)
         } else {
             // No trailing Spacer either: under macOS 27's ConstrainedWidth
@@ -100,8 +100,11 @@ struct MessageRowHeaderView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } else {
-            Text(ChatConversationMinimapGeometry.assistantRoleLabel(displayName: assistantDisplayName))
-                .jinSectionHeader()
+            Text(
+                assistantDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "Assistant" : assistantDisplayName
+            )
+            .font(.caption.weight(.medium))
                 .foregroundStyle(JinSemanticColor.textTertiary)
         }
     }
@@ -110,7 +113,9 @@ struct MessageRowHeaderView: View {
     private var modelLabel: some View {
         if !isTool, let label = normalizedAssistantModelLabel {
             Text(label)
-                .jinTagStyle()
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 

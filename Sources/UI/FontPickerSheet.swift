@@ -24,14 +24,11 @@ struct FontPickerSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            FontPickerHeader(title: title, subtitle: subtitle, onDone: { dismiss() })
-
-            FontPickerSearchField(
-                searchText: $searchText,
-                hasSearchText: !trimmedSearchText.isEmpty,
-                onClear: { searchText = "" }
-            )
+        JinSheet(title, subtitle: subtitle) {
+            VStack(spacing: 0) {
+                JinSearchField(text: $searchText, prompt: "Search fonts", focusesOnAppear: true)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
 
             List {
                 if FontPickerSupport.shouldShowSystemDefaultRow(searchText: searchText) {
@@ -65,6 +62,7 @@ struct FontPickerSheet: View {
                 }
             }
             .listStyle(.inset)
+                .scrollContentBackground(.hidden)
             .overlay {
                 if let emptySearchText = FontPickerSupport.emptySearchText(
                     searchText: searchText,
@@ -73,7 +71,12 @@ struct FontPickerSheet: View {
                     ContentUnavailableView.search(text: emptySearchText)
                 }
             }
+            }
+        } actions: {
+            Button("Done") { dismiss() }
+                .keyboardShortcut(.defaultAction)
         }
+        .onExitCommand { dismiss() }
         .frame(minWidth: 520, minHeight: 560)
     }
 

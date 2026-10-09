@@ -47,7 +47,7 @@ struct SettingsView: View {
     ]
 
     @State var columnVisibility: NavigationSplitViewVisibility = .all
-    @State var selectedSection: SettingsSection? = .providers
+    @State var selectedSection: SettingsSection? = .general
     @State var selectedProviderID: String?
     @State var selectedServerID: String?
     @State var selectedPluginID: String?
@@ -110,28 +110,31 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarColumn
-        } content: {
-            contentColumn
         } detail: {
             detailColumn
         }
         .navigationSplitViewStyle(.balanced)
-        .navigationTitle("")
-        // No `hideWindowToolbarCompat()` here. That modifier exists for the main
-        // chat window, whose custom sidebar chrome has to sit flush at the top and
-        // therefore reads `titlebarTopInset`/`leadingPadding` back to clear the
-        // traffic lights. Settings is a stock macOS Settings window: it keeps its
-        // normal titlebar so the sidebar search field lands *below* the window
-        // controls instead of competing with them for the leading 78pt.
-        .frame(minWidth: 1_060, idealWidth: 1_140, minHeight: 620, idealHeight: 700)
+        // Each page owns its leading heading. A navigation title would add a
+        // second title strip above it in the Settings scene.
+        .toolbarBackground(.hidden, for: .windowToolbar)
+        .background {
+            JinSettingsWindowChrome()
+                .allowsHitTesting(false)
+        }
+        .frame(minWidth: 780, idealWidth: 980, minHeight: 600, idealHeight: 720)
         .sheet(isPresented: $showingAddProvider) {
-            AddProviderView()
+            AddProviderView { id in
+                selectedSection = .providers
+                selectedProviderID = id
+            }
         }
         .sheet(isPresented: $showingAddServer) {
-            AddMCPServerView()
+            AddMCPServerView { id in
+                selectedSection = .mcpServers
+                selectedServerID = id
+            }
         }
         .onAppear { ensureValidSelection() }
-        .onChange(of: searchText) { _, _ in ensureValidSelection() }
         .onChange(of: selectedSection) { _, _ in ensureValidSelection() }
         .onChange(of: providers.count) { _, _ in ensureValidSelection() }
         .onChange(of: mcpServers.count) { _, _ in ensureValidSelection() }
@@ -180,33 +183,17 @@ struct SettingsView: View {
 
     private var sidebarColumn: some View {
         SettingsSidebarColumn(
-            selectedSection: $selectedSection,
-            searchText: $searchText
+            selection: navigationSelection,
+            searchText: $searchText,
+            providers: filteredProviders,
+            servers: filteredMCPServers,
+            plugins: filteredPlugins,
+            onAddProvider: { showingAddProvider = true },
+            onAddServer: { showingAddServer = true },
+            onDeleteProvider: requestDeleteProvider,
+            onDeleteServer: requestDeleteServer,
+            pluginEnabled: pluginEnabledBinding
         )
-    }
-
-    private var contentColumn: some View {
-        VStack(spacing: 0) {
-            switch selectedSection {
-            case .providers:
-                providersListWithActions
-            case .mcpServers:
-                mcpServersListWithActions
-            case .plugins:
-                pluginsList
-            case .general, .none:
-                generalCategoriesList
-            }
-        }
-        .background {
-            JinSemanticColor.surface.ignoresSafeArea()
-        }
-        .overlay(alignment: .trailing) {
-            Rectangle()
-                .fill(JinSemanticColor.borderSubtle)
-                .frame(width: JinStrokeWidth.hairline)
-        }
-        .navigationSplitViewColumnWidth(min: 220, ideal: 230, max: 230)
     }
 
     private var detailColumn: some View {
@@ -222,12 +209,17 @@ struct SettingsView: View {
                 generalDetailView
             }
         }
+        .environment(
+            \.jinSettingsEnabledBinding,
+            selectedSection == .plugins
+                ? resolvedSelectedPluginID.map { pluginEnabledBinding(for: $0) }
+                : nil
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            JinSemanticColor.detailSurface.ignoresSafeArea()
+            JinSemanticColor.pageBackdrop.ignoresSafeArea()
         }
-        .toolbar(.hidden, for: .automatic)
-        .navigationSplitViewColumnWidth(min: 500, ideal: 620, max: 820)
+        .navigationSplitViewColumnWidth(min: 520, ideal: 720)
     }
 
     // MARK: - Detail Sub-Views
@@ -239,8 +231,14 @@ struct SettingsView: View {
                 ProviderConfigFormView(provider: provider)
             }
         } else {
-            transitionedDetail {
-                ContentUnavailableView("Select a Provider", systemImage: "network")
+            Group {
+                ContentUnavailableView {
+                    Label("No Providers", systemImage: "network")
+                } description: {
+                    Text("Connect a provider to choose models for your chats.")
+                } actions: {
+                    Button("Add Provider…") { showingAddProvider = true }
+                }
             }
         }
     }
@@ -252,8 +250,14 @@ struct SettingsView: View {
                 MCPServerConfigFormView(server: server)
             }
         } else {
-            transitionedDetail {
-                ContentUnavailableView("Select an MCP server", systemImage: "server.rack")
+            Group {
+                ContentUnavailableView {
+                    Label("No MCP Servers", systemImage: "server.rack")
+                } description: {
+                    Text("Connect a server to give your chats access to tools.")
+                } actions: {
+                    Button("Add MCP Server…") { showingAddServer = true }
+                }
             }
         }
     }
@@ -282,7 +286,7 @@ struct SettingsView: View {
         case "cloudflare_r2_upload":
             identifiedDetail("cloudflare_r2_upload") { CloudflareR2UploadPluginSettingsView() }
         default:
-            transitionedDetail {
+            Group {
                 ContentUnavailableView("Select a Plugin", systemImage: "puzzlepiece.extension")
             }
         }
@@ -304,7 +308,7 @@ struct SettingsView: View {
         case .data:
             identifiedDetail("data") { DataSettingsView() }
         case nil:
-            transitionedDetail {
+            Group {
                 ContentUnavailableView("Select a Category", systemImage: "gearshape")
             }
         }
@@ -317,17 +321,5 @@ struct SettingsView: View {
     ) -> some View {
         content()
             .id(id)
-            // Applied after the child's `navigationTitle` so a ScrollView
-            // detail (MCP) cannot reopen the empty toolbar row that Form
-            // pages no longer show.
-            .toolbar(.hidden, for: .automatic)
-    }
-
-    @ViewBuilder
-    private func transitionedDetail<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        content()
-            .toolbar(.hidden, for: .automatic)
     }
 }

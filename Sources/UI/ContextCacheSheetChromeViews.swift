@@ -17,18 +17,14 @@ struct ContextCacheBasicsCard: View {
 
     private var cardHeader: some View {
         HStack(alignment: .center, spacing: JinSpacing.small) {
-            Text("Basics")
+            Text("Caching")
                 .font(.headline)
 
-            Spacer()
-
-            Text(draft.mode.displayName)
-                .jinTagStyle(foreground: draft.mode == .off ? .secondary : .accentColor)
         }
     }
 
     private var modeRow: some View {
-        JinFormFieldRow("Mode") {
+        JinSettingsControlRow("Mode") {
             JinSettingsSegmentedPicker("Mode", selection: $draft.mode) {
                 Text("Off").tag(ContextCacheMode.off)
                 Text("Implicit").tag(ContextCacheMode.implicit)
@@ -42,7 +38,7 @@ struct ContextCacheBasicsCard: View {
     @ViewBuilder
     private var strategyRow: some View {
         if supportsStrategy, draft.mode != .off {
-            JinFormFieldRow("Strategy", supportingText: "Anthropic only.") {
+            JinSettingsControlRow("Strategy") {
                 JinSettingsMenuPicker("Strategy", selection: strategyBinding) {
                     Text("System only").tag(ContextCacheStrategy.systemOnly)
                     Text("System + tools").tag(ContextCacheStrategy.systemAndTools)
@@ -55,7 +51,7 @@ struct ContextCacheBasicsCard: View {
     @ViewBuilder
     private var cachedContentNameRow: some View {
         if supportsExplicitMode, draft.mode == .explicit {
-            JinFormFieldRow("Cached content name", supportingText: "Example: cachedContents/project-brief-v2") {
+            JinSettingsControlRow("Cached content name", supportingText: "Example: cachedContents/project-brief-v2") {
                 JinSettingsTextField(
                     "cachedContents/project-brief-v2",
                     text: cachedContentNameBinding,
@@ -123,15 +119,11 @@ struct ContextCacheAdvancedCard: View {
             Text("Advanced")
                 .font(.headline)
 
-            Spacer(minLength: 0)
-
-            Text("Optional")
-                .jinTagStyle()
         }
     }
 
     private var ttlSection: some View {
-        JinFormFieldRow("TTL") {
+        JinSettingsControlRow("Cache lifetime") {
             VStack(alignment: .leading, spacing: JinSpacing.small) {
                 JinSettingsMenuPicker("TTL", selection: $ttlPreset) {
                     Text("Provider default").tag(ContextCacheTTLPreset.providerDefault)
@@ -153,7 +145,7 @@ struct ContextCacheAdvancedCard: View {
     }
 
     private var cacheKeySection: some View {
-        JinFormFieldRow("Cache key", supportingText: "Optional stable key.") {
+        JinSettingsControlRow("Cache key", supportingText: "Optional stable key.") {
             JinSettingsTextField(
                 "stable-prefix-key",
                 text: Binding(
@@ -166,14 +158,14 @@ struct ContextCacheAdvancedCard: View {
     }
 
     private var minTokensSection: some View {
-        JinFormFieldRow("Min tokens threshold", supportingText: "Optional.") {
+        JinSettingsControlRow("Min tokens threshold", supportingText: "Optional.") {
             JinSettingsTextField("1024", text: $minTokensDraft, usesMonospacedFont: true)
                 .frame(maxWidth: 220, alignment: .leading)
         }
     }
 
     private var conversationIDSection: some View {
-        JinFormFieldRow("Conversation ID", supportingText: "Optional xAI scope.") {
+        JinSettingsControlRow("Conversation ID", supportingText: "Optional xAI scope.") {
             JinSettingsTextField(
                 "x-grok-conv-id",
                 text: Binding(

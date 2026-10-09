@@ -126,9 +126,7 @@ struct GoogleMapsAdvancedCard: View {
         HStack(alignment: .center, spacing: JinSpacing.small) {
             Text("Advanced")
                 .font(.headline)
-            Spacer(minLength: 0)
-            Text("Optional")
-                .jinTagStyle()
+
         }
     }
 }

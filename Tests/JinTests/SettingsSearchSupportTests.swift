@@ -2,6 +2,20 @@ import XCTest
 @testable import Jin
 
 final class SettingsSearchSupportTests: XCTestCase {
+    func testGeneralCategoriesAreSearchableBySettingRatherThanOnlyPageTitle() {
+        XCTAssertEqual(SettingsSearchSupport.filteredGeneralCategories(searchText: "  FONT  "), [.appearance])
+        XCTAssertEqual(SettingsSearchSupport.filteredGeneralCategories(searchText: "notifications"), [.chat])
+        XCTAssertEqual(SettingsSearchSupport.filteredGeneralCategories(searchText: "backup"), [.data])
+        XCTAssertEqual(SettingsSearchSupport.filteredGeneralCategories(searchText: "beta"), [.updates])
+        XCTAssertEqual(SettingsSearchSupport.filteredGeneralCategories(searchText: "keyboard"), [.shortcuts])
+    }
+
+    func testGeneralCategorySearchHandlesEmptyAndUnmatchedQueries() {
+        XCTAssertEqual(
+            SettingsSearchSupport.filteredGeneralCategories(searchText: " \n "), GeneralSettingsCategory.allCases)
+        XCTAssertTrue(SettingsSearchSupport.filteredGeneralCategories(searchText: "no-such-setting").isEmpty)
+    }
+
     func testTrimmedSearchTextTrimsWhitespaceAndNewlines() {
         XCTAssertEqual(SettingsSearchSupport.trimmedSearchText(" \n web\t "), "web")
     }

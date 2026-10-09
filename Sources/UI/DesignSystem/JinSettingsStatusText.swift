@@ -23,16 +23,6 @@ struct JinSettingsStatusText: View {
             }
             .font(.caption)
             .foregroundStyle(statusColor)
-            .padding(.horizontal, JinSpacing.small)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                    .fill(statusColor.opacity(0.12))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous)
-                    .stroke(statusColor.opacity(0.25), lineWidth: JinStrokeWidth.hairline)
-            )
         } else {
             Text(text)
                 .font(.caption)
