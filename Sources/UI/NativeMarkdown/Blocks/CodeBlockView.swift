@@ -1,11 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// Native code block. Header carries language label + copy + manual fold +
-/// line-numbers toggle; body shows syntax-highlighted code with optional
-/// line numbers. Soft-collapse "Show N more lines" was the WebView era's
-/// affordance and has been removed — long blocks render fully and users
-/// can collapse them via the chevron in the header.
+/// Native preformatted text. Plain-text fences sit directly in the document;
+/// language-tagged code gets a card with a language label and inline controls.
+/// Both preserve whitespace, selection, horizontal scrolling, and manual folding.
 @MainActor
 struct CodeBlockView: View {
     let language: String?
@@ -22,20 +20,94 @@ struct CodeBlockView: View {
     @Environment(\.markdownDefersCodeHighlightUpgrade) private var deferHighlightUpgrade
 
     var body: some View {
+        Group {
+            if isPlainText {
+                plainTextBlock
+            } else {
+                codeCard
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private var isPlainText: Bool {
+        switch LanguageAliases.normalize(language) {
+        case nil, "text", "txt", "plain", "plaintext", "plain-text": return true
+        default: return false
+        }
+    }
+
+    private var plainTextBlock: some View {
+        HStack(alignment: .top, spacing: 0) {
+            if isCollapsed {
+                Button {
+                    isCollapsed = false
+                } label: {
+                    Label("Plain text", systemImage: "chevron.right")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, CodeBlockBody.codeVerticalInset)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .help("Expand text")
+                .accessibilityLabel("Expand text")
+            } else {
+                codeBody
+            }
+
+            HStack(spacing: 6) {
+                if !isStreamingTail {
+                    CopyToPasteboardButton(text: source, helpText: "Copy text", useProminentStyle: false)
+                        .accessibilityLabel("Copy text")
+                }
+                Menu {
+                    Toggle("Line numbers", isOn: Binding(
+                        get: { showLineNumbers },
+                        set: { lineNumbersOverride = $0 }
+                    ))
+                    if shouldShowFoldToggle {
+                        Button(isCollapsed ? "Expand text" : "Collapse text") {
+                            isCollapsed.toggle()
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Text block options")
+                .accessibilityLabel("Text block options")
+            }
+            .padding(.top, CodeBlockBody.codeVerticalInset)
+            .padding(.trailing, 12)
+        }
+    }
+
+    private var codeBody: some View {
+        CodeBlockBody(
+            source: source,
+            language: language,
+            isStreamingTail: isStreamingTail,
+            showLineNumbers: showLineNumbers,
+            theme: theme,
+            isDarkMode: colorScheme == .dark,
+            deferHighlightUpgrade: deferHighlightUpgrade
+        )
+    }
+
+    private var codeCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             if !isCollapsed {
                 Divider()
                     .opacity(0.5)
-                CodeBlockBody(
-                    source: source,
-                    language: language,
-                    isStreamingTail: isStreamingTail,
-                    showLineNumbers: showLineNumbers,
-                    theme: theme,
-                    isDarkMode: colorScheme == .dark,
-                    deferHighlightUpgrade: deferHighlightUpgrade
-                )
+                codeBody
             }
         }
         .background(JinSemanticColor.subtleSurface)
@@ -45,7 +117,6 @@ struct CodeBlockView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: JinSemanticColor.shadowElevated.opacity(0.6), radius: 10, x: 0, y: 4)
-        .padding(.vertical, 6)
     }
 
     private var header: some View {
