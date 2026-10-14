@@ -178,10 +178,11 @@ enum GeminiRequestSupport {
     }
 
     /// Whether the model accepts a numeric `thinkingBudget` inside `thinkingConfig`.
-    /// Flash Image models accept `thinkingLevel` only.
+    /// Flash Image models and Gemini 4 Argon accept `thinkingLevel` only (`thinkingBudget` returns 400).
     static func supportsThinkingBudget(_ modelID: String) -> Bool {
         supportsThinkingConfig(modelID)
             && !GeminiModelConstants.isFlashImageGenerationModel(modelID)
+            && !GeminiModelConstants.isGemini4Model(modelID)
     }
 
     private static func addSamplingControls(

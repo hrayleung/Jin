@@ -2627,6 +2627,21 @@ extension ModelCatalog {
                maxOutputTokens: 64_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // Step 5 Preview Free (live GET /zen/go/v1/models + opencode.ai/docs/go
+        // endpoint table, added 2026-10-12): exact ID `step-5-preview-free` on
+        // /zen/go/v1/chat/completions via @ai-sdk/openai-compatible — keep out of
+        // `anthropicMessagesModelIDs` and `openAIResponsesModelIDs`. models.dev
+        // `opencode-go`: 1,000,000 context / 65,536 output, text+image input,
+        // tool calling, reasoning effort low/medium/high (default medium).
+        // Seeded after glm-5.3 so the first-launch default is unchanged.
+        Record(id: "step-5-preview-free", displayName: "Step 5 Preview (Free)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: true),
         // Catalog-only — recognized when fetched via the API
         // .videoInput dropped: qwen3.5-plus is in `anthropicMessagesModelIDs`, and the
         // Anthropic /messages translation replaces a .video part with an
@@ -2755,23 +2770,48 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        // Cat Jam Free (live GET /zen/go/v1/models, added 2026-10-08):
+        // /chat/completions path (models.dev `opencode-go`: @ai-sdk/openai-compatible).
+        // 262,144 context / 131,072 output, text-only input, tool calling,
+        // reasoning effort low..max (default high). Absent from the docs'
+        // current-model table, so recognized-when-fetched (`isSeeded: false`).
+        Record(id: "cat-jam-free", displayName: "Cat Jam (Free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: Meta
 
-    // Muse Spark family (Meta Model API, verified against dev.meta.ai/docs/models
-    // 2026-08-06): three IDs share modalities and a 1,048,576-token context window.
-    // Max output 131,072 per Meta overview / LiteLLM (not models.dev's stale 32k).
-    // Jin targets the Responses API for Meta: text/image/video/PDF input, tool calling,
-    // web_search grounding, and always-on reasoning (minimal..xhigh; "none" is rejected —
-    // omit the field instead). Contributor tier is the same 1.2 checkpoint at a discount
-    // in exchange for training-data consent.
+    // Muse family (Meta Model API, verified against dev.meta.ai/docs/models +
+    // dev.meta.ai/docs/reasoning, 2026-10-08): all IDs share modalities and a
+    // 1,048,576-token context window, 131,072 max output. Jin targets the
+    // Responses API for Meta: text/image/video/PDF input, tool calling,
+    // web_search grounding, and always-on reasoning ("none" is rejected — omit
+    // the field instead). `muse-wonder-1.0` (released 2026-10-08) and
+    // `muse-spark-1.3` support `minimal..max` (`max` triggers parallel
+    // multi-agent heavy thinking per dev.meta.ai/docs/reasoning); Contributor
+    // and 1.1/1.2 tiers support `minimal..xhigh`.
     static let metaRecords: [Record] = [
+        Record(id: "muse-wonder-1.0", displayName: "Muse Wonder",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .nativePDF, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
         Record(id: "muse-spark-1.3", displayName: "Muse Spark 1.3",
                capabilities: [.streaming, .toolCalling, .vision, .videoInput, .nativePDF, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: true),
         Record(id: "muse-spark-1.3-contributor", displayName: "Muse Spark 1.3 Contributor",
                capabilities: [.streaming, .toolCalling, .vision, .videoInput, .nativePDF, .reasoning, .promptCaching],
@@ -2941,6 +2981,20 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 32_768,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        // DeepSeek-V4.1-Flash-Fast (Baseten Model APIs, released 2026-10-08):
+        // Exact ID from docs.baseten.co/inference/model-apis/overview +
+        // baseten.co/library/deepseek-v41-flash-fast. 1,048,576 context /
+        // 131,072 max output (models.dev `baseten`), text+image input,
+        // $0.14/M cached-input rate → promptCaching. Effort band none/high/max
+        // (models.dev `baseten`; default high).
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash-Fast", displayName: "DeepSeek V4.1 Flash Fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .high, .max]),
                isFullySupported: true, isSeeded: true),
         // GLM-5.3-Flash (Baseten Model APIs, 2026-08-26). Exact ID from models.dev
         // `baseten` + baseten.co/library/glm-53-flash. 1,048,576 / 131,072,

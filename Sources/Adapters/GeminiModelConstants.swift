@@ -7,6 +7,8 @@ enum GeminiModelConstants {
 
     /// All known Gemini model IDs (lowercased) used for capability inference.
     static let knownModelIDs: Set<String> = [
+        "gemini-4-argon",
+        "gemini-4-argon-cyber-permissive",
         "gemini-3",
         "gemini-3-pro",
         "gemini-3-pro-preview",
@@ -37,8 +39,17 @@ enum GeminiModelConstants {
         "gemini-1.5-flash",
     ]
 
-    /// Gemini 3 family models (lowercased).
+    /// Gemini 4 family models (lowercased). Thinking cannot be disabled and legacy
+    /// `thinkingBudget` returns HTTP 400 (ai.google.dev thinking docs, 2026-10-13).
+    static let gemini4ModelIDs: Set<String> = [
+        "gemini-4-argon",
+        "gemini-4-argon-cyber-permissive",
+    ]
+
+    /// Gemini 3 & 4 thinkingLevel-capable models (lowercased).
     static let gemini3ModelIDs: Set<String> = [
+        "gemini-4-argon",
+        "gemini-4-argon-cyber-permissive",
         "gemini-3",
         "gemini-3-pro",
         "gemini-3-pro-preview",
@@ -64,8 +75,12 @@ enum GeminiModelConstants {
     /// Docs (Vertex 3.6 Flash / 3.5 Flash-Lite model pages + Gemini API 2026-07-21 changelog;
     /// 3.7 Flash "What's new" migration guide, 2026-08-13: "Strip temperature, top_p, and top_k";
     /// Nano Banana 2.1 Vertex model page, GA 2026-10-06: seed/topK/logprobs/temperature/topP
-    /// "aren't supported ... Setting any of these parameters returns an API error").
+    /// "aren't supported ... Setting any of these parameters returns an API error";
+    /// Gemini 4 Argon model card, GA 2026-10-13: temperature/top_p/top_k aren't supported and
+    /// return an API error if set).
     static let customSamplingUnsupportedModelIDs: Set<String> = [
+        "gemini-4-argon",
+        "gemini-4-argon-cyber-permissive",
         "gemini-3.8-flash",
         "gemini-3.8-flash-preview",
         "gemini-3.7-flash",
@@ -132,8 +147,10 @@ enum GeminiModelConstants {
     ]
 
     /// Models that accept native PDF via `inlineData` (lowercased).
-    /// Gemini 3 family models, plus Gemini 2.5 text models for Vertex.
+    /// Gemini 3 & 4 family models, plus Gemini 2.5 text models for Vertex.
     static let nativePDFModelIDs: Set<String> = [
+        "gemini-4-argon",
+        "gemini-4-argon-cyber-permissive",
         "gemini-3",
         "gemini-3-pro",
         "gemini-3-pro-preview",
@@ -161,6 +178,10 @@ enum GeminiModelConstants {
 
     static func isKnownModel(_ modelID: String) -> Bool {
         knownModelIDs.contains(modelID.lowercased())
+    }
+
+    static func isGemini4Model(_ modelID: String) -> Bool {
+        gemini4ModelIDs.contains(modelID.lowercased())
     }
 
     static func isGemini3Model(_ modelID: String) -> Bool {

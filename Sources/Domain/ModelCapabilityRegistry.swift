@@ -169,8 +169,10 @@ enum ModelCapabilityRegistry {
         "gemini-nano-banana-2.1",
     ]
 
-    /// Gemini 3.1 Pro supports LOW/MEDIUM/HIGH.
+    /// Gemini 4 Argon and Gemini 3.1 Pro support LOW/MEDIUM/HIGH.
     private static let gemini31ProEffortModelIDs: Set<String> = [
+        "gemini-4-argon",
+        "gemini-4-argon-cyber-permissive",
         "gemini-3.1-pro-preview",
     ]
 
@@ -186,6 +188,7 @@ enum ModelCapabilityRegistry {
     /// Models documented by Google as supporting grounding with Google Search in Gemini API,
     /// plus narrow runtime trials we intentionally enable in Jin.
     private static let geminiGoogleSearchSupportedModelIDs: Set<String> = [
+        "gemini-4-argon",
         "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
         "gemini-3-flash-preview",
@@ -213,6 +216,8 @@ enum ModelCapabilityRegistry {
     /// Models supporting grounding with Google Search in Vertex AI.
     /// Includes Gemini 3.1 Flash Image based on runtime validation.
     private static let vertexGoogleSearchSupportedModelIDs: Set<String> = [
+        "gemini-4-argon",
+        "gemini-4-argon-cyber-permissive",
         "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
         "gemini-3-flash-preview",
@@ -239,6 +244,7 @@ enum ModelCapabilityRegistry {
     /// OpenRouter `plugins: [{id: "web"}]` support stays conservative and does not
     /// inherit Gemini-only runtime trials automatically.
     private static let openRouterGoogleSearchSupportedModelIDs: Set<String> = [
+        "gemini-4-argon",
         "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
         "gemini-3-flash-preview",
@@ -318,6 +324,7 @@ enum ModelCapabilityRegistry {
 
     /// Models documented by Google as supporting code execution in Gemini API.
     private static let geminiCodeExecutionSupportedModelIDs: Set<String> = [
+        "gemini-4-argon",
         "gemini-3-pro",
         "gemini-3-pro-preview",
         "gemini-3.1-pro",
@@ -341,6 +348,8 @@ enum ModelCapabilityRegistry {
 
     /// Models documented by Google as supporting code execution in Vertex AI.
     private static let vertexCodeExecutionSupportedModelIDs: Set<String> = [
+        "gemini-4-argon",
+        "gemini-4-argon-cyber-permissive",
         "gemini-3-pro",
         "gemini-3-pro-preview",
         "gemini-3.1-pro",
@@ -573,6 +582,14 @@ enum ModelCapabilityRegistry {
     private static let openRouterMinimalMaxEffortModelIDs: Set<String> = [
         "thinkingmachines/inkling",
     ]
+    /// Meta Muse Wonder on OpenRouter (`meta/muse-wonder`): accepts minimal..max.
+    private static let openRouterMetaMuseWonderEffortModelIDs: Set<String> = [
+        "meta/muse-wonder",
+    ]
+    /// StepFun Step 5 Preview on OpenRouter (`stepfun/step-5-preview`): accepts none..max.
+    private static let openRouterStep5PreviewEffortModelIDs: Set<String> = [
+        "stepfun/step-5-preview",
+    ]
     /// Claude models whose OpenRouter `supported_efforts` is the full low…max ladder
     /// (verified 2026-07-25). Without an explicit band these fall through to the
     /// low/medium/high default, which silently clamps `xhigh`/`max` down to `high`
@@ -706,11 +723,12 @@ enum ModelCapabilityRegistry {
         "deepseek-ai/deepseek-v4-pro-0813",
         "deepseek-ai/deepseek-v4.1-flash",
     ]
-    /// Baseten GLM-5.2 family: none/high/max only. GLM-5.3-Flash is always-on
-    /// low/high/max via `glm53LowHighMaxReasoningEffortModelIDs`.
+    /// Baseten GLM-5.2 family and DeepSeek-V4.1-Flash-Fast: none/high/max only.
+    /// GLM-5.3-Flash is always-on low/high/max via `glm53LowHighMaxReasoningEffortModelIDs`.
     private static let basetenGLMEffortModelIDs: Set<String> = [
         "zai-org/glm-5.2",
         "zai-org/glm-5.2-fast",
+        "deepseek-ai/deepseek-v4.1-flash-fast",
     ]
     /// Modal Shared API Kimi K3. Modal doesn't publish a per-model effort matrix, so
     /// this inherits the band documented for the same weights on Baseten.
@@ -1062,6 +1080,8 @@ enum ModelCapabilityRegistry {
         if providerType == .openrouter,
            openRouterHighBandEffortModelIDs.contains(lowerModelID)
             || openRouterMinimalMaxEffortModelIDs.contains(lowerModelID)
+            || openRouterMetaMuseWonderEffortModelIDs.contains(lowerModelID)
+            || openRouterStep5PreviewEffortModelIDs.contains(lowerModelID)
             || openRouterFullLadderEffortModelIDs.contains(lowerModelID)
             || openRouterDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID)
             || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
@@ -1122,7 +1142,11 @@ enum ModelCapabilityRegistry {
             if lowerModelID == "moonshotai/kimi-k3-fast"
                 || lowerModelID == "z-ai/glm-5.3"
                 || lowerModelID == "deepseek/deepseek-v4-pro-0813"
-                || lowerModelID == "deepseek/deepseek-v4-flash-0731" {
+                || lowerModelID == "deepseek/deepseek-v4-flash-0731"
+                || lowerModelID == "anthropic/claude-haiku-5.5"
+                || lowerModelID == "anthropic/claude-opus-5.5"
+                || lowerModelID == "anthropic/claude-sonnet-5.5"
+                || lowerModelID == "meta/muse-wonder-1.0" {
                 return true
             }
         case .baseten:
@@ -1150,6 +1174,20 @@ enum ModelCapabilityRegistry {
             }
         case .makora, .zyphra:
             if glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID) {
+                return true
+            }
+        case .opencodeGo:
+            if deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID)
+                || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
+                || opencodeGoOxAlphaReasoningEffortModelIDs.contains(lowerModelID)
+                || opencodeGoGLMHighMaxReasoningEffortModelIDs.contains(lowerModelID)
+                || lowerModelID == "cat-jam-free"
+                || lowerModelID == "space-bunny"
+                || lowerModelID == "space-bunny-free" {
+                return true
+            }
+        case .meta:
+            if lowerModelID == "muse-wonder-1.0" || lowerModelID == "muse-spark-1.3" {
                 return true
             }
         case .router:
@@ -1279,6 +1317,10 @@ enum ModelCapabilityRegistry {
             return [.low, .medium, .high]
         case .openrouter where xAIStandardEffortWithNoneModelIDs.contains(lowerModelID):
             return [.none, .low, .medium, .high]
+        case .openrouter where openRouterMetaMuseWonderEffortModelIDs.contains(lowerModelID):
+            return [.minimal, .low, .medium, .high, .xhigh, .max]
+        case .openrouter where openRouterStep5PreviewEffortModelIDs.contains(lowerModelID):
+            return [.none, .minimal, .low, .medium, .high, .xhigh, .max]
         case .openrouter where openRouterFullLadderEffortModelIDs.contains(lowerModelID):
             return [.low, .medium, .high, .xhigh, .max]
         case .openrouter where openRouterHighBandEffortModelIDs.contains(lowerModelID):
@@ -1352,13 +1394,24 @@ enum ModelCapabilityRegistry {
             return [.low, .high, .max]
         case .vercelAIGateway where lowerModelID == "qwen/qwen3.8-2.4t-a95b" || lowerModelID == "qwen/qwen3.8-27b":
             return [.low, .medium, .xhigh]
-        case .vercelAIGateway where lowerModelID == "qwen/qwen3.8-max":
+        case .vercelAIGateway where lowerModelID == "qwen/qwen3.8-max"
+            || lowerModelID == "meta/muse-wonder-1.0":
             return [.minimal, .low, .medium, .high, .xhigh]
+        case .vercelAIGateway where lowerModelID == "callstack/apex":
+            return [.none, .low, .medium, .xhigh]
+        case .vercelAIGateway where lowerModelID == "stealth/glyph-cluster":
+            return [.low, .medium, .high, .xhigh]
         case .cloudflareAIGateway where lowerModelID == "moonshotai/kimi-k3-fast"
             || lowerModelID == "z-ai/glm-5.3"
             || lowerModelID == "deepseek/deepseek-v4-pro-0813"
             || lowerModelID == "deepseek/deepseek-v4-flash-0731":
             return [.low, .high, .max]
+        case .cloudflareAIGateway where lowerModelID == "anthropic/claude-haiku-5.5"
+            || lowerModelID == "anthropic/claude-opus-5.5"
+            || lowerModelID == "anthropic/claude-sonnet-5.5":
+            return [.low, .medium, .high, .xhigh, .max]
+        case .cloudflareAIGateway where lowerModelID == "meta/muse-wonder-1.0":
+            return [.none, .low, .medium, .high, .xhigh, .max]
         case .cloudflareAIGateway where lowerModelID == "qwen/qwen3.8-2.4t-a95b" || lowerModelID == "qwen/qwen3.8-27b":
             return [.low, .medium, .xhigh]
         case .cloudflareAIGateway where lowerModelID == "qwen/qwen3.8-max":
@@ -1440,6 +1493,10 @@ enum ModelCapabilityRegistry {
             return [.low, .high]
         case .opencodeGo where opencodeGoHy4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
+        case .opencodeGo where lowerModelID == "cat-jam-free"
+            || lowerModelID == "space-bunny"
+            || lowerModelID == "space-bunny-free":
+            return [.low, .medium, .high, .xhigh, .max]
         case .opencodeGo where xAIAlwaysOnStandardEffortWithXHighModelIDs.contains(lowerModelID):
             // grok-4.6 on Go: always-on low/medium/high/xhigh (docs.x.ai/developers/grok-4-6).
             // Distinct from grok-4.5, which rejects xhigh. Exact ID via the shared set.
@@ -1454,9 +1511,13 @@ enum ModelCapabilityRegistry {
             return [.low, .high, .max]
         case .zhipuCodingPlan where zhipuGLM52HighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
+        case .meta where lowerModelID == "muse-wonder-1.0" || lowerModelID == "muse-spark-1.3":
+            // dev.meta.ai/docs/reasoning: `max` (parallel multi-agent heavy thinking)
+            // is supported by `muse-wonder-1.0` and `muse-spark-1.3` only.
+            return [.minimal, .low, .medium, .high, .xhigh, .max]
         case .meta:
-            // Muse Spark accepts minimal..xhigh ("none" returns HTTP 400 and is handled
-            // by omitting the field; "max" is not accepted).
+            // Muse Spark 1.1/1.2 and Contributor tiers accept minimal..xhigh ("none"
+            // returns HTTP 400 and is handled by omitting the field; "max" is not accepted).
             return [.minimal, .low, .medium, .high, .xhigh]
         // Router bands are enforced by the gateway (`400 Invalid reasoning effort.`),
         // so every band it publishes gets an explicit arm rather than falling through
@@ -1681,13 +1742,15 @@ enum ModelCapabilityRegistry {
         }
     }
 
-    /// Exact Muse Spark IDs on the Meta Model API (and bare IDs without gateway prefix).
+    /// Exact Muse family IDs on the Meta Model API (and bare IDs without gateway prefix).
     static func isMetaMuseSparkModelID(_ lowerModelID: String) -> Bool {
         let bare = lowerModelID.hasPrefix("meta/")
             ? String(lowerModelID.dropFirst("meta/".count))
             : lowerModelID
         switch bare {
-        case "muse-spark-1.1", "muse-spark-1.2", "muse-spark-1.2-contributor", "muse-spark-1.3", "muse-spark-1.3-contributor":
+        case "muse-wonder-1.0", "muse-wonder",
+             "muse-spark-1.1", "muse-spark-1.2", "muse-spark-1.2-contributor",
+             "muse-spark-1.3", "muse-spark-1.3-contributor":
             return true
         default:
             return false

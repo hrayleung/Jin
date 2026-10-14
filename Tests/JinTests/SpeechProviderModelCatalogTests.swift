@@ -203,6 +203,7 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
             SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .openRouter).map(\.id),
             [
                 "openai/gpt-transcribe",
+                "elevenlabs/scribe-v2",
                 "openai/whisper-large-v3-turbo",
                 "openai/whisper-large-v3",
                 "x-ai/grok-stt-1.0",
@@ -239,6 +240,10 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
             SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .openRouter).map(\.id),
             [
                 "google/gemini-3.1-flash-tts-preview",
+                "elevenlabs/eleven-v3",
+                "elevenlabs/eleven-flash-v2.5",
+                "elevenlabs/eleven-turbo-v2.5",
+                "elevenlabs/eleven-multilingual-v2",
                 "microsoft/mai-voice-2",
                 "microsoft/mai-voice-2-flash",
                 "mistralai/voxtral-mini-tts-2603",

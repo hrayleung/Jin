@@ -74,6 +74,7 @@ enum ChatModelSelectionSupport {
         "moonshotai/Kimi-K2.6",
         "thinkingmachines/inkling",
         "thinkingmachines/inkling-small",
+        "deepseek-ai/DeepSeek-V4.1-Flash-Fast",
         "deepseek-ai/DeepSeek-V4.1-Flash",
         "deepseek-ai/DeepSeek-V4-Pro-0813",
         "deepseek-ai/DeepSeek-V4-Flash-0731",
@@ -281,7 +282,7 @@ enum ChatModelSelectionSupport {
         case .opencodeGo:
             return models.first?.id
         case .meta:
-            for preferredID in ["muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.2-contributor"] {
+            for preferredID in ["muse-wonder-1.0", "muse-spark-1.3", "muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.3-contributor", "muse-spark-1.2-contributor"] {
                 if let exact = models.first(where: { $0.id == preferredID }) {
                     return exact.id
                 }

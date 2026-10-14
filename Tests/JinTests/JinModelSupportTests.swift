@@ -1235,5 +1235,179 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertNil(ModelCatalog.entry(for: "claude-opus-5-5", provider: .vertexai))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "claude-opus-5-5"))
     }
+
+    func testOctober2026WeekTwoModelsUseExactMetadataAndSupportFlags() {
+        // 1. Gemini & Vertex AI: gemini-4-argon (seeded) and gemini-4-argon-cyber-permissive (Vertex-only, not seeded).
+        for provider in [ProviderType.gemini, .vertexai] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: provider, modelID: "gemini-4-argon"), "\(provider)")
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: provider, modelID: "gemini-4-argon-custom"), "\(provider)")
+            let argon = ModelCatalog.modelInfo(for: "gemini-4-argon", provider: provider)
+            XCTAssertEqual(argon.contextWindow, 1_048_576)
+            XCTAssertEqual(argon.maxOutputTokens, 65_536)
+            XCTAssertEqual(argon.reasoningConfig?.type, .effort)
+            XCTAssertEqual(argon.reasoningConfig?.defaultEffort, .medium)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: provider, modelID: "gemini-4-argon"),
+                [.low, .medium, .high]
+            )
+            XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: provider, modelID: "gemini-4-argon"))
+            XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: provider, modelID: "gemini-4-argon"))
+            XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: provider, modelID: "gemini-4-argon"))
+            XCTAssertTrue(JinModelSupport.supportsNativePDF(providerType: provider, modelID: "gemini-4-argon"))
+
+            let legacyArgon = ModelInfo(
+                id: "gemini-4-argon",
+                name: "gemini-4-argon",
+                capabilities: [.streaming],
+                contextWindow: 128_000,
+                isEnabled: true
+            )
+            let resolvedArgon = ModelSettingsResolver.resolve(model: legacyArgon, providerType: provider)
+            XCTAssertEqual(resolvedArgon.contextWindow, 1_048_576)
+            XCTAssertEqual(resolvedArgon.maxOutputTokens, 65_536)
+            XCTAssertEqual(resolvedArgon.reasoningConfig?.defaultEffort, .medium)
+            XCTAssertTrue(resolvedArgon.reasoningCanDisable)
+            XCTAssertTrue(resolvedArgon.supportsWebSearch)
+        }
+
+        // gemini-4-argon-cyber-permissive is Vertex-only (requires Vertex AI allowlisting).
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vertexai, modelID: "gemini-4-argon-cyber-permissive"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .gemini, modelID: "gemini-4-argon-cyber-permissive"))
+        XCTAssertFalse(ModelCatalog.seededModels(for: .vertexai).contains(where: { $0.id == "gemini-4-argon-cyber-permissive" }))
+        let cyber = ModelCatalog.modelInfo(for: "gemini-4-argon-cyber-permissive", provider: .vertexai)
+        XCTAssertEqual(cyber.contextWindow, 1_048_576)
+        XCTAssertEqual(cyber.maxOutputTokens, 65_536)
+        XCTAssertEqual(cyber.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vertexai, modelID: "gemini-4-argon-cyber-permissive"),
+            [.low, .medium, .high]
+        )
+
+        // 2. Baseten: deepseek-ai/DeepSeek-V4.1-Flash-Fast (seeded, 1M / 131K, none/high/max).
+        let basetenFastID = "deepseek-ai/DeepSeek-V4.1-Flash-Fast"
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .baseten, modelID: basetenFastID))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .baseten, modelID: "\(basetenFastID)-custom"))
+        XCTAssertTrue(ModelCatalog.seededModels(for: .baseten).contains(where: { $0.id == basetenFastID }))
+        let basetenFast = ModelCatalog.modelInfo(for: basetenFastID, provider: .baseten)
+        XCTAssertEqual(basetenFast.contextWindow, 1_048_576)
+        XCTAssertEqual(basetenFast.maxOutputTokens, 131_072)
+        XCTAssertEqual(basetenFast.reasoningConfig?.type, .effort)
+        XCTAssertEqual(basetenFast.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .baseten, modelID: basetenFastID),
+            [.none, .high, .max]
+        )
+
+        // 3. OpenCode Go: step-5-preview-free (seeded after glm-5.3) and cat-jam-free (catalog-only).
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "step-5-preview-free"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "cat-jam-free"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "step-5-preview"))
+        let goSeeded = ModelCatalog.seededModels(for: .opencodeGo)
+        XCTAssertEqual(goSeeded.first?.id, "glm-5.3")
+        XCTAssertTrue(goSeeded.contains(where: { $0.id == "step-5-preview-free" }))
+        XCTAssertFalse(goSeeded.contains(where: { $0.id == "cat-jam-free" }))
+        let stepGo = ModelCatalog.modelInfo(for: "step-5-preview-free", provider: .opencodeGo)
+        XCTAssertEqual(stepGo.contextWindow, 1_000_000)
+        XCTAssertEqual(stepGo.maxOutputTokens, 65_536)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "step-5-preview-free"),
+            [.low, .medium, .high]
+        )
+        let catJam = ModelCatalog.modelInfo(for: "cat-jam-free", provider: .opencodeGo)
+        XCTAssertEqual(catJam.contextWindow, 262_144)
+        XCTAssertEqual(catJam.maxOutputTokens, 131_072)
+        XCTAssertEqual(catJam.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "cat-jam-free"),
+            [.low, .medium, .high, .xhigh, .max]
+        )
+
+        // 4. OpenRouter: google/gemini-4-argon, meta/muse-wonder, stepfun/step-5-preview, scaledown/extract, scaledown/summarize.
+        for id in ["google/gemini-4-argon", "meta/muse-wonder", "stepfun/step-5-preview", "scaledown/extract", "scaledown/summarize"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: id), id)
+            let info = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertFalse(info.capabilities.contains(.videoInput), id)
+        }
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "google/gemini-4-argon"),
+            [.low, .medium, .high]
+        )
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: "google/gemini-4-argon"))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "meta/muse-wonder"),
+            [.minimal, .low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "meta/muse-wonder"))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "stepfun/step-5-preview"),
+            [.none, .minimal, .low, .medium, .high, .xhigh, .max]
+        )
+        let sdExtract = ModelCatalog.modelInfo(for: "scaledown/extract", provider: .openrouter)
+        XCTAssertEqual(sdExtract.contextWindow, 1_000_000)
+        XCTAssertEqual(sdExtract.maxOutputTokens, 900_000)
+        XCTAssertNil(sdExtract.reasoningConfig)
+        XCTAssertFalse(sdExtract.capabilities.contains(.toolCalling))
+
+        let sdSummarize = ModelCatalog.modelInfo(for: "scaledown/summarize", provider: .openrouter)
+        XCTAssertEqual(sdSummarize.contextWindow, 1_000_000)
+        XCTAssertEqual(sdSummarize.maxOutputTokens, 4_000)
+        XCTAssertNil(sdSummarize.reasoningConfig)
+        XCTAssertFalse(sdSummarize.capabilities.contains(.toolCalling))
+
+        // 5. Cloudflare AI Gateway: openai/gpt-6.1-sol, anthropic/claude-haiku-5.5, meta/muse-wonder-1.0, Gemini 4 Argon.
+        for id in [
+            "openai/gpt-6.1-sol",
+            "anthropic/claude-haiku-5.5",
+            "meta/muse-wonder-1.0",
+            "google-vertex-ai/google/gemini-4-argon",
+            "google-ai-studio/gemini-4-argon",
+        ] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: id), id)
+        }
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .cloudflareAIGateway, modelID: "openai/gpt-6.1-sol"),
+            [.low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .cloudflareAIGateway, modelID: "openai/gpt-6.1-sol")
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .cloudflareAIGateway, modelID: "meta/muse-wonder-1.0"),
+            [.none, .low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .cloudflareAIGateway,
+                modelID: "google-ai-studio/gemini-4-argon"
+            ),
+            [.low, .medium, .high]
+        )
+
+        // 6. Vercel AI Gateway: google/gemini-4-argon, meta/muse-wonder-1.0, callstack/apex, stealth/glyph-cluster + catalog-only entries.
+        for id in ["google/gemini-4-argon", "meta/muse-wonder-1.0", "callstack/apex", "stealth/glyph-cluster"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: id), id)
+        }
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vercelAIGateway, modelID: "google/gemini-4-argon"),
+            [.low, .medium, .high]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vercelAIGateway, modelID: "meta/muse-wonder-1.0"),
+            [.minimal, .low, .medium, .high, .xhigh]
+        )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "stealth/glyph-cluster")
+        )
+        for unsupportedID in [
+            "anthropic/claude-haiku-5.5-batch",
+            "heygen/heygen-video-1",
+            "scaledown/scaledown-classify-1",
+            "microsoft/microsoft-decision-1",
+        ] {
+            XCTAssertNotNil(ModelCatalog.entry(for: unsupportedID, provider: .vercelAIGateway), unsupportedID)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: unsupportedID), unsupportedID)
+        }
+    }
 }
+
 

@@ -1097,6 +1097,63 @@ extension ModelCatalog {
         // released 2026-10-01) are deliberately omitted: they are decision
         // models — they take state + typed questions and return probabilities,
         // not chat completions — so there is no compatible send path to claim.
+        // --- Cloudflare AI Gateway additions, 2026-10-08..2026-10-13 ---
+        // GPT-6.1 Sol (Cloudflare catalog, added 2026-10-12): 1,050,000 / 128,000,
+        // text+image input, always-on reasoning (`none` rejected on OpenAI 6.1 Sol),
+        // effort low..max, default medium.
+        Record(id: "openai/gpt-6.1-sol", displayName: "GPT-6.1 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Claude Haiku 5.5 (Cloudflare catalog, added 2026-10-08): dotted slug
+        // `anthropic/claude-haiku-5.5`, 1,000,000 / 128,000, text+image input,
+        // adaptive thinking that can be disabled at high or below, effort low..max,
+        // default medium. `.nativePDF` stays off on this gateway.
+        Record(id: "anthropic/claude-haiku-5.5", displayName: "Claude Haiku 5.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Meta Muse Wonder 1.0 (Cloudflare catalog, added 2026-10-08):
+        // `meta/muse-wonder-1.0`, 1,048,576 / 131,072, text+image input,
+        // configurable reasoning effort (none/low/medium/high/xhigh/max on the
+        // Cloudflare Chat Completions schema), default medium.
+        Record(id: "meta/muse-wonder-1.0", displayName: "Muse Wonder",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.none, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Gemini 4 Argon (Cloudflare catalog, added 2026-10-08): published under
+        // both Vertex (`google-vertex-ai/google/gemini-4-argon`) and AI Studio
+        // (`google-ai-studio/gemini-4-argon`) compound paths. 1,048,576 / 65,536,
+        // text+image input on Cloudflare's Chat Completions card, configurable
+        // reasoning effort low/medium/high (default medium).
+        Record(id: "google-vertex-ai/google/gemini-4-argon", displayName: "Gemini 4 Argon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "google-ai-studio/gemini-4-argon", displayName: "Gemini 4 Argon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: Vercel AI Gateway
@@ -1960,6 +2017,81 @@ extension ModelCatalog {
         Record(id: "microsoft/mai-voice-2.1-flash", displayName: "MAI Voice 2.1 Flash",
                capabilities: [.audio],
                contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+
+        // --- Vercel AI Gateway models table additions, fetched 2026-10-14 ---
+        // Google Gemini 4 Argon (released 2026-10-08): 1,048,576 / 65,536,
+        // text+image input, tags file-input + implicit-caching + reasoning +
+        // structured-output + tool-use + vision + web-search. Effort
+        // low/medium/high, default medium.
+        Record(id: "google/gemini-4-argon", displayName: "Gemini 4 Argon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Meta Muse Wonder 1.0 (released 2026-10-08): 1,048,576 / 131,072,
+        // text+image input, tags file-input + implicit-caching + reasoning +
+        // structured-output + tool-use + vision. models.dev `vercel` publishes
+        // effort minimal/low/medium/high/xhigh, default medium.
+        Record(id: "meta/muse-wonder-1.0", displayName: "Muse Wonder 1.0",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.minimal, .low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        // Callstack Apex (released 2026-10-13): 262,144 / 131,072, text+image
+        // input, tags implicit-caching + reasoning + structured-output +
+        // tool-use + vision. models.dev `vercel` publishes effort
+        // none/low/medium/xhigh, default medium.
+        Record(id: "callstack/apex", displayName: "Callstack Apex",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.none, .low, .medium, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        // Stealth Glyph Cluster (released 2026-10-13): 256,000 / 256,000,
+        // text-only input, tags implicit-caching + reasoning + structured-output +
+        // tool-use. Effort low/medium/high/xhigh, default medium.
+        Record(id: "stealth/glyph-cluster", displayName: "Glyph Cluster",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 256_000,
+               maxOutputTokens: 256_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        // Catalog-only (blocked-adapter):
+        // - `anthropic/claude-haiku-5.5-batch` is batch-only (tags: ["batch"]).
+        // - `heygen/heygen-video-1` is video generation (`type: "video"`).
+        // - `scaledown/scaledown-classify-1` and `microsoft/microsoft-decision-1`
+        //   are evaluation/decision endpoints (`type: "evaluation"`).
+        Record(id: "anthropic/claude-haiku-5.5-batch", displayName: "Claude Haiku 5.5 (Batch)",
+               capabilities: [],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "heygen/heygen-video-1", displayName: "HeyGen Video 1",
+               capabilities: [.videoGeneration],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "scaledown/scaledown-classify-1", displayName: "ScaleDown Classify 1",
+               capabilities: [],
+               contextWindow: 1_000_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "microsoft/microsoft-decision-1", displayName: "Microsoft Decision 1",
+               capabilities: [],
+               contextWindow: 128_000,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
     ]
