@@ -9,6 +9,8 @@ struct VertexAIModelSupport {
     }
 
     let knownModels: [(id: String, name: String, contextWindow: Int)] = [
+        ("gemini-4-argon", "Gemini 4 Argon", 1_048_576),
+        ("gemini-4-argon-cyber-permissive", "Gemini 4 Argon Cyber Permissive", 1_048_576),
         ("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview", 1_048_576),
         ("gemini-3-flash-preview", "Gemini 3 Flash Preview", 1_048_576),
         ("gemini-3.8-flash", "Gemini 3.8 Flash", 1_048_576),
@@ -143,10 +145,11 @@ struct VertexAIModelSupport {
     }
 
     /// Whether the model accepts a numeric `thinkingBudget` inside `thinkingConfig`.
-    /// Flash Image models accept `thinkingLevel` only.
+    /// Flash Image models and Gemini 4 Argon accept `thinkingLevel` only (`thinkingBudget` returns 400).
     func supportsThinkingBudget(_ modelID: String) -> Bool {
         supportsThinkingConfig(modelID)
             && !GeminiModelConstants.isFlashImageGenerationModel(modelID)
+            && !GeminiModelConstants.isGemini4Model(modelID)
     }
 
     func supportsNativePDF(_ modelID: String) -> Bool {
@@ -234,6 +237,20 @@ struct VertexAIModelSupport {
 
         if GeminiModelConstants.gemini25TextModelIDs.contains(lower) {
             return ModelReasoningConfig(type: .budget, defaultBudget: 2048)
+        }
+        if lower == "gemini-4-argon" {
+            return ModelReasoningConfig(
+                type: .effort,
+                defaultEffort: .medium,
+                supportedEfforts: [.low, .medium, .high]
+            )
+        }
+        if lower == "gemini-4-argon-cyber-permissive" {
+            return ModelReasoningConfig(
+                type: .effort,
+                defaultEffort: .high,
+                supportedEfforts: [.low, .medium, .high]
+            )
         }
         if lower == "gemini-nano-banana-2.1" {
             return ModelReasoningConfig(

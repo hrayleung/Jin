@@ -238,4 +238,53 @@ final class VertexAIModelSupportTests: XCTestCase {
         XCTAssertTrue(support.supportsNativePDF("gemini-3.1-flash-lite"))
         XCTAssertTrue(support.supportsGoogleMaps("gemini-3.1-flash-lite"))
     }
+
+    func testGemini4ArgonModelsAreKnownAndConfiguredForVertexAI() {
+        let support = VertexAIModelSupport()
+
+        for id in ["gemini-4-argon", "gemini-4-argon-cyber-permissive"] {
+            XCTAssertTrue(support.knownModels.contains { $0.id == id }, id)
+            XCTAssertFalse(support.supportsImageGeneration(id), id)
+            XCTAssertTrue(support.supportsFunctionCalling(id), id)
+            XCTAssertTrue(support.supportsThinking(id), id)
+            XCTAssertTrue(support.supportsThinkingConfig(id), id)
+            XCTAssertTrue(support.supportsThinkingLevel(id), id)
+            XCTAssertFalse(support.supportsThinkingBudget(id), id)
+            XCTAssertTrue(support.supportsNativePDF(id), id)
+            XCTAssertTrue(support.supportsCodeExecution(id), id)
+            XCTAssertFalse(support.supportsGoogleMaps(id), id)
+            XCTAssertFalse(GeminiModelConstants.supportsCustomSamplingParameters(id), id)
+            XCTAssertEqual(support.mapEffortToVertexLevel(.minimal, modelID: id), "LOW", id)
+            XCTAssertEqual(support.mapEffortToVertexLevel(.low, modelID: id), "LOW", id)
+            XCTAssertEqual(support.mapEffortToVertexLevel(.medium, modelID: id), "MEDIUM", id)
+            XCTAssertEqual(support.mapEffortToVertexLevel(.high, modelID: id), "HIGH", id)
+            XCTAssertEqual(support.mapEffortToVertexLevel(.xhigh, modelID: id), "HIGH", id)
+            XCTAssertEqual(support.mapEffortToVertexLevel(.max, modelID: id), "HIGH", id)
+        }
+
+        let argon = support.makeModelInfo(
+            id: "gemini-4-argon",
+            displayName: "Gemini 4 Argon",
+            contextWindow: 1_048_576
+        )
+        XCTAssertEqual(argon.reasoningConfig?.type, .effort)
+        XCTAssertEqual(argon.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertTrue(argon.capabilities.contains(.streaming))
+        XCTAssertTrue(argon.capabilities.contains(.toolCalling))
+        XCTAssertTrue(argon.capabilities.contains(.vision))
+        XCTAssertTrue(argon.capabilities.contains(.audio))
+        XCTAssertTrue(argon.capabilities.contains(.reasoning))
+        XCTAssertTrue(argon.capabilities.contains(.promptCaching))
+        XCTAssertTrue(argon.capabilities.contains(.nativePDF))
+        XCTAssertTrue(argon.capabilities.contains(.codeExecution))
+
+        let cyberPermissive = support.makeModelInfo(
+            id: "gemini-4-argon-cyber-permissive",
+            displayName: "Gemini 4 Argon Cyber Permissive",
+            contextWindow: 1_048_576
+        )
+        XCTAssertEqual(cyberPermissive.reasoningConfig?.type, .effort)
+        XCTAssertEqual(cyberPermissive.reasoningConfig?.defaultEffort, .high)
+    }
 }
+

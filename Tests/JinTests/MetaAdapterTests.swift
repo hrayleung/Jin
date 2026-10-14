@@ -68,10 +68,10 @@ final class MetaAdapterTests: XCTestCase {
         let seeded = ModelCatalog.seededModels(for: .meta)
         XCTAssertEqual(
             seeded.map(\.id),
-            ["muse-spark-1.3", "muse-spark-1.3-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.2-contributor"]
+            ["muse-wonder-1.0", "muse-spark-1.3", "muse-spark-1.3-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.2-contributor"]
         )
 
-        for id in ["muse-spark-1.3", "muse-spark-1.3-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.2-contributor"] {
+        for id in ["muse-wonder-1.0", "muse-spark-1.3", "muse-spark-1.3-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.2-contributor"] {
             let model = ModelCatalog.modelInfo(for: id, provider: .meta)
             XCTAssertEqual(model.contextWindow, 1_048_576, id)
             XCTAssertEqual(model.maxOutputTokens, 131_072, id)
@@ -87,6 +87,7 @@ final class MetaAdapterTests: XCTestCase {
             XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .meta, modelID: id), id)
         }
 
+        XCTAssertEqual(ModelCatalog.modelInfo(for: "muse-wonder-1.0", provider: .meta).name, "Muse Wonder")
         XCTAssertEqual(ModelCatalog.modelInfo(for: "muse-spark-1.3", provider: .meta).name, "Muse Spark 1.3")
         XCTAssertEqual(
             ModelCatalog.modelInfo(for: "muse-spark-1.3-contributor", provider: .meta).name,
@@ -102,6 +103,7 @@ final class MetaAdapterTests: XCTestCase {
 
     func testGatewayCatalogsIncludeMuseSparkSeries() {
         let vercelIDs = [
+            "meta/muse-wonder-1.0",
             "meta/muse-spark-1.3", "meta/muse-spark-1.3-contributor",
             "meta/muse-spark-1.2", "meta/muse-spark-1.1", "meta/muse-spark-1.2-contributor"
         ]
@@ -112,7 +114,7 @@ final class MetaAdapterTests: XCTestCase {
             XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: id), id)
         }
 
-        for id in ["meta/muse-spark-1.3", "meta/muse-spark-1.2", "meta/muse-spark-1.1"] {
+        for id in ["meta/muse-wonder", "meta/muse-spark-1.3", "meta/muse-spark-1.2", "meta/muse-spark-1.1"] {
             let model = ModelCatalog.modelInfo(for: id, provider: .openrouter)
             XCTAssertEqual(model.contextWindow, 1_048_576, id)
             XCTAssertTrue(model.capabilities.contains(.reasoning), id)
@@ -127,26 +129,43 @@ final class MetaAdapterTests: XCTestCase {
         XCTAssertTrue(ProviderType.meta.supportsNativePDFUpload)
     }
 
-    func testMetaEffortMenuIsMinimalThroughXHigh() {
+    func testMetaEffortMenuSupportsMaxOnMuseWonderAndSpark13AndClampsLegacyModelsToXHigh() {
         XCTAssertEqual(
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .meta, modelID: "muse-spark-1.2"),
             [.minimal, .low, .medium, .high, .xhigh]
         )
         XCTAssertEqual(
-            ModelCapabilityRegistry.supportedReasoningEfforts(for: .meta, modelID: "muse-spark-1.3"),
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .meta, modelID: "muse-spark-1.3-contributor"),
             [.minimal, .low, .medium, .high, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .meta, modelID: "muse-spark-1.3"),
+            [.minimal, .low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .meta, modelID: "muse-wonder-1.0"),
+            [.minimal, .low, .medium, .high, .xhigh, .max]
         )
     }
 
     func testMuseSparkReasoningCannotBeDisabled() {
-        for id in ["muse-spark-1.3", "muse-spark-1.3-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.2-contributor"] {
+        for id in ["muse-wonder-1.0", "muse-spark-1.3", "muse-spark-1.3-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.2-contributor"] {
             XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .meta, modelID: id), id)
         }
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "meta/muse-wonder")
+        )
         XCTAssertFalse(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "meta/muse-spark-1.2")
         )
         XCTAssertFalse(
             ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "meta/muse-spark-1.3")
+        )
+        XCTAssertFalse(
+            ModelSettingsResolver.defaultReasoningCanDisable(
+                for: .vercelAIGateway,
+                modelID: "meta/muse-wonder-1.0"
+            )
         )
         XCTAssertFalse(
             ModelSettingsResolver.defaultReasoningCanDisable(
@@ -163,6 +182,7 @@ final class MetaAdapterTests: XCTestCase {
     }
 
     func testMetaWebSearchSupportedForMuseSpark() {
+        XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .meta, modelID: "muse-wonder-1.0"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .meta, modelID: "muse-spark-1.2"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .meta, modelID: "muse-spark-1.3"))
         XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: .meta, modelID: "muse-spark-1.1"))

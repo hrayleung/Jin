@@ -99,6 +99,19 @@ extension ModelCatalog {
     // whenever a media-generation control is active, so the claim would be dead weight.
     static let geminiRecords: [Record] = [
         // Seeded — live stable / current preview IDs only
+        // Gemini 4 Argon (GA 2026-10-08, ai.google.dev/gemini-api/docs/models/gemini-4-argon):
+        // 1,048,576 input / 65,536 output; text/image/video/audio/PDF input;
+        // thinkingLevel low/medium/high (default medium; thinkingBudget is NOT
+        // supported and returns HTTP 400); custom temperature/topP are NOT
+        // supported (omitted by GeminiModelConstants.customSamplingUnsupportedModelIDs).
+        Record(id: "gemini-4-argon", displayName: "Gemini 4 Argon",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: true),
         Record(id: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro (Preview)",
                capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
@@ -308,6 +321,33 @@ extension ModelCatalog {
         // `gemini-3.8-live` (GA 2026-09-24, chat completions / Interactions
         // "Not supported").
         // Seeded — live stable / current preview IDs only
+        // Gemini 4 Argon (GA 2026-10-08, docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/4-argon):
+        // 1,048,576 input / 65,536 output; text/image/video/audio/PDF input;
+        // thinkingLevel low/medium/high (default medium; thinkingBudget is NOT
+        // supported and returns HTTP 400).
+        Record(id: "gemini-4-argon", displayName: "Gemini 4 Argon",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: true),
+        // Gemini 4 Argon Cyber Permissive (GA 2026-10-08, Vertex-only allowlisted
+        // model: docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/4-argon-cyber-permissive):
+        // Same 1,048,576 / 65,536 envelope, multimodal inputs, and tool support
+        // (Google Search, Code execution, Function calling, URL context) as
+        // gemini-4-argon, with default thinkingLevel HIGH (low/medium/high).
+        // Vertex-only ID — do not mirror into geminiRecords; isSeeded stays false
+        // because the model is allowlist-gated upstream.
+        Record(id: "gemini-4-argon-cyber-permissive", displayName: "Gemini 4 Argon Cyber Permissive",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
         Record(id: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro (Preview)",
                capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
                contextWindow: 1_048_576,
@@ -2004,6 +2044,55 @@ extension ModelCatalog {
         Record(id: "heygen/heygen-video-1", displayName: "HeyGen: HeyGen Video 1",
                capabilities: [.videoGeneration],
                contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // --- OpenRouter additions, 2026-10-08..2026-10-13 ---
+        // Google: Gemini 4 Argon (created 2026-10-08): 1,048,576 / 65,536,
+        // text+image+audio+file+video→text, tools, reasoning (low/medium/high),
+        // cache read/write pricing. `.videoInput` is withheld unless live-probed
+        // on OpenRouter (`openRouterVideoInputVerifiedModelIDs`).
+        Record(id: "google/gemini-4-argon", displayName: "Google: Gemini 4 Argon",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Meta: Muse Wonder (created 2026-10-08): 1,048,576 / 943,718 on OpenRouter,
+        // text+image+audio+file+video→text, tools, reasoning, cache read pricing.
+        Record(id: "meta/muse-wonder", displayName: "Meta: Muse Wonder",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // StepFun: Step 5 Preview (created 2026-10-12): 1,000,000 / 64,000,
+        // text+image→text, tools, reasoning, cache read pricing.
+        Record(id: "stepfun/step-5-preview", displayName: "StepFun: Step 5 Preview",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 64_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.none, .minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // ScaleDown: Extract (created 2026-10-13): 1,000,000 / 900,000,
+        // text+image+file→text, structured outputs, no tool calling or reasoning.
+        Record(id: "scaledown/extract", displayName: "ScaleDown: Extract",
+               capabilities: [.streaming, .vision],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 900_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // ScaleDown: Summarize (created 2026-10-13): 1,000,000 / 4,000,
+        // text+image+file→text, structured outputs, no tool calling or reasoning.
+        Record(id: "scaledown/summarize", displayName: "ScaleDown: Summarize",
+               capabilities: [.streaming, .vision],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 4_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
     ]

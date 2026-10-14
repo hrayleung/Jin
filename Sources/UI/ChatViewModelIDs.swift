@@ -55,6 +55,8 @@ extension ChatView {
     ]
 
     static let geminiAudioInputModelIDs: Set<String> = [
+        "gemini-4-argon",
+        "gemini-4-argon-cyber-permissive",
         "gemini-3",
         "gemini-3-pro",
         "gemini-3-pro-preview",
@@ -107,6 +109,7 @@ extension ChatView {
     ]
 
     static let geminiPreferredModelOrder: [String] = [
+        "gemini-4-argon",
         "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
         "gemini-3-pro",

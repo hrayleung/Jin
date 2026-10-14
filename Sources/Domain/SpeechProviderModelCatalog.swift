@@ -188,6 +188,10 @@ enum SpeechProviderModelCatalog {
         case .openRouter:
             return [
                 SpeechProviderModelChoice(id: defaultOpenRouterTextToSpeechModelID, name: "Google Gemini 3.1 Flash TTS Preview"),
+                SpeechProviderModelChoice(id: "elevenlabs/eleven-v3", name: "ElevenLabs Eleven v3"),
+                SpeechProviderModelChoice(id: "elevenlabs/eleven-flash-v2.5", name: "ElevenLabs Eleven Flash v2.5"),
+                SpeechProviderModelChoice(id: "elevenlabs/eleven-turbo-v2.5", name: "ElevenLabs Eleven Turbo v2.5"),
+                SpeechProviderModelChoice(id: "elevenlabs/eleven-multilingual-v2", name: "ElevenLabs Eleven Multilingual v2"),
                 SpeechProviderModelChoice(id: "microsoft/mai-voice-2", name: "Microsoft MAI-Voice-2"),
                 SpeechProviderModelChoice(id: "microsoft/mai-voice-2-flash", name: "Microsoft MAI-Voice-2 Flash"),
                 SpeechProviderModelChoice(id: "mistralai/voxtral-mini-tts-2603", name: "Mistral Voxtral Mini TTS"),
@@ -240,6 +244,7 @@ enum SpeechProviderModelCatalog {
         case .openRouter:
             return [
                 SpeechProviderModelChoice(id: defaultOpenRouterSpeechToTextModelID, name: "OpenAI GPT Transcribe"),
+                SpeechProviderModelChoice(id: "elevenlabs/scribe-v2", name: "ElevenLabs Scribe v2"),
                 SpeechProviderModelChoice(id: "openai/whisper-large-v3-turbo", name: "OpenAI Whisper Large v3 Turbo"),
                 SpeechProviderModelChoice(id: "openai/whisper-large-v3", name: "OpenAI Whisper Large v3"),
                 SpeechProviderModelChoice(id: "x-ai/grok-stt-1.0", name: "Grok STT 1.0"),

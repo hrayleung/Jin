@@ -321,8 +321,15 @@ final class AnthropicHaiku55SupportTests: XCTestCase {
             [.none, .minimal, .low, .medium, .high, .xhigh]
         )
 
+        let cloudflare = ModelCatalog.modelInfo(for: "anthropic/claude-haiku-5.5", provider: .cloudflareAIGateway)
+        XCTAssertEqual(cloudflare.contextWindow, 1_000_000)
+        XCTAssertEqual(cloudflare.maxOutputTokens, 128_000)
+        XCTAssertEqual(cloudflare.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertEqual(cloudflare.reasoningConfig?.supportedEfforts, lowToMax)
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "anthropic/claude-haiku-5.5", provider: .cloudflareAIGateway))
+        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "anthropic/claude-haiku-5-5", provider: .cloudflareAIGateway))
+
         XCTAssertNil(ModelCatalog.entry(for: "claude-haiku-5-5", provider: .vertexai))
-        XCTAssertNil(ModelCatalog.entry(for: "anthropic/claude-haiku-5.5", provider: .cloudflareAIGateway))
         XCTAssertNil(ModelCatalog.entry(for: "anthropic/claude-haiku-5-5", provider: .deepinfra))
         XCTAssertNil(ModelCatalog.entry(for: "claude-haiku-5-5", provider: .githubCopilot))
     }

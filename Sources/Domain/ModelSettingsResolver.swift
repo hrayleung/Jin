@@ -406,6 +406,9 @@ enum ModelSettingsResolver {
         // Unbiased Pareto 26.10 Preview (2026-10-01) serves the same upstream
         // model with the same low…max band.
         "unbiased/pareto-26.10-preview",
+        // Meta Muse Wonder (2026-10-08): minimal…max band with no `none`;
+        // Muse family rejects disabled reasoning upstream.
+        "meta/muse-wonder",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /
@@ -418,6 +421,7 @@ enum ModelSettingsResolver {
         "spacexai/grok-4.7",
         "xai/grok-4.6",
         "xai/grok-4.5",
+        "meta/muse-wonder-1.0",
         "meta/muse-spark-1.1",
         "meta/muse-spark-1.2",
         "meta/muse-spark-1.2-contributor",
@@ -444,6 +448,9 @@ enum ModelSettingsResolver {
         // GPT-6.1 Sol (2026-09-29) publishes effort low…max only — no `none`/
         // `minimal` — so an Off choice would 400 upstream.
         "openai/gpt-6.1-sol",
+        // Glyph Cluster (2026-10-13) publishes effort low…xhigh only (no `none`,
+        // no toggle on models.dev `vercel`).
+        "stealth/glyph-cluster",
     ]
 
     /// Cloudflare AI Gateway IDs whose reasoning cannot be disabled. Exact-ID only,
@@ -457,6 +464,8 @@ enum ModelSettingsResolver {
         // Sonnet 5.5 (listed on the gateway 2026-10): adaptive-only thinking
         // upstream — `disabled` 400s, so Off is never offered on this copy either.
         "anthropic/claude-sonnet-5.5",
+        // GPT-6.1 Sol (listed on the gateway 2026-10-12): low…max only, no `none`.
+        "openai/gpt-6.1-sol",
     ]
 
     /// Databricks foundation models where reasoning cannot be disabled.

@@ -164,7 +164,7 @@ func isAudioInputModelID(_ lowerModelID: String) -> Bool {
         return true
     }
 
-    if (lowerModelID.contains("gemini-2.5") || lowerModelID.contains("gemini-3") || lowerModelID.contains("gemini-2.0"))
+    if (lowerModelID.contains("gemini-2.5") || lowerModelID.contains("gemini-3") || lowerModelID.contains("gemini-4") || lowerModelID.contains("gemini-2.0"))
         && !lowerModelID.contains("-image")
         && !lowerModelID.contains("imagen") {
         return true

@@ -80,8 +80,11 @@ enum MetaResponsesRequestSupport {
         }
     }
 
-    /// Nested `reasoning.effort` on Responses. Always-on Muse Spark: omit entirely
-    /// when disabled/none (sending `"none"` returns HTTP 400). Map `.max` → `xhigh`.
+    /// Nested `reasoning.effort` on Responses. Always-on Muse family: omit entirely
+    /// when disabled/none (sending `"none"` returns HTTP 400). Models that do not
+    /// accept `max` (1.1/1.2 and Contributor tiers) are already clamped to `.xhigh`
+    /// by `normalizedReasoningEffort`; `muse-wonder-1.0` and `muse-spark-1.3` pass
+    /// `.max` through as `"max"` (dev.meta.ai/docs/reasoning).
     static func applyReasoningConfig(
         to body: inout [String: Any],
         controls: GenerationControls,
@@ -108,8 +111,10 @@ enum MetaResponsesRequestSupport {
             wire = "medium"
         case .high:
             wire = "high"
-        case .xhigh, .max:
+        case .xhigh:
             wire = "xhigh"
+        case .max:
+            wire = "max"
         }
 
         if let wire {
