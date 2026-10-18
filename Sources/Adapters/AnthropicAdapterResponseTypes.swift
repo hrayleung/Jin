@@ -9,6 +9,30 @@ struct AnthropicStreamEvent: Decodable {
     let contentBlock: ContentBlock?
     let delta: Delta?
     let usage: UsageInfo?
+    /// Present on `error` events.
+    let error: ErrorInfo?
+
+    struct ErrorInfo: Decodable {
+        let type: String?
+        let message: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case type
+            case message
+        }
+
+        /// Lenient: Anthropic-compatible gateways sometimes send `"error": "<text>"`, and a
+        /// shape mismatch here must not make the whole event undecodable.
+        init(from decoder: Decoder) throws {
+            if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+                type = try? container.decodeIfPresent(String.self, forKey: .type)
+                message = try? container.decodeIfPresent(String.self, forKey: .message)
+            } else {
+                type = nil
+                message = try? decoder.singleValueContainer().decode(String.self)
+            }
+        }
+    }
 
     struct MessageInfo: Decodable {
         let id: String
@@ -149,6 +173,24 @@ struct AnthropicUsageAccumulator {
     var inferenceGeo: String?
     var speed: String?
 
+    /// Counts from earlier responses of the same turn. A `pause_turn` continuation is a separate
+    /// request, and the API's counts are cumulative only within one response.
+    private var earlierInputTokens: Int?
+    private var earlierOutputTokens: Int?
+    private var earlierCacheCreationInputTokens: Int?
+    private var earlierCacheReadInputTokens: Int?
+
+    mutating func beginNextResponse() {
+        earlierInputTokens = Self.sum(earlierInputTokens, inputTokens)
+        earlierOutputTokens = Self.sum(earlierOutputTokens, outputTokens)
+        earlierCacheCreationInputTokens = Self.sum(earlierCacheCreationInputTokens, cacheCreationInputTokens)
+        earlierCacheReadInputTokens = Self.sum(earlierCacheReadInputTokens, cacheReadInputTokens)
+        inputTokens = nil
+        outputTokens = nil
+        cacheCreationInputTokens = nil
+        cacheReadInputTokens = nil
+    }
+
     mutating func merge(_ usage: AnthropicStreamEvent.UsageInfo?) {
         guard let usage else { return }
         if let inputTokens = usage.inputTokens {
@@ -175,6 +217,11 @@ struct AnthropicUsageAccumulator {
     }
 
     func toUsage() -> Usage? {
+        let inputTokens = Self.sum(earlierInputTokens, inputTokens)
+        let outputTokens = Self.sum(earlierOutputTokens, outputTokens)
+        let cacheCreationInputTokens = Self.sum(earlierCacheCreationInputTokens, cacheCreationInputTokens)
+        let cacheReadInputTokens = Self.sum(earlierCacheReadInputTokens, cacheReadInputTokens)
+
         guard inputTokens != nil
                 || outputTokens != nil
                 || cacheReadInputTokens != nil
@@ -191,6 +238,11 @@ struct AnthropicUsageAccumulator {
             serviceTier: serviceTier,
             inferenceGeo: inferenceGeo
         )
+    }
+
+    private static func sum(_ lhs: Int?, _ rhs: Int?) -> Int? {
+        guard lhs != nil || rhs != nil else { return nil }
+        return (lhs ?? 0) + (rhs ?? 0)
     }
 }
 

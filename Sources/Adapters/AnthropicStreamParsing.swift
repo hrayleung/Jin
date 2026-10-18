@@ -12,6 +12,9 @@ extension AnthropicAdapter {
 
     // MARK: - SSE Event Parsing
 
+    /// `blockIndexOffset` is the number of content blocks earlier `pause_turn` responses of the
+    /// same turn already produced. A resumed response numbers its blocks from 0 again; offsetting
+    /// keeps activity ordering and index-derived IDs unique across the whole turn.
     func parseJSONLine(
         _ line: String,
         currentMessageID: inout String?,
@@ -22,7 +25,8 @@ extension AnthropicAdapter {
         currentCodeExecutionCode: inout String,
         currentContentBlockType: inout String?,
         currentThinkingSignature: inout String?,
-        usageAccumulator: inout AnthropicUsageAccumulator
+        usageAccumulator: inout AnthropicUsageAccumulator,
+        blockIndexOffset: Int = 0
     ) throws -> StreamEvent? {
         guard let data = line.data(using: .utf8) else {
             return nil
@@ -39,7 +43,8 @@ extension AnthropicAdapter {
             }
 
         case "content_block_start":
-            if let index = event.index, let contentBlock = event.contentBlock {
+            if let rawIndex = event.index, let contentBlock = event.contentBlock {
+                let index = rawIndex + blockIndexOffset
                 currentBlockIndex = index
                 currentContentBlockType = contentBlock.type
 
@@ -212,6 +217,14 @@ extension AnthropicAdapter {
 
         case "message_stop":
             return .messageEnd(usage: usageAccumulator.toUsage())
+
+        case "error":
+            // Mid-stream failures (e.g. `overloaded_error`) arrive as an SSE event on an HTTP 200
+            // response. Ignoring them ended the reply silently, mid-thought.
+            return .error(.providerError(
+                code: event.error?.type?.trimmedNonEmpty ?? "error",
+                message: event.error?.message?.trimmedNonEmpty ?? "The stream ended with an error event."
+            ))
 
         default:
             break
