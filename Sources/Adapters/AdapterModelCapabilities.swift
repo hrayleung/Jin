@@ -236,9 +236,9 @@ func isFireworksGLM53Model(_ modelID: String) -> Bool {
     return canonical == "glm-5p3" || canonical == "glm-5p3-fast" || canonical == "glm-5p3-flash"
 }
 
-/// Fireworks DeepSeek V4 GA snapshots (`0813`, `flash-0731`). Enabled turns send
-/// top-level `reasoning_effort` low/high/max (no `thinking` object). Disabled
-/// turns use the official DeepSeek `thinking: {type: disabled}` envelope — not
+/// Fireworks DeepSeek V4 GA snapshots (`0813`, `flash-0731`, `v4p1-flash`, `v4p1-flash-1017`).
+/// Enabled turns send top-level `reasoning_effort` low/high/max (no `thinking` object).
+/// Disabled turns use the official DeepSeek `thinking: {type: disabled}` envelope — not
 /// `reasoning_effort: none`, which is outside the GA band.
 func isFireworksDeepSeekV4GAModel(_ modelID: String) -> Bool {
     let lower = modelID.lowercased()
@@ -247,6 +247,8 @@ func isFireworksDeepSeekV4GAModel(_ modelID: String) -> Bool {
         || lower == "fireworks/deepseek-v4-flash-0731"
         || lower == "accounts/fireworks/models/deepseek-v4p1-flash"
         || lower == "fireworks/deepseek-v4p1-flash"
+        || lower == "accounts/fireworks/models/deepseek-v4p1-flash-1017"
+        || lower == "fireworks/deepseek-v4p1-flash-1017"
         || lower == "accounts/fireworks/routers/deepseek-flash-latest"
         || lower == "fireworks/deepseek-flash-latest" {
         return true
@@ -255,7 +257,20 @@ func isFireworksDeepSeekV4GAModel(_ modelID: String) -> Bool {
     return canonical == "deepseek-v4-pro-0813"
         || canonical == "deepseek-v4-flash-0731"
         || canonical == "deepseek-v4p1-flash"
+        || canonical == "deepseek-v4p1-flash-1017"
         || canonical == "deepseek-flash-latest"
+}
+
+/// Fireworks Muse Spark Open (`accounts/fireworks/models/muse-spark-open`, `fireworks/muse-spark-open`).
+/// Always-on reasoning with `low|medium|high|xhigh` (default `xhigh`); disabled/none maps to `"low"`.
+func isFireworksMuseSparkOpenModel(_ modelID: String) -> Bool {
+    let lower = modelID.lowercased()
+    if lower == "accounts/fireworks/models/muse-spark-open"
+        || lower == "fireworks/muse-spark-open" {
+        return true
+    }
+    guard let canonical = fireworksCanonicalModelID(lower) else { return false }
+    return canonical == "muse-spark-open"
 }
 
 // MARK: - OpenAI Responses API Supported File MIME Types

@@ -11,7 +11,7 @@ final class BasetenProviderIntegrationTests: XCTestCase {
 
     func testSeededModelsMatchOfficialCatalog() {
         let seeded = ModelCatalog.seededModels(for: .baseten)
-        XCTAssertEqual(seeded.count, 21)
+        XCTAssertEqual(seeded.count, 24)
         XCTAssertEqual(seeded.first?.id, "moonshotai/Kimi-K3")
 
         let expectedIDs = [
@@ -25,6 +25,9 @@ final class BasetenProviderIntegrationTests: XCTestCase {
             "deepseek-ai/DeepSeek-V4-Flash-0731",
             "deepseek-ai/DeepSeek-V4.1-Flash",
             "deepseek-ai/DeepSeek-V4.1-Flash-Fast",
+            "reflection/Beam-1.0",
+            "meta-models/muse-spark-open",
+            "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B",
             "zai-org/GLM-5.3-Flash",
             "zai-org/GLM-5.3",
             "zai-org/GLM-5.3-Fast",
@@ -123,7 +126,7 @@ final class BasetenProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(config.type, .baseten)
         XCTAssertEqual(config.baseURL, "https://inference.baseten.co/v1")
         XCTAssertEqual(config.models.first?.id, "moonshotai/Kimi-K3")
-        XCTAssertEqual(config.models.count, 21)
+        XCTAssertEqual(config.models.count, 24)
 
         let adapter = BasetenAdapter(providerConfig: config, apiKey: "test-key")
         let baseURL = await adapter.baseURL
@@ -527,6 +530,110 @@ final class BasetenProviderIntegrationTests: XCTestCase {
                 modelID: "thinkingmachines/inkling-small"
             )
         )
+    }
+
+    func testOctober2026BasetenModelsAndVisionCorrection() async throws {
+        let adapter = BasetenAdapter(providerConfig: DefaultProviderSeeds.baseten, apiKey: "test-key")
+
+        let beam = ModelCatalog.modelInfo(for: "reflection/Beam-1.0", provider: .baseten)
+        XCTAssertEqual(beam.name, "Beam")
+        XCTAssertEqual(beam.contextWindow, 1_048_576)
+        XCTAssertEqual(beam.maxOutputTokens, 131_072)
+        XCTAssertFalse(beam.capabilities.contains(.vision))
+        XCTAssertTrue(beam.capabilities.contains(.reasoning))
+        XCTAssertEqual(beam.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .baseten, modelID: "reflection/Beam-1.0"),
+            [.minimal, .low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .baseten, modelID: "reflection/Beam-1.0"))
+
+        let beamRequest = try await adapter.buildRequest(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "reflection/Beam-1.0",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        let beamJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: try XCTUnwrap(basetenRequestBodyData(beamRequest))) as? [String: Any]
+        )
+        XCTAssertEqual(beamJSON["reasoning_effort"] as? String, "minimal")
+        XCTAssertNil(beamJSON["chat_template_args"])
+
+        let muse = ModelCatalog.modelInfo(for: "meta-models/muse-spark-open", provider: .baseten)
+        XCTAssertEqual(muse.name, "Muse Spark Open")
+        XCTAssertEqual(muse.contextWindow, 1_048_576)
+        XCTAssertEqual(muse.maxOutputTokens, 1_048_576)
+        XCTAssertTrue(muse.capabilities.contains(.vision))
+        XCTAssertTrue(muse.capabilities.contains(.reasoning))
+        XCTAssertEqual(muse.reasoningConfig?.defaultEffort, .xhigh)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .baseten, modelID: "meta-models/muse-spark-open"),
+            [.low, .medium, .high, .xhigh]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .baseten, modelID: "meta-models/muse-spark-open"))
+
+        let museRequest = try await adapter.buildRequest(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "meta-models/muse-spark-open",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        let museJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: try XCTUnwrap(basetenRequestBodyData(museRequest))) as? [String: Any]
+        )
+        XCTAssertEqual(museJSON["reasoning_effort"] as? String, "low")
+        XCTAssertNil(museJSON["chat_template_args"])
+
+        let nemotron = ModelCatalog.modelInfo(
+            for: "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B",
+            provider: .baseten
+        )
+        XCTAssertEqual(nemotron.name, "Nemotron 3.5 Super VL")
+        XCTAssertEqual(nemotron.contextWindow, 1_048_576)
+        XCTAssertEqual(nemotron.maxOutputTokens, 1_048_576)
+        XCTAssertTrue(nemotron.capabilities.contains(.vision))
+        XCTAssertTrue(nemotron.capabilities.contains(.reasoning))
+        XCTAssertEqual(nemotron.reasoningConfig?.defaultEffort, ReasoningEffort.none)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(
+                for: .baseten,
+                modelID: "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B"
+            ),
+            [.none, .minimal, .low, .medium, .high, .xhigh, .max]
+        )
+
+        let nemotronRequest = try await adapter.buildRequest(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .high)),
+            tools: [],
+            streaming: false
+        )
+        let nemotronJSON = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: try XCTUnwrap(basetenRequestBodyData(nemotronRequest))) as? [String: Any]
+        )
+        XCTAssertEqual(nemotronJSON["reasoning_effort"] as? String, "high")
+        XCTAssertNil(nemotronJSON["chat_template_args"])
+
+        let ds1017 = ModelCatalog.modelInfo(
+            for: "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+            provider: .baseten
+        )
+        XCTAssertEqual(ds1017.name, "DeepSeek V4.1 Flash 1017")
+        XCTAssertEqual(ds1017.contextWindow, 1_048_576)
+        XCTAssertEqual(ds1017.maxOutputTokens, 262_144)
+        XCTAssertTrue(ds1017.capabilities.contains(.vision))
+        XCTAssertTrue(ds1017.capabilities.contains(.reasoning))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "deepseek-ai/DeepSeek-V4.1-Flash-1017", provider: .baseten))
+        XCTAssertFalse(ModelCatalog.seededModels(for: .baseten).contains(where: { $0.id == "deepseek-ai/DeepSeek-V4.1-Flash-1017" }))
+
+        for glmID in ["zai-org/GLM-5.3", "zai-org/GLM-5.3-Fast", "zai-org/GLM-5.2", "zai-org/GLM-5.2-Fast"] {
+            let glm = ModelCatalog.modelInfo(for: glmID, provider: .baseten)
+            XCTAssertTrue(glm.capabilities.contains(.vision), glmID)
+        }
     }
 }
 

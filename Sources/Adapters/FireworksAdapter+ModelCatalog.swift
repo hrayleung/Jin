@@ -89,6 +89,8 @@ extension FireworksAdapter {
                 || suffix == "deepseek-v4-pro-0813"
                 || suffix == "deepseek-v4-flash-0731"
                 || suffix == "deepseek-v4p1-flash"
+                || suffix == "deepseek-v4p1-flash-1017"
+                || suffix == "muse-spark-open"
                 || suffix == "qwen3p8-2p4t-a95b"
                 || suffix == "glm-5p3"
                 || suffix == "glm-5p3-flash"
@@ -199,6 +201,18 @@ extension FireworksAdapter {
         "deepseek-v4p1-flash": FireworksFallbackSpec(
             name: "DeepSeek V4.1 Flash",
             contextWindow: 1_040_000,
+            extraCapabilities: [.vision],
+            reasoning: true
+        ),
+        "deepseek-v4p1-flash-1017": FireworksFallbackSpec(
+            name: "DeepSeek V4.1 Flash 1017",
+            contextWindow: 1_040_000,
+            extraCapabilities: [.vision],
+            reasoning: true
+        ),
+        "muse-spark-open": FireworksFallbackSpec(
+            name: "Muse Spark Open",
+            contextWindow: 1_048_576,
             extraCapabilities: [.vision],
             reasoning: true
         ),

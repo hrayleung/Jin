@@ -33,6 +33,7 @@ extension FireworksAdapter {
         let isDeepSeekV4ProModel = isFireworksDeepSeekV4ProModel(modelID)
         let isDeepSeekV4GAModel = isFireworksDeepSeekV4GAModel(modelID)
         let isGLM53Model = isFireworksGLM53Model(modelID)
+        let isMuseSparkOpenModel = isFireworksMuseSparkOpenModel(modelID)
         var deepSeekV4ProThinkingDisabled = false
         if let reasoning = controls.reasoning {
             if isDeepSeekV4ProModel {
@@ -61,6 +62,16 @@ extension FireworksAdapter {
                 } else {
                     body["reasoning_effort"] = mapReasoningEffort(
                         reasoning.effort ?? .max,
+                        modelID: modelID
+                    )
+                }
+            } else if isMuseSparkOpenModel {
+                // Muse Spark Open always reasons (`low|medium|high|xhigh`, default `xhigh`); Off becomes `low`.
+                if reasoning.enabled == false || reasoning.effort == .some(.none) {
+                    body["reasoning_effort"] = "low"
+                } else {
+                    body["reasoning_effort"] = mapReasoningEffort(
+                        reasoning.effort ?? .xhigh,
                         modelID: modelID
                     )
                 }

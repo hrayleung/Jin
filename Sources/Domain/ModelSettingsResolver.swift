@@ -176,6 +176,9 @@ enum ModelSettingsResolver {
         if providerType == .baseten {
             return !basetenAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType == .groq {
+            return !groqAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
         if providerType == .anthropic || providerType == .claudeManagedAgents {
             return !anthropicAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
@@ -278,6 +281,10 @@ enum ModelSettingsResolver {
         // V4.1-Flash publishes effort-only reasoning options (low/high/max, no
         // toggle) on models.dev `togetherai` — same always-on shape as Inkling.
         "deepseek-ai/deepseek-v4.1-flash",
+        // Beam 1.0 501B A23B + Muse Spark Open 816B A42B (2026-10-15):
+        // effort-only reasoning options (low..max / low..xhigh, no toggle or `none`).
+        "reflection/beam-1.0-501b-a23b",
+        "meta-models/muse-spark-open-816b-a42b",
     ]
 
     /// DeepInfra IDs whose thinking cannot be turned off. Exact-ID only.
@@ -349,6 +356,7 @@ enum ModelSettingsResolver {
         "muse-spark-1.2-contributor",
         "muse-spark-1.3",
         "muse-spark-1.3-contributor",
+        "beam-free",
     ]
 
     /// Zhipu / Z.AI Coding Plan IDs whose thinking cannot be turned off. GLM-5.3
@@ -409,6 +417,10 @@ enum ModelSettingsResolver {
         // Meta Muse Wonder (2026-10-08): minimal…max band with no `none`;
         // Muse family rejects disabled reasoning upstream.
         "meta/muse-wonder",
+        // Reflection Beam 1.0 501B A23B + Meta Muse Spark Open (2026-10-15):
+        // live /models reports `reasoning.mandatory: true` (no `none` in band).
+        "reflection/beam-1.0-501b-a23b",
+        "meta/muse-spark-open",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /
@@ -427,6 +439,7 @@ enum ModelSettingsResolver {
         "meta/muse-spark-1.2-contributor",
         "meta/muse-spark-1.3",
         "meta/muse-spark-1.3-contributor",
+        "meta/muse-spark-open",
         "zai/glm-5.3",
         "zai/glm-5.3-flash",
         "zai/glm-5.3-flashx",
@@ -451,6 +464,13 @@ enum ModelSettingsResolver {
         // Glyph Cluster (2026-10-13) publishes effort low…xhigh only (no `none`,
         // no toggle on models.dev `vercel`).
         "stealth/glyph-cluster",
+        // Reflection Beam 1.0 + Free, Elorian Glimpse, Stealth Cat Jam, and
+        // LiquidAI LFM2.5-24B-A2B (2026-10-14..16): effort-only bands without `none`.
+        "reflection/beam",
+        "reflection/beam-free",
+        "elorian/glimpse",
+        "stealth/cat-jam",
+        "liquid/lfm2.5-24b-a2b",
     ]
 
     /// Cloudflare AI Gateway IDs whose reasoning cannot be disabled. Exact-ID only,
@@ -466,6 +486,10 @@ enum ModelSettingsResolver {
         "anthropic/claude-sonnet-5.5",
         // GPT-6.1 Sol (listed on the gateway 2026-10-12): low…max only, no `none`.
         "openai/gpt-6.1-sol",
+        // Beam 1.0 501B A23B + Muse Spark Open (listed 2026-10-15): always-on
+        // reasoning upstream (low..max / low..xhigh, no `none`).
+        "reflection-ai/beam-1.0-501b-a23b",
+        "meta/muse-spark-open",
     ]
 
     /// Databricks foundation models where reasoning cannot be disabled.
@@ -504,11 +528,21 @@ enum ModelSettingsResolver {
 
     /// Baseten IDs whose thinking cannot be turned off. GLM-5.3-Flash rejects
     /// disabled thinking (docs.z.ai/guides/vlm/glm-5.3-flash); models.dev `baseten`
-    /// effort values are low/high/max with no `none`.
+    /// effort values are low/high/max with no `none`. `reflection/beam-1.0`
+    /// (`minimal..max`) and `meta-models/muse-spark-open` (`low..xhigh`) also
+    /// always reason per docs.baseten.co/inference/model-apis/reasoning.
     private static let basetenAlwaysOnReasoningModelIDs: Set<String> = [
         "zai-org/glm-5.3",
         "zai-org/glm-5.3-fast",
         "zai-org/glm-5.3-flash",
+        "reflection/beam-1.0",
+        "meta-models/muse-spark-open",
+    ]
+
+    /// Groq IDs whose reasoning cannot be disabled (`console.groq.com/docs/reasoning`:
+    /// "Muse Spark Open always reasons, so `none` is not supported").
+    private static let groqAlwaysOnReasoningModelIDs: Set<String> = [
+        "meta-models/muse-spark-open",
     ]
 
     private static func isSambaNovaAlwaysOnReasoningModel(_ modelID: String) -> Bool {
@@ -520,10 +554,13 @@ enum ModelSettingsResolver {
     }
 
     /// Fireworks MiniMax M2 family plus Qwen3.8-2.4T (thinking cannot be disabled
-    /// on the HF weights) and GLM-5.3 / GLM-5.3-Flash (official Z.ai rejects
-    /// `thinking.type: disabled`). Preview DeepSeek V4 Pro stays disableable.
+    /// on the HF weights), GLM-5.3 / GLM-5.3-Flash (official Z.ai rejects
+    /// `thinking.type: disabled`), and Muse Spark Open (always-on `low..xhigh`).
+    /// Preview DeepSeek V4 Pro stays disableable.
     private static func isFireworksAlwaysOnReasoningModel(_ modelID: String) -> Bool {
-        if isFireworksMiniMaxM2FamilyModel(modelID) || isFireworksGLM53Model(modelID) {
+        if isFireworksMiniMaxM2FamilyModel(modelID)
+            || isFireworksGLM53Model(modelID)
+            || isFireworksMuseSparkOpenModel(modelID) {
             return true
         }
         let lower = modelID.lowercased()

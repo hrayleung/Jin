@@ -1846,6 +1846,7 @@ final class ModelCatalogTests: XCTestCase {
                 "deepseek-ai/DeepSeek-V4-Pro-0813",
                 "deepseek-ai/DeepSeek-V4-Flash-0731",
                 "deepseek-ai/DeepSeek-V4.1-Flash",
+                "deepseek-ai/DeepSeek-V4.1-Flash-1017",
                 "Qwen/Qwen3.8-2.4T-A95B",
                 "Qwen/Qwen3.8-27B",
                 "MiniMaxAI/MiniMax-M3",
@@ -1874,6 +1875,35 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(kimiK3.maxOutputTokens, 131_072)
         XCTAssertTrue(kimiK3.capabilities.contains(.vision))
         XCTAssertEqual(kimiK3.reasoningConfig?.defaultEffort, .max)
+
+        let ds1017 = ModelCatalog.modelInfo(for: "deepseek-ai/DeepSeek-V4.1-Flash-1017", provider: .deepinfra)
+        XCTAssertEqual(ds1017.contextWindow, 1_048_576)
+        XCTAssertEqual(ds1017.maxOutputTokens, 384_000)
+        XCTAssertTrue(ds1017.capabilities.contains(.vision))
+        XCTAssertTrue(ds1017.capabilities.contains(.reasoning))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .deepinfra, modelID: "deepseek-ai/DeepSeek-V4.1-Flash-1017"),
+            [.none, .low, .high, .max]
+        )
+
+        let nemotronVL = ModelCatalog.modelInfo(for: "nvidia/NVIDIA-Nemotron-3.5-Super-VL", provider: .deepinfra)
+        XCTAssertEqual(nemotronVL.contextWindow, 262_144)
+        XCTAssertTrue(nemotronVL.capabilities.contains(.vision))
+        XCTAssertTrue(nemotronVL.capabilities.contains(.reasoning))
+        XCTAssertEqual(nemotronVL.reasoningConfig?.type, .toggle)
+
+        let step5 = ModelCatalog.modelInfo(for: "stepfun-ai/Step-5-Preview", provider: .deepinfra)
+        XCTAssertEqual(step5.contextWindow, 1_048_576)
+        XCTAssertTrue(step5.capabilities.contains(.vision))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .deepinfra, modelID: "stepfun-ai/Step-5-Preview"),
+            [.low, .medium, .high]
+        )
+
+        let ling31 = ModelCatalog.modelInfo(for: "inclusionAI/Ling-3.1-flash", provider: .deepinfra)
+        XCTAssertEqual(ling31.contextWindow, 262_144)
+        XCTAssertFalse(ling31.capabilities.contains(.vision))
+        XCTAssertEqual(ling31.reasoningConfig?.type, .toggle)
     }
 
     func testDeepInfraLastWeekOpenModelsUseExactProviderIDs() {
