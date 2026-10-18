@@ -101,6 +101,25 @@ extension AnthropicAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> URLRequest {
+        let prepared = try await buildRequestBody(
+            messages: messages,
+            modelID: modelID,
+            controls: controls,
+            tools: tools,
+            streaming: streaming
+        )
+        return try makeMessagesRequest(body: prepared.body, betaHeader: prepared.betaHeader)
+    }
+
+    /// Kept apart from the `URLRequest` so a `pause_turn` continuation can re-send the same body
+    /// and headers with the paused assistant content appended.
+    func buildRequestBody(
+        messages: [Message],
+        modelID: String,
+        controls: GenerationControls,
+        tools: [ToolDefinition],
+        streaming: Bool
+    ) async throws -> (body: [String: Any], betaHeader: String?) {
         let preparation = makeRequestPreparation(
             messages: messages,
             modelID: modelID,
@@ -175,9 +194,13 @@ extension AnthropicAdapter {
         AnthropicRequestBodySupport.sanitizeAdaptiveThinking(in: &body, modelID: modelID)
         AnthropicRequestBodySupport.normalizeDisabledThinkingEffort(in: &body, modelID: modelID)
 
-        return try NetworkRequestFactory.makeJSONRequest(
+        return (body, preparation.betaHeader)
+    }
+
+    func makeMessagesRequest(body: [String: Any], betaHeader: String?) throws -> URLRequest {
+        try NetworkRequestFactory.makeJSONRequest(
             url: validatedURL("\(baseURL)/messages"),
-            headers: anthropicHeaders(apiKey: apiKey, betaHeader: preparation.betaHeader),
+            headers: anthropicHeaders(apiKey: apiKey, betaHeader: betaHeader),
             body: body
         )
     }
