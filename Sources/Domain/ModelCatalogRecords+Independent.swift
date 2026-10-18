@@ -272,6 +272,18 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // DeepSeek-V4.1-Flash-1017 on DeepInfra (deepinfra.com/deepseek-ai/DeepSeek-V4.1-Flash-1017,
+        // listed 2026-10-17): 1,048,576 ctx / 384,000 out, text+image input,
+        // Function Calling + JSON + Multimodal badges, cached-input pricing ($0.03/M),
+        // effort band none/low/high/max (default high).
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash-1017", displayName: "DeepSeek V4.1 Flash 1017",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .low, .high, .max]),
+               isFullySupported: true, isSeeded: true),
         Record(id: "moonshotai/Kimi-K2.7-Code", displayName: "Kimi K2.7 Code",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 262_144,
@@ -533,6 +545,32 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
                                                      supportedEfforts: [.high]),
                isFullySupported: true, isSeeded: false),
+        // NVIDIA Nemotron 3.5 Super VL on DeepInfra (api.deepinfra.com/models/list,
+        // listed 2026-10-15): 262,144 context, Function Calling + JSON + Multimodal
+        // badges, cached-input pricing ($0.075/M), reasoning toggle.
+        Record(id: "nvidia/NVIDIA-Nemotron-3.5-Super-VL", displayName: "NVIDIA Nemotron 3.5 Super VL",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // StepFun Step 5 Preview on DeepInfra (api.deepinfra.com/models/list,
+        // listed 2026-10-12): 1,048,576 context, Function Calling + JSON + Multimodal
+        // badges, cached-input pricing ($0.07/M), reasoning effort low/medium/high.
+        Record(id: "stepfun-ai/Step-5-Preview", displayName: "Step 5 Preview",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // inclusionAI Ling 3.1 Flash on DeepInfra (api.deepinfra.com/models/list,
+        // listed 2026-10-02): 262,144 context, Function Calling + JSON + Reasoning
+        // badges, cached-input pricing ($0.028/M), text-only, reasoning toggle.
+        Record(id: "inclusionAI/Ling-3.1-flash", displayName: "Ling 3.1 Flash",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
         // Catalog-only — `nvidia/Nemotron-3-Diarization` is an audio→text
         // diarization endpoint, not a chat model (blocked-adapter: no ASR
         // request surface exists).
@@ -694,6 +732,41 @@ extension ModelCatalog {
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 1_000_000,
                maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        // Reflection Beam 1.0 501B A23B (docs.together.ai/docs/serverless-models +
+        // models.dev `togetherai`, added 2026-10-15): 1,048,576 / 131,072,
+        // text-only, function calling, cached-input pricing ($0.26/M), always-on
+        // reasoning effort low..max (default high).
+        Record(id: "reflection/Beam-1.0-501B-A23B", displayName: "Beam 1.0 501B A23B",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
+        // Meta Muse Spark Open 816B A42B (docs.together.ai/docs/serverless-models +
+        // models.dev `togetherai`, added 2026-10-15): 1,048,576 / 131,072,
+        // text+image input (`.videoInput` withheld — Together message translator
+        // has no video part builder), function calling, cached-input pricing
+        // ($0.45/M), always-on reasoning effort low..xhigh (default xhigh).
+        Record(id: "meta-models/Muse-Spark-Open-816B-A42B", displayName: "Muse Spark Open",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .xhigh,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: true),
+        // NVIDIA Nemotron 3.5 Super VL (docs.together.ai/docs/serverless-models +
+        // models.dev `togetherai`, added 2026-10-15): 262,144 / 262,144,
+        // text+image input, function calling, cached-input pricing ($0.075/M),
+        // reasoning toggle.
+        Record(id: "nvidia/NVIDIA-Nemotron-3.5-Super-VL", displayName: "Nemotron 3.5 Super VL",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: true),
         Record(id: "Qwen/Qwen3.5-397B-A17B", displayName: "Qwen3.5 397B A17B",
@@ -1422,6 +1495,42 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        // DeepSeek V4.1 Flash 1017 (fireworks.ai/models/fireworks/deepseek-v4p1-flash-1017,
+        // added 2026-10-17): 1,040,000 context / 384,000 output, serverless, image input,
+        // cached-input pricing ($0.006/M). Note: Fireworks model page explicitly states
+        // "Function Calling: Not supported" on this snapshot — .toolCalling is withheld.
+        Record(id: "accounts/fireworks/models/deepseek-v4p1-flash-1017", displayName: "DeepSeek V4.1 Flash 1017",
+               capabilities: [.streaming, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "fireworks/deepseek-v4p1-flash-1017", displayName: "DeepSeek V4.1 Flash 1017",
+               capabilities: [.streaming, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Muse Spark Open (fireworks.ai/models/fireworks/muse-spark-open, added 2026-10-16):
+        // Meta's open-weights 816B-A42B multimodal reasoning MoE. 1,048,576 context /
+        // 131,072 output, serverless, function calling, image input, cached-input pricing.
+        // Always-on reasoning with low..xhigh effort (default xhigh).
+        Record(id: "accounts/fireworks/models/muse-spark-open", displayName: "Muse Spark Open",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .xhigh,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "fireworks/muse-spark-open", displayName: "Muse Spark Open",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .xhigh,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
         // DeepSeek Flash Latest (Fireworks router alias, models.dev `fireworks-ai`
         // release 2026-09-10): `accounts/fireworks/routers/deepseek-flash-latest`
         // resolves upstream to the current V4.1 Flash snapshot. Router listing:
@@ -1820,6 +1929,19 @@ extension ModelCatalog {
                contextWindow: 196_608,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Muse Spark Open preview (console.groq.com/docs/models, added 2026-10-16):
+        // 131,072 context / 131,072 max completion, Preview Enterprise tier.
+        // Multimodal (text + image input), tool use, always-on reasoning with
+        // low/medium/high/xhigh effort (default xhigh). Unseeded per Preview
+        // Enterprise tier policy.
+        Record(id: "meta-models/muse-spark-open", displayName: "Muse Spark Open",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 131_072,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .xhigh,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
                isFullySupported: true, isSeeded: false),
     ]
 
@@ -2627,13 +2749,22 @@ extension ModelCatalog {
                maxOutputTokens: 64_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
-        // Step 5 Preview Free (live GET /zen/go/v1/models + opencode.ai/docs/go
-        // endpoint table, added 2026-10-12): exact ID `step-5-preview-free` on
+        // Step 5 Preview (live GET /zen/go/v1/models + opencode.ai/docs/go endpoint
+        // table, added 2026-10-12): exact ID `step-5-preview` (paid tier) and
+        // `step-5-preview-free` (retained catalog-only for persisted chats) on
         // /zen/go/v1/chat/completions via @ai-sdk/openai-compatible — keep out of
         // `anthropicMessagesModelIDs` and `openAIResponsesModelIDs`. models.dev
         // `opencode-go`: 1,000,000 context / 65,536 output, text+image input,
         // tool calling, reasoning effort low/medium/high (default medium).
         // Seeded after glm-5.3 so the first-launch default is unchanged.
+        Record(id: "step-5-preview", displayName: "Step 5 Preview",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: true),
         Record(id: "step-5-preview-free", displayName: "Step 5 Preview (Free)",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_000_000,
@@ -2641,6 +2772,21 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Beam Free (live GET /zen/go/v1/models + opencode.ai/docs/go endpoint table,
+        // added 2026-10-16): exact ID `beam-free` on /zen/go/v1/chat/completions via
+        // @ai-sdk/openai-compatible — keep out of `anthropicMessagesModelIDs` and
+        // `openAIResponsesModelIDs`. Reflection AI's Beam 1.0 501B-A23B coding model:
+        // 1,048,576 context / 131,072 output, text-only input, tool calling, always-on
+        // reasoning with low..max effort (default high). Seeded after glm-5.3 so the
+        // first-launch default is unchanged.
+        Record(id: "beam-free", displayName: "Beam (Free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: true),
         // Catalog-only — recognized when fetched via the API
         // .videoInput dropped: qwen3.5-plus is in `anthropicMessagesModelIDs`, and the
@@ -2783,6 +2929,21 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .high,
                    supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: false),
+        // Gemini 4 Argon Contributor (live GET /zen/go/v1/models + opencode.ai/docs/go
+        // endpoint table, added 2026-10-12): routes to
+        // `https://opencode.ai/inference/go/google/v1beta/models/gemini-4-argon-contributor`
+        // via `@ai-sdk/google` (Google Generative AI v1beta wire format), NOT `/zen/go/v1/*`.
+        // OpenCodeGoAdapter currently delegates only to OpenAI /chat/completions,
+        // OpenAI /responses, and Anthropic /messages, so this row is cataloged with
+        // `isFullySupported: false, isSeeded: false` until a Google v1beta delegate is wired.
+        Record(id: "gemini-4-argon-contributor", displayName: "Gemini 4 Argon Contributor",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: false, isSeeded: false),
     ]
 
     // MARK: Meta
@@ -2888,12 +3049,25 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
-        // Live on morphllm.com/api/models/json (verified 2026-09): `morph-dsv41flash`
-        // is Morph's hosted copy of DeepSeek-V4.1-Flash (2026-09-10 origin release);
-        // `morph-kimik3-fast` and `morph-dsv4flash-0731` are live variants absent from
+        // Live on morphllm.com/api/models/json (verified 2026-09 / 2026-10-18):
+        // `morph-dsv41flash` and `morph-dsv41flash-1017` are Morph's hosted copies of
+        // DeepSeek-V4.1-Flash (0910 and 1017 snapshots); `morph-glm52-744b`,
+        // `morph-kimik3-fast`, and `morph-dsv4flash-0731` are live variants absent from
         // the seeded lineup. Morph records intentionally claim streaming only — the
         // API is a code-edit surface without Jin's standard tool/reasoning controls.
         Record(id: "morph-dsv41flash", displayName: "DeepSeek V4.1 Flash (Fast)",
+               capabilities: [.streaming],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "morph-dsv41flash-1017", displayName: "DeepSeek V4.1 Flash 1017 (Fast)",
+               capabilities: [.streaming],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "morph-glm52-744b", displayName: "GLM-5.2 744B (Fast)",
                capabilities: [.streaming],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
@@ -2916,7 +3090,7 @@ extension ModelCatalog {
     // MARK: Baseten Model APIs
 
     // Official Model APIs catalog (docs.baseten.co/inference/model-apis/overview +
-    // reasoning/vision pages, verified 2026-07-29). Context/output limits are Baseten's
+    // reasoning/vision pages, verified 2026-10-18). Context/output limits are Baseten's
     // live serving caps (not always the model-native maximum). Automatic KV-cache
     // discount → promptCaching on all seeded models. Reasoning wire shapes differ by
     // family — see BasetenRequestSupport.
@@ -2996,6 +3170,46 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .high,
                    supportedEfforts: [.none, .high, .max]),
                isFullySupported: true, isSeeded: true),
+        // Reflection Beam 1.0 (docs.baseten.co/inference/model-apis/overview +
+        // reasoning.md, added 2026-10-16): 1,048,576 context / 131,072 max output,
+        // text-only, tool calling, automatic KV-cache discount. Always-on reasoning
+        // (`enable_thinking=false` is NOT supported) with minimal/low/medium/high/xhigh/max
+        // effort (default high).
+        Record(id: "reflection/Beam-1.0", displayName: "Beam",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
+        // Meta Muse Spark Open (docs.baseten.co/inference/model-apis/overview +
+        // reasoning.md + vision.md, added 2026-10-16): 1,048,576 context /
+        // 1,048,576 max output, text + image input, tool calling, automatic KV-cache
+        // discount. Always-on reasoning (`enable_thinking=false` is NOT supported)
+        // with low/medium/high/xhigh effort (default xhigh).
+        Record(id: "meta-models/muse-spark-open", displayName: "Muse Spark Open",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .xhigh,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: true),
+        // NVIDIA Nemotron 3.5 Super VL 120B-A12B (docs.baseten.co/inference/model-apis/overview +
+        // reasoning.md + vision.md, added 2026-10-16): 1,048,576 context / 1,048,576 max
+        // output, text + image input, tool calling, automatic KV-cache discount.
+        // Reasoning is OFF by default (`defaultEffort: .none`) and supports
+        // none/minimal/low/medium/high/xhigh/max via `reasoning_effort` (`enable_thinking`
+        // is NOT supported).
+        Record(id: "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B", displayName: "Nemotron 3.5 Super VL",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: ReasoningEffort.none,
+                   supportedEfforts: [.none, .minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
         // GLM-5.3-Flash (Baseten Model APIs, 2026-08-26). Exact ID from models.dev
         // `baseten` + baseten.co/library/glm-53-flash. 1,048,576 / 131,072,
         // text+image, always-on low/high/max. No cached-input rate on the Baseten
@@ -3006,29 +3220,28 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: true),
-        // GLM-5.3 (Baseten Model APIs, 2026-08-28). Exact ID from models.dev
-        // `baseten` + baseten.co/library/glm-53. 1,048,576 / 262,144,
-        // text-only, always-on low/high/max.
+        // GLM-5.3 / GLM-5.3-Fast / GLM-5.2 / GLM-5.2-Fast: docs.baseten.co/inference/model-apis/vision.md
+        // explicitly lists all four under vision-supported models (Image input).
         Record(id: "zai-org/GLM-5.3", displayName: "GLM 5.3",
-               capabilities: [.streaming, .toolCalling, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_048_576,
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.3-Fast", displayName: "GLM 5.3 Fast",
-               capabilities: [.streaming, .toolCalling, .reasoning],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_048_576,
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.2", displayName: "GLM 5.2",
-               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.2-Fast", displayName: "GLM 5.2 Fast",
-               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 1_048_576,
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
@@ -3072,9 +3285,21 @@ extension ModelCatalog {
 
         // Additional Model API IDs returned by live GET /v1/models (verified against
         // the Baseten account model list + models.dev / OpenRouter metadata, 2026-07-29).
-        // Not on the published 10-model overview table, so they are catalog-enriched
+        // Not on the published overview table, so they are catalog-enriched
         // rather than first-launch seeds — full support when the user adds them.
         //
+        // DeepSeek V4.1 Flash 1017 (baseten.co/library/deepseek-v4-1-flash-1017 +
+        // docs.baseten.co/inference/model-apis/reasoning.md, added 2026-10-17):
+        // 1,048,576 context / 262,144 max output, text + image input, tool calling,
+        // automatic KV-cache discount, reasoning effort none/high/max (default high).
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash-1017", displayName: "DeepSeek V4.1 Flash 1017",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .high, .max]),
+               isFullySupported: true, isSeeded: false),
         // Mercury 2 (Inception dLLM): 128k context / 50k output, text-only, tool calling,
         // tunable reasoning via reasoning_effort low/medium/high (OpenRouter also lists
         // "none"). Cached-input pricing on OpenRouter → promptCaching.

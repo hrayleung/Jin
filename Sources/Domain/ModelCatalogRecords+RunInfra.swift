@@ -91,6 +91,21 @@ extension ModelCatalog {
                 reasoningConfig: toggleReasoning,
                 isSeeded: true
             ),
+            // DeepSeek V4.1 Flash 1017 (runinfra.ai/inference-api/deepseek-v4-1-flash-1017,
+            // listed 2026-10-17): "Served model ID: deepseek-ai/DeepSeek-V4.1-Flash-1017",
+            // curl examples use `deepseek-v4-1-flash-1017`. Page publishes context window
+            // 1,048,576, "Accepted input: Text and images" (unlike the earlier 0910 weight
+            // which was text-only on RunInfra), tool calling / JSON mode / streaming,
+            // automatic prefix caching ($0.03/1M cached input), and reasoning on by default.
+            // Effort band is unpublished on the model card, so it uses toggleReasoning.
+            hosted(
+                id: "deepseek-v4-1-flash-1017",
+                displayName: "DeepSeek V4.1 Flash 1017",
+                contextWindow: 1_048_576,
+                reasoningConfig: toggleReasoning,
+                isSeeded: true,
+                capabilities: hostedVisionChat
+            ),
             hosted(
                 id: "deepseek-v4-flash",
                 displayName: "DeepSeek V4 Flash",
@@ -170,6 +185,14 @@ extension ModelCatalog {
             ),
 
             // Hugging Face repository IDs the gateway also accepts in `model`.
+            hosted(
+                id: "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+                displayName: "DeepSeek V4.1 Flash 1017",
+                contextWindow: 1_048_576,
+                reasoningConfig: toggleReasoning,
+                isSeeded: false,
+                capabilities: hostedVisionChat
+            ),
             hosted(
                 id: "deepseek-ai/DeepSeek-V4.1-Flash",
                 displayName: "DeepSeek V4.1 Flash",

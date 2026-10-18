@@ -1154,6 +1154,39 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.low, .medium, .high]),
                isFullySupported: true, isSeeded: false),
+        // --- Cloudflare AI Gateway additions, 2026-10-14..2026-10-18 ---
+        // Reflection AI Beam 1.0 501B A23B (Cloudflare catalog + models.dev
+        // `cloudflare-ai-gateway`, added 2026-10-15): 262,144 / 131,072 on
+        // Cloudflare, text-only input, tools, always-on reasoning low..max
+        // (default high).
+        Record(id: "reflection-ai/beam-1.0-501b-a23b", displayName: "Beam 1.0 501B A23B",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Meta Muse Spark Open (Cloudflare catalog + models.dev
+        // `cloudflare-ai-gateway`, added 2026-10-15): 1,040,000 / 131,072 on
+        // Cloudflare, text+image input (`.audio` and `.videoInput` withheld
+        // because Jin's Cloudflare adapter does not encode audio/video parts),
+        // tools, always-on reasoning low..xhigh (default xhigh).
+        Record(id: "meta/muse-spark-open", displayName: "Muse Spark Open",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .xhigh,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        // PhoneLLM Mini Alpha 2 (Workers AI changelog 2026-10-15):
+        // `@cf/daily-co/phonellm-mini-alpha-2`, 131,072 context, function calling.
+        Record(id: "@cf/daily-co/phonellm-mini-alpha-2", displayName: "PhoneLLM Mini Alpha 2 (Workers AI)",
+               capabilities: [.streaming, .toolCalling],
+               contextWindow: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: Vercel AI Gateway
@@ -2092,6 +2125,141 @@ extension ModelCatalog {
         Record(id: "microsoft/microsoft-decision-1", displayName: "Microsoft Decision 1",
                capabilities: [],
                contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+
+        // --- Vercel AI Gateway models table additions, fetched 2026-10-18 ---
+        // DeepSeek V4.1 Flash 1017 (created 2026-10-17): 1,000,000 / 384,000 on
+        // the live gateway, text+image input, tags implicit-caching + reasoning +
+        // structured-output + tool-use + vision. Effort none/low/high/max,
+        // default high.
+        Record(id: "deepseek/deepseek-v4.1-flash-1017", displayName: "DeepSeek V4.1 Flash 1017",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // DeepSeek V4.1 Flash 1017 Fast (created 2026-10-17): 1,048,576 / 262,144,
+        // text+image input, tags implicit-caching + reasoning + structured-output +
+        // tool-use + vision. Effort none/low/medium/high, default high.
+        Record(id: "deepseek/deepseek-v4.1-flash-1017-fast", displayName: "DeepSeek V4.1 Flash 1017 Fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Reflection Beam 1.0 + Beam 1.0 (Free) (created 2026-10-16): 1,048,576 /
+        // 131,072, text-only input, tags implicit-caching + reasoning +
+        // structured-output + tool-use. Always-on effort low..max, default high.
+        Record(id: "reflection/beam", displayName: "Beam 1.0",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "reflection/beam-free", displayName: "Beam 1.0 (Free)",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Elorian Glimpse (created 2026-10-16): 220,000 / 4,096 on Vercel,
+        // text+image input (`.videoInput` withheld on this gateway), tags
+        // implicit-caching + reasoning + vision (`tool_call: false` on Vercel).
+        // Effort low/medium/xhigh, default medium.
+        Record(id: "elorian/glimpse", displayName: "Glimpse",
+               capabilities: [.streaming, .vision, .reasoning, .promptCaching],
+               contextWindow: 220_000,
+               maxOutputTokens: 4_096,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        // Stealth Cat Jam (created 2026-10-16): 1,048,576 / 131,072, text-only
+        // input, tags free + implicit-caching + reasoning + structured-output +
+        // tool-use. Effort low..max, default high.
+        Record(id: "stealth/cat-jam", displayName: "Cat Jam",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // NVIDIA Nemotron 3.5 Super VL (created 2026-10-15): 1,048,576 / 1,048,576
+        // on the live gateway, text+image input (`.videoInput` withheld on this
+        // gateway), tags implicit-caching + reasoning + structured-output +
+        // tool-use + vision. Effort none/low/medium/high, default high.
+        Record(id: "nvidia/nemotron-3.5-super-vl", displayName: "NVIDIA Nemotron 3.5 Super VL",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // NVIDIA Nemotron 3.5 Lightning Free (created 2026-10-15): 1,000,000 /
+        // 65,000, text-only input, tags free + implicit-caching + reasoning +
+        // structured-output + tool-use. Effort none/low/medium/high, default high.
+        Record(id: "nvidia/nemotron-3.5-lightning-free", displayName: "Nemotron 3.5 Lightning Free",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 65_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Meta Muse Spark Open (created 2026-10-15): 1,048,576 / 1,048,576 on
+        // the live gateway, text+image input (`.audio` and `.videoInput` withheld
+        // on this gateway), tags file-input + implicit-caching + reasoning +
+        // structured-output + tool-use + vision. Always-on effort low..xhigh,
+        // default xhigh.
+        Record(id: "meta/muse-spark-open", displayName: "Muse Spark Open",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .xhigh,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        // LiquidAI LFM2.5-24B-A2B (created 2026-10-14): 128,000 / 8,200,
+        // text-only input, tags implicit-caching + reasoning + structured-output +
+        // tool-use. Effort minimal..max, default medium.
+        Record(id: "liquid/lfm2.5-24b-a2b", displayName: "LFM2.5-24B-A2B",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 128_000,
+               maxOutputTokens: 8_200,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Catalog-only (blocked-adapter): image/speech endpoints on Vercel AI Gateway.
+        Record(id: "bfl/flux-3-image-klein", displayName: "FLUX 3 Image Klein",
+               capabilities: [.imageGeneration],
+               contextWindow: 4_096,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "microsoft/mai-image-2.6", displayName: "MAI-Image-2.6",
+               capabilities: [.imageGeneration],
+               contextWindow: 4_096,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "microsoft/mai-image-2.6-flash", displayName: "MAI-Image-2.6-Flash",
+               capabilities: [.imageGeneration],
+               contextWindow: 4_096,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "fish-audio/drama-3", displayName: "Drama 3",
+               capabilities: [.audio],
+               contextWindow: 4_096,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
     ]

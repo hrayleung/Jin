@@ -73,6 +73,11 @@ enum OpenAICompatibleReasoningSupport {
             return false
         }
 
+        if isGroqMuseSparkOpenReasoningModel(providerConfig: providerConfig, modelID: modelID) {
+            applyGroqMuseSparkOpenReasoning(to: &body, reasoning: reasoning)
+            return false
+        }
+
         if isCloudflareKimiK26Model(providerConfig: providerConfig, modelID: modelID) {
             let isDisabled = reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none
             mergeChatTemplateKwargs(
@@ -180,6 +185,16 @@ enum OpenAICompatibleReasoningSupport {
                 providerConfig: providerConfig,
                 modelID: modelID
             )
+            return
+        }
+
+        if isGroqMuseSparkOpenReasoningModel(providerConfig: providerConfig, modelID: modelID) {
+            body.removeValue(forKey: "reasoning")
+            guard let reasoning = controls.reasoning else {
+                body.removeValue(forKey: "reasoning_effort")
+                return
+            }
+            applyGroqMuseSparkOpenReasoning(to: &body, reasoning: reasoning)
         }
     }
 
@@ -208,6 +223,10 @@ enum OpenAICompatibleReasoningSupport {
 
     private static let groqQwen36ReasoningModelIDs: Set<String> = [
         "qwen/qwen3.6-27b",
+    ]
+
+    private static let groqMuseSparkOpenReasoningModelIDs: Set<String> = [
+        "meta-models/muse-spark-open",
     ]
 
     private static func applyMistralReasoningEffort(
@@ -250,6 +269,36 @@ enum OpenAICompatibleReasoningSupport {
         let lower = modelID.lowercased()
         return groqQwen38ReasoningModelIDs.contains(lower)
             || groqQwen36ReasoningModelIDs.contains(lower)
+    }
+
+    private static func isGroqMuseSparkOpenReasoningModel(providerConfig: ProviderConfig, modelID: String) -> Bool {
+        guard providerConfig.type == .groq else { return false }
+        return groqMuseSparkOpenReasoningModelIDs.contains(modelID.lowercased())
+    }
+
+    /// Groq Chat Completions `reasoning_effort` for `meta-models/muse-spark-open`
+    /// (`console.groq.com/docs/reasoning`): `low|medium|high|xhigh` (default `xhigh`);
+    /// always reasons, so `none` / disabled degrades to `"low"`.
+    private static func applyGroqMuseSparkOpenReasoning(
+        to body: inout [String: Any],
+        reasoning: ReasoningControls
+    ) {
+        body.removeValue(forKey: "reasoning")
+        body.removeValue(forKey: "include_reasoning")
+        if reasoning.enabled == false || reasoning.effort == ReasoningEffort.none {
+            body["reasoning_effort"] = "low"
+            return
+        }
+        switch reasoning.effort ?? .xhigh {
+        case .none, .minimal, .low:
+            body["reasoning_effort"] = "low"
+        case .medium:
+            body["reasoning_effort"] = "medium"
+        case .high:
+            body["reasoning_effort"] = "high"
+        case .xhigh, .max:
+            body["reasoning_effort"] = "xhigh"
+        }
     }
 
     /// Groq Chat Completions `reasoning_effort` for Qwen3 (console.groq.com/docs/models).

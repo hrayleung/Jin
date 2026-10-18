@@ -614,6 +614,8 @@ enum ModelCapabilityRegistry {
         // Space Bunny Alpha (live /models 2026-09-24): models.dev `openrouter`
         // reasoning_options publish the same low…max ladder.
         "stealth/space-bunny-alpha",
+        // Reflection Beam 1.0 501B-A23B (live /models 2026-10-16): low…max ladder.
+        "reflection/beam-1.0-501b-a23b",
     ]
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
@@ -676,6 +678,9 @@ enum ModelCapabilityRegistry {
         "deepseek-v4p1-flash",
         "fireworks/deepseek-v4p1-flash",
         "accounts/fireworks/models/deepseek-v4p1-flash",
+        "deepseek-v4p1-flash-1017",
+        "fireworks/deepseek-v4p1-flash-1017",
+        "accounts/fireworks/models/deepseek-v4p1-flash-1017",
         // V4-Flash-Vision-Exp (fireworks.ai model page, serverless, 2026-09):
         // same V4-Flash structure + visual module → same effort band.
         "deepseek-v4-flash-vision-exp",
@@ -710,11 +715,12 @@ enum ModelCapabilityRegistry {
         "thinkingmachines/inkling",
         "thinkingmachines/inkling-small",
     ]
-    /// Baseten DeepSeek V4 Pro + GPT-OSS: wide effort band including none.
+    /// Baseten DeepSeek V4 Pro + GPT-OSS + Nemotron 3.5 Super VL: wide effort band including none.
     private static let basetenWideEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
         "deepseek-ai/deepseek-v4-flash-0731",
         "openai/gpt-oss-120b",
+        "nvidia/nvidia-nemotron-3.5-super-vl-120b-a12b",
     ]
     /// Baseten DeepSeek V4 Pro 0813: narrow effort band (none/low/high/max).
     /// DeepSeek-V4.1-Flash publishes the same none/low/high/max band on Baseten
@@ -723,12 +729,13 @@ enum ModelCapabilityRegistry {
         "deepseek-ai/deepseek-v4-pro-0813",
         "deepseek-ai/deepseek-v4.1-flash",
     ]
-    /// Baseten GLM-5.2 family and DeepSeek-V4.1-Flash-Fast: none/high/max only.
-    /// GLM-5.3-Flash is always-on low/high/max via `glm53LowHighMaxReasoningEffortModelIDs`.
+    /// Baseten GLM-5.2 family, DeepSeek-V4.1-Flash-Fast, and DeepSeek-V4.1-Flash-1017:
+    /// none/high/max only. GLM-5.3-Flash is always-on low/high/max via `glm53LowHighMaxReasoningEffortModelIDs`.
     private static let basetenGLMEffortModelIDs: Set<String> = [
         "zai-org/glm-5.2",
         "zai-org/glm-5.2-fast",
         "deepseek-ai/deepseek-v4.1-flash-fast",
+        "deepseek-ai/deepseek-v4.1-flash-1017",
     ]
     /// Modal Shared API Kimi K3. Modal doesn't publish a per-model effort matrix, so
     /// this inherits the band documented for the same weights on Baseten.
@@ -1084,6 +1091,7 @@ enum ModelCapabilityRegistry {
             || openRouterStep5PreviewEffortModelIDs.contains(lowerModelID)
             || openRouterFullLadderEffortModelIDs.contains(lowerModelID)
             || openRouterDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID)
+            || lowerModelID == "deepseek/deepseek-v4.1-flash-1017"
             || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
             || openRouterOxAlphaReasoningEffortModelIDs.contains(lowerModelID) {
             return true
@@ -1098,13 +1106,15 @@ enum ModelCapabilityRegistry {
         case .together:
             if togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
                 || togetherDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID)
-                || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID) {
+                || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
+                || lowerModelID == "reflection/beam-1.0-501b-a23b" {
                 return true
             }
         case .deepinfra:
             if deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
                 || deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
                 || deepInfraDeepSeekV41FlashReasoningEffortModelIDs.contains(lowerModelID)
+                || lowerModelID == "deepseek-ai/deepseek-v4.1-flash-1017"
                 || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731"
                 || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID) {
                 return true
@@ -1135,7 +1145,12 @@ enum ModelCapabilityRegistry {
                 || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
                 || openRouterHighBandEffortModelIDs.contains(lowerModelID)
                 || lowerModelID == "deepseek/deepseek-v4-pro-0813"
-                || lowerModelID == "deepseek/deepseek-v4-flash-0731" {
+                || lowerModelID == "deepseek/deepseek-v4-flash-0731"
+                || lowerModelID == "deepseek/deepseek-v4.1-flash-1017"
+                || lowerModelID == "reflection/beam"
+                || lowerModelID == "reflection/beam-free"
+                || lowerModelID == "stealth/cat-jam"
+                || lowerModelID == "liquid/lfm2.5-24b-a2b" {
                 return true
             }
         case .cloudflareAIGateway:
@@ -1146,7 +1161,8 @@ enum ModelCapabilityRegistry {
                 || lowerModelID == "anthropic/claude-haiku-5.5"
                 || lowerModelID == "anthropic/claude-opus-5.5"
                 || lowerModelID == "anthropic/claude-sonnet-5.5"
-                || lowerModelID == "meta/muse-wonder-1.0" {
+                || lowerModelID == "meta/muse-wonder-1.0"
+                || lowerModelID == "reflection-ai/beam-1.0-501b-a23b" {
                 return true
             }
         case .baseten:
@@ -1155,7 +1171,8 @@ enum ModelCapabilityRegistry {
                 || basetenWideEffortModelIDs.contains(lowerModelID)
                 || basetenDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
                 || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
-                || basetenGLMEffortModelIDs.contains(lowerModelID) {
+                || basetenGLMEffortModelIDs.contains(lowerModelID)
+                || lowerModelID == "reflection/beam-1.0" {
                 return true
             }
         case .modal:
@@ -1181,6 +1198,7 @@ enum ModelCapabilityRegistry {
                 || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
                 || opencodeGoOxAlphaReasoningEffortModelIDs.contains(lowerModelID)
                 || opencodeGoGLMHighMaxReasoningEffortModelIDs.contains(lowerModelID)
+                || lowerModelID == "beam-free"
                 || lowerModelID == "cat-jam-free"
                 || lowerModelID == "space-bunny"
                 || lowerModelID == "space-bunny-free" {
@@ -1289,6 +1307,8 @@ enum ModelCapabilityRegistry {
             return [.none, .low, .medium, .high]
         case .makora where glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
+        case .groq where lowerModelID == "meta-models/muse-spark-open":
+            return [.low, .medium, .high, .xhigh]
         case .groq where lowerModelID == "qwen/qwen3.8-27b":
             // Groq Chat API: none/low/medium/high (default none). `high` is native xhigh.
             return [.none, .low, .medium, .high]
@@ -1297,6 +1317,10 @@ enum ModelCapabilityRegistry {
             return [.none]
         case .deepseek where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
+        case .openrouter where lowerModelID == "deepseek/deepseek-v4.1-flash-1017":
+            return [.none, .low, .high, .max]
+        case .openrouter where lowerModelID == "meta/muse-spark-open":
+            return [.low, .medium, .high, .xhigh]
         case .openrouter where openRouterDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
         case .openrouter where glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
@@ -1331,6 +1355,10 @@ enum ModelCapabilityRegistry {
             return [.none, .minimal, .low, .medium, .high, .max]
         case .openrouter where openRouterLowHighEffortModelIDs.contains(lowerModelID):
             return [.low, .high]
+        case .together where lowerModelID == "reflection/beam-1.0-501b-a23b":
+            return [.low, .medium, .high, .xhigh, .max]
+        case .together where lowerModelID == "meta-models/muse-spark-open-816b-a42b":
+            return [.low, .medium, .high, .xhigh]
         case .together where togetherDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID)
             || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
@@ -1340,6 +1368,8 @@ enum ModelCapabilityRegistry {
             return [.low, .high, .xhigh]
         case .together where togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
+        case .deepinfra where lowerModelID == "deepseek-ai/deepseek-v4.1-flash-1017":
+            return [.none, .low, .high, .max]
         case .deepinfra where deepInfraDeepSeekV41FlashReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .low, .high, .xhigh, .max]
         case .deepinfra where deepInfraDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
@@ -1352,6 +1382,10 @@ enum ModelCapabilityRegistry {
             return [.high]
         case .deepinfra where deepInfraKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
+        case .fireworks where lowerModelID == "accounts/fireworks/models/muse-spark-open"
+            || lowerModelID == "fireworks/muse-spark-open"
+            || lowerModelID == "muse-spark-open":
+            return [.low, .medium, .high, .xhigh]
         case .fireworks where fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
             || lowerModelID == "accounts/fireworks/models/glm-5p3"
             || lowerModelID == "fireworks/glm-5p3"
@@ -1379,6 +1413,20 @@ enum ModelCapabilityRegistry {
         case .fireworks where fireworksKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
             || fireworksCanonicalModelID(lowerModelID).map({ fireworksKimiK3ReasoningEffortModelIDs.contains($0) }) == true:
             return [.none, .low, .medium, .high, .max]
+        case .vercelAIGateway where lowerModelID == "deepseek/deepseek-v4.1-flash-1017":
+            return [.none, .low, .high, .max]
+        case .vercelAIGateway where lowerModelID == "deepseek/deepseek-v4.1-flash-1017-fast"
+            || lowerModelID == "nvidia/nemotron-3.5-super-vl"
+            || lowerModelID == "nvidia/nemotron-3.5-lightning-free":
+            return [.none, .low, .medium, .high]
+        case .vercelAIGateway where lowerModelID == "reflection/beam"
+            || lowerModelID == "reflection/beam-free"
+            || lowerModelID == "stealth/cat-jam":
+            return [.low, .medium, .high, .xhigh, .max]
+        case .vercelAIGateway where lowerModelID == "liquid/lfm2.5-24b-a2b":
+            return [.minimal, .low, .medium, .high, .xhigh, .max]
+        case .vercelAIGateway where lowerModelID == "elorian/glimpse":
+            return [.low, .medium, .xhigh]
         case .vercelAIGateway where lowerModelID == "deepseek/deepseek-v4.1-flash":
             // models.dev `vercel` reasoning options: toggle + effort high/xhigh.
             // Narrower than every other gateway's V4.1 band.
@@ -1399,7 +1447,8 @@ enum ModelCapabilityRegistry {
             return [.minimal, .low, .medium, .high, .xhigh]
         case .vercelAIGateway where lowerModelID == "callstack/apex":
             return [.none, .low, .medium, .xhigh]
-        case .vercelAIGateway where lowerModelID == "stealth/glyph-cluster":
+        case .vercelAIGateway where lowerModelID == "stealth/glyph-cluster"
+            || lowerModelID == "meta/muse-spark-open":
             return [.low, .medium, .high, .xhigh]
         case .cloudflareAIGateway where lowerModelID == "moonshotai/kimi-k3-fast"
             || lowerModelID == "z-ai/glm-5.3"
@@ -1408,14 +1457,21 @@ enum ModelCapabilityRegistry {
             return [.low, .high, .max]
         case .cloudflareAIGateway where lowerModelID == "anthropic/claude-haiku-5.5"
             || lowerModelID == "anthropic/claude-opus-5.5"
-            || lowerModelID == "anthropic/claude-sonnet-5.5":
+            || lowerModelID == "anthropic/claude-sonnet-5.5"
+            || lowerModelID == "reflection-ai/beam-1.0-501b-a23b":
             return [.low, .medium, .high, .xhigh, .max]
+        case .cloudflareAIGateway where lowerModelID == "meta/muse-spark-open":
+            return [.low, .medium, .high, .xhigh]
         case .cloudflareAIGateway where lowerModelID == "meta/muse-wonder-1.0":
             return [.none, .low, .medium, .high, .xhigh, .max]
         case .cloudflareAIGateway where lowerModelID == "qwen/qwen3.8-2.4t-a95b" || lowerModelID == "qwen/qwen3.8-27b":
             return [.low, .medium, .xhigh]
         case .cloudflareAIGateway where lowerModelID == "qwen/qwen3.8-max":
             return [.minimal, .low, .medium, .high, .xhigh]
+        case .baseten where lowerModelID == "reflection/beam-1.0":
+            return [.minimal, .low, .medium, .high, .xhigh, .max]
+        case .baseten where lowerModelID == "meta-models/muse-spark-open":
+            return [.low, .medium, .high, .xhigh]
         case .baseten where basetenKimiK3ReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .low, .high, .max]
         case .baseten where basetenInklingReasoningEffortModelIDs.contains(lowerModelID):
@@ -1493,7 +1549,8 @@ enum ModelCapabilityRegistry {
             return [.low, .high]
         case .opencodeGo where opencodeGoHy4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
-        case .opencodeGo where lowerModelID == "cat-jam-free"
+        case .opencodeGo where lowerModelID == "beam-free"
+            || lowerModelID == "cat-jam-free"
             || lowerModelID == "space-bunny"
             || lowerModelID == "space-bunny-free":
             return [.low, .medium, .high, .xhigh, .max]

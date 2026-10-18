@@ -1298,13 +1298,15 @@ final class JinModelSupportTests: XCTestCase {
             [.none, .high, .max]
         )
 
-        // 3. OpenCode Go: step-5-preview-free (seeded after glm-5.3) and cat-jam-free (catalog-only).
+        // 3. OpenCode Go: step-5-preview (seeded after glm-5.3), step-5-preview-free (catalog-only), and cat-jam-free (catalog-only).
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "step-5-preview"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "step-5-preview-free"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "cat-jam-free"))
-        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "step-5-preview"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "step-5-preview-custom"))
         let goSeeded = ModelCatalog.seededModels(for: .opencodeGo)
         XCTAssertEqual(goSeeded.first?.id, "glm-5.3")
-        XCTAssertTrue(goSeeded.contains(where: { $0.id == "step-5-preview-free" }))
+        XCTAssertTrue(goSeeded.contains(where: { $0.id == "step-5-preview" }))
+        XCTAssertFalse(goSeeded.contains(where: { $0.id == "step-5-preview-free" }))
         XCTAssertFalse(goSeeded.contains(where: { $0.id == "cat-jam-free" }))
         let stepGo = ModelCatalog.modelInfo(for: "step-5-preview-free", provider: .opencodeGo)
         XCTAssertEqual(stepGo.contextWindow, 1_000_000)
@@ -1407,6 +1409,135 @@ final class JinModelSupportTests: XCTestCase {
             XCTAssertNotNil(ModelCatalog.entry(for: unsupportedID, provider: .vercelAIGateway), unsupportedID)
             XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: unsupportedID), unsupportedID)
         }
+    }
+
+    func testOctober2026WeekThreeModelsUseExactMetadataAndSupportFlags() async throws {
+        // 1. OpenRouter (Oct 14–18, 2026)
+        let orChatIDs = [
+            "deepseek/deepseek-v4.1-flash-1017",
+            "elorian/glimpse",
+            "xingchen-agi/xing4.0-29b-a4b:free",
+            "reflection/beam-1.0-501b-a23b",
+            "moondream/moondream3-preview",
+            "moondream/moondream3.1-9b-a2b",
+            "meta/muse-spark-open",
+            "nvidia/nemotron-3.5-super-vl",
+            "nvidia/nemotron-3.5-super-vl:free",
+            "unbiased/pareto-26.10",
+            "~unbiased/pareto-latest",
+            "unbiased/pareto-26.9",
+            "liquid/lfm-2.5-24b-a2b",
+        ]
+        for id in orChatIDs {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: id), id)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "\(id)-custom"), id)
+            let info = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertFalse(info.capabilities.contains(.videoInput), id)
+        }
+        XCTAssertNotNil(ModelCatalog.entry(for: "google/gemini-4-argon:batch", provider: .openrouter))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "google/gemini-4-argon:batch"))
+
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "reflection/beam-1.0-501b-a23b"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "meta/muse-spark-open"))
+        XCTAssertFalse(ModelCapabilityRegistry.supportsWebSearch(for: .openrouter, modelID: "meta/muse-spark-open"))
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "meta/muse-spark-open"),
+            [.low, .medium, .high, .xhigh]
+        )
+
+        // 2. Vercel AI Gateway (Oct 14–18, 2026)
+        let vercelChatIDs = [
+            "deepseek/deepseek-v4.1-flash-1017",
+            "deepseek/deepseek-v4.1-flash-1017-fast",
+            "reflection/beam",
+            "reflection/beam-free",
+            "elorian/glimpse",
+            "stealth/cat-jam",
+            "nvidia/nemotron-3.5-super-vl",
+            "nvidia/nemotron-3.5-lightning-free",
+            "meta/muse-spark-open",
+            "liquid/lfm2.5-24b-a2b",
+        ]
+        for id in vercelChatIDs {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: id), id)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "\(id)-custom"), id)
+        }
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "meta/muse-spark-open"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "reflection/beam"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "reflection/beam-free"))
+        for unsupportedVercelID in [
+            "bfl/flux-3-image-klein",
+            "microsoft/mai-image-2.6",
+            "microsoft/mai-image-2.6-flash",
+            "fish-audio/drama-3",
+        ] {
+            XCTAssertNotNil(ModelCatalog.entry(for: unsupportedVercelID, provider: .vercelAIGateway), unsupportedVercelID)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: unsupportedVercelID), unsupportedVercelID)
+        }
+
+        // 3. Cloudflare AI Gateway (Oct 14–18, 2026)
+        for id in [
+            "reflection-ai/beam-1.0-501b-a23b",
+            "meta/muse-spark-open",
+            "@cf/daily-co/phonellm-mini-alpha-2",
+        ] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: id), id)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "\(id)-custom"), id)
+        }
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .cloudflareAIGateway, modelID: "reflection-ai/beam-1.0-501b-a23b"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .cloudflareAIGateway, modelID: "meta/muse-spark-open"))
+
+        // 4. Fireworks AI & Groq & MorphLLM & OpenCode Go (Oct 14–18, 2026)
+        for fwID in [
+            "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+            "fireworks/deepseek-v4p1-flash-1017",
+        ] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: fwID), fwID)
+            XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .fireworks, modelID: fwID), fwID)
+        }
+        for fwMuseID in [
+            "accounts/fireworks/models/muse-spark-open",
+            "fireworks/muse-spark-open",
+        ] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: fwMuseID), fwMuseID)
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .fireworks, modelID: fwMuseID), fwMuseID)
+        }
+        let fwAdapter = FireworksAdapter(providerConfig: DefaultProviderSeeds.fireworks, apiKey: "test-key")
+        let fwRequest = try await fwAdapter.buildRequest(
+            messages: [Message(role: .user, content: [.text("hi")])],
+            modelID: "accounts/fireworks/models/muse-spark-open",
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            tools: [],
+            streaming: false
+        )
+        let fwMuseBody = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: try XCTUnwrap(fwRequest.httpBody)) as? [String: Any]
+        )
+        XCTAssertEqual(fwMuseBody["reasoning_effort"] as? String, "low")
+
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .groq, modelID: "meta-models/muse-spark-open"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .groq, modelID: "meta-models/muse-spark-open"))
+        var groqConfig = DefaultProviderSeeds.groq
+        groqConfig.models.append(ModelCatalog.modelInfo(for: "meta-models/muse-spark-open", provider: .groq))
+        var groqMuseBody: [String: Any] = [:]
+        _ = OpenAICompatibleReasoningSupport.applyReasoning(
+            to: &groqMuseBody,
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            providerConfig: groqConfig,
+            modelID: "meta-models/muse-spark-open",
+            requestShape: .openAICompatible
+        )
+        XCTAssertEqual(groqMuseBody["reasoning_effort"] as? String, "low")
+
+        for morphID in ["morph-dsv41flash-1017", "morph-glm52-744b"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .morphllm, modelID: morphID), morphID)
+            XCTAssertFalse(ModelCatalog.seededModels(for: .morphllm).contains(where: { $0.id == morphID }), morphID)
+        }
+
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "beam-free"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "beam-free"))
+        XCTAssertNotNil(ModelCatalog.entry(for: "gemini-4-argon-contributor", provider: .opencodeGo))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "gemini-4-argon-contributor"))
     }
 }
 

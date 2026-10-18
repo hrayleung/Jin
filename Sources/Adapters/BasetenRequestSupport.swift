@@ -75,6 +75,38 @@ extension BasetenAdapter {
             return
         }
 
+        if Self.beamAlwaysOnEffortModelIDs.contains(lower) {
+            // reflection/Beam-1.0 (docs.baseten.co/inference/model-apis/reasoning):
+            // always-on reasoning with `minimal|low|medium|high|xhigh|max` (default `high`).
+            // Off / none maps to `minimal` since reasoning cannot be disabled.
+            let requested = reasoning.enabled == false || reasoning.effort == .some(.none)
+                ? .minimal
+                : (reasoning.effort ?? .high)
+            let effort = ModelCapabilityRegistry.normalizedReasoningEffort(
+                requested,
+                for: .baseten,
+                modelID: modelID
+            )
+            body["reasoning_effort"] = mapEffortWireValue(effort == .none ? .minimal : effort)
+            return
+        }
+
+        if Self.museSparkOpenAlwaysOnEffortModelIDs.contains(lower) {
+            // meta-models/muse-spark-open (docs.baseten.co/inference/model-apis/reasoning):
+            // always-on reasoning with `low|medium|high|xhigh` (default `xhigh`).
+            // Off / none maps to `low` since reasoning cannot be disabled.
+            let requested = reasoning.enabled == false || reasoning.effort == .some(.none)
+                ? .low
+                : (reasoning.effort ?? .xhigh)
+            let effort = ModelCapabilityRegistry.normalizedReasoningEffort(
+                requested,
+                for: .baseten,
+                modelID: modelID
+            )
+            body["reasoning_effort"] = mapEffortWireValue(effort == .none ? .low : effort)
+            return
+        }
+
         if Self.chatTemplateToggleModelIDs.contains(lower) {
             // Toggle models: only `enabled` controls thinking. A nil effort must not
             // be treated as disable (effort defaults to nil on ReasoningControls).
@@ -168,6 +200,9 @@ extension BasetenAdapter {
     }
 
     /// Models that enable thinking only via `chat_template_args.enable_thinking`.
+    /// Note: `nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B` must NOT be added here —
+    /// docs.baseten.co/inference/model-apis/reasoning documents that setting only
+    /// `chat_template_args.enable_thinking: true` returns HTTP 400; use `reasoning_effort`.
     private static let chatTemplateToggleModelIDs: Set<String> = [
         "moonshotai/kimi-k2.6",
         "moonshotai/kimi-k2.7-code",
@@ -186,5 +221,15 @@ extension BasetenAdapter {
     /// GLM-5.3-Flash: always-on `reasoning_effort` low/high/max (models.dev `baseten`).
     private static let glm53AlwaysOnEffortModelIDs: Set<String> = [
         "zai-org/glm-5.3-flash",
+    ]
+
+    /// reflection/Beam-1.0: always-on `reasoning_effort` minimal/low/medium/high/xhigh/max (default high).
+    private static let beamAlwaysOnEffortModelIDs: Set<String> = [
+        "reflection/beam-1.0",
+    ]
+
+    /// meta-models/muse-spark-open: always-on `reasoning_effort` low/medium/high/xhigh (default xhigh).
+    private static let museSparkOpenAlwaysOnEffortModelIDs: Set<String> = [
+        "meta-models/muse-spark-open",
     ]
 }

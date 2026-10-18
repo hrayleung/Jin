@@ -2095,5 +2095,127 @@ extension ModelCatalog {
                maxOutputTokens: 4_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+
+        // --- OpenRouter additions, 2026-10-14..2026-10-18 (live GET /api/v1/models +
+        // models.dev `openrouter`) ---
+        // DeepSeek V4.1 Flash 1017 (created 2026-10-17): 1,048,576 / 393,216 on OR,
+        // text+image→text, tools + structured outputs, cache read pricing, reasoning
+        // effort none/low/high/max (default high).
+        Record(id: "deepseek/deepseek-v4.1-flash-1017", displayName: "DeepSeek: DeepSeek V4.1 Flash 1017",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 393_216,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Elorian: Glimpse (created 2026-10-16): 262,144 / 256,000, text+image+video→text
+        // (`.videoInput` withheld until live-probed on OR), tools, reasoning toggle,
+        // cache read pricing.
+        Record(id: "elorian/glimpse", displayName: "Elorian: Glimpse",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 256_000,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // XingChen: Xing4.0 29B A4B (free) (created 2026-10-16): 262,144 / 235,929,
+        // text-only, tools + structured outputs, reasoning toggle.
+        Record(id: "xingchen-agi/xing4.0-29b-a4b:free", displayName: "XingChen: Xing4.0 29B A4B (free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 235_929,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Reflection: Beam 1.0 501B A23B (created 2026-10-15): 1,048,576 / 943,718 on OR,
+        // text-only, tools + structured outputs, cache read pricing, always-on reasoning
+        // (`mandatory: true` on OR) with effort low..max (default high).
+        Record(id: "reflection/beam-1.0-501b-a23b", displayName: "Reflection: Beam 1.0 501B A23B",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Moondream 3 Preview & Moondream 3.1 (created 2026-10-15): 32,000 / 4,096,
+        // text+image→text, structured outputs, reasoning toggle, no tool calling.
+        Record(id: "moondream/moondream3-preview", displayName: "Moondream: Moondream 3 Preview",
+               capabilities: [.streaming, .vision, .reasoning],
+               contextWindow: 32_000,
+               maxOutputTokens: 4_096,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "moondream/moondream3.1-9b-a2b", displayName: "Moondream: Moondream 3.1",
+               capabilities: [.streaming, .vision, .reasoning],
+               contextWindow: 32_000,
+               maxOutputTokens: 4_096,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Meta: Muse Spark Open (created 2026-10-15): 1,048,576 / 943,718 on OR,
+        // text+image+audio+file+video→text (`.videoInput` and `.nativePDF` withheld on OR),
+        // tools, cache read pricing, always-on reasoning (`low..xhigh`, default `xhigh`).
+        Record(id: "meta/muse-spark-open", displayName: "Meta: Muse Spark Open",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .xhigh,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        // NVIDIA: Nemotron 3.5 Super VL + (free) (created 2026-10-15):
+        // paid is 1,048,576 / 235,929 with cache read pricing; free is 1,000,000 / 131,072.
+        // Both accept text+image (`.videoInput` withheld until live-probed on OR), tools,
+        // and reasoning toggle.
+        Record(id: "nvidia/nemotron-3.5-super-vl", displayName: "NVIDIA: Nemotron 3.5 Super VL",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 235_929,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "nvidia/nemotron-3.5-super-vl:free", displayName: "NVIDIA: Nemotron 3.5 Super VL (free)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Unbiased Pareto 26.10, Latest alias, and 26.9 (created 2026-10-14):
+        // text+image→text, tools, cache read pricing, no reasoning parameters.
+        Record(id: "unbiased/pareto-26.10", displayName: "Pareto 26.10",
+               capabilities: [.streaming, .toolCalling, .vision, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "~unbiased/pareto-latest", displayName: "Pareto Latest",
+               capabilities: [.streaming, .toolCalling, .vision, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "unbiased/pareto-26.9", displayName: "Pareto 26.9",
+               capabilities: [.streaming, .toolCalling, .vision, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // LiquidAI: LFM2.5-24B-A2B (created 2026-10-14): 128,000 / 8,192,
+        // text-only, tools + structured outputs, cache read pricing, reasoning toggle.
+        Record(id: "liquid/lfm-2.5-24b-a2b", displayName: "LiquidAI: LFM2.5-24B-A2B",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 128_000,
+               maxOutputTokens: 8_192,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Google: Gemini 4 Argon (batch) (created 2026-10-14): `:batch` endpoint variant
+        // of `google/gemini-4-argon` — catalog-only (`isFullySupported: false`), matching
+        // `anthropic/claude-sonnet-5.5:batch` and `anthropic/claude-haiku-5.5:batch`.
+        Record(id: "google/gemini-4-argon:batch", displayName: "Google: Gemini 4 Argon (batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: false, isSeeded: false),
     ]
 }

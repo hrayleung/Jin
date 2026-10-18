@@ -10078,6 +10078,37 @@ final class ChatCompletionsAdaptersTests: XCTestCase {
                 XCTAssertEqual(root["reasoning_effort"] as? String, expected)
             }
         }
+
+        // OpenCode Go Beam Free: declared band is low/medium/high/xhigh/max —
+        // xhigh and max must survive to the wire, and minimal clamps to low.
+        for (effort, expected) in [
+            (ReasoningEffort.minimal, "low"),
+            (.low, "low"),
+            (.medium, "medium"),
+            (.high, "high"),
+            (.xhigh, "xhigh"),
+            (.max, "max"),
+        ] {
+            try await runAdapter(
+                { OpenCodeGoAdapter(providerConfig: chatConfig(.opencodeGo, OpenCodeGoAdapter.hardcodedBaseURL), apiKey: "k", networkManager: $0) },
+                modelID: "beam-free",
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort))
+            ) { root in
+                XCTAssertEqual(root["reasoning_effort"] as? String, expected, "beam-free \(effort)")
+            }
+        }
+
+        // OpenCode Go Step 5 Preview: declared band is low/medium/high —
+        // xhigh and max clamp down to high.
+        for (effort, expected) in [(ReasoningEffort.xhigh, "high"), (.max, "high")] {
+            try await runAdapter(
+                { OpenCodeGoAdapter(providerConfig: chatConfig(.opencodeGo, OpenCodeGoAdapter.hardcodedBaseURL), apiKey: "k", networkManager: $0) },
+                modelID: "step-5-preview",
+                controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: effort))
+            ) { root in
+                XCTAssertEqual(root["reasoning_effort"] as? String, expected, "step-5-preview \(effort)")
+            }
+        }
     }
 
     /// 2026-09-29 census: request shapes for the new always-on / declared-band records.
