@@ -188,22 +188,126 @@ final class AnthropicPauseTurnContinuationTests: XCTestCase {
                 #"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-opus-5-5","content":[],"usage":{"input_tokens":10,"output_tokens":1}}}"#,
                 #"{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}"#,
                 #"{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Working"}}"#,
-                #"{"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}}"#
+                overloadedErrorLine
             ]
             return (okResponse(for: request), sse(lines))
         }
 
-        let events = try await collectEvents(from: makeAdapter())
+        let error = try await collectFailure(from: makeAdapter())
 
-        let error = try XCTUnwrap(events.compactMap { event -> LLMError? in
-            guard case .error(let error) = event else { return nil }
-            return error
-        }.first)
         guard case .providerError(let code, let message) = error else {
             return XCTFail("Expected providerError, got \(error)")
         }
         XCTAssertEqual(code, "overloaded_error")
         XCTAssertEqual(message, "Overloaded")
+    }
+
+    // MARK: - Failed resume
+
+    /// The paused response already streamed, and the orchestrator persists nothing when the
+    /// stream throws — failing the turn here would discard the reply received so far.
+    func testRejectedResumeKeepsPausedOutputWithNotice() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyJSON(request))
+            guard recorder.append(body) == 0 else {
+                let error = #"{"type":"error","error":{"type":"rate_limit_error","message":"Output tokens per minute exceeded."}}"#
+                let response = HTTPURLResponse(url: request.url!, statusCode: 429, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+                return (response, Data(error.utf8))
+            }
+            return (okResponse(for: request), sse(pausedResponseLines(containerID: nil)))
+        }
+
+        let events = try await collectEvents(from: makeAdapter())
+
+        XCTAssertEqual(recorder.bodies.count, 2)
+        XCTAssertTrue(events.contains { event in
+            if case .thinkingDelta(.thinking(let text, _)) = event { return text == "Now KTH requirements." }
+            return false
+        })
+        let notice = try XCTUnwrap(texts(in: events).first { $0.contains("could not be resumed") })
+        XCTAssertTrue(notice.contains("Output tokens per minute exceeded."))
+        guard case .messageEnd(let usage?) = events.last else {
+            return XCTFail("Expected the reply to end normally, got \(String(describing: events.last))")
+        }
+        XCTAssertEqual(usage.outputTokens, 400)
+    }
+
+    func testErrorEventDuringResumeKeepsOutputWithNotice() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyJSON(request))
+            let lines = recorder.append(body) == 0
+                ? pausedResponseLines(containerID: nil)
+                : Array(resumedResponseLines().prefix(7)) + [overloadedErrorLine]
+            return (okResponse(for: request), sse(lines))
+        }
+
+        let events = try await collectEvents(from: makeAdapter())
+
+        XCTAssertTrue(events.contains { event in
+            if case .thinkingDelta(.thinking(let text, _)) = event { return text == "Enough to answer." }
+            return false
+        })
+        let notice = try XCTUnwrap(texts(in: events).first { $0.contains("could not be resumed") })
+        XCTAssertTrue(notice.contains("Overloaded"))
+        guard case .messageEnd = events.last else {
+            return XCTFail("Expected the reply to end normally, got \(String(describing: events.last))")
+        }
+    }
+
+    func testRefusalDuringResumeStillFailsTheTurn() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyJSON(request))
+            let lines = recorder.append(body) == 0
+                ? pausedResponseLines(containerID: nil)
+                : [
+                    #"{"type":"message_start","message":{"id":"msg_2","type":"message","role":"assistant","model":"claude-opus-5-5","content":[],"usage":{"input_tokens":50,"output_tokens":1}}}"#,
+                    #"{"type":"message_delta","delta":{"stop_reason":"refusal","stop_sequence":null},"usage":{"output_tokens":1}}"#
+                ]
+            return (okResponse(for: request), sse(lines))
+        }
+
+        let error = try await collectFailure(from: makeAdapter())
+
+        guard case .contentFiltered = error else {
+            return XCTFail("Expected contentFiltered, got \(error)")
+        }
+    }
+
+    /// The orchestrator would run a tool call whose input never finished streaming.
+    func testResumeFailingAfterClientToolCallStartStillFailsTheTurn() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.requestHandler = { request in
+            let body = try XCTUnwrap(requestBodyJSON(request))
+            let lines = recorder.append(body) == 0
+                ? pausedResponseLines(containerID: nil)
+                : [
+                    #"{"type":"message_start","message":{"id":"msg_2","type":"message","role":"assistant","model":"claude-opus-5-5","content":[],"usage":{"input_tokens":50,"output_tokens":1}}}"#,
+                    #"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"save_note","input":{}}}"#,
+                    #"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"text\": \"KTH"}}"#,
+                    overloadedErrorLine
+                ]
+            return (okResponse(for: request), sse(lines))
+        }
+
+        let saveNote = ToolDefinition(
+            id: "save_note",
+            name: "save_note",
+            description: "Save a note.",
+            parameters: ParameterSchema(
+                properties: ["text": PropertySchema(type: "string", description: "Note text")],
+                required: ["text"]
+            ),
+            source: .builtin
+        )
+        let error = try await collectFailure(from: makeAdapter(), tools: [saveNote])
+
+        guard case .providerError(let code, _) = error else {
+            return XCTFail("Expected providerError, got \(error)")
+        }
+        XCTAssertEqual(code, "overloaded_error")
     }
 
     func testEndTurnStillEndsWithoutNoticeOrSecondRequest() async throws {
@@ -255,7 +359,10 @@ final class AnthropicPauseTurnContinuationTests: XCTestCase {
         )
     }
 
-    private func collectEvents(from adapter: AnthropicAdapter) async throws -> [StreamEvent] {
+    private func collectEvents(
+        from adapter: AnthropicAdapter,
+        tools: [ToolDefinition] = []
+    ) async throws -> [StreamEvent] {
         let stream = try await adapter.sendMessage(
             messages: [Message(role: .user, content: [.text("Plan my Sweden master's applications.")])],
             modelID: "claude-opus-5-5",
@@ -264,7 +371,7 @@ final class AnthropicPauseTurnContinuationTests: XCTestCase {
                 reasoning: ReasoningControls(enabled: true, effort: .max),
                 webSearch: WebSearchControls(enabled: true)
             ),
-            tools: [],
+            tools: tools,
             streaming: true
         )
         var events: [StreamEvent] = []
@@ -273,7 +380,31 @@ final class AnthropicPauseTurnContinuationTests: XCTestCase {
         }
         return events
     }
+
+    private func collectFailure(
+        from adapter: AnthropicAdapter,
+        tools: [ToolDefinition] = [],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws -> LLMError {
+        do {
+            let events = try await collectEvents(from: adapter, tools: tools)
+            XCTFail("Expected the stream to fail, got \(events.count) events", file: file, line: line)
+            throw CancellationError()
+        } catch let error as LLMError {
+            return error
+        }
+    }
+
+    private func texts(in events: [StreamEvent]) -> [String] {
+        events.compactMap { event in
+            guard case .contentDelta(.text(let text)) = event else { return nil }
+            return text
+        }
+    }
 }
+
+private let overloadedErrorLine = #"{"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}}"#
 
 // MARK: - Fixtures
 

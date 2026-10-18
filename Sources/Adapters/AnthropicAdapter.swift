@@ -39,12 +39,28 @@ actor AnthropicAdapter: LLMProviderAdapter {
                     var usageAccumulator = AnthropicUsageAccumulator()
 
                     while true {
-                        let response = try await streamResponse(
-                            request,
-                            blockIndexOffset: pausedContent.count,
-                            usageAccumulator: &usageAccumulator,
-                            continuation: continuation
-                        )
+                        var response = StreamedResponse()
+                        do {
+                            try await streamResponse(
+                                request,
+                                into: &response,
+                                blockIndexOffset: pausedContent.count,
+                                usageAccumulator: &usageAccumulator,
+                                continuation: continuation
+                            )
+                        } catch {
+                            guard !Task.isCancelled,
+                                  let notice = AnthropicStopReasonSupport.resumeFailureNoticeMarkdown(
+                                      for: error,
+                                      pauseTurnContinuations: pauseTurnContinuations,
+                                      failedResponseStartedToolCall: response.startedToolCall
+                                  ) else {
+                                throw error
+                            }
+                            continuation.yield(.contentDelta(.text(notice)))
+                            continuation.yield(.messageEnd(usage: usageAccumulator.toUsage()))
+                            break
+                        }
                         containerID = response.recorder.containerID ?? containerID
 
                         // The server-tool loop hit its per-request iteration cap mid-turn. Resume by
@@ -100,17 +116,21 @@ actor AnthropicAdapter: LLMProviderAdapter {
         /// A `messageEnd` held back because the stop reason still needs handling — the turn is
         /// resumed, or a notice has to land before the reply is marked finished.
         var deferredMessageEnd = false
+        /// The orchestrator runs every tool call it has seen, so a response that fails after
+        /// starting one must not end as if it had finished.
+        var startedToolCall = false
     }
 
-    /// Streams one HTTP response of the turn into `continuation`.
+    /// Streams one HTTP response of the turn into `continuation`. `response` is `inout` so what
+    /// was received survives a throw; an `error` event ends the response the same way.
     private func streamResponse(
         _ request: URLRequest,
+        into response: inout StreamedResponse,
         blockIndexOffset: Int,
         usageAccumulator: inout AnthropicUsageAccumulator,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
-    ) async throws -> StreamedResponse {
+    ) async throws {
         let sseStream = await networkManager.streamRequest(request, parser: SSEParser())
-        var response = StreamedResponse()
 
         var currentMessageID: String?
         var currentBlockIndex: Int?
@@ -154,15 +174,19 @@ actor AnthropicAdapter: LLMProviderAdapter {
             }
 
             guard let streamEvent else { continue }
-            if case .messageEnd = streamEvent,
-               AnthropicStopReasonSupport.defersMessageEnd(for: response.recorder.stopReason) {
+            switch streamEvent {
+            case .error(let error):
+                throw error
+            case .messageEnd where AnthropicStopReasonSupport.defersMessageEnd(for: response.recorder.stopReason):
                 response.deferredMessageEnd = true
                 continue
+            case .toolCallStart:
+                response.startedToolCall = true
+            default:
+                break
             }
             continuation.yield(streamEvent)
         }
-
-        return response
     }
 }
 

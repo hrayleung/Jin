@@ -45,6 +45,31 @@ enum AnthropicStopReasonSupport {
         return continued
     }
 
+    /// A resume that fails would otherwise discard the whole reply: the paused responses before
+    /// it already streamed, and the orchestrator persists nothing when the stream throws. Keep
+    /// them with a notice — except on a refusal (the safety decision covers the turn) or when the
+    /// failed response had started a client tool call, which would then run with partial input.
+    static func resumeFailureNoticeMarkdown(
+        for error: Error,
+        pauseTurnContinuations: Int,
+        failedResponseStartedToolCall: Bool
+    ) -> String? {
+        guard pauseTurnContinuations > 0,
+              !failedResponseStartedToolCall,
+              !(error is CancellationError) else {
+            return nil
+        }
+        if let llmError = error as? LLMError, case .contentFiltered = llmError {
+            return nil
+        }
+
+        let message = "Response stopped early because Claude's paused turn could not be resumed. Reply “continue” to let it finish."
+        guard let reason = error.localizedDescription.trimmedNonEmpty else {
+            return "\n\n---\n\n\(message)"
+        }
+        return "\n\n---\n\n\(message)\n\n\(reason)"
+    }
+
     static func noticeMarkdown(for stopReason: String?, pauseTurnContinuations: Int) -> String? {
         let message: String
         switch stopReason {
