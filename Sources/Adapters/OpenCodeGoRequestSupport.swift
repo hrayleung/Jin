@@ -273,10 +273,12 @@ extension OpenCodeGoAdapter {
             // extra rung and is unverified here; fold everything enabled to `high`.
             return "high"
         default:
-            // Declared bands (catalog record / live fetch) are provider-published
-            // truth, so normalize against them first — e.g. space-bunny-free
-            // accepts low…max, which the generic collapse would fold to "high".
-            let normalized = ModelCapabilityRegistry.normalizedReasoningEffort(
+            // Declared bands (catalog record / live fetch) and registry sets are
+            // provider-published truth, so normalize against them first and emit
+            // the surviving wire string — e.g. beam-free, space-bunny-free,
+            // space-bunny, and cat-jam-free accept low…max, which the generic
+            // low/medium/high collapse would fold to "high".
+            return ModelCapabilityRegistry.normalizedReasoningEffort(
                 effort,
                 for: .opencodeGo,
                 modelID: modelID,
@@ -284,8 +286,7 @@ extension OpenCodeGoAdapter {
                     providerConfig: providerConfig,
                     modelID: modelID
                 )
-            )
-            return mapReasoningEffortNoneDisabled(normalized)
+            ).rawValue
         }
     }
 
