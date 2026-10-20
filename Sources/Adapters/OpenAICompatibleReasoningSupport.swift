@@ -101,6 +101,16 @@ enum OpenAICompatibleReasoningSupport {
             return false
         }
 
+        if isCloudflareDeepSeekV41Flash1017Model(providerConfig: providerConfig, modelID: modelID) {
+            applyCloudflareDeepSeekV41Flash1017Reasoning(
+                to: &body,
+                reasoning: reasoning,
+                providerConfig: providerConfig,
+                modelID: modelID
+            )
+            return false
+        }
+
         if providerConfig.type == .zhipuCodingPlan
             || providerConfig.type == .minimax
             || providerConfig.type == .minimaxCodingPlan
@@ -195,6 +205,21 @@ enum OpenAICompatibleReasoningSupport {
                 return
             }
             applyGroqMuseSparkOpenReasoning(to: &body, reasoning: reasoning)
+            return
+        }
+
+        if isCloudflareDeepSeekV41Flash1017Model(providerConfig: providerConfig, modelID: modelID) {
+            body.removeValue(forKey: "reasoning")
+            guard let reasoning = controls.reasoning else {
+                body.removeValue(forKey: "reasoning_effort")
+                return
+            }
+            applyCloudflareDeepSeekV41Flash1017Reasoning(
+                to: &body,
+                reasoning: reasoning,
+                providerConfig: providerConfig,
+                modelID: modelID
+            )
         }
     }
 
@@ -641,6 +666,35 @@ enum OpenAICompatibleReasoningSupport {
     static func isCloudflareKimiK26Model(providerConfig: ProviderConfig, modelID: String) -> Bool {
         providerConfig.type == .cloudflareAIGateway
             && modelID.lowercased() == "@cf/moonshotai/kimi-k2.6"
+    }
+
+    static func isCloudflareDeepSeekV41Flash1017Model(providerConfig: ProviderConfig, modelID: String) -> Bool {
+        providerConfig.type == .cloudflareAIGateway
+            && modelID.lowercased() == "@cf/deepseek-ai/deepseek-v4.1-flash-1017"
+    }
+
+    /// Cloudflare Workers AI Chat Completions schema for `@cf/deepseek-ai/deepseek-v4.1-flash-1017`
+    /// (`developers.cloudflare.com/workers-ai/models/deepseek-v4.1-flash-1017`) defines top-level
+    /// `reasoning_effort` (`none|low|high|max`, default `high`) rather than `reasoning: {effort: ...}`.
+    private static func applyCloudflareDeepSeekV41Flash1017Reasoning(
+        to body: inout [String: Any],
+        reasoning: ReasoningControls,
+        providerConfig: ProviderConfig,
+        modelID: String
+    ) {
+        body.removeValue(forKey: "reasoning")
+        let isDisabled = reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none
+        if isDisabled {
+            body["reasoning_effort"] = "none"
+            return
+        }
+
+        let effort = reasoning.effort ?? .high
+        body["reasoning_effort"] = mapReasoningEffort(
+            effort,
+            providerConfig: providerConfig,
+            modelID: modelID
+        )
     }
 
     static func mergeChatTemplateKwargs(into body: inout [String: Any], additional: [String: Any]) {

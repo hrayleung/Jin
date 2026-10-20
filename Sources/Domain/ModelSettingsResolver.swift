@@ -506,6 +506,9 @@ enum ModelSettingsResolver {
         "databricks-claude-opus-5-5",
         // GPT-6.1 Sol on FMAPI (2026-10-02): low…max band, no `none`/`minimal`.
         "databricks-gpt-6-1-sol",
+        // Gemini 4 Argon on FMAPI (2026-10-16): always-on reasoning (low/medium/high,
+        // default medium; `none` and `minimal` are rejected).
+        "databricks-gemini-4-argon",
         // Grok 4.7 on FMAPI (2026-10-16): docs state "always on — reasoning is
         // built into the model and cannot be disabled; use reasoning_effort set
         // to low, medium, high, or xhigh".

@@ -1664,10 +1664,33 @@ final class JinModelSupportTests: XCTestCase {
             [.none, .low, .high, .max]
         )
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "@cf/deepseek-ai/deepseek-v4.1-flash-1017"))
+        var cfConfig = DefaultProviderSeeds.cloudflareAIGateway
+        cfConfig.models.append(cfDS)
+        var cfBody: [String: Any] = [:]
+        _ = OpenAICompatibleReasoningSupport.applyReasoning(
+            to: &cfBody,
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: true, effort: .max)),
+            providerConfig: cfConfig,
+            modelID: "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+            requestShape: .openAICompatible
+        )
+        XCTAssertEqual(cfBody["reasoning_effort"] as? String, "max")
+        XCTAssertNil(cfBody["reasoning"])
+        var cfDisabledBody: [String: Any] = [:]
+        _ = OpenAICompatibleReasoningSupport.applyReasoning(
+            to: &cfDisabledBody,
+            controls: GenerationControls(reasoning: ReasoningControls(enabled: false)),
+            providerConfig: cfConfig,
+            modelID: "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+            requestShape: .openAICompatible
+        )
+        XCTAssertEqual(cfDisabledBody["reasoning_effort"] as? String, "none")
+        XCTAssertNil(cfDisabledBody["reasoning"])
 
         let dbxArgon = ModelCatalog.modelInfo(for: "databricks-gemini-4-argon", provider: .databricks)
         XCTAssertEqual(dbxArgon.contextWindow, 1_048_576)
         XCTAssertEqual(dbxArgon.maxOutputTokens, 65_536)
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .databricks, modelID: "databricks-gemini-4-argon"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-gemini-4-argon"))
 
         let dbxGrok47 = ModelCatalog.modelInfo(for: "databricks-grok-4-7", provider: .databricks)
