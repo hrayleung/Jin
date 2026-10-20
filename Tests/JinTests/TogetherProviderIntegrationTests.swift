@@ -32,7 +32,7 @@ final class TogetherProviderIntegrationTests: XCTestCase {
 
         XCTAssertEqual(togetherProvider.id, "together")
         XCTAssertEqual(togetherProvider.baseURL, ProviderType.together.defaultBaseURL)
-        XCTAssertEqual(togetherProvider.models.count, 26)
+        XCTAssertEqual(togetherProvider.models.count, 27)
         XCTAssertEqual(
             togetherProvider.models.map(\.id),
             [
@@ -50,6 +50,7 @@ final class TogetherProviderIntegrationTests: XCTestCase {
                 "deepseek-ai/DeepSeek-V4-Pro-0813",
                 "deepseek-ai/DeepSeek-V4-Flash-0731",
                 "deepseek-ai/DeepSeek-V4.1-Flash",
+                "deepseek-ai/DeepSeek-V4.1-Flash-1017",
                 "openai/gpt-oss-120b",
                 "Qwen/Qwen3.8-2.4T-A95B",
                 "Qwen/Qwen3.8-27B",

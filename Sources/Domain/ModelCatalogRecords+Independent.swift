@@ -694,6 +694,19 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // DeepSeek-V4.1-Flash-1017 (docs.together.ai/docs/serverless/models, added
+        // 2026-10-18): exact ID `deepseek-ai/DeepSeek-V4.1-Flash-1017`. 1,000,000
+        // context on Together's serverless table / 384,000 output, text+image input,
+        // function calling + structured outputs, cached-input ($0.006/M) →
+        // promptCaching. Same always-on low/high/max effort band (default high).
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash-1017", displayName: "DeepSeek V4.1 Flash 1017",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: true),
         Record(id: "openai/gpt-oss-120b", displayName: "GPT-OSS 120B",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 128_000,
@@ -1197,6 +1210,20 @@ extension ModelCatalog {
                maxOutputTokens: 512_000,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: true),
+        // MiniMax-M3.1-Flash GA (platform.minimax.io/docs/release-notes/models.md +
+        // guides/text-generation.md + api-reference/text-openai-api.md, released
+        // 2026-10-19): now available on both Pay-as-you-go (`minimax`) and Token Plan
+        // (`minimaxCodingPlan`). 1,000,000 context / 524,288 max output, text + image
+        // input (`.videoInput` withheld until live-probed), tool calling, and
+        // always-on thinking (`thinking.type = "adaptive"` only; `reasoning_effort`
+        // low/medium/high/xhigh/max, default max).
+        Record(id: "MiniMax-M3.1-Flash", displayName: "MiniMax M3.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
         Record(id: "MiniMax-M2.7", displayName: "MiniMax M2.7",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 204_800,
@@ -1249,6 +1276,19 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 512_000,
                reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
+        // MiniMax-M3.1-Flash GA (platform.minimax.io/docs/release-notes/models.md +
+        // coding-plan/intro.md, released 2026-10-19): GA replacement for
+        // `MiniMax-M3.1-Flash-Preview` (which continues to resolve to `MiniMax-M3.1-Flash`).
+        // 1,000,000 context / 524,288 max output, text + image input, tool calling,
+        // always-on thinking (`thinking.type = "adaptive"` only; `reasoning_effort`
+        // low/medium/high/xhigh/max, default max).
+        Record(id: "MiniMax-M3.1-Flash", displayName: "MiniMax M3.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: true),
         // MiniMax-M3.1-Flash-Preview (platform.minimax.io text-generation + text-chat-openai
         // OpenAPI, announced 2026-09-27): "available only through Token Plan and MiniMax
@@ -2788,6 +2828,21 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .high,
                    supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: true),
+        // MiniMax M3.1 Flash Free (live GET /zen/go/v1/models + opencode.ai/docs/go
+        // endpoint table, added 2026-10-19): exact ID `minimax-m3.1-flash-free` on
+        // /zen/go/v1/chat/completions via @ai-sdk/openai-compatible — keep out of
+        // `anthropicMessagesModelIDs` and `openAIResponsesModelIDs`. 1,000,000 context /
+        // 512,000 output per models.dev `opencode`, text + image input (`.videoInput`
+        // withheld on this gateway), tool calling, always-on reasoning with low..max
+        // effort (default max).
+        Record(id: "minimax-m3.1-flash-free", displayName: "MiniMax M3.1 Flash (Free)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 512_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
         // Catalog-only — recognized when fetched via the API
         // .videoInput dropped: qwen3.5-plus is in `anthropicMessagesModelIDs`, and the
         // Anthropic /messages translation replaces a .video part with an
@@ -3170,6 +3225,27 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .high,
                    supportedEfforts: [.none, .high, .max]),
                isFullySupported: true, isSeeded: true),
+        // DeepSeek V4.1 Flash 1017 + 1017 Fast (docs.baseten.co/inference/model-apis/overview.md +
+        // reasoning.md + vision.md + prompt-caching.md, updated 2026-10-19): both are now on
+        // the published Baseten Supported Models table. 1,048,576 context / 262,144 max output,
+        // text + image input, tool calling, automatic KV-cache discount, reasoning effort
+        // none/high/max (default high).
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash-1017", displayName: "DeepSeek V4.1 Flash 1017",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .high, .max]),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash-1017-Fast", displayName: "DeepSeek V4.1 Flash 1017 Fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .high, .max]),
+               isFullySupported: true, isSeeded: true),
         // Reflection Beam 1.0 (docs.baseten.co/inference/model-apis/overview +
         // reasoning.md, added 2026-10-16): 1,048,576 context / 131,072 max output,
         // text-only, tool calling, automatic KV-cache discount. Always-on reasoning
@@ -3288,18 +3364,6 @@ extension ModelCatalog {
         // Not on the published overview table, so they are catalog-enriched
         // rather than first-launch seeds — full support when the user adds them.
         //
-        // DeepSeek V4.1 Flash 1017 (baseten.co/library/deepseek-v4-1-flash-1017 +
-        // docs.baseten.co/inference/model-apis/reasoning.md, added 2026-10-17):
-        // 1,048,576 context / 262,144 max output, text + image input, tool calling,
-        // automatic KV-cache discount, reasoning effort none/high/max (default high).
-        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash-1017", displayName: "DeepSeek V4.1 Flash 1017",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 262_144,
-               reasoningConfig: ModelReasoningConfig(
-                   type: .effort, defaultEffort: .high,
-                   supportedEfforts: [.none, .high, .max]),
-               isFullySupported: true, isSeeded: false),
         // Mercury 2 (Inception dLLM): 128k context / 50k output, text-only, tool calling,
         // tunable reasoning via reasoning_effort low/medium/high (OpenRouter also lists
         // "none"). Cached-input pricing on OpenRouter → promptCaching.
