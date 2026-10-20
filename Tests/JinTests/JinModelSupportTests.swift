@@ -1539,6 +1539,156 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertNotNil(ModelCatalog.entry(for: "gemini-4-argon-contributor", provider: .opencodeGo))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "gemini-4-argon-contributor"))
     }
+
+    func testOctober2026MidMonthModelsUseExactMetadataAndSupportFlags() async throws {
+        let fullLadder: [ReasoningEffort] = [.low, .medium, .high, .xhigh, .max]
+
+        // 1. MiniMax (`minimax` & `minimaxCodingPlan`) — `MiniMax-M3.1-Flash` GA (2026-10-19)
+        for providerType in [ProviderType.minimax, .minimaxCodingPlan] {
+            let m31Flash = ModelCatalog.modelInfo(for: "MiniMax-M3.1-Flash", provider: providerType)
+            XCTAssertEqual(m31Flash.name, "MiniMax M3.1 Flash", "\(providerType)")
+            XCTAssertEqual(m31Flash.contextWindow, 1_000_000, "\(providerType)")
+            XCTAssertEqual(m31Flash.maxOutputTokens, 524_288, "\(providerType)")
+            XCTAssertEqual(m31Flash.capabilities, [.streaming, .toolCalling, .vision, .reasoning], "\(providerType)")
+            XCTAssertEqual(m31Flash.reasoningConfig?.type, .effort, "\(providerType)")
+            XCTAssertEqual(m31Flash.reasoningConfig?.defaultEffort, .max, "\(providerType)")
+            XCTAssertEqual(m31Flash.reasoningConfig?.supportedEfforts, fullLadder, "\(providerType)")
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: providerType, modelID: "MiniMax-M3.1-Flash"), "\(providerType)")
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: providerType, modelID: "MiniMax-M3.1-Flash-Custom"), "\(providerType)")
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: providerType, modelID: "MiniMax-M3.1-Flash"), "\(providerType)")
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: providerType, modelID: "MiniMax-M3.1-Flash"),
+                fullLadder,
+                "\(providerType)"
+            )
+            XCTAssertTrue(ModelCatalog.seededModels(for: providerType).contains(where: { $0.id == "MiniMax-M3.1-Flash" }), "\(providerType)")
+
+            // Legacy persisted row resolves to the 1M / 524,288 always-thinking effort band
+            let legacyM31 = ModelInfo(
+                id: "MiniMax-M3.1-Flash",
+                name: "MiniMax-M3.1-Flash",
+                capabilities: [.streaming, .toolCalling],
+                contextWindow: 128_000
+            )
+            let resolvedM31 = ModelSettingsResolver.resolve(model: legacyM31, providerType: providerType)
+            XCTAssertEqual(resolvedM31.contextWindow, 1_000_000, "\(providerType)")
+            XCTAssertEqual(resolvedM31.maxOutputTokens, 524_288, "\(providerType)")
+            XCTAssertEqual(resolvedM31.reasoningConfig?.supportedEfforts, fullLadder, "\(providerType)")
+            XCTAssertFalse(resolvedM31.reasoningCanDisable, "\(providerType)")
+        }
+
+        // 2. OpenCode Go — `minimax-m3.1-flash-free` (2026-10-19)
+        let goM31 = ModelCatalog.modelInfo(for: "minimax-m3.1-flash-free", provider: .opencodeGo)
+        XCTAssertEqual(goM31.contextWindow, 1_000_000)
+        XCTAssertEqual(goM31.maxOutputTokens, 512_000)
+        XCTAssertEqual(goM31.capabilities, [.streaming, .toolCalling, .vision, .reasoning])
+        XCTAssertEqual(goM31.reasoningConfig?.defaultEffort, .max)
+        XCTAssertEqual(goM31.reasoningConfig?.supportedEfforts, fullLadder)
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "minimax-m3.1-flash-free"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "minimax-m3.1-flash-free-custom"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "minimax-m3.1-flash-free"))
+        XCTAssertFalse(OpenCodeGoAdapter.anthropicMessagesModelIDs.contains("minimax-m3.1-flash-free"))
+        XCTAssertFalse(OpenCodeGoAdapter.openAIResponsesModelIDs.contains("minimax-m3.1-flash-free"))
+
+        // 3. OpenRouter — `minimax/minimax-m3.1-flash:free` & `inception/mercury-3`
+        let orM31 = ModelCatalog.modelInfo(for: "minimax/minimax-m3.1-flash:free", provider: .openrouter)
+        XCTAssertEqual(orM31.contextWindow, 1_000_000)
+        XCTAssertEqual(orM31.maxOutputTokens, 524_288)
+        XCTAssertEqual(orM31.capabilities, [.streaming, .toolCalling, .vision, .reasoning])
+        XCTAssertEqual(orM31.reasoningConfig?.defaultEffort, .max)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "minimax/minimax-m3.1-flash:free"),
+            fullLadder
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "minimax/minimax-m3.1-flash:free"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "minimax/minimax-m3.1-flash:free"))
+
+        let orMercury3 = ModelCatalog.modelInfo(for: "inception/mercury-3", provider: .openrouter)
+        XCTAssertEqual(orMercury3.contextWindow, 1_000_000)
+        XCTAssertEqual(orMercury3.maxOutputTokens, 131_072)
+        XCTAssertEqual(orMercury3.capabilities, [.streaming, .toolCalling, .reasoning, .promptCaching])
+        XCTAssertEqual(orMercury3.reasoningConfig?.defaultEffort, .low)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "inception/mercury-3"),
+            [.none, .low, .medium, .high]
+        )
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "inception/mercury-3"))
+
+        // 4. Vercel AI Gateway — `minimax/minimax-m3.1-flash` & `inception/mercury-3`
+        let vercelM31 = ModelCatalog.modelInfo(for: "minimax/minimax-m3.1-flash", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelM31.contextWindow, 1_000_000)
+        XCTAssertEqual(vercelM31.maxOutputTokens, 524_288)
+        XCTAssertEqual(vercelM31.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertEqual(vercelM31.reasoningConfig?.defaultEffort, .max)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .vercelAIGateway, modelID: "minimax/minimax-m3.1-flash"),
+            fullLadder
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: "minimax/minimax-m3.1-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "minimax/minimax-m3.1-flash"))
+
+        let vercelMercury3 = ModelCatalog.modelInfo(for: "inception/mercury-3", provider: .vercelAIGateway)
+        XCTAssertEqual(vercelMercury3.contextWindow, 1_000_000)
+        XCTAssertEqual(vercelMercury3.maxOutputTokens, 131_072)
+        XCTAssertEqual(vercelMercury3.reasoningConfig?.type, .toggle)
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "inception/mercury-3"))
+
+        // 5. Together AI, Baseten, Cloudflare AI Gateway, Databricks, Router
+        let togetherDS = ModelCatalog.modelInfo(for: "deepseek-ai/DeepSeek-V4.1-Flash-1017", provider: .together)
+        XCTAssertEqual(togetherDS.contextWindow, 1_000_000)
+        XCTAssertEqual(togetherDS.maxOutputTokens, 384_000)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .together, modelID: "deepseek-ai/DeepSeek-V4.1-Flash-1017"),
+            [.low, .high, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .together, modelID: "deepseek-ai/DeepSeek-V4.1-Flash-1017"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "deepseek-ai/DeepSeek-V4.1-Flash-1017"))
+
+        for basetenID in ["deepseek-ai/DeepSeek-V4.1-Flash-1017", "deepseek-ai/DeepSeek-V4.1-Flash-1017-Fast"] {
+            let b10 = ModelCatalog.modelInfo(for: basetenID, provider: .baseten)
+            XCTAssertEqual(b10.contextWindow, 1_048_576, basetenID)
+            XCTAssertEqual(b10.maxOutputTokens, 262_144, basetenID)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .baseten, modelID: basetenID),
+                [.none, .high, .max],
+                basetenID
+            )
+            XCTAssertTrue(ModelCatalog.seededModels(for: .baseten).contains(where: { $0.id == basetenID }), basetenID)
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .baseten, modelID: basetenID), basetenID)
+        }
+
+        let cfDS = ModelCatalog.modelInfo(for: "@cf/deepseek-ai/deepseek-v4.1-flash-1017", provider: .cloudflareAIGateway)
+        XCTAssertEqual(cfDS.contextWindow, 1_048_576)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .cloudflareAIGateway, modelID: "@cf/deepseek-ai/deepseek-v4.1-flash-1017"),
+            [.none, .low, .high, .max]
+        )
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: "@cf/deepseek-ai/deepseek-v4.1-flash-1017"))
+
+        let dbxArgon = ModelCatalog.modelInfo(for: "databricks-gemini-4-argon", provider: .databricks)
+        XCTAssertEqual(dbxArgon.contextWindow, 1_048_576)
+        XCTAssertEqual(dbxArgon.maxOutputTokens, 65_536)
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-gemini-4-argon"))
+
+        let dbxGrok47 = ModelCatalog.modelInfo(for: "databricks-grok-4-7", provider: .databricks)
+        XCTAssertEqual(dbxGrok47.contextWindow, 500_000)
+        XCTAssertEqual(dbxGrok47.reasoningConfig?.supportedEfforts, [.low, .medium, .high, .xhigh])
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .databricks, modelID: "databricks-grok-4-7"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-grok-4-7"))
+
+        for routerID in [
+            "gpt-6.1-sol",
+            "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+            "accounts/fireworks/models/muse-spark-open",
+            "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+            "meta-models/muse-spark-open",
+            "zai-org/GLM-5.3",
+        ] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .router, modelID: routerID), routerID)
+        }
+        XCTAssertNotNil(ModelCatalog.entry(for: "gemini-4-argon", provider: .router))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .router, modelID: "gemini-4-argon"))
+    }
 }
 
 

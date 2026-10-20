@@ -233,6 +233,20 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
 
         // Google Gemini
+        // Gemini 4 Argon (docs.databricks.com/aws/en/machine-learning/foundation-model-apis/supported-models,
+        // updated 2026-10-16): endpoint `databricks-gemini-4-argon`, pay-per-token.
+        // Upstream context window 1,048,576 / max output 65,536, text + image input
+        // (`DatabricksAdapter` encodes text + image_url only), reasoning via
+        // `reasoning_effort` low/medium/high (default medium), function calling,
+        // structured outputs.
+        Record(id: "databricks-gemini-4-argon", displayName: "Gemini 4 Argon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
         Record(id: "databricks-gemini-3-8-flash", displayName: "Gemini 3.8 Flash",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_048_576,
@@ -303,6 +317,19 @@ extension ModelCatalog {
                isFullySupported: true, isSeeded: false),
 
         // xAI Grok
+        // Grok 4.7 (docs.databricks.com/aws/en/machine-learning/foundation-model-apis/supported-models,
+        // updated 2026-10-16): endpoint `databricks-grok-4-7`, pay-per-token.
+        // Supported inputs: text + image. Supported features: always-on reasoning
+        // ("reasoning is built into the model and cannot be disabled; use
+        // reasoning_effort set to low, medium, high, or xhigh to control reasoning
+        // depth"), function calling, structured outputs.
+        Record(id: "databricks-grok-4-7", displayName: "Grok 4.7",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 500_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
         Record(id: "databricks-grok-4-6", displayName: "Grok 4.6",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 500_000,

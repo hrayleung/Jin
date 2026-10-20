@@ -281,6 +281,7 @@ enum ModelSettingsResolver {
         // V4.1-Flash publishes effort-only reasoning options (low/high/max, no
         // toggle) on models.dev `togetherai` — same always-on shape as Inkling.
         "deepseek-ai/deepseek-v4.1-flash",
+        "deepseek-ai/deepseek-v4.1-flash-1017",
         // Beam 1.0 501B A23B + Muse Spark Open 816B A42B (2026-10-15):
         // effort-only reasoning options (low..max / low..xhigh, no toggle or `none`).
         "reflection/beam-1.0-501b-a23b",
@@ -357,6 +358,7 @@ enum ModelSettingsResolver {
         "muse-spark-1.3",
         "muse-spark-1.3-contributor",
         "beam-free",
+        "minimax-m3.1-flash-free",
     ]
 
     /// Zhipu / Z.AI Coding Plan IDs whose thinking cannot be turned off. GLM-5.3
@@ -421,6 +423,8 @@ enum ModelSettingsResolver {
         // live /models reports `reasoning.mandatory: true` (no `none` in band).
         "reflection/beam-1.0-501b-a23b",
         "meta/muse-spark-open",
+        // MiniMax M3.1 Flash (free) (2026-10-19): always-on low…max band.
+        "minimax/minimax-m3.1-flash:free",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /
@@ -471,6 +475,7 @@ enum ModelSettingsResolver {
         "elorian/glimpse",
         "stealth/cat-jam",
         "liquid/lfm2.5-24b-a2b",
+        "minimax/minimax-m3.1-flash",
     ]
 
     /// Cloudflare AI Gateway IDs whose reasoning cannot be disabled. Exact-ID only,
@@ -501,6 +506,10 @@ enum ModelSettingsResolver {
         "databricks-claude-opus-5-5",
         // GPT-6.1 Sol on FMAPI (2026-10-02): low…max band, no `none`/`minimal`.
         "databricks-gpt-6-1-sol",
+        // Grok 4.7 on FMAPI (2026-10-16): docs state "always on — reasoning is
+        // built into the model and cannot be disabled; use reasoning_effort set
+        // to low, medium, high, or xhigh".
+        "databricks-grok-4-7",
     ]
 
     /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list

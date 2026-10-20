@@ -616,6 +616,8 @@ enum ModelCapabilityRegistry {
         "stealth/space-bunny-alpha",
         // Reflection Beam 1.0 501B-A23B (live /models 2026-10-16): low…max ladder.
         "reflection/beam-1.0-501b-a23b",
+        // MiniMax M3.1 Flash (free) (live /models 2026-10-19): low…max ladder.
+        "minimax/minimax-m3.1-flash:free",
     ]
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
@@ -627,6 +629,7 @@ enum ModelCapabilityRegistry {
         "deepseek-ai/deepseek-v4-pro-0813",
         "deepseek-ai/deepseek-v4-flash-0731",
         "deepseek-ai/deepseek-v4.1-flash",
+        "deepseek-ai/deepseek-v4.1-flash-1017",
     ]
     /// Together Qwen3.8-2.4T-A95B: always-on low/high/xhigh (Together model page).
     private static let togetherQwen38TextReasoningEffortModelIDs: Set<String> = [
@@ -736,6 +739,7 @@ enum ModelCapabilityRegistry {
         "zai-org/glm-5.2-fast",
         "deepseek-ai/deepseek-v4.1-flash-fast",
         "deepseek-ai/deepseek-v4.1-flash-1017",
+        "deepseek-ai/deepseek-v4.1-flash-1017-fast",
     ]
     /// Modal Shared API Kimi K3. Modal doesn't publish a per-model effort matrix, so
     /// this inherits the band documented for the same weights on Baseten.
@@ -792,6 +796,7 @@ enum ModelCapabilityRegistry {
     /// (platform.minimax.io text-chat-openai OpenAPI, 2026-09-29). `MiniMax-M3` (toggle)
     /// and the M2.x line stay on the shared toggle mapping. Exact IDs only.
     private static let minimaxAlwaysThinkingEffortModelIDs: Set<String> = [
+        "minimax-m3.1-flash",
         "minimax-m3.1-flash-preview",
     ]
 
@@ -828,6 +833,8 @@ enum ModelCapabilityRegistry {
     /// Router band `none, minimal, low, medium, high, xhigh`.
     private static let routerNoneToExtremeEffortModelIDs: Set<String> = [
         "accounts/fireworks/models/deepseek-v4p1-flash",
+        "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+        "accounts/fireworks/models/muse-spark-open",
         "accounts/fireworks/models/gpt-oss-20b",
         "accounts/fireworks/models/kimi-k2p6",
         "accounts/fireworks/models/kimi-k2p7-code",
@@ -865,6 +872,7 @@ enum ModelCapabilityRegistry {
     /// published for grok-4.6.
     private static let routerLowToExtremeNoMinimalEffortModelIDs: Set<String> = [
         "grok-4.7",
+        "meta-models/muse-spark-open",
     ]
     /// Router band `none, low, medium, high, xhigh, max` (GPT-5.6 family).
     private static let routerNoneLowToMaxEffortModelIDs: Set<String> = [
@@ -909,6 +917,7 @@ enum ModelCapabilityRegistry {
     private static let routerHighOnlyEffortModelIDs: Set<String> = [
         "gpt-5-pro",
         "deepseek-ai/deepseek-v4.1-flash",
+        "deepseek-ai/deepseek-v4.1-flash-1017",
         "deepseek-ai/deepseek-v4-flash-0731",
         "deepseek-ai/deepseek-v4-pro-0813",
         "thinkingmachines/inkling",
@@ -918,14 +927,17 @@ enum ModelCapabilityRegistry {
     private static let routerLowToHighEffortModelIDs: Set<String> = [
         "o3",
         "o3-pro",
+        "gemini-4-argon",
     ]
-    /// Router band `low, medium, high, xhigh, max` — `gpt-6-astra` only
-    /// (docs table 2026-09-20: no `none`, no `minimal`).
+    /// Router band `low, medium, high, xhigh, max` — `gpt-6-astra` and `gpt-6.1-sol`
+    /// (docs table 2026-09-20 / 2026-10-20: no `none`, no `minimal`).
     private static let routerLowToMaxEffortModelIDs: Set<String> = [
         "gpt-6-astra",
+        "gpt-6.1-sol",
     ]
-    /// Router band `high, max` — Baseten-backend `zai-org/GLM-5.3-Flash`.
+    /// Router band `high, max` — Baseten-backend `zai-org/GLM-5.3` and `zai-org/GLM-5.3-Flash`.
     private static let routerHighMaxEffortModelIDs: Set<String> = [
+        "zai-org/glm-5.3",
         "zai-org/glm-5.3-flash",
     ]
     /// Router band `high, xhigh, max` — Baseten-backend GLM-5.2 rows.
@@ -1149,6 +1161,7 @@ enum ModelCapabilityRegistry {
                 || lowerModelID == "deepseek/deepseek-v4.1-flash-1017"
                 || lowerModelID == "reflection/beam"
                 || lowerModelID == "reflection/beam-free"
+                || lowerModelID == "minimax/minimax-m3.1-flash"
                 || lowerModelID == "stealth/cat-jam"
                 || lowerModelID == "liquid/lfm2.5-24b-a2b" {
                 return true
@@ -1158,6 +1171,7 @@ enum ModelCapabilityRegistry {
                 || lowerModelID == "z-ai/glm-5.3"
                 || lowerModelID == "deepseek/deepseek-v4-pro-0813"
                 || lowerModelID == "deepseek/deepseek-v4-flash-0731"
+                || lowerModelID == "@cf/deepseek-ai/deepseek-v4.1-flash-1017"
                 || lowerModelID == "anthropic/claude-haiku-5.5"
                 || lowerModelID == "anthropic/claude-opus-5.5"
                 || lowerModelID == "anthropic/claude-sonnet-5.5"
@@ -1199,9 +1213,14 @@ enum ModelCapabilityRegistry {
                 || opencodeGoOxAlphaReasoningEffortModelIDs.contains(lowerModelID)
                 || opencodeGoGLMHighMaxReasoningEffortModelIDs.contains(lowerModelID)
                 || lowerModelID == "beam-free"
+                || lowerModelID == "minimax-m3.1-flash-free"
                 || lowerModelID == "cat-jam-free"
                 || lowerModelID == "space-bunny"
                 || lowerModelID == "space-bunny-free" {
+                return true
+            }
+        case .minimax, .minimaxCodingPlan:
+            if minimaxAlwaysThinkingEffortModelIDs.contains(lowerModelID) {
                 return true
             }
         case .meta:
@@ -1319,6 +1338,8 @@ enum ModelCapabilityRegistry {
             return [.low, .high, .max]
         case .openrouter where lowerModelID == "deepseek/deepseek-v4.1-flash-1017":
             return [.none, .low, .high, .max]
+        case .openrouter where lowerModelID == "inception/mercury-3":
+            return [.none, .low, .medium, .high]
         case .openrouter where lowerModelID == "meta/muse-spark-open":
             return [.low, .medium, .high, .xhigh]
         case .openrouter where openRouterDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID):
@@ -1421,6 +1442,7 @@ enum ModelCapabilityRegistry {
             return [.none, .low, .medium, .high]
         case .vercelAIGateway where lowerModelID == "reflection/beam"
             || lowerModelID == "reflection/beam-free"
+            || lowerModelID == "minimax/minimax-m3.1-flash"
             || lowerModelID == "stealth/cat-jam":
             return [.low, .medium, .high, .xhigh, .max]
         case .vercelAIGateway where lowerModelID == "liquid/lfm2.5-24b-a2b":
@@ -1450,6 +1472,8 @@ enum ModelCapabilityRegistry {
         case .vercelAIGateway where lowerModelID == "stealth/glyph-cluster"
             || lowerModelID == "meta/muse-spark-open":
             return [.low, .medium, .high, .xhigh]
+        case .cloudflareAIGateway where lowerModelID == "@cf/deepseek-ai/deepseek-v4.1-flash-1017":
+            return [.none, .low, .high, .max]
         case .cloudflareAIGateway where lowerModelID == "moonshotai/kimi-k3-fast"
             || lowerModelID == "z-ai/glm-5.3"
             || lowerModelID == "deepseek/deepseek-v4-pro-0813"
@@ -1550,10 +1574,15 @@ enum ModelCapabilityRegistry {
         case .opencodeGo where opencodeGoHy4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.high]
         case .opencodeGo where lowerModelID == "beam-free"
+            || lowerModelID == "minimax-m3.1-flash-free"
             || lowerModelID == "cat-jam-free"
             || lowerModelID == "space-bunny"
             || lowerModelID == "space-bunny-free":
             return [.low, .medium, .high, .xhigh, .max]
+        case .databricks where lowerModelID == "databricks-grok-4-7":
+            return [.low, .medium, .high, .xhigh]
+        case .databricks where lowerModelID == "databricks-gemini-4-argon":
+            return [.low, .medium, .high]
         case .opencodeGo where xAIAlwaysOnStandardEffortWithXHighModelIDs.contains(lowerModelID):
             // grok-4.6 on Go: always-on low/medium/high/xhigh (docs.x.ai/developers/grok-4-6).
             // Distinct from grok-4.5, which rejects xhigh. Exact ID via the shared set.

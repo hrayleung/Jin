@@ -278,6 +278,16 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Router supported-models table (fetched 2026-10-20): `gpt-6.1-sol`,
+        // Fast mode Available, 1,050,000 / 128,000, effort band
+        // low/medium/high/xhigh/max — no `none`, no `minimal`
+        // (routerLowToMaxEffortModelIDs).
+        Record(id: "gpt-6.1-sol", displayName: "GPT-6.1 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         Record(id: "o3", displayName: "o3",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 200_000,
@@ -364,6 +374,17 @@ extension ModelCatalog {
         // (routerNoneToExtremeEffortModelIDs). Vision is not claimed — the table
         // does not publish modality.
         Record(id: "accounts/fireworks/models/deepseek-v4p1-flash", displayName: "DeepSeek-V4.1-Flash",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Router "Supported Models" table (docs.router.com, fetched 2026-10-20):
+        // label `deepseek-v4.1-flash-1017` under DeepSeek — Fireworks path
+        // `accounts/fireworks/models/deepseek-v4p1-flash-1017`, 1,048,576 /
+        // 1,048,576, effort band none/minimal/low/medium/high/xhigh
+        // (routerNoneToExtremeEffortModelIDs).
+        Record(id: "accounts/fireworks/models/deepseek-v4p1-flash-1017", displayName: "DeepSeek-V4.1-Flash-1017",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,
                maxOutputTokens: 1_048_576,
@@ -501,6 +522,16 @@ extension ModelCatalog {
                maxOutputTokens: 262_144,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // Label `muse-spark-open` under [Meta] on docs.router.com/supported-models
+        // (fetched 2026-10-20): Fireworks path `accounts/fireworks/models/muse-spark-open`,
+        // 1,048,576 / 131,072, effort band none/minimal/low/medium/high/xhigh
+        // (routerNoneToExtremeEffortModelIDs).
+        Record(id: "accounts/fireworks/models/muse-spark-open", displayName: "Muse Spark Open",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
         // MARK: Baseten backend
         // Second table group on docs.router.com/supported-models publishes upstream
         // Hugging Face-style IDs verbatim (`deepseek-ai/DeepSeek-V4.1-Flash`, not the
@@ -511,6 +542,28 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 32_768,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Baseten backend on docs.router.com/supported-models (fetched 2026-10-20):
+        // `deepseek-ai/DeepSeek-V4.1-Flash-1017` (1,048,576 / 262,144, effort `high` only),
+        // `meta-models/muse-spark-open` (1,048,576 / 1,048,576, effort `low..xhigh`),
+        // `zai-org/GLM-5.3` (1,048,576 / 262,144, effort `high, max`).
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash-1017", displayName: "DeepSeek V4.1 Flash 1017",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "meta-models/muse-spark-open", displayName: "Muse Spark Open",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .xhigh),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "zai-org/GLM-5.3", displayName: "GLM 5.3",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: false),
         Record(id: "deepseek-ai/DeepSeek-V4-Flash-0731", displayName: "DeepSeek V4 Flash 0731",
                capabilities: [.streaming, .toolCalling, .reasoning],
@@ -596,5 +649,17 @@ extension ModelCatalog {
                maxOutputTokens: 128_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // MARK: Google
+        // Router supported-models table (fetched 2026-10-20) lists `gemini-4-argon`
+        // (1,048,576 / 65,536, effort `low, medium, high`), but Google is a new
+        // section on the docs page and `/v1/models` is key-gated, so the callable
+        // wire ID is unconfirmed. Keep `isFullySupported: false` (same posture as
+        // `claude-haiku-5-5` above) until a live `/v1/models` check confirms the ID.
+        Record(id: "gemini-4-argon", displayName: "Gemini 4 Argon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: false, isSeeded: false),
     ]
 }

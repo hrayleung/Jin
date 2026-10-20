@@ -4006,10 +4006,12 @@ final class ModelCatalogTests: XCTestCase {
         }
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "MiniMax-M3.1-Flash-Preview", provider: .minimaxCodingPlan))
         XCTAssertNil(ModelCatalog.entry(for: "MiniMax-M3.1-Flash-Preview", provider: .minimax))
-        XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "MiniMax-M3.1-Flash", provider: .minimaxCodingPlan))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "MiniMax-M3.1-Flash", provider: .minimaxCodingPlan))
+        XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "MiniMax-M3.1-Flash", provider: .minimax))
         XCTAssertFalse(ModelCatalog.isFullySupported(modelID: "MiniMax-M3.1", provider: .minimaxCodingPlan))
         let tokenPlanSeeded = ModelCatalog.seededModels(for: .minimaxCodingPlan).map(\.id)
         XCTAssertEqual(tokenPlanSeeded.first, "MiniMax-M3")
+        XCTAssertTrue(tokenPlanSeeded.contains("MiniMax-M3.1-Flash"))
         XCTAssertTrue(tokenPlanSeeded.contains("MiniMax-M3.1-Flash-Preview"))
     }
 

@@ -1187,6 +1187,17 @@ extension ModelCatalog {
                contextWindow: 131_072,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // DeepSeek V4.1 Flash 1017 (developers.cloudflare.com/workers-ai/models/deepseek-v4.1-flash-1017):
+        // `@cf/deepseek-ai/deepseek-v4.1-flash-1017`, 1,048,576 context, text + image input
+        // (`image_url`), function calling (`tools`), cached-input pricing ($0.03/M),
+        // reasoning_effort enum none/low/high/max (default high).
+        Record(id: "@cf/deepseek-ai/deepseek-v4.1-flash-1017", displayName: "DeepSeek V4.1 Flash 1017 (Workers AI)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: Vercel AI Gateway
@@ -2240,6 +2251,29 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // --- Vercel AI Gateway models table additions, fetched 2026-10-20 ---
+        // MiniMax M3.1 Flash (created 2026-10-19): 1,000,000 / 524,288 on the
+        // live gateway, text+image input, tags implicit-caching + open-weights +
+        // reasoning + structured-output + tool-use + vision. Always-on effort
+        // low..max, default max.
+        Record(id: "minimax/minimax-m3.1-flash", displayName: "MiniMax-M3.1-Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Inception Mercury 3 (created 2026-10-19): 1,000,000 / 131,072 on the
+        // live gateway, text-only input, tags implicit-caching + reasoning +
+        // structured-output + tool-use. No effort values published on the
+        // Vercel gateway (`reasoning_options: []`) → toggle.
+        Record(id: "inception/mercury-3", displayName: "Mercury 3",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: false),
         // Catalog-only (blocked-adapter): image/speech endpoints on Vercel AI Gateway.
         Record(id: "bfl/flux-3-image-klein", displayName: "FLUX 3 Image Klein",

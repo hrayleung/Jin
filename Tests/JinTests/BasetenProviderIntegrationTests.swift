@@ -11,7 +11,7 @@ final class BasetenProviderIntegrationTests: XCTestCase {
 
     func testSeededModelsMatchOfficialCatalog() {
         let seeded = ModelCatalog.seededModels(for: .baseten)
-        XCTAssertEqual(seeded.count, 24)
+        XCTAssertEqual(seeded.count, 26)
         XCTAssertEqual(seeded.first?.id, "moonshotai/Kimi-K3")
 
         let expectedIDs = [
@@ -25,6 +25,8 @@ final class BasetenProviderIntegrationTests: XCTestCase {
             "deepseek-ai/DeepSeek-V4-Flash-0731",
             "deepseek-ai/DeepSeek-V4.1-Flash",
             "deepseek-ai/DeepSeek-V4.1-Flash-Fast",
+            "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+            "deepseek-ai/DeepSeek-V4.1-Flash-1017-Fast",
             "reflection/Beam-1.0",
             "meta-models/muse-spark-open",
             "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B",
@@ -126,7 +128,7 @@ final class BasetenProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(config.type, .baseten)
         XCTAssertEqual(config.baseURL, "https://inference.baseten.co/v1")
         XCTAssertEqual(config.models.first?.id, "moonshotai/Kimi-K3")
-        XCTAssertEqual(config.models.count, 24)
+        XCTAssertEqual(config.models.count, 26)
 
         let adapter = BasetenAdapter(providerConfig: config, apiKey: "test-key")
         let baseURL = await adapter.baseURL
@@ -628,7 +630,8 @@ final class BasetenProviderIntegrationTests: XCTestCase {
         XCTAssertTrue(ds1017.capabilities.contains(.vision))
         XCTAssertTrue(ds1017.capabilities.contains(.reasoning))
         XCTAssertTrue(ModelCatalog.isFullySupported(modelID: "deepseek-ai/DeepSeek-V4.1-Flash-1017", provider: .baseten))
-        XCTAssertFalse(ModelCatalog.seededModels(for: .baseten).contains(where: { $0.id == "deepseek-ai/DeepSeek-V4.1-Flash-1017" }))
+        XCTAssertTrue(ModelCatalog.seededModels(for: .baseten).contains(where: { $0.id == "deepseek-ai/DeepSeek-V4.1-Flash-1017" }))
+        XCTAssertTrue(ModelCatalog.seededModels(for: .baseten).contains(where: { $0.id == "deepseek-ai/DeepSeek-V4.1-Flash-1017-Fast" }))
 
         for glmID in ["zai-org/GLM-5.3", "zai-org/GLM-5.3-Fast", "zai-org/GLM-5.2", "zai-org/GLM-5.2-Fast"] {
             let glm = ModelCatalog.modelInfo(for: glmID, provider: .baseten)

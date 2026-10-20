@@ -2217,5 +2217,30 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.low, .medium, .high]),
                isFullySupported: false, isSeeded: false),
+        // MiniMax: MiniMax M3.1 Flash (free) (live /models `created` 2026-10-19):
+        // 1,000,000 / 524,288, text+image+video input (`.vision` claimed,
+        // `.videoInput` withheld on OpenRouter), tools + structured outputs,
+        // always-on reasoning effort low..max (default max).
+        Record(id: "minimax/minimax-m3.1-flash:free", displayName: "MiniMax: MiniMax M3.1 Flash (free)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Inception: Mercury 3 (live /models `created` 2026-10-16 +
+        // docs.inceptionlabs.ai/capabilities/reasoning-efforts.md): 1,000,000 /
+        // 131,072, text-only, tools + structured outputs, cached-input pricing
+        // ($0.01/M) → promptCaching, reasoning effort none/low/medium/high
+        // (default low per Inception docs).
+        Record(id: "inception/mercury-3", displayName: "Inception: Mercury 3",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .low,
+                   supportedEfforts: [.none, .low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
     ]
 }
