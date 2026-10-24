@@ -107,6 +107,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
     /// Responses sampling gate (`supportsOpenAIResponsesSamplingParameters`) rather than this
     /// set, because it never reaches `buildOpenAIRequest`.
     static let temperatureUnsupportedChatCompletionsModelIDs: Set<String> = [
+        "kimi-k3.1-pro",
         "kimi-k3",
         "kimi-k2.7-code",
         "kimi-k2.6",

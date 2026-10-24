@@ -37,14 +37,31 @@ final class KimiForCodingProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(provider.baseURL, ProviderType.kimiForCoding.defaultBaseURL)
         XCTAssertEqual(
             provider.models.map(\.id),
-            ["k3", "k3-256k", "kimi-for-coding", "kimi-for-coding-highspeed"]
+            ["k3.1-pro", "k3.1-pro-highspeed", "k3", "k3-256k", "kimi-for-coding", "kimi-for-coding-highspeed"]
         )
     }
 
     func testKimiForCodingCatalogMetadata() {
-        // Exactly the four documented model IDs are seeded; the 1M context is an
-        // entitlement of `k3`, not a separate `k3[1m]` model ID.
+        // Exactly the six documented model IDs are seeded; the 1M context is an
+        // entitlement of `k3` / `k3.1-pro`, not a separate `[1m]` model ID.
         XCTAssertNil(ModelCatalog.entry(for: "k3[1m]", provider: .kimiForCoding))
+        XCTAssertNil(ModelCatalog.entry(for: "k3.1-pro[1m]", provider: .kimiForCoding))
+
+        let k31Pro = ModelCatalog.modelInfo(for: "k3.1-pro", provider: .kimiForCoding)
+        XCTAssertEqual(k31Pro.name, "Kimi K3.1 Pro")
+        XCTAssertEqual(k31Pro.contextWindow, 1_048_576)
+        XCTAssertEqual(k31Pro.maxOutputTokens, 262_144)
+        XCTAssertTrue(k31Pro.capabilities.contains(.vision))
+        XCTAssertTrue(k31Pro.capabilities.contains(.reasoning))
+        XCTAssertNil(k31Pro.reasoningConfig)
+
+        let k31ProHighspeed = ModelCatalog.modelInfo(for: "k3.1-pro-highspeed", provider: .kimiForCoding)
+        XCTAssertEqual(k31ProHighspeed.name, "Kimi K3.1 Pro HighSpeed")
+        XCTAssertEqual(k31ProHighspeed.contextWindow, 1_048_576)
+        XCTAssertEqual(k31ProHighspeed.maxOutputTokens, 262_144)
+        XCTAssertTrue(k31ProHighspeed.capabilities.contains(.vision))
+        XCTAssertTrue(k31ProHighspeed.capabilities.contains(.reasoning))
+        XCTAssertNil(k31ProHighspeed.reasoningConfig)
 
         // K3's effort wire shape is unverified on this Anthropic-shaped endpoint —
         // the record exposes no reasoning control shape and the adapter sends no
@@ -93,9 +110,12 @@ final class KimiForCodingProviderIntegrationTests: XCTestCase {
         let resolvedK3256k = ModelSettingsResolver.resolve(model: k3_256k, providerType: .kimiForCoding)
         XCTAssertTrue(resolvedK3256k.reasoningCanDisable)
 
+        XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "k3.1-pro"), 262_144)
+        XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "k3.1-pro-highspeed"), 262_144)
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "kimi-for-coding"), 262_144)
         XCTAssertEqual(AnthropicModelLimits.maxOutputTokens(for: "kimi-for-coding-highspeed"), 262_144)
         XCTAssertEqual(AnthropicModelLimits.resolvedMaxTokens(requested: nil, for: "kimi-for-coding"), 262_144)
+        XCTAssertEqual(AnthropicModelLimits.resolvedMaxTokens(requested: nil, for: "k3.1-pro"), 262_144)
     }
 
     func testKimiForCodingBaseURLNormalizationAppendsV1() async {

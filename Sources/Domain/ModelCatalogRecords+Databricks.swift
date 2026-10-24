@@ -315,6 +315,16 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // DeepSeek V4.1 Flash 1017 (docs.databricks.com/aws/en/machine-learning/
+        // foundation-model-apis/supported-models, added 2026-10-20): pay-per-token
+        // endpoint `databricks-deepseek-v4-1-flash-1017`, text + image input,
+        // adjustable `reasoning_effort` (including `"none"` to disable reasoning),
+        // function calling, structured outputs.
+        Record(id: "databricks-deepseek-v4-1-flash-1017", displayName: "DeepSeek V4.1 Flash 1017",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
 
         // xAI Grok
         // Grok 4.7 (docs.databricks.com/aws/en/machine-learning/foundation-model-apis/supported-models,

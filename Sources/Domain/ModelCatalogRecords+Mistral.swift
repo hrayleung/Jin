@@ -78,6 +78,19 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // Z.ai GLM 5.3 Flash (docs.mistral.ai/models/zai-glm-5-3-flash.md +
+        // resources/changelogs.md, 2026-10-22): 1,000,000 context / 128,000 max
+        // output; input modalities text + image; output modalities text + reasoning;
+        // features chat-completions, function-calling, structured-outputs,
+        // agents-conversations; cached input $0.03/M → promptCaching. Reasoning
+        // effort is undocumented on Mistral's third-party wrapper, so reasoningConfig
+        // stays nil like `zai-glm-5-3`.
+        Record(id: "zai-glm-5-3-flash", displayName: "Z.ai GLM 5.3 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         // Catalog-only alias: Mistral also publishes the `mistral-large-4-0`
         // spelling (model card versioned ID); same specs as `mistral-large-4`.
         Record(id: "mistral-large-4-0", displayName: "Mistral Large 4.0",

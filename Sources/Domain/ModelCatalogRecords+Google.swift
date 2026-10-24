@@ -2242,5 +2242,41 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .low,
                    supportedEfforts: [.none, .low, .medium, .high]),
                isFullySupported: true, isSeeded: false),
+        // MiniMax: MiniMax M3.1 Flash (paid, live /api/v1/models `created` 2026-10-19):
+        // 1,048,576 / 524,288, text+image(+video upstream, withheld on OpenRouter),
+        // tools + structured outputs, cached-input pricing ($0.015/M) → promptCaching,
+        // mandatory reasoning effort low..max (default max).
+        Record(id: "minimax/minimax-m3.1-flash", displayName: "MiniMax: MiniMax M3.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Recursive: Flint (free) (live /api/v1/models `created` 2026-10-21):
+        // 262,144 / 235,929, text-only, tools + structured outputs, mandatory
+        // reasoning (`mandatory: true, default_enabled: true`) with no
+        // `reasoning_effort` in `supported_parameters` (toggle locked on).
+        Record(id: "recursive/flint-v1.0:free", displayName: "Recursive: Flint (free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 235_929,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // MoonshotAI: Kimi K3.1 Pro (live /api/v1/models `created` 2026-10-23):
+        // 1,048,576 / 943,718, text+image(+video upstream, withheld on OpenRouter),
+        // tools + structured outputs, cached-input pricing ($0.20/M) → promptCaching,
+        // reasoning (`mandatory: false, default_enabled: true,
+        // supported_efforts: ["max", "high", "low", "none"], default_effort: "max"`).
+        // Omits `temperature`/`top_p` from `supported_parameters`.
+        Record(id: "moonshotai/kimi-k3.1-pro", displayName: "MoonshotAI: Kimi K3.1 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.none, .low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
     ]
 }

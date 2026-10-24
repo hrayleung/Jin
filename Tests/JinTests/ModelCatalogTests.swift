@@ -4318,5 +4318,9 @@ final class ModelCatalogTests: XCTestCase {
         // Blocked-adapter findings carry no catalog records on their providers.
         XCTAssertNil(ModelCatalog.entry(for: "grok-voice-transcribe-2.0", provider: .xai))
         XCTAssertNil(ModelCatalog.entry(for: "gpt-6-luna-decisions", provider: .openai))
+        XCTAssertNil(ModelCatalog.entry(for: "rerank-v5-pro", provider: .cohere))
+        XCTAssertNil(ModelCatalog.entry(for: "rerank-v5-fast", provider: .cohere))
+        XCTAssertNil(ModelCatalog.entry(for: "databricks-openjev-qwen35-4b", provider: .databricks))
+        XCTAssertNil(ModelCatalog.entry(for: "databricks-typesafeai-jev-1-14-0", provider: .databricks))
     }
 }

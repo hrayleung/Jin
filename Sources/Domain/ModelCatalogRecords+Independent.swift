@@ -735,6 +735,18 @@ extension ModelCatalog {
                maxOutputTokens: 512_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // MiniMax M3.1 Flash (Together serverless-models + changelog, added 2026-10-22):
+        // 1,048,576 context / 512,000 max output; Function calling: Yes, Structured
+        // outputs: Yes, cached input $0.015/1M; multimodal image input; always-on
+        // reasoning with `low|medium|high|xhigh|max` (default `max`).
+        Record(id: "MiniMaxAI/MiniMax-M3.1-Flash", displayName: "MiniMax M3.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 512_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
         Record(id: "MiniMaxAI/MiniMax-M2.7", displayName: "MiniMax M2.7",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
                contextWindow: 204_800,
@@ -1551,6 +1563,20 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        // US-region traffic router for DeepSeek V4.1 Flash 1017 (Fireworks changelog
+        // 2026-10-19: `accounts/fireworks/routers/deepseek-v4p1-flash-1017-us`).
+        Record(id: "accounts/fireworks/routers/deepseek-v4p1-flash-1017-us", displayName: "DeepSeek V4.1 Flash 1017 (US Router)",
+               capabilities: [.streaming, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "fireworks/deepseek-v4p1-flash-1017-us", displayName: "DeepSeek V4.1 Flash 1017 (US Router)",
+               capabilities: [.streaming, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         // Muse Spark Open (fireworks.ai/models/fireworks/muse-spark-open, added 2026-10-16):
         // Meta's open-weights 816B-A42B multimodal reasoning MoE. 1,048,576 context /
         // 131,072 output, serverless, function calling, image input, cached-input pricing.
@@ -1601,6 +1627,26 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 512_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // MiniMax M3.1 Flash (fireworks.ai/models/fireworks/minimax-m3p1-flash +
+        // changelog 2026-10-19): 1040k context / 512,000 max output; Serverless:
+        // Supported, Function Calling: Supported, Image Input: Supported, Cached
+        // input $0.015/1M; always-on reasoning with effort `low..max` (default `max`).
+        Record(id: "accounts/fireworks/models/minimax-m3p1-flash", displayName: "MiniMax M3.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 512_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "fireworks/minimax-m3p1-flash", displayName: "MiniMax M3.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 512_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: false),
         Record(id: "accounts/fireworks/models/kimi-k2p7-code", displayName: "Kimi K2.7 Code",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
@@ -2257,6 +2303,25 @@ extension ModelCatalog {
     // keep reasoningConfig nil. K3 vision is undocumented on this endpoint and
     // stays off.
     static let kimiForCodingRecords: [Record] = [
+        // Kimi K3.1 Pro & K3.1 Pro HighSpeed (kimi.com/code/docs/kimi-code/models.html +
+        // whats-new.html 2026-10-23 + models.dev `kimi-code-plan-global`):
+        // 1,048,576 context / 262,144 max output, multimodal text+image(+video upstream,
+        // `.vision` claimed)→text, always-on thinking (`reasoning_effort` low/high/max
+        // default max; closing thinking returns 400). Like `k3`, the effort wire shape on
+        // the Anthropic-shaped `/v1/messages` endpoint is unverified, so `reasoningConfig`
+        // stays nil and the adapter omits `thinking` so the server applies its default `max`.
+        Record(id: "k3.1-pro", displayName: "Kimi K3.1 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+        Record(id: "k3.1-pro-highspeed", displayName: "Kimi K3.1 Pro HighSpeed",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         Record(id: "k3", displayName: "Kimi K3",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 262_144,
@@ -2842,6 +2907,34 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(
                    type: .effort, defaultEffort: .max,
                    supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
+        // MiniMax M3.1 Flash (paid, live GET /zen/go/v1/models + opencode.ai/docs/go
+        // endpoint table, added 2026-10-19): exact ID `minimax-m3.1-flash` on
+        // /zen/go/v1/chat/completions via @ai-sdk/openai-compatible — keep out of
+        // `anthropicMessagesModelIDs` and `openAIResponsesModelIDs`. Same 1,000,000 /
+        // 512,000 limits and always-on `low..max` (default `max`) effort band.
+        Record(id: "minimax-m3.1-flash", displayName: "MiniMax M3.1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 512_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
+        // Kimi K3.1 Pro (live GET /zen/go/v1/models + opencode.ai/docs/go +
+        // models.dev `opencode-go`, added 2026-10-23): exact ID `kimi-k3.1-pro` on
+        // /zen/go/v1/chat/completions via @ai-sdk/openai-compatible — keep out of
+        // `anthropicMessagesModelIDs` and `openAIResponsesModelIDs`. 1,048,576 context /
+        // 131,072 output, text+image(+video upstream, withheld on Go without live probe),
+        // tool calling, cached-input pricing ($0.20/M) → promptCaching, always-on
+        // reasoning with `low`/`high`/`max` effort (default `max`), `temperature: false`.
+        Record(id: "kimi-k3.1-pro", displayName: "Kimi K3.1 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .high, .max]),
                isFullySupported: true, isSeeded: true),
         // Catalog-only — recognized when fetched via the API
         // .videoInput dropped: qwen3.5-plus is in `anthropicMessagesModelIDs`, and the
@@ -3487,6 +3580,40 @@ extension ModelCatalog {
                contextWindow: 262_144,
                maxOutputTokens: 32_768,
                reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Modal library additions (modal.com/library/meta/muse-spark-open,
+        // modal.com/library/qwen/qwen3-8-max-vl, modal.com/library/zai/glm-5-3-flash-nvfp4
+        // + models.dev `modal`, 2026-10-16..20):
+        // - meta-models/Muse-Spark-Open-816B-A42B: 1,048,576 context / 131,072 output,
+        //   text+image, tools, cached input, always-on reasoning low/medium/high/xhigh
+        //   (default xhigh).
+        // - Qwen/Qwen3.8-Max-VL-Thinking: 1,000,000 context / 262,144 output,
+        //   text+image, tools, cached input, always-on reasoning low/medium/xhigh
+        //   (default xhigh).
+        // - nvidia/GLM-5.3-Flash-NVFP4: 1,048,576 context, text+image, tools,
+        //   cached input ($0.014/M), always-on reasoning low/high/max (default max).
+        Record(id: "meta-models/Muse-Spark-Open-816B-A42B", displayName: "Muse Spark Open",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .xhigh,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "Qwen/Qwen3.8-Max-VL-Thinking", displayName: "Qwen3.8-Max VL",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .xhigh,
+                   supportedEfforts: [.low, .medium, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "nvidia/GLM-5.3-Flash-NVFP4", displayName: "GLM 5.3 Flash NVFP4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .high, .max]),
                isFullySupported: true, isSeeded: false),
     ]
 }

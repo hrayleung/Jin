@@ -95,6 +95,7 @@ extension FireworksAdapter {
                 || suffix == "glm-5p3"
                 || suffix == "glm-5p3-flash"
                 || suffix == "minimax-m3"
+                || suffix == "minimax-m3p1-flash"
                 || suffix == "kimi-k2p7-code"
                 || suffix == "nemotron-3-5-lightning" {
                 return "accounts/fireworks/models/\(suffix)"
@@ -181,6 +182,12 @@ extension FireworksAdapter {
         "qwen3-8b": FireworksFallbackSpec(name: "Qwen3 8B", contextWindow: 40_960),
         "llama-v3p3-70b-instruct": FireworksFallbackSpec(name: "Llama 3.3 70B Instruct", contextWindow: 131_072),
         "minimax-m3": FireworksFallbackSpec(name: "MiniMax M3", contextWindow: 1_048_576, reasoning: true),
+        "minimax-m3p1-flash": FireworksFallbackSpec(
+            name: "MiniMax M3.1 Flash",
+            contextWindow: 1_040_000,
+            extraCapabilities: [.vision],
+            reasoning: true
+        ),
         "minimax-m2p7": FireworksFallbackSpec(name: "MiniMax M2.7", contextWindow: 196_608, reasoning: true),
         "minimax-m2p5": FireworksFallbackSpec(name: "MiniMax M2.5", contextWindow: 196_600, reasoning: true),
         "minimax-m2p1": FireworksFallbackSpec(name: "MiniMax M2.1", contextWindow: 204_800, reasoning: true),

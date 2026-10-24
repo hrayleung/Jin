@@ -121,6 +121,30 @@ extension ModelCatalog {
                 isSeeded: true,
                 capabilities: hostedVisionChat
             ),
+            // GLM 5.3 (runinfra.ai/inference-api/glm-5-3 + llms.txt):
+            // "Served model ID: zai-org/GLM-5.3", curl examples use `glm-5-3`.
+            // Context window 1,048,576, "Accepted input: Text only", tool calling,
+            // JSON mode, streaming, automatic prefix caching, reasoning on by default.
+            hosted(
+                id: "glm-5-3",
+                displayName: "GLM 5.3",
+                contextWindow: 1_048_576,
+                reasoningConfig: toggleReasoning,
+                isSeeded: true
+            ),
+            // Ornith 1.5 122B (runinfra.ai/inference-api/ornith-1-5-122b + llms.txt):
+            // "Served model ID: ornith-ai/Ornith-1.5-122B", curl examples use
+            // `ornith-1-5-122b`. Context window 262,144, "Accepted input: Text and images"
+            // (up to 4 images per request), tool calling, JSON mode, streaming,
+            // automatic prefix caching, reasoning on by default.
+            hosted(
+                id: "ornith-1-5-122b",
+                displayName: "Ornith 1.5 122B",
+                contextWindow: 262_144,
+                reasoningConfig: toggleReasoning,
+                isSeeded: true,
+                capabilities: hostedVisionChat
+            ),
             hosted(
                 id: "deepseek-v4-pro",
                 displayName: "DeepSeek V4 Pro",
@@ -211,6 +235,21 @@ extension ModelCatalog {
                 id: "zai-org/GLM-5.3-Flash",
                 displayName: "GLM 5.3 Flash",
                 contextWindow: 1_048_576,
+                reasoningConfig: toggleReasoning,
+                isSeeded: false,
+                capabilities: hostedVisionChat
+            ),
+            hosted(
+                id: "zai-org/GLM-5.3",
+                displayName: "GLM 5.3",
+                contextWindow: 1_048_576,
+                reasoningConfig: toggleReasoning,
+                isSeeded: false
+            ),
+            hosted(
+                id: "ornith-ai/Ornith-1.5-122B",
+                displayName: "Ornith 1.5 122B",
+                contextWindow: 262_144,
                 reasoningConfig: toggleReasoning,
                 isSeeded: false,
                 capabilities: hostedVisionChat

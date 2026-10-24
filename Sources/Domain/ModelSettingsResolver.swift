@@ -286,6 +286,7 @@ enum ModelSettingsResolver {
         // effort-only reasoning options (low..max / low..xhigh, no toggle or `none`).
         "reflection/beam-1.0-501b-a23b",
         "meta-models/muse-spark-open-816b-a42b",
+        "minimaxai/minimax-m3.1-flash",
     ]
 
     /// DeepInfra IDs whose thinking cannot be turned off. Exact-ID only.
@@ -359,6 +360,8 @@ enum ModelSettingsResolver {
         "muse-spark-1.3-contributor",
         "beam-free",
         "minimax-m3.1-flash-free",
+        "minimax-m3.1-flash",
+        "kimi-k3.1-pro",
     ]
 
     /// Zhipu / Z.AI Coding Plan IDs whose thinking cannot be turned off. GLM-5.3
@@ -423,8 +426,11 @@ enum ModelSettingsResolver {
         // live /models reports `reasoning.mandatory: true` (no `none` in band).
         "reflection/beam-1.0-501b-a23b",
         "meta/muse-spark-open",
-        // MiniMax M3.1 Flash (free) (2026-10-19): always-on low…max band.
+        // MiniMax M3.1 Flash (free & paid) (2026-10-19) & Recursive Flint v1.0 Free (2026-10-21):
+        // live /models reports `reasoning.mandatory: true`.
         "minimax/minimax-m3.1-flash:free",
+        "minimax/minimax-m3.1-flash",
+        "recursive/flint-v1.0:free",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /
@@ -476,6 +482,8 @@ enum ModelSettingsResolver {
         "stealth/cat-jam",
         "liquid/lfm2.5-24b-a2b",
         "minimax/minimax-m3.1-flash",
+        "moonshotai/kimi-k3.1-pro",
+        "moonshotai/kimi-k3.1-pro-highspeed",
     ]
 
     /// Cloudflare AI Gateway IDs whose reasoning cannot be disabled. Exact-ID only,
@@ -516,8 +524,10 @@ enum ModelSettingsResolver {
     ]
 
     /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list
-    /// "Thinking: ON" for both K2.7 Code variants).
+    /// "Thinking: ON" / "Always ON (closing returns 400 error)").
     private static let kimiForCodingAlwaysOnReasoningModelIDs: Set<String> = [
+        "k3.1-pro",
+        "k3.1-pro-highspeed",
         "kimi-for-coding",
         "kimi-for-coding-highspeed",
     ]
@@ -527,7 +537,10 @@ enum ModelSettingsResolver {
     /// multimodal and toggleable).
     private static let modalAlwaysOnReasoningModelIDs: Set<String> = [
         "qwen/qwen3.8-2.4t-a95b",
+        "qwen/qwen3.8-max-vl-thinking",
+        "meta-models/muse-spark-open-816b-a42b",
         "zai-org/glm-5.3-flash",
+        "nvidia/glm-5.3-flash-nvfp4",
     ]
 
     /// RunInfra IDs whose thinking cannot be turned off. Exact-ID only.
@@ -579,8 +592,11 @@ enum ModelSettingsResolver {
         if lower == "accounts/fireworks/models/qwen3p8-2p4t-a95b"
             || lower == "fireworks/qwen3p8-2p4t-a95b"
             || lower == "fireworks/qwen3p8-max"
+            || lower == "accounts/fireworks/models/minimax-m3p1-flash"
+            || lower == "fireworks/minimax-m3p1-flash"
             || fireworksCanonicalModelID(lower) == "qwen3p8-2p4t-a95b"
-            || fireworksCanonicalModelID(lower) == "qwen3p8-max" {
+            || fireworksCanonicalModelID(lower) == "qwen3p8-max"
+            || fireworksCanonicalModelID(lower) == "minimax-m3p1-flash" {
             return true
         }
         return false

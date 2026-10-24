@@ -32,7 +32,7 @@ final class TogetherProviderIntegrationTests: XCTestCase {
 
         XCTAssertEqual(togetherProvider.id, "together")
         XCTAssertEqual(togetherProvider.baseURL, ProviderType.together.defaultBaseURL)
-        XCTAssertEqual(togetherProvider.models.count, 27)
+        XCTAssertEqual(togetherProvider.models.count, 28)
         XCTAssertEqual(
             togetherProvider.models.map(\.id),
             [
@@ -55,6 +55,7 @@ final class TogetherProviderIntegrationTests: XCTestCase {
                 "Qwen/Qwen3.8-2.4T-A95B",
                 "Qwen/Qwen3.8-27B",
                 "MiniMaxAI/MiniMax-M3",
+                "MiniMaxAI/MiniMax-M3.1-Flash",
                 "MiniMaxAI/MiniMax-M2.7",
                 "nvidia/Nemotron-3.5-Lightning",
                 "reflection/Beam-1.0-501B-A23B",
