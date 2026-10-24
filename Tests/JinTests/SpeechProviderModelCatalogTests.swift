@@ -108,6 +108,9 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
             availableModels: [
                 SpeechProviderModelChoice(id: "voxtral-mini-latest"),
                 SpeechProviderModelChoice(id: "voxtral-mini-2602"),
+                SpeechProviderModelChoice(id: "voxtral-mini-transcribe-3-0"),
+                SpeechProviderModelChoice(id: "voxtral-small-transcribe-3-0"),
+                SpeechProviderModelChoice(id: "voxtral-mini-transcribe-realtime-3-0"),
                 SpeechProviderModelChoice(id: "voxtral-mini-2507"),
                 SpeechProviderModelChoice(id: "voxtral-mini-transcribe-2509"),
                 SpeechProviderModelChoice(id: "voxtral-mini-transcribe-realtime-2509"),
@@ -117,7 +120,13 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
 
         XCTAssertEqual(
             models.map(\.id),
-            ["voxtral-mini-2602", "voxtral-mini-latest", "voxtral-mini-transcribe-2509"]
+            [
+                "voxtral-mini-2602",
+                "voxtral-mini-latest",
+                "voxtral-mini-transcribe-3-0",
+                "voxtral-mini-transcribe-2509",
+                "voxtral-small-transcribe-3-0"
+            ]
         )
     }
 
@@ -222,7 +231,12 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
         )
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultSpeechToTextChoices(for: .mistral).map(\.id),
-            ["voxtral-mini-2602", "voxtral-mini-latest"]
+            [
+                "voxtral-mini-2602",
+                "voxtral-mini-transcribe-3-0",
+                "voxtral-small-transcribe-3-0",
+                "voxtral-mini-latest"
+            ]
         )
         // The convert endpoint's `model_id` enum is scribe_v2 only.
         XCTAssertEqual(
@@ -262,7 +276,7 @@ final class SpeechProviderModelCatalogTests: XCTestCase {
         )
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .mistral).map(\.id),
-            ["voxtral-mini-tts-2603"]
+            ["voxtral-mini-tts-2603", "voxtral-mini-tts-3-0"]
         )
         XCTAssertEqual(
             SpeechProviderModelCatalog.defaultTextToSpeechChoices(for: .xiaomiMiMo).map(\.id),

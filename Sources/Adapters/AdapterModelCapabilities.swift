@@ -249,6 +249,8 @@ func isFireworksDeepSeekV4GAModel(_ modelID: String) -> Bool {
         || lower == "fireworks/deepseek-v4p1-flash"
         || lower == "accounts/fireworks/models/deepseek-v4p1-flash-1017"
         || lower == "fireworks/deepseek-v4p1-flash-1017"
+        || lower == "accounts/fireworks/routers/deepseek-v4p1-flash-1017-us"
+        || lower == "fireworks/deepseek-v4p1-flash-1017-us"
         || lower == "accounts/fireworks/routers/deepseek-flash-latest"
         || lower == "fireworks/deepseek-flash-latest" {
         return true
@@ -258,6 +260,7 @@ func isFireworksDeepSeekV4GAModel(_ modelID: String) -> Bool {
         || canonical == "deepseek-v4-flash-0731"
         || canonical == "deepseek-v4p1-flash"
         || canonical == "deepseek-v4p1-flash-1017"
+        || canonical == "deepseek-v4p1-flash-1017-us"
         || canonical == "deepseek-flash-latest"
 }
 
@@ -502,6 +505,9 @@ private let openRouterSamplingDeniedModelIDs: Set<String> = [
     "~openai/gpt-sol-latest",
     "~openai/gpt-terra-latest",
     "~openai/gpt-luna-latest",
+    // MoonshotAI Kimi K3.1 Pro (live /models 2026-10-23): `supported_parameters`
+    // omits `temperature` and `top_p`.
+    "moonshotai/kimi-k3.1-pro",
 ]
 
 // MARK: - OpenAI Service Tier Support

@@ -118,10 +118,13 @@ enum AnthropicModelLimits {
 
         // Kimi for Coding: `kimi-for-coding` is now K2.8 Preview whose max output
         // is unpublished — the 262,144 cap is carried over from K2.7 Code as a
-        // conservative bound. K2.7 Code HighSpeed documents 262,144. K3's max
-        // output is undocumented, so it intentionally falls through to the
-        // resolver fallback.
-        if lower == "kimi-for-coding" || lower == "kimi-for-coding-highspeed" {
+        // conservative bound. K2.7 Code HighSpeed and K3.1 Pro / HighSpeed
+        // document 262,144 (`models.dev` `kimi-code-plan-global`). K3's max output
+        // is undocumented, so it intentionally falls through to the resolver fallback.
+        if lower == "k3.1-pro"
+            || lower == "k3.1-pro-highspeed"
+            || lower == "kimi-for-coding"
+            || lower == "kimi-for-coding-highspeed" {
             return 262_144
         }
 

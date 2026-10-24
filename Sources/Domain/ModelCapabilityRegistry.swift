@@ -616,8 +616,9 @@ enum ModelCapabilityRegistry {
         "stealth/space-bunny-alpha",
         // Reflection Beam 1.0 501B-A23B (live /models 2026-10-16): low…max ladder.
         "reflection/beam-1.0-501b-a23b",
-        // MiniMax M3.1 Flash (free) (live /models 2026-10-19): low…max ladder.
+        // MiniMax M3.1 Flash (free & paid) (live /models 2026-10-19): low…max ladder.
         "minimax/minimax-m3.1-flash:free",
+        "minimax/minimax-m3.1-flash",
     ]
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
@@ -695,6 +696,9 @@ enum ModelCapabilityRegistry {
         "accounts/fireworks/routers/deepseek-flash-latest",
         "fireworks/deepseek-flash-latest",
         "deepseek-flash-latest",
+        "accounts/fireworks/routers/deepseek-v4p1-flash-1017-us",
+        "fireworks/deepseek-v4p1-flash-1017-us",
+        "deepseek-v4p1-flash-1017-us",
     ]
     /// Fireworks Qwen3.8-2.4T-A95B aliases. Fireworks page does not list effort
     /// values; inherit the HF/Modal same-weights band (low/medium/xhigh).
@@ -705,9 +709,11 @@ enum ModelCapabilityRegistry {
         "qwen3p8-max",
         "fireworks/qwen3p8-max",
     ]
-    /// Vercel Kimi K3 Fast: low/high/max (models.dev vercel, 2026-07-29).
+    /// Vercel Kimi K3 Fast + Kimi K3.1 Pro / Highspeed: low/high/max (models.dev vercel).
     private static let vercelKimiK3FastReasoningEffortModelIDs: Set<String> = [
         "moonshotai/kimi-k3-fast",
+        "moonshotai/kimi-k3.1-pro",
+        "moonshotai/kimi-k3.1-pro-highspeed",
     ]
     /// Baseten Kimi K3: none/low/high/max (docs.baseten.co reasoning, 2026-07-29).
     private static let basetenKimiK3ReasoningEffortModelIDs: Set<String> = [
@@ -751,11 +757,12 @@ enum ModelCapabilityRegistry {
     private static let modalInklingReasoningEffortModelIDs: Set<String> = [
         "thinkingmachines/inkling-nvfp4",
     ]
-    /// Modal Shared API Qwen3.8-2.4T-A95B. HF card + Modal library (2026-08-12):
-    /// `reasoning_effort` is only low / medium / xhigh. Thinking cannot be
-    /// disabled — do not offer `none`, `high`, or `max`.
+    /// Modal Shared API Qwen3.8-2.4T-A95B & Qwen3.8-Max-VL-Thinking. HF card +
+    /// Modal library: `reasoning_effort` is only low / medium / xhigh. Thinking
+    /// cannot be disabled — do not offer `none`, `high`, or `max`.
     private static let modalQwen38TextReasoningEffortModelIDs: Set<String> = [
         "qwen/qwen3.8-2.4t-a95b",
+        "qwen/qwen3.8-max-vl-thinking",
     ]
     /// RunInfra DeepSeek V4 Flash: `none` disables thinking; omitting effort applies
     /// `max`; `high`/`xhigh`/`max` all go upstream as `max`. Medium is distinct.
@@ -1104,6 +1111,7 @@ enum ModelCapabilityRegistry {
             || openRouterFullLadderEffortModelIDs.contains(lowerModelID)
             || openRouterDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID)
             || lowerModelID == "deepseek/deepseek-v4.1-flash-1017"
+            || lowerModelID == "moonshotai/kimi-k3.1-pro"
             || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
             || openRouterOxAlphaReasoningEffortModelIDs.contains(lowerModelID) {
             return true
@@ -1119,7 +1127,8 @@ enum ModelCapabilityRegistry {
             if togetherKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
                 || togetherDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID)
                 || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
-                || lowerModelID == "reflection/beam-1.0-501b-a23b" {
+                || lowerModelID == "reflection/beam-1.0-501b-a23b"
+                || lowerModelID == "minimaxai/minimax-m3.1-flash" {
                 return true
             }
         case .deepinfra:
@@ -1141,6 +1150,8 @@ enum ModelCapabilityRegistry {
                 || lowerModelID == "fireworks/glm-5p3-flash"
                 || lowerModelID == "accounts/fireworks/models/deepseek-v4-flash-0731"
                 || lowerModelID == "fireworks/deepseek-v4-flash-0731"
+                || lowerModelID == "accounts/fireworks/models/minimax-m3p1-flash"
+                || lowerModelID == "fireworks/minimax-m3p1-flash"
                 || fireworksCanonicalModelID(lowerModelID)
                     .map({
                         fireworksKimiK3ReasoningEffortModelIDs.contains($0)
@@ -1149,6 +1160,7 @@ enum ModelCapabilityRegistry {
                             || $0 == "glm-5p3-fast"
                             || $0 == "glm-5p3-flash"
                             || $0 == "deepseek-v4-flash-0731"
+                            || $0 == "minimax-m3p1-flash"
                     }) == true {
                 return true
             }
@@ -1194,6 +1206,7 @@ enum ModelCapabilityRegistry {
                 || modalInklingReasoningEffortModelIDs.contains(lowerModelID)
                 || lowerModelID == "zai-org/glm-5.3"
                 || lowerModelID == "zai-org/glm-5.3-flash"
+                || lowerModelID == "nvidia/glm-5.3-flash-nvfp4"
                 || lowerModelID == "deepseek-ai/deepseek-v4-pro-0813"
                 || lowerModelID == "deepseek-ai/deepseek-v4-flash-0731"
                 || lowerModelID == "deepseek-ai/deepseek-v4.1-flash" {
@@ -1214,6 +1227,8 @@ enum ModelCapabilityRegistry {
                 || opencodeGoGLMHighMaxReasoningEffortModelIDs.contains(lowerModelID)
                 || lowerModelID == "beam-free"
                 || lowerModelID == "minimax-m3.1-flash-free"
+                || lowerModelID == "minimax-m3.1-flash"
+                || lowerModelID == "kimi-k3.1-pro"
                 || lowerModelID == "cat-jam-free"
                 || lowerModelID == "space-bunny"
                 || lowerModelID == "space-bunny-free" {
@@ -1336,7 +1351,8 @@ enum ModelCapabilityRegistry {
             return [.none]
         case .deepseek where deepSeekV4ReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
-        case .openrouter where lowerModelID == "deepseek/deepseek-v4.1-flash-1017":
+        case .openrouter where lowerModelID == "deepseek/deepseek-v4.1-flash-1017"
+            || lowerModelID == "moonshotai/kimi-k3.1-pro":
             return [.none, .low, .high, .max]
         case .openrouter where lowerModelID == "inception/mercury-3":
             return [.none, .low, .medium, .high]
@@ -1376,7 +1392,8 @@ enum ModelCapabilityRegistry {
             return [.none, .minimal, .low, .medium, .high, .max]
         case .openrouter where openRouterLowHighEffortModelIDs.contains(lowerModelID):
             return [.low, .high]
-        case .together where lowerModelID == "reflection/beam-1.0-501b-a23b":
+        case .together where lowerModelID == "reflection/beam-1.0-501b-a23b"
+            || lowerModelID == "minimaxai/minimax-m3.1-flash":
             return [.low, .medium, .high, .xhigh, .max]
         case .together where lowerModelID == "meta-models/muse-spark-open-816b-a42b":
             return [.low, .medium, .high, .xhigh]
@@ -1407,6 +1424,10 @@ enum ModelCapabilityRegistry {
             || lowerModelID == "fireworks/muse-spark-open"
             || lowerModelID == "muse-spark-open":
             return [.low, .medium, .high, .xhigh]
+        case .fireworks where lowerModelID == "accounts/fireworks/models/minimax-m3p1-flash"
+            || lowerModelID == "fireworks/minimax-m3p1-flash"
+            || lowerModelID == "minimax-m3p1-flash":
+            return [.low, .medium, .high, .xhigh, .max]
         case .fireworks where fireworksDeepSeekV4Pro0813ReasoningEffortModelIDs.contains(lowerModelID)
             || lowerModelID == "accounts/fireworks/models/glm-5p3"
             || lowerModelID == "fireworks/glm-5p3"
@@ -1512,10 +1533,13 @@ enum ModelCapabilityRegistry {
             return [.none, .low, .medium, .xhigh]
         case .baseten where basetenMercury2ReasoningEffortModelIDs.contains(lowerModelID):
             return [.none, .low, .medium, .high]
-        case .modal where lowerModelID == "zai-org/glm-5.3-flash":
+        case .modal where lowerModelID == "zai-org/glm-5.3-flash"
+            || lowerModelID == "nvidia/glm-5.3-flash-nvfp4":
             // Official Flash band; Modal does not publish an effort matrix.
             // `none` is rejected on the native weights.
             return [.low, .high, .max]
+        case .modal where lowerModelID == "meta-models/muse-spark-open-816b-a42b":
+            return [.low, .medium, .high, .xhigh]
         case .modal where modalKimiK3ReasoningEffortModelIDs.contains(lowerModelID)
             || lowerModelID == "zai-org/glm-5.3"
             || lowerModelID == "deepseek-ai/deepseek-v4-pro-0813"
@@ -1563,7 +1587,8 @@ enum ModelCapabilityRegistry {
             return [.high, .max]
         case .opencodeGo where glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.low, .high, .max]
-        case .opencodeGo where opencodeGoOxAlphaReasoningEffortModelIDs.contains(lowerModelID):
+        case .opencodeGo where opencodeGoOxAlphaReasoningEffortModelIDs.contains(lowerModelID)
+            || lowerModelID == "kimi-k3.1-pro":
             return [.low, .high, .max]
         case .opencodeGo where opencodeGoGLMHighMaxReasoningEffortModelIDs.contains(lowerModelID):
             return [.high, .max]
@@ -1575,6 +1600,7 @@ enum ModelCapabilityRegistry {
             return [.high]
         case .opencodeGo where lowerModelID == "beam-free"
             || lowerModelID == "minimax-m3.1-flash-free"
+            || lowerModelID == "minimax-m3.1-flash"
             || lowerModelID == "cat-jam-free"
             || lowerModelID == "space-bunny"
             || lowerModelID == "space-bunny-free":

@@ -1712,6 +1712,191 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertNotNil(ModelCatalog.entry(for: "gemini-4-argon", provider: .router))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .router, modelID: "gemini-4-argon"))
     }
+
+    func testOctober2026LateWaveCatalogAndCapabilitiesUseExactIDs() {
+        // 1. OpenRouter — `minimax/minimax-m3.1-flash`, `recursive/flint-v1.0:free`, `moonshotai/kimi-k3.1-pro`
+        let orM31Paid = ModelCatalog.modelInfo(for: "minimax/minimax-m3.1-flash", provider: .openrouter)
+        XCTAssertEqual(orM31Paid.name, "MiniMax: MiniMax M3.1 Flash")
+        XCTAssertEqual(orM31Paid.contextWindow, 1_048_576)
+        XCTAssertEqual(orM31Paid.maxOutputTokens, 524_288)
+        XCTAssertEqual(orM31Paid.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertEqual(orM31Paid.reasoningConfig?.defaultEffort, .max)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "minimax/minimax-m3.1-flash"),
+            [.low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "minimax/minimax-m3.1-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "minimax/minimax-m3.1-flash"))
+
+        let orFlint = ModelCatalog.modelInfo(for: "recursive/flint-v1.0:free", provider: .openrouter)
+        XCTAssertEqual(orFlint.name, "Recursive: Flint (free)")
+        XCTAssertEqual(orFlint.contextWindow, 262_144)
+        XCTAssertEqual(orFlint.maxOutputTokens, 235_929)
+        XCTAssertEqual(orFlint.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(orFlint.reasoningConfig?.type, .toggle)
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "recursive/flint-v1.0:free"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "recursive/flint-v1.0:free"))
+
+        let orKimi31 = ModelCatalog.modelInfo(for: "moonshotai/kimi-k3.1-pro", provider: .openrouter)
+        XCTAssertEqual(orKimi31.name, "MoonshotAI: Kimi K3.1 Pro")
+        XCTAssertEqual(orKimi31.contextWindow, 1_048_576)
+        XCTAssertEqual(orKimi31.maxOutputTokens, 943_718)
+        XCTAssertEqual(orKimi31.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertEqual(orKimi31.reasoningConfig?.defaultEffort, .max)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: "moonshotai/kimi-k3.1-pro"),
+            [.none, .low, .high, .max]
+        )
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: "moonshotai/kimi-k3.1-pro"))
+        XCTAssertTrue(openRouterOmitsSamplingParameters(modelID: "moonshotai/kimi-k3.1-pro"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "moonshotai/kimi-k3.1-pro"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "moonshotai/kimi-k3.1-pro-custom"))
+
+        // 2. Vercel AI Gateway — `moonshotai/kimi-k3.1-pro`, `moonshotai/kimi-k3.1-pro-highspeed`,
+        //    `scaledown/scaledown-summarize-1`, `scaledown/scaledown-extract-1`, plus catalog-only rows.
+        for vercelKimiID in ["moonshotai/kimi-k3.1-pro", "moonshotai/kimi-k3.1-pro-highspeed"] {
+            let m = ModelCatalog.modelInfo(for: vercelKimiID, provider: .vercelAIGateway)
+            XCTAssertEqual(m.contextWindow, 1_048_576, vercelKimiID)
+            XCTAssertEqual(m.maxOutputTokens, 1_048_576, vercelKimiID)
+            XCTAssertEqual(m.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], vercelKimiID)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .vercelAIGateway, modelID: vercelKimiID),
+                [.low, .high, .max],
+                vercelKimiID
+            )
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: vercelKimiID), vercelKimiID)
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: vercelKimiID), vercelKimiID)
+        }
+        let sdSum = ModelCatalog.modelInfo(for: "scaledown/scaledown-summarize-1", provider: .vercelAIGateway)
+        XCTAssertEqual(sdSum.contextWindow, 1_000_000)
+        XCTAssertEqual(sdSum.maxOutputTokens, 1_000)
+        XCTAssertEqual(sdSum.capabilities, [.streaming])
+        XCTAssertNil(sdSum.reasoningConfig)
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "scaledown/scaledown-summarize-1"))
+
+        let sdExt = ModelCatalog.modelInfo(for: "scaledown/scaledown-extract-1", provider: .vercelAIGateway)
+        XCTAssertEqual(sdExt.contextWindow, 1_000_000)
+        XCTAssertEqual(sdExt.maxOutputTokens, 1_000_000)
+        XCTAssertEqual(sdExt.capabilities, [.streaming])
+        XCTAssertNil(sdExt.reasoningConfig)
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "scaledown/scaledown-extract-1"))
+
+        for blockedVercelID in [
+            "mistral/voxtral-mini-tts-3",
+            "mistral/voxtral-mini-transcribe-3",
+            "mistral/voxtral-small-transcribe-3",
+            "cohere/rerank-v5-fast",
+            "cohere/rerank-v5-pro",
+            "baseten/elephant-1",
+            "baseten/mammoth-1",
+            "liquid/d1-ultra",
+            "perplexity/pplx-decider-v1.2",
+            "perplexity/pplx-decider-flash-v1.2",
+            "typesafe-ai/jev-1.14.0",
+        ] {
+            XCTAssertNotNil(ModelCatalog.entry(for: blockedVercelID, provider: .vercelAIGateway), blockedVercelID)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: blockedVercelID), blockedVercelID)
+        }
+
+        // 3. OpenCode Go — `kimi-k3.1-pro` & `minimax-m3.1-flash`
+        let goKimi31 = ModelCatalog.modelInfo(for: "kimi-k3.1-pro", provider: .opencodeGo)
+        XCTAssertEqual(goKimi31.contextWindow, 1_048_576)
+        XCTAssertEqual(goKimi31.maxOutputTokens, 131_072)
+        XCTAssertEqual(goKimi31.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "kimi-k3.1-pro"),
+            [.low, .high, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "kimi-k3.1-pro"))
+        XCTAssertFalse(OpenCodeGoAdapter.supportsCustomTemperature("kimi-k3.1-pro"))
+        XCTAssertTrue(OpenCodeGoAdapter.usesAlwaysOnLowHighMaxReasoningEffort("kimi-k3.1-pro"))
+        XCTAssertFalse(OpenCodeGoAdapter.anthropicMessagesModelIDs.contains("kimi-k3.1-pro"))
+        XCTAssertFalse(OpenCodeGoAdapter.openAIResponsesModelIDs.contains("kimi-k3.1-pro"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "kimi-k3.1-pro"))
+
+        let goM31Paid = ModelCatalog.modelInfo(for: "minimax-m3.1-flash", provider: .opencodeGo)
+        XCTAssertEqual(goM31Paid.contextWindow, 1_000_000)
+        XCTAssertEqual(goM31Paid.maxOutputTokens, 512_000)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .opencodeGo, modelID: "minimax-m3.1-flash"),
+            [.low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .opencodeGo, modelID: "minimax-m3.1-flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "minimax-m3.1-flash"))
+
+        // 4. Together, Fireworks, Mistral, RunInfra, Databricks, Modal
+        let togM31 = ModelCatalog.modelInfo(for: "MiniMaxAI/MiniMax-M3.1-Flash", provider: .together)
+        XCTAssertEqual(togM31.contextWindow, 1_048_576)
+        XCTAssertEqual(togM31.maxOutputTokens, 512_000)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .together, modelID: "MiniMaxAI/MiniMax-M3.1-Flash"),
+            [.low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .together, modelID: "MiniMaxAI/MiniMax-M3.1-Flash"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .together, modelID: "MiniMaxAI/MiniMax-M3.1-Flash"))
+
+        for fwM31 in ["accounts/fireworks/models/minimax-m3p1-flash", "fireworks/minimax-m3p1-flash"] {
+            let m = ModelCatalog.modelInfo(for: fwM31, provider: .fireworks)
+            XCTAssertEqual(m.contextWindow, 1_040_000, fwM31)
+            XCTAssertEqual(m.maxOutputTokens, 512_000, fwM31)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .fireworks, modelID: fwM31),
+                [.low, .medium, .high, .xhigh, .max],
+                fwM31
+            )
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .fireworks, modelID: fwM31), fwM31)
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: fwM31), fwM31)
+        }
+        for fwRouter in ["accounts/fireworks/routers/deepseek-v4p1-flash-1017-us", "fireworks/deepseek-v4p1-flash-1017-us"] {
+            XCTAssertTrue(isFireworksDeepSeekV4GAModel(fwRouter), fwRouter)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .fireworks, modelID: fwRouter),
+                [.low, .high, .max],
+                fwRouter
+            )
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: fwRouter), fwRouter)
+        }
+
+        let mistralGLMFlash = ModelCatalog.modelInfo(for: "zai-glm-5-3-flash", provider: .mistral)
+        XCTAssertEqual(mistralGLMFlash.contextWindow, 1_000_000)
+        XCTAssertEqual(mistralGLMFlash.maxOutputTokens, 128_000)
+        XCTAssertEqual(mistralGLMFlash.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching])
+        XCTAssertNil(mistralGLMFlash.reasoningConfig)
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .mistral, modelID: "zai-glm-5-3-flash"))
+
+        for runinfraID in ["glm-5-3", "zai-org/GLM-5.3", "ornith-1-5-122b", "ornith-ai/Ornith-1.5-122B"] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .runinfra, modelID: runinfraID), runinfraID)
+        }
+        XCTAssertFalse(ModelCatalog.modelInfo(for: "glm-5-3", provider: .runinfra).capabilities.contains(.vision))
+        XCTAssertTrue(ModelCatalog.modelInfo(for: "ornith-1-5-122b", provider: .runinfra).capabilities.contains(.vision))
+
+        let dbxDS1017 = ModelCatalog.modelInfo(for: "databricks-deepseek-v4-1-flash-1017", provider: .databricks)
+        XCTAssertEqual(dbxDS1017.contextWindow, 1_048_576)
+        XCTAssertTrue(dbxDS1017.capabilities.contains(.vision))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .databricks, modelID: "databricks-deepseek-v4-1-flash-1017"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-deepseek-v4-1-flash-1017"))
+
+        for modalID in [
+            "meta-models/Muse-Spark-Open-816B-A42B",
+            "Qwen/Qwen3.8-Max-VL-Thinking",
+            "nvidia/GLM-5.3-Flash-NVFP4",
+        ] {
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .modal, modelID: modalID), modalID)
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .modal, modelID: modalID), modalID)
+        }
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .modal, modelID: "meta-models/Muse-Spark-Open-816B-A42B"),
+            [.low, .medium, .high, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .modal, modelID: "Qwen/Qwen3.8-Max-VL-Thinking"),
+            [.low, .medium, .xhigh]
+        )
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .modal, modelID: "nvidia/GLM-5.3-Flash-NVFP4"),
+            [.low, .high, .max]
+        )
+    }
 }
 
 

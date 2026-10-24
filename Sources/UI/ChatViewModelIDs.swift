@@ -52,6 +52,8 @@ extension ChatView {
     static let mistralTranscriptionOnlyModelIDs: Set<String> = [
         "voxtral-mini-2602",
         "voxtral-mini-latest",
+        "voxtral-mini-transcribe-3-0",
+        "voxtral-small-transcribe-3-0",
     ]
 
     static let geminiAudioInputModelIDs: Set<String> = [

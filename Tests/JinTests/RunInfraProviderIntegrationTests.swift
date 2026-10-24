@@ -24,6 +24,8 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
             "deepseek-v4-1-flash",
             "deepseek-v4-1-flash-1017",
             "glm-5-3-flash",
+            "glm-5-3",
+            "ornith-1-5-122b",
             "qwen3-8-27b",
             "ornith-1-5-35b",
             "nemotron-3-5-lightning-30b",
@@ -40,7 +42,7 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
             // "Accepted input: Text and images" on the model pages / named by the chat-completions contract.
             XCTAssertEqual(
                 info.capabilities.contains(.vision),
-                ["deepseek-v4-1-flash-1017", "qwen3-8-27b", "ornith-1-5-35b", "glm-5-3-flash"].contains(id),
+                ["deepseek-v4-1-flash-1017", "qwen3-8-27b", "ornith-1-5-35b", "ornith-1-5-122b", "glm-5-3-flash"].contains(id),
                 id
             )
             XCTAssertEqual(info.maxOutputTokens, 32_768, id)
@@ -56,7 +58,7 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(config.type, .runinfra)
         XCTAssertEqual(config.baseURL, "https://api.runinfra.ai/v1")
         XCTAssertEqual(config.models.map(\.id).first, "deepseek-v4-1-flash")
-        XCTAssertEqual(config.models.count, 6)
+        XCTAssertEqual(config.models.count, 8)
         XCTAssertTrue(DefaultProviderSeeds.allProviders().contains(where: { $0.id == "runinfra" }))
 
         let adapter = RunInfraAdapter(providerConfig: config, apiKey: "test-key")

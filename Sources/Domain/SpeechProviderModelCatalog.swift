@@ -210,7 +210,8 @@ enum SpeechProviderModelCatalog {
             ]
         case .mistral:
             return [
-                SpeechProviderModelChoice(id: defaultMistralTextToSpeechModelID, name: "Voxtral Mini TTS")
+                SpeechProviderModelChoice(id: defaultMistralTextToSpeechModelID, name: "Voxtral Mini TTS"),
+                SpeechProviderModelChoice(id: "voxtral-mini-tts-3-0", name: "Voxtral Mini TTS 3.0")
             ]
         case .xiaomiMiMo:
             return [
@@ -264,7 +265,9 @@ enum SpeechProviderModelCatalog {
         case .mistral:
             return [
                 SpeechProviderModelChoice(id: defaultMistralSpeechToTextModelID, name: "Voxtral Mini Transcribe 2"),
-                // On the transcription endpoint this alias resolves to voxtral-mini-2602.
+                SpeechProviderModelChoice(id: "voxtral-mini-transcribe-3-0", name: "Voxtral Mini Transcribe 3.0"),
+                SpeechProviderModelChoice(id: "voxtral-small-transcribe-3-0", name: "Voxtral Small Transcribe 3.0"),
+                // On the transcription endpoint this alias resolves to voxtral-mini-transcribe-3-0.
                 SpeechProviderModelChoice(id: "voxtral-mini-latest", name: "Voxtral Mini Latest")
             ]
         case .elevenlabs:
