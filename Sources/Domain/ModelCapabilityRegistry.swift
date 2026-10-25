@@ -841,6 +841,8 @@ enum ModelCapabilityRegistry {
     private static let routerNoneToExtremeEffortModelIDs: Set<String> = [
         "accounts/fireworks/models/deepseek-v4p1-flash",
         "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+        "accounts/fireworks/routers/deepseek-v4p1-flash-1017-us",
+        "accounts/fireworks/models/deepseek-v4p1-flash-1017-us",
         "accounts/fireworks/models/muse-spark-open",
         "accounts/fireworks/models/gpt-oss-20b",
         "accounts/fireworks/models/kimi-k2p6",
@@ -867,6 +869,9 @@ enum ModelCapabilityRegistry {
         // docs.router.com supported-models (fetched 2026-09-27): `opus-5-5`
         // label publishes minimal..max (callable ID keeps the claude- prefix).
         "claude-opus-5-5",
+        // Baseten-backend row (docs.router.com supported-models, fetched 2026-10-25):
+        // `reflection/Beam-1.0` publishes minimal..max.
+        "reflection/beam-1.0",
     ]
     /// Router band `minimal, low, medium, high, xhigh`.
     private static let routerMinimalToExtremeEffortModelIDs: Set<String> = [
@@ -1188,7 +1193,9 @@ enum ModelCapabilityRegistry {
                 || lowerModelID == "anthropic/claude-opus-5.5"
                 || lowerModelID == "anthropic/claude-sonnet-5.5"
                 || lowerModelID == "meta/muse-wonder-1.0"
-                || lowerModelID == "reflection-ai/beam-1.0-501b-a23b" {
+                || lowerModelID == "reflection-ai/beam-1.0-501b-a23b"
+                || lowerModelID == "minimax/m3.1-flash"
+                || lowerModelID == "minimax/minimax-m3.1-flash" {
                 return true
             }
         case .baseten:
@@ -1503,7 +1510,9 @@ enum ModelCapabilityRegistry {
         case .cloudflareAIGateway where lowerModelID == "anthropic/claude-haiku-5.5"
             || lowerModelID == "anthropic/claude-opus-5.5"
             || lowerModelID == "anthropic/claude-sonnet-5.5"
-            || lowerModelID == "reflection-ai/beam-1.0-501b-a23b":
+            || lowerModelID == "reflection-ai/beam-1.0-501b-a23b"
+            || lowerModelID == "minimax/m3.1-flash"
+            || lowerModelID == "minimax/minimax-m3.1-flash":
             return [.low, .medium, .high, .xhigh, .max]
         case .cloudflareAIGateway where lowerModelID == "meta/muse-spark-open":
             return [.low, .medium, .high, .xhigh]
