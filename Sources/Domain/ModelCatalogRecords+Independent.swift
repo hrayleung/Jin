@@ -3092,6 +3092,21 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .high,
                    supportedEfforts: [.low, .medium, .high]),
                isFullySupported: false, isSeeded: false),
+        // Iceman Contributor Free (live GET /zen/go/v1/models + models.dev
+        // `opencode-go`, added 2026-10-24): `/chat/completions` path
+        // (`provider.api: "https://opencode.ai/inference/go/openai/v1"` — keep
+        // out of `anthropicMessagesModelIDs` and `openAIResponsesModelIDs`).
+        // 262,144 context / 131,072 max output, text-only input (`attachment: false`),
+        // tool calling, `reasoning: true` with `reasoning_options: []` (no effort
+        // band, so `reasoningConfig` stays nil to render streamed thinking without
+        // emitting an unhonored `reasoning_effort`). Absent from `opencode.ai/docs/go`
+        // current-model table, so recognized-when-fetched (`isSeeded: false`).
+        Record(id: "iceman-contributor-free", displayName: "Iceman Contributor (Free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: Meta

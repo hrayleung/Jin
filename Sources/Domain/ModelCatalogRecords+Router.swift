@@ -390,6 +390,23 @@ extension ModelCatalog {
                maxOutputTokens: 1_048_576,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        // Label `deepseek-v4.1-flash-1017-us` under DeepSeek on docs.router.com/supported-models
+        // (fetched 2026-10-25): $0.45 / $1.80, 1,048,576 / 1,048,576, effort band
+        // none/minimal/low/medium/high/xhigh (routerNoneToExtremeEffortModelIDs).
+        // Fireworks serves the US geo-router at `accounts/fireworks/routers/deepseek-v4p1-flash-1017-us`;
+        // the `models/` path is also cataloged unseeded in case Router normalizes the prefix.
+        Record(id: "accounts/fireworks/routers/deepseek-v4p1-flash-1017-us", displayName: "DeepSeek-V4.1-Flash-1017 (US)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "accounts/fireworks/models/deepseek-v4p1-flash-1017-us", displayName: "DeepSeek-V4.1-Flash-1017 (US)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "accounts/fireworks/models/deepseek-v4-pro", displayName: "DeepSeek-V4-Pro",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,
@@ -565,6 +582,15 @@ extension ModelCatalog {
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: false),
+        // Baseten backend on docs.router.com/supported-models (fetched 2026-10-25):
+        // `reflection/Beam-1.0` ($1.30 / $4.30, 1,048,576 / 131,072, effort
+        // `minimal, low, medium, high, xhigh, max` → routerMinimalToMaxEffortModelIDs).
+        Record(id: "reflection/Beam-1.0", displayName: "Beam 1.0",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "deepseek-ai/DeepSeek-V4-Flash-0731", displayName: "DeepSeek V4 Flash 0731",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 1_048_576,
@@ -660,6 +686,20 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: false, isSeeded: false),
+        // Non-chat evaluation / judge models on docs.router.com/supported-models
+        // ($0.04 input / $0.00 output): cataloged with `isFullySupported: false`.
+        Record(id: "jev-1.14.0", displayName: "Jev 1.14.0",
+               capabilities: [],
+               contextWindow: 64_000,
+               maxOutputTokens: 64_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "jev-1.13.0", displayName: "Jev 1.13.0",
+               capabilities: [],
+               contextWindow: 65_536,
+               maxOutputTokens: 65_536,
+               reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
     ]
 }

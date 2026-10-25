@@ -1897,6 +1897,105 @@ final class JinModelSupportTests: XCTestCase {
             [.low, .high, .max]
         )
     }
+
+    func testLateOctober2026OpenCodeGoCloudflareAndRouterModelsSupport() {
+        // 1. OpenCode Go — `iceman-contributor-free` (2026-10-24)
+        let goIceman = ModelCatalog.modelInfo(for: "iceman-contributor-free", provider: .opencodeGo)
+        XCTAssertEqual(goIceman.name, "Iceman Contributor (Free)")
+        XCTAssertEqual(goIceman.contextWindow, 262_144)
+        XCTAssertEqual(goIceman.maxOutputTokens, 131_072)
+        XCTAssertEqual(goIceman.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertNil(goIceman.reasoningConfig)
+        XCTAssertFalse(OpenCodeGoAdapter.anthropicMessagesModelIDs.contains("iceman-contributor-free"))
+        XCTAssertFalse(OpenCodeGoAdapter.openAIResponsesModelIDs.contains("iceman-contributor-free"))
+        XCTAssertTrue(OpenCodeGoAdapter.supportsCustomTemperature("iceman-contributor-free"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "iceman-contributor-free"))
+
+        let persistedIceman = ModelInfo(
+            id: "iceman-contributor-free",
+            name: "iceman-contributor-free",
+            capabilities: [.streaming],
+            contextWindow: 128_000
+        )
+        let resolvedIceman = ModelSettingsResolver.resolve(model: persistedIceman, providerType: .opencodeGo)
+        XCTAssertEqual(resolvedIceman.contextWindow, 262_144)
+        XCTAssertEqual(resolvedIceman.maxOutputTokens, 131_072)
+        XCTAssertEqual(resolvedIceman.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertNil(resolvedIceman.reasoningConfig)
+
+        // 2. Cloudflare AI Gateway — `minimax/m3.1-flash` & `minimax/minimax-m3.1-flash` (2026-10-19)
+        for cfM31 in ["minimax/m3.1-flash", "minimax/minimax-m3.1-flash"] {
+            let m = ModelCatalog.modelInfo(for: cfM31, provider: .cloudflareAIGateway)
+            XCTAssertEqual(m.name, "MiniMax-M3.1-Flash", cfM31)
+            XCTAssertEqual(m.contextWindow, 1_000_000, cfM31)
+            XCTAssertEqual(m.maxOutputTokens, 512_000, cfM31)
+            XCTAssertEqual(m.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], cfM31)
+            XCTAssertEqual(m.reasoningConfig?.defaultEffort, .max, cfM31)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .cloudflareAIGateway, modelID: cfM31),
+                [.low, .medium, .high, .xhigh, .max],
+                cfM31
+            )
+            XCTAssertTrue(
+                ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .cloudflareAIGateway, modelID: cfM31),
+                cfM31
+            )
+            XCTAssertFalse(
+                ModelSettingsResolver.defaultReasoningCanDisable(for: .cloudflareAIGateway, modelID: cfM31),
+                cfM31
+            )
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .cloudflareAIGateway, modelID: cfM31), cfM31)
+
+            let persisted = ModelInfo(
+                id: cfM31,
+                name: cfM31,
+                capabilities: [.streaming],
+                contextWindow: 128_000
+            )
+            let resolved = ModelSettingsResolver.resolve(model: persisted, providerType: .cloudflareAIGateway)
+            XCTAssertEqual(resolved.contextWindow, 1_000_000, cfM31)
+            XCTAssertEqual(resolved.maxOutputTokens, 512_000, cfM31)
+            XCTAssertFalse(resolved.reasoningCanDisable, cfM31)
+            XCTAssertEqual(resolved.reasoningConfig?.defaultEffort, .max, cfM31)
+        }
+
+        // 3. Ramp Router — `accounts/fireworks/routers/deepseek-v4p1-flash-1017-us`,
+        // `reflection/Beam-1.0`, and `jev-1.14.0`
+        for routerDSUS in [
+            "accounts/fireworks/routers/deepseek-v4p1-flash-1017-us",
+            "accounts/fireworks/models/deepseek-v4p1-flash-1017-us",
+        ] {
+            let m = ModelCatalog.modelInfo(for: routerDSUS, provider: .router)
+            XCTAssertEqual(m.contextWindow, 1_048_576, routerDSUS)
+            XCTAssertEqual(m.maxOutputTokens, 1_048_576, routerDSUS)
+            XCTAssertEqual(m.capabilities, [.streaming, .toolCalling, .reasoning], routerDSUS)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .router, modelID: routerDSUS),
+                [.none, .minimal, .low, .medium, .high, .xhigh],
+                routerDSUS
+            )
+            XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .router, modelID: routerDSUS), routerDSUS)
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .router, modelID: routerDSUS), routerDSUS)
+        }
+
+        let routerBeam = ModelCatalog.modelInfo(for: "reflection/Beam-1.0", provider: .router)
+        XCTAssertEqual(routerBeam.contextWindow, 1_048_576)
+        XCTAssertEqual(routerBeam.maxOutputTokens, 131_072)
+        XCTAssertEqual(routerBeam.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertEqual(routerBeam.reasoningConfig?.defaultEffort, .high)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .router, modelID: "reflection/Beam-1.0"),
+            [.minimal, .low, .medium, .high, .xhigh, .max]
+        )
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .router, modelID: "reflection/Beam-1.0"))
+        XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .router, modelID: "reflection/Beam-1.0"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .router, modelID: "reflection/Beam-1.0"))
+
+        for blockedRouterJev in ["jev-1.14.0", "jev-1.13.0"] {
+            XCTAssertNotNil(ModelCatalog.entry(for: blockedRouterJev, provider: .router), blockedRouterJev)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .router, modelID: blockedRouterJev), blockedRouterJev)
+        }
+    }
 }
 
 

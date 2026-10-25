@@ -1198,6 +1198,29 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .high,
                    supportedEfforts: [.none, .low, .high, .max]),
                isFullySupported: true, isSeeded: false),
+        // MiniMax-M3.1-Flash (Cloudflare AI Gateway catalog + models.dev
+        // `cloudflare-ai-gateway`, added 2026-10-19): 1,000,000 context /
+        // 512,000 max output, text+image input (`.videoInput` withheld on this
+        // gateway), tool calling, cached-input pricing ($0.015/M), always-on
+        // reasoning with `low..max` effort (default `max`). Both `models.dev`'s
+        // `minimax/m3.1-flash` and the compound `minimax/minimax-m3.1-flash`
+        // slug are cataloged.
+        Record(id: "minimax/m3.1-flash", displayName: "MiniMax-M3.1-Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 512_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "minimax/minimax-m3.1-flash", displayName: "MiniMax-M3.1-Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 512_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
     ]
 
     // MARK: Vercel AI Gateway

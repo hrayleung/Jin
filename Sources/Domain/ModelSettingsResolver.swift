@@ -503,6 +503,9 @@ enum ModelSettingsResolver {
         // reasoning upstream (low..max / low..xhigh, no `none`).
         "reflection-ai/beam-1.0-501b-a23b",
         "meta/muse-spark-open",
+        // MiniMax-M3.1-Flash (listed 2026-10-19): always-on reasoning low..max.
+        "minimax/m3.1-flash",
+        "minimax/minimax-m3.1-flash",
     ]
 
     /// Databricks foundation models where reasoning cannot be disabled.
