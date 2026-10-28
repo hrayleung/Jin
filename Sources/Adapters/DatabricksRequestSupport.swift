@@ -70,7 +70,10 @@ extension DatabricksAdapter {
     private static let exactSamplingRejectingModelIDs: Set<String> = [
         "databricks-gpt-6-astra",
         "openai/gpt-6-astra",
-        "gpt-6-astra"
+        "gpt-6-astra",
+        "databricks-gpt-6-1-terra",
+        "openai/gpt-6.1-terra",
+        "gpt-6.1-terra",
     ]
 
     private func modelRejectsCustomSampling(_ modelID: String) -> Bool {
@@ -86,12 +89,21 @@ extension DatabricksAdapter {
 
     private func applyReasoning(to body: inout [String: Any], controls: GenerationControls, modelID: String) {
         guard modelSupportsReasoning(providerConfig: providerConfig, modelID: modelID) else { return }
-        guard let reasoning = controls.reasoning, reasoning.enabled else { return }
-
         let declaredEfforts = OpenAICompatibleReasoningSupport.declaredReasoningEfforts(
             providerConfig: providerConfig,
             modelID: modelID
         )
+        guard let reasoning = controls.reasoning else { return }
+        guard reasoning.enabled else {
+            // For models that explicitly document `reasoning_effort = "none"` to disable
+            // reasoning (e.g. databricks-gpt-6-1-terra, where Databricks does not set a
+            // default when the field is omitted), send `"none"` when reasoning is disabled.
+            if declaredEfforts?.contains(.none) == true {
+                body["reasoning_effort"] = "none"
+            }
+            return
+        }
+
         let effort = ModelCapabilityRegistry.normalizedReasoningEffort(
             reasoning.effort ?? .medium,
             for: providerConfig.type,
@@ -99,7 +111,9 @@ extension DatabricksAdapter {
             declaredEfforts: declaredEfforts
         )
         switch effort {
-        case .none, .minimal, .low:
+        case .none:
+            body["reasoning_effort"] = declaredEfforts?.contains(.none) == true ? "none" : "low"
+        case .minimal, .low:
             body["reasoning_effort"] = "low"
         case .medium:
             body["reasoning_effort"] = "medium"

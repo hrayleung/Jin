@@ -1996,6 +1996,166 @@ final class JinModelSupportTests: XCTestCase {
             XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .router, modelID: blockedRouterJev), blockedRouterJev)
         }
     }
+
+    func testOctober2026Week5ModelsSupport() {
+        let terraBand: [ReasoningEffort] = [.none, .low, .medium, .high, .xhigh, .max]
+        let terraProBand: [ReasoningEffort] = [.low, .medium, .high, .xhigh, .max]
+
+        // 1. OpenAI & OpenAI WebSocket: gpt-6.1-terra (released 2026-10-26)
+        for providerType in [ProviderType.openai, .openaiWebSocket] {
+            let terra = ModelCatalog.modelInfo(for: "gpt-6.1-terra", provider: providerType)
+            XCTAssertEqual(terra.name, "GPT-6.1 Terra", "\(providerType)")
+            XCTAssertEqual(terra.contextWindow, 1_050_000, "\(providerType)")
+            XCTAssertEqual(terra.maxOutputTokens, 128_000, "\(providerType)")
+            XCTAssertEqual(
+                terra.capabilities,
+                [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+                "\(providerType)"
+            )
+            XCTAssertEqual(terra.reasoningConfig?.type, .effort, "\(providerType)")
+            XCTAssertEqual(terra.reasoningConfig?.defaultEffort, .medium, "\(providerType)")
+            XCTAssertEqual(terra.reasoningConfig?.supportedEfforts, terraBand, "\(providerType)")
+            XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: providerType, modelID: "gpt-6.1-terra"), "\(providerType)")
+            XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleExtremeEffort(for: providerType, modelID: "gpt-6.1-terra"), "\(providerType)")
+            XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: providerType, modelID: "gpt-6.1-terra"), "\(providerType)")
+            XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleVerbosity(for: providerType, modelID: "gpt-6.1-terra"), "\(providerType)")
+            XCTAssertTrue(ModelCapabilityRegistry.supportsCodeExecution(for: providerType, modelID: "gpt-6.1-terra"), "\(providerType)")
+            XCTAssertTrue(ModelCapabilityRegistry.supportsWebSearch(for: providerType, modelID: "gpt-6.1-terra"), "\(providerType)")
+            XCTAssertFalse(supportsOpenAIResponsesSamplingParameters(modelID: "gpt-6.1-terra", reasoningEnabled: false, providerType: providerType), "\(providerType)")
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: providerType, modelID: "gpt-6.1-terra"), "\(providerType)")
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: providerType, modelID: "gpt-6.1-terra-custom"), "\(providerType)")
+
+            // Legacy persisted-model fallback upgrades stale 128k record
+            let legacyTerra = ModelInfo(
+                id: "gpt-6.1-terra",
+                name: "gpt-6.1-terra",
+                capabilities: [.streaming],
+                contextWindow: 128_000,
+                reasoningConfig: nil
+            )
+            let resolvedTerra = ModelSettingsResolver.resolve(model: legacyTerra, providerType: providerType)
+            XCTAssertEqual(resolvedTerra.contextWindow, 1_050_000, "\(providerType)")
+            XCTAssertEqual(resolvedTerra.maxOutputTokens, 128_000, "\(providerType)")
+            XCTAssertTrue(resolvedTerra.capabilities.contains(.codeExecution), "\(providerType)")
+            XCTAssertTrue(resolvedTerra.reasoningCanDisable, "\(providerType)")
+            XCTAssertEqual(resolvedTerra.reasoningConfig?.supportedEfforts, terraBand, "\(providerType)")
+        }
+
+        // 2. OpenRouter: openai/gpt-6.1-terra, openai/gpt-6.1-terra-pro, and :batch twins
+        for id in ["openai/gpt-6.1-terra", "openai/gpt-6.1-terra:batch"] {
+            let m = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(m.contextWindow, 1_050_000, id)
+            XCTAssertEqual(m.maxOutputTokens, 128_000, id)
+            XCTAssertEqual(m.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF], id)
+            XCTAssertEqual(m.reasoningConfig?.supportedEfforts, terraBand, id)
+            XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: id), id)
+            XCTAssertTrue(openRouterOmitsSamplingParameters(modelID: id), id)
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: id), id)
+        }
+        for id in ["openai/gpt-6.1-terra-pro", "openai/gpt-6.1-terra-pro:batch"] {
+            let m = ModelCatalog.modelInfo(for: id, provider: .openrouter)
+            XCTAssertEqual(m.contextWindow, 1_050_000, id)
+            XCTAssertEqual(m.maxOutputTokens, 128_000, id)
+            XCTAssertEqual(m.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF], id)
+            XCTAssertEqual(m.reasoningConfig?.supportedEfforts, terraProBand, id)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .openrouter, modelID: id),
+                terraProBand,
+                id
+            )
+            XCTAssertFalse(ModelSettingsResolver.defaultReasoningCanDisable(for: .openrouter, modelID: id), id)
+            XCTAssertTrue(openRouterOmitsSamplingParameters(modelID: id), id)
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: id), id)
+        }
+
+        // 3. Vercel AI Gateway: openai/gpt-6.1-terra & openai/gpt-6.1-terra-fast + ElevenLabs blocked-adapter rows
+        for id in ["openai/gpt-6.1-terra", "openai/gpt-6.1-terra-fast"] {
+            let m = ModelCatalog.modelInfo(for: id, provider: .vercelAIGateway)
+            XCTAssertEqual(m.contextWindow, 1_050_000, id)
+            XCTAssertEqual(m.maxOutputTokens, 128_000, id)
+            XCTAssertEqual(m.capabilities, [.streaming, .toolCalling, .vision, .reasoning, .promptCaching], id)
+            XCTAssertEqual(m.reasoningConfig?.supportedEfforts, terraBand, id)
+            XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .vercelAIGateway, modelID: id), id)
+            XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .vercelAIGateway, modelID: id), id)
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: id), id)
+        }
+        for blockedID in [
+            "elevenlabs/eleven_multilingual_v2",
+            "elevenlabs/eleven_turbo_v2_5",
+            "elevenlabs/eleven_flash_v2_5",
+            "elevenlabs/eleven_v3",
+            "elevenlabs/scribe_v1",
+            "elevenlabs/scribe_v2",
+            "elevenlabs/scribe_v2_realtime",
+        ] {
+            XCTAssertNotNil(ModelCatalog.entry(for: blockedID, provider: .vercelAIGateway), blockedID)
+            XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: blockedID), blockedID)
+        }
+
+        // 4. Databricks: databricks-gpt-6-1-terra
+        let dbxTerra = ModelCatalog.modelInfo(for: "databricks-gpt-6-1-terra", provider: .databricks)
+        XCTAssertEqual(dbxTerra.contextWindow, 1_050_000)
+        XCTAssertEqual(dbxTerra.maxOutputTokens, 128_000)
+        XCTAssertEqual(dbxTerra.capabilities, [.streaming, .toolCalling, .vision, .reasoning])
+        XCTAssertEqual(dbxTerra.reasoningConfig?.defaultEffort, .medium)
+        XCTAssertEqual(dbxTerra.reasoningConfig?.supportedEfforts, terraBand)
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .databricks, modelID: "databricks-gpt-6-1-terra"),
+            terraBand
+        )
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .databricks, modelID: "databricks-gpt-6-1-terra"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .databricks, modelID: "databricks-gpt-6-1-terra"))
+
+        // 5. Ramp Router: gpt-6.1-terra
+        let routerTerra = ModelCatalog.modelInfo(for: "gpt-6.1-terra", provider: .router)
+        XCTAssertEqual(routerTerra.contextWindow, 1_050_000)
+        XCTAssertEqual(routerTerra.maxOutputTokens, 128_000)
+        XCTAssertEqual(routerTerra.capabilities, [.streaming, .toolCalling, .vision, .reasoning])
+        XCTAssertEqual(
+            ModelCapabilityRegistry.supportedReasoningEfforts(for: .router, modelID: "gpt-6.1-terra"),
+            terraBand
+        )
+        XCTAssertTrue(ModelCapabilityRegistry.supportsOpenAIStyleMaxEffort(for: .router, modelID: "gpt-6.1-terra"))
+        XCTAssertTrue(ModelSettingsResolver.defaultReasoningCanDisable(for: .router, modelID: "gpt-6.1-terra"))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .router, modelID: "gpt-6.1-terra"))
+
+        // 6. Fireworks: deepseek-v4p1-flash-1017-spot router
+        for fwSpot in ["accounts/fireworks/routers/deepseek-v4p1-flash-1017-spot", "fireworks/deepseek-v4p1-flash-1017-spot"] {
+            let m = ModelCatalog.modelInfo(for: fwSpot, provider: .fireworks)
+            XCTAssertEqual(m.contextWindow, 1_000_000, fwSpot)
+            XCTAssertEqual(m.maxOutputTokens, 384_000, fwSpot)
+            XCTAssertTrue(m.capabilities.contains(.toolCalling), fwSpot)
+            XCTAssertTrue(isFireworksDeepSeekV4GAModel(fwSpot), fwSpot)
+            XCTAssertEqual(
+                ModelCapabilityRegistry.supportedReasoningEfforts(for: .fireworks, modelID: fwSpot),
+                [.low, .high, .max],
+                fwSpot
+            )
+            XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .fireworks, modelID: fwSpot), fwSpot)
+        }
+
+        // 7. OpenCode Go: gemini-4-argon (blocked-adapter on Google v1beta)
+        let goArgon = ModelCatalog.modelInfo(for: "gemini-4-argon", provider: .opencodeGo)
+        XCTAssertEqual(goArgon.contextWindow, 1_048_576)
+        XCTAssertEqual(goArgon.maxOutputTokens, 65_536)
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: "gemini-4-argon"))
+
+        // 8. Zyphra: XiaomiMiMo/MiMo-V2.5 & XiaomiMiMo/MiMo-V2.5-Pro
+        let zMiMo = ModelCatalog.modelInfo(for: "XiaomiMiMo/MiMo-V2.5", provider: .zyphra)
+        XCTAssertEqual(zMiMo.contextWindow, 1_000_000)
+        XCTAssertEqual(zMiMo.maxOutputTokens, 131_072)
+        XCTAssertEqual(zMiMo.capabilities, [.streaming, .toolCalling, .vision, .audio, .reasoning])
+        XCTAssertFalse(zMiMo.capabilities.contains(.videoInput))
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zyphra, modelID: "XiaomiMiMo/MiMo-V2.5"))
+        XCTAssertEqual(ZyphraAdapter.canonicalModelID(for: "xiaomimimo/mimo-v2.5"), "XiaomiMiMo/MiMo-V2.5")
+
+        let zMiMoPro = ModelCatalog.modelInfo(for: "XiaomiMiMo/MiMo-V2.5-Pro", provider: .zyphra)
+        XCTAssertEqual(zMiMoPro.contextWindow, 1_048_576)
+        XCTAssertEqual(zMiMoPro.maxOutputTokens, 131_072)
+        XCTAssertEqual(zMiMoPro.capabilities, [.streaming, .toolCalling, .reasoning])
+        XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .zyphra, modelID: "XiaomiMiMo/MiMo-V2.5-Pro"))
+        XCTAssertEqual(ZyphraAdapter.canonicalModelID(for: "xiaomimimo/mimo-v2.5-pro"), "XiaomiMiMo/MiMo-V2.5-Pro")
+    }
 }
 
 

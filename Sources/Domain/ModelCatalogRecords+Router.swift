@@ -288,6 +288,16 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
                isFullySupported: true, isSeeded: false),
+        // Router supported-models table (fetched 2026-10-28): `gpt-6.1-terra`,
+        // $1.00 / $5.00, Fast mode Available, 1,050,000 / 128,000, effort band
+        // none/low/medium/high/xhigh/max — no `minimal`
+        // (routerNoneLowToMaxEffortModelIDs).
+        Record(id: "gpt-6.1-terra", displayName: "GPT-6.1 Terra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium),
+               isFullySupported: true, isSeeded: false),
         Record(id: "o3", displayName: "o3",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 200_000,

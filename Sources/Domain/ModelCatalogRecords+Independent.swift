@@ -1577,6 +1577,22 @@ extension ModelCatalog {
                maxOutputTokens: 384_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: false),
+        // Spot router for DeepSeek V4.1 Flash 1017 (models.dev `fireworks-ai`,
+        // added 2026-10-17): `accounts/fireworks/routers/deepseek-v4p1-flash-1017-spot`,
+        // 1,000,000 context / 384,000 max output, text+image, function calling (`tool_call: true`),
+        // cached-input pricing ($0.0042/M), toggleable reasoning with low/high/max effort.
+        Record(id: "accounts/fireworks/routers/deepseek-v4p1-flash-1017-spot", displayName: "DeepSeek V4.1 Flash 1017 Spot",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "fireworks/deepseek-v4p1-flash-1017-spot", displayName: "DeepSeek V4.1 Flash 1017 Spot",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         // Muse Spark Open (fireworks.ai/models/fireworks/muse-spark-open, added 2026-10-16):
         // Meta's open-weights 816B-A42B multimodal reasoning MoE. 1,048,576 context /
         // 131,072 output, serverless, function calling, image input, cached-input pricing.
@@ -3085,6 +3101,20 @@ extension ModelCatalog {
         // OpenAI /responses, and Anthropic /messages, so this row is cataloged with
         // `isFullySupported: false, isSeeded: false` until a Google v1beta delegate is wired.
         Record(id: "gemini-4-argon-contributor", displayName: "Gemini 4 Argon Contributor",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: false, isSeeded: false),
+        // Gemini 4 Argon (live GET /zen/go/v1/models + opencode.ai/docs/go endpoint
+        // table, added 2026-10-24): routes to
+        // `https://opencode.ai/inference/go/google/v1beta/models/gemini-4-argon`
+        // via `@ai-sdk/google`, same Google Generative AI v1beta wire format as
+        // `gemini-4-argon-contributor`. Kept `isFullySupported: false, isSeeded: false`
+        // until OpenCodeGoAdapter gains a Google v1beta delegate.
+        Record(id: "gemini-4-argon", displayName: "Gemini 4 Argon",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_048_576,
                maxOutputTokens: 65_536,

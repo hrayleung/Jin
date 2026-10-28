@@ -502,5 +502,33 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
             ModelCapabilityRegistry.supportedReasoningEfforts(for: .databricks, modelID: "databricks-gpt-6-astra"),
             [.low, .medium, .high]
         )
+
+        // GPT-6.1 Terra on Databricks (Chat Completions supported; none..max effort band; rejects custom sampling)
+        var terraControls = GenerationControls()
+        terraControls.temperature = 0.4
+        terraControls.topP = 0.8
+        terraControls.reasoning = ReasoningControls(enabled: true, effort: .max)
+        let terraReq = try await adapter.buildRequest(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "databricks-gpt-6-1-terra",
+            controls: terraControls,
+            tools: [],
+            streaming: false
+        )
+        let terraBody = try JSONSerialization.jsonObject(with: try XCTUnwrap(terraReq.httpBody)) as? [String: Any]
+        XCTAssertNil(terraBody?["temperature"])
+        XCTAssertNil(terraBody?["top_p"])
+        XCTAssertEqual(terraBody?["reasoning_effort"] as? String, "max")
+
+        terraControls.reasoning = ReasoningControls(enabled: false, effort: .none)
+        let terraDisabledReq = try await adapter.buildRequest(
+            messages: [Message(role: .user, content: [.text("hello")])],
+            modelID: "databricks-gpt-6-1-terra",
+            controls: terraControls,
+            tools: [],
+            streaming: false
+        )
+        let terraDisabledBody = try JSONSerialization.jsonObject(with: try XCTUnwrap(terraDisabledReq.httpBody)) as? [String: Any]
+        XCTAssertEqual(terraDisabledBody?["reasoning_effort"] as? String, "none")
     }
 }

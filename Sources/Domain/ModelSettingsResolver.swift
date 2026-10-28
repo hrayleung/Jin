@@ -431,6 +431,11 @@ enum ModelSettingsResolver {
         "minimax/minimax-m3.1-flash:free",
         "minimax/minimax-m3.1-flash",
         "recursive/flint-v1.0:free",
+        // OpenAI GPT-6.1 Terra Pro (live /models 2026-10-26): `reasoning.mandatory: true`
+        // (low…max only, no `none`). Base `openai/gpt-6.1-terra` and `:batch` report
+        // `mandatory: false` (`none` accepted) and stay out of this set.
+        "openai/gpt-6.1-terra-pro",
+        "openai/gpt-6.1-terra-pro:batch",
     ]
 
     /// Vercel AI Gateway twins of upstream always-on reasoning models (grok-4.6 /

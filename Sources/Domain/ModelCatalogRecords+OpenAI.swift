@@ -51,6 +51,21 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
                                                      supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: true),
+        // GPT-6.1 Terra (developers.openai.com/api/docs/models/gpt-6.1-terra, released
+        // 2026-10-26): 1,050,000 context window (922,000 max input) / 128,000 max output,
+        // text+image input (native PDF via input_file), Responses + Chat Completions,
+        // function calling, structured outputs, web_search, prompt caching, and
+        // code_interpreter (.codeExecution). Unlike GPT-6.1 Sol, GPT-6.1 Terra accepts
+        // `reasoning.effort` values `none`, `low`, `medium` (default), `high`, `xhigh`,
+        // and `max` — so reasoning CAN be disabled. Supports Fast (`priority`) and Flex
+        // (`flex`) service tiers (not Ultrafast).
+        Record(id: "gpt-6.1-terra", displayName: "GPT-6.1 Terra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.none, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
         // GPT-5.6 ships as three tiers — Sol (flagship), Terra (balanced), Luna (fast) —
         // replacing the mini/nano naming (verified against the live 2026-07-09 model pages:
         // 1,050,000 context / 128,000 output, reasoning_effort none..max where `max` is new
@@ -2412,6 +2427,65 @@ extension ModelCatalog {
         Record(id: "typesafe-ai/jev-1.14.0", displayName: "Typesafe Jev 1.14.0",
                capabilities: [],
                contextWindow: 1_000_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        // --- Vercel AI Gateway additions, 2026-10-26..2026-10-28 ---
+        // OpenAI GPT-6.1 Terra & GPT-6.1 Terra (Fast) (live ai-gateway.vercel.sh/v1/models +
+        // models.dev `vercel`, released 2026-10-26): 1,050,000 context / 128,000 max_tokens,
+        // text+image input, tool-use + implicit/explicit caching (`cache_read: $0.10/M` /
+        // `$0.20/M`), reasoning effort `none..max` (default `medium`, toggleable via `none`).
+        Record(id: "openai/gpt-6.1-terra", displayName: "GPT-6.1 Terra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.none, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6.1-terra-fast", displayName: "GPT-6.1 Terra (Fast)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.none, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // ElevenLabs speech / transcription / realtime audio models on Vercel AI Gateway
+        // (live ai-gateway.vercel.sh/v1/models, added 2026-10-27): dedicated audio endpoints
+        // (`type: "speech"` / `"transcription"` / `"audio"`) — catalog-only (`isFullySupported: false`).
+        Record(id: "elevenlabs/eleven_multilingual_v2", displayName: "ElevenLabs Multilingual v2",
+               capabilities: [.audio],
+               contextWindow: 4_096,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "elevenlabs/eleven_turbo_v2_5", displayName: "ElevenLabs Turbo v2.5",
+               capabilities: [.audio],
+               contextWindow: 4_096,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "elevenlabs/eleven_flash_v2_5", displayName: "ElevenLabs Flash v2.5",
+               capabilities: [.audio],
+               contextWindow: 4_096,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "elevenlabs/eleven_v3", displayName: "ElevenLabs v3",
+               capabilities: [.audio],
+               contextWindow: 4_096,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "elevenlabs/scribe_v1", displayName: "ElevenLabs Scribe v1",
+               capabilities: [.audio],
+               contextWindow: 4_096,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "elevenlabs/scribe_v2", displayName: "ElevenLabs Scribe v2",
+               capabilities: [.audio],
+               contextWindow: 4_096,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "elevenlabs/scribe_v2_realtime", displayName: "ElevenLabs Scribe v2 Realtime",
+               capabilities: [.audio],
+               contextWindow: 4_096,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
     ]

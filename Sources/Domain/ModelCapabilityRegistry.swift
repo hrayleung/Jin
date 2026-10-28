@@ -46,6 +46,9 @@ enum ModelCapabilityRegistry {
         "gpt-6-luna-pro",
         "gpt-6.1-sol",
         "gpt-6.1-sol-pro",
+        "gpt-6.1-terra",
+        "gpt-6.1-terra-pro",
+        "gpt-6.1-terra-fast",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
@@ -86,6 +89,9 @@ enum ModelCapabilityRegistry {
         "gpt-6-luna-pro",
         "gpt-6.1-sol",
         "gpt-6.1-sol-pro",
+        "gpt-6.1-terra",
+        "gpt-6.1-terra-pro",
+        "gpt-6.1-terra-fast",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-sol-pro",
@@ -118,6 +124,7 @@ enum ModelCapabilityRegistry {
         "gpt-6-astra",
         "gpt-6-sol",
         "gpt-6.1-sol",
+        "gpt-6.1-terra",
         "gpt-6-luna",
         "gpt-5.6",
         "gpt-5.6-sol",
@@ -381,6 +388,7 @@ enum ModelCapabilityRegistry {
         "gpt-6-astra",
         "gpt-6-sol",
         "gpt-6.1-sol",
+        "gpt-6.1-terra",
         "gpt-6-luna",
         "gpt-4.1",
         "gpt-4.1-2025-04-14",
@@ -619,6 +627,10 @@ enum ModelCapabilityRegistry {
         // MiniMax M3.1 Flash (free & paid) (live /models 2026-10-19): low…max ladder.
         "minimax/minimax-m3.1-flash:free",
         "minimax/minimax-m3.1-flash",
+        // OpenAI GPT-6.1 Terra Pro (live /models 2026-10-26): mandatory reasoning with
+        // low…max ladder (no `none`), on both the sync slug and its `:batch` twin.
+        "openai/gpt-6.1-terra-pro",
+        "openai/gpt-6.1-terra-pro:batch",
     ]
     private static let togetherDeepSeekV4ReasoningEffortModelIDs: Set<String> = [
         "deepseek-ai/deepseek-v4-pro",
@@ -699,6 +711,9 @@ enum ModelCapabilityRegistry {
         "accounts/fireworks/routers/deepseek-v4p1-flash-1017-us",
         "fireworks/deepseek-v4p1-flash-1017-us",
         "deepseek-v4p1-flash-1017-us",
+        "accounts/fireworks/routers/deepseek-v4p1-flash-1017-spot",
+        "fireworks/deepseek-v4p1-flash-1017-spot",
+        "deepseek-v4p1-flash-1017-spot",
     ]
     /// Fireworks Qwen3.8-2.4T-A95B aliases. Fireworks page does not list effort
     /// values; inherit the HF/Modal same-weights band (low/medium/xhigh).
@@ -886,7 +901,7 @@ enum ModelCapabilityRegistry {
         "grok-4.7",
         "meta-models/muse-spark-open",
     ]
-    /// Router band `none, low, medium, high, xhigh, max` (GPT-5.6 family).
+    /// Router band `none, low, medium, high, xhigh, max` (GPT-5.6 family + GPT-6 Sol/Luna + GPT-6.1 Terra).
     private static let routerNoneLowToMaxEffortModelIDs: Set<String> = [
         "gpt-5.6-luna",
         "gpt-5.6-sol",
@@ -895,6 +910,9 @@ enum ModelCapabilityRegistry {
         // gpt-6-luna publish the same none…max ladder as the 5.6 tiers.
         "gpt-6-sol",
         "gpt-6-luna",
+        // docs.router.com supported-models (fetched 2026-10-28): gpt-6.1-terra
+        // publishes none, low, medium, high, xhigh, max.
+        "gpt-6.1-terra",
     ]
     /// Router band `none, low, medium, high, xhigh`. Note Router drops `minimal`
     /// on these, unlike OpenAI's own GPT-5.4/5.5 ladder.
@@ -1196,6 +1214,10 @@ enum ModelCapabilityRegistry {
                 || lowerModelID == "reflection-ai/beam-1.0-501b-a23b"
                 || lowerModelID == "minimax/m3.1-flash"
                 || lowerModelID == "minimax/minimax-m3.1-flash" {
+                return true
+            }
+        case .databricks:
+            if lowerModelID == "databricks-gpt-6-1-terra" {
                 return true
             }
         case .baseten:
@@ -1614,6 +1636,8 @@ enum ModelCapabilityRegistry {
             || lowerModelID == "space-bunny"
             || lowerModelID == "space-bunny-free":
             return [.low, .medium, .high, .xhigh, .max]
+        case .databricks where lowerModelID == "databricks-gpt-6-1-terra":
+            return [.none, .low, .medium, .high, .xhigh, .max]
         case .databricks where lowerModelID == "databricks-grok-4-7":
             return [.low, .medium, .high, .xhigh]
         case .databricks where lowerModelID == "databricks-gemini-4-argon":

@@ -208,6 +208,20 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
                                                      supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: false, isSeeded: false),
+        // GPT-6.1 Terra (docs.databricks.com supported-models + query-reason-models,
+        // updated 2026-10-26): endpoint `databricks-gpt-6-1-terra` (`system.ai.gpt-6-1-terra`),
+        // pay-per-token + priority pay-per-token. Unlike `databricks-gpt-6-1-sol`, this model
+        // is supported on the Chat Completions API (`reasoning_effort` accepted values:
+        // `none`, `low`, `medium`, `high`, `xhigh`, `max`; `minimal` is rejected). Text + image
+        // input, function calling, 1,050,000 context / 128,000 max output.
+        Record(id: "databricks-gpt-6-1-terra", displayName: "GPT-6.1 Terra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.none, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
         Record(id: "databricks-gpt-oss-20b", displayName: "GPT-OSS 20B",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 128_000,

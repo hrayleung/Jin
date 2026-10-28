@@ -144,6 +144,12 @@ extension ZyphraAdapter {
             return "moonshotai/Kimi-K2.6"
         case "deepseek-ai/deepseek-v3.2":
             return "deepseek-ai/DeepSeek-V3.2"
+        case "zai-org/glm-5.3":
+            return "zai-org/GLM-5.3"
+        case "xiaomimimo/mimo-v2.5":
+            return "XiaomiMiMo/MiMo-V2.5"
+        case "xiaomimimo/mimo-v2.5-pro":
+            return "XiaomiMiMo/MiMo-V2.5-Pro"
         default:
             return modelID
         }

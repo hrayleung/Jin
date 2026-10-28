@@ -106,10 +106,11 @@ extension OpenCodeGoAdapter {
         // unsupported value — `reasoning_content` still streams back in the response.
         // GLM-5.3 and Ox Alpha Free cannot disable thinking, so a disabled/legacy Off
         // control is sent as `low` rather than omitted (default max).
-        // LongCat-2.0's native thinking object is unverified on Go (extra top-level
-        // fields 400). Do not emit `reasoning_effort` either — models.dev only lists a
-        // toggle, and the catalog has no effort config.
-        let omitReasoningEffort = modelID.lowercased() == "longcat-2.0"
+        // LongCat-2.0 and Iceman Contributor Free have no published effort band on Go
+        // (`reasoning_options: []`) and their catalog entries keep `reasoningConfig` nil;
+        // do not emit `reasoning_effort` for them.
+        let lowerModelID = modelID.lowercased()
+        let omitReasoningEffort = lowerModelID == "longcat-2.0" || lowerModelID == "iceman-contributor-free"
 
         if omitReasoningEffort {
             // Leave thinking to the gateway default.

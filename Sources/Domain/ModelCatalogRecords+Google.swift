@@ -2278,5 +2278,45 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .max,
                    supportedEfforts: [.none, .low, .high, .max]),
                isFullySupported: true, isSeeded: false),
+        // OpenAI GPT-6.1 Terra, Pro, and Batch variants (live /api/v1/models `created`
+        // 2026-10-26): 1,050,000 context / 128,000 max_completion_tokens; text+image+file→text;
+        // tool calling, prompt caching, native PDF, structured outputs. Base + `:batch`
+        // report `reasoning.mandatory: false` with `supported_efforts: ["max", "xhigh",
+        // "high", "medium", "low", "none"]` (default `medium`); Pro + `pro:batch` report
+        // `reasoning.mandatory: true` with `supported_efforts: ["max", "xhigh", "high",
+        // "medium", "low"]` (no `none`, default `medium`). Omits `temperature`/`top_p`
+        // from `supported_parameters` on all four.
+        Record(id: "openai/gpt-6.1-terra", displayName: "OpenAI: GPT-6.1 Terra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.none, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6.1-terra-pro", displayName: "OpenAI: GPT-6.1 Terra Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6.1-terra:batch", displayName: "OpenAI: GPT-6.1 Terra (Batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.none, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "openai/gpt-6.1-terra-pro:batch", displayName: "OpenAI: GPT-6.1 Terra Pro (Batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
     ]
 }

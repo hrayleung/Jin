@@ -251,6 +251,8 @@ func isFireworksDeepSeekV4GAModel(_ modelID: String) -> Bool {
         || lower == "fireworks/deepseek-v4p1-flash-1017"
         || lower == "accounts/fireworks/routers/deepseek-v4p1-flash-1017-us"
         || lower == "fireworks/deepseek-v4p1-flash-1017-us"
+        || lower == "accounts/fireworks/routers/deepseek-v4p1-flash-1017-spot"
+        || lower == "fireworks/deepseek-v4p1-flash-1017-spot"
         || lower == "accounts/fireworks/routers/deepseek-flash-latest"
         || lower == "fireworks/deepseek-flash-latest" {
         return true
@@ -261,6 +263,7 @@ func isFireworksDeepSeekV4GAModel(_ modelID: String) -> Bool {
         || canonical == "deepseek-v4p1-flash"
         || canonical == "deepseek-v4p1-flash-1017"
         || canonical == "deepseek-v4p1-flash-1017-us"
+        || canonical == "deepseek-v4p1-flash-1017-spot"
         || canonical == "deepseek-flash-latest"
 }
 
@@ -379,11 +382,14 @@ private let openAIResponsesSamplingDeniedExactModelIDs: Set<String> = [
     "gpt-6-astra-pro",
     "gpt-6-sol",
     "gpt-6-sol-pro",
-    // GPT-6.1 Sol (2026-09-29) is the same GPT-6 Sol reasoning family — OpenAI's
-    // model page lists only reasoning params; temperature/top_p are not
-    // documented and upstream rejects them for the base model.
+    // GPT-6.1 Sol (2026-09-29) and GPT-6.1 Terra (2026-10-26) belong to the
+    // GPT-6 reasoning family — OpenAI's model pages list only reasoning params;
+    // temperature/top_p are not documented and upstream rejects them.
     "gpt-6.1-sol",
     "gpt-6.1-sol-pro",
+    "gpt-6.1-terra",
+    "gpt-6.1-terra-pro",
+    "gpt-6.1-terra-fast",
     "gpt-6-luna",
     "gpt-6-luna-pro",
     "gpt-daybreak-red-latest",
@@ -464,6 +470,12 @@ private let openRouterSamplingDeniedModelIDs: Set<String> = [
     // same supported_parameters (no temperature/top_p).
     "openai/gpt-6.1-sol",
     "openai/gpt-6.1-sol-pro",
+    // GPT-6.1 Terra (live /models, created 2026-10-26) — omits `temperature`/`top_p`
+    // from `supported_parameters` across base, `-pro`, and `:batch` slugs.
+    "openai/gpt-6.1-terra",
+    "openai/gpt-6.1-terra:batch",
+    "openai/gpt-6.1-terra-pro",
+    "openai/gpt-6.1-terra-pro:batch",
     "unbiased/pareto-26.10-preview",
     "openai/gpt-6-luna",
     "openai/gpt-6-luna:batch",
