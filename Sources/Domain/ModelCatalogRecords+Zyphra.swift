@@ -41,5 +41,23 @@ extension ModelCatalog {
                contextWindow: 163_800,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        // Xiaomi MiMo V2.5 & MiMo V2.5 Pro (live GET https://api.zyphracloud.com/api/v1/models):
+        // `XiaomiMiMo/MiMo-V2.5` advertises 1,000,000 context / 131,072 maxOutputTokens,
+        // Text+Image+Video+Audio input (`.videoInput` withheld on Zyphra — see
+        // `ZyphraAdapter+ModelCatalog`), functionCalling: true, Reasoning + Multimodal.
+        // `XiaomiMiMo/MiMo-V2.5-Pro` advertises 1,048,576 context / 131,072 maxOutputTokens,
+        // Text input, functionCalling: true, Reasoning + Chat.
+        Record(id: "XiaomiMiMo/MiMo-V2.5", displayName: "MiMo V2.5",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+        Record(id: "XiaomiMiMo/MiMo-V2.5-Pro", displayName: "MiMo V2.5 Pro",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
     ]
 }
