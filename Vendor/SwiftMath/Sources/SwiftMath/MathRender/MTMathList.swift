@@ -52,6 +52,8 @@ public enum MTMathAtomType: Int, CustomStringConvertible, Comparable {
     case overUnderSet
     /// A boxed atom (\boxed): content with a stroked frame. Jin fork.
     case box
+    /// A horizontal brace with limits above/below its content. Jin fork.
+    case brace
 
     // Atoms after this point do not support subscripts or superscripts
 
@@ -109,6 +111,7 @@ public enum MTMathAtomType: Int, CustomStringConvertible, Comparable {
             case .accent:         return "Accent"
             case .overUnderSet:   return "OverUnderSet"
             case .box:            return "Box"
+            case .brace:          return "Brace"
             case .boundary:       return "Boundary"
             case .space:          return "Space"
             case .style:          return "Style"
@@ -243,6 +246,8 @@ public class MTMathAtom: NSObject {
                 return MTOverUnderSet(self as? MTOverUnderSet)
             case .box:
                 return MTMathBox(self as? MTMathBox)
+            case .brace:
+                return MTMathBrace(self as? MTMathBrace)
             case .space:
                 return MTMathSpace(self as? MTMathSpace)
             case .color:

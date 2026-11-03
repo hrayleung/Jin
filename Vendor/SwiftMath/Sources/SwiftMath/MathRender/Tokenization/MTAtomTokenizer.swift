@@ -137,6 +137,9 @@ class MTAtomTokenizer {
         case .box:
             return tokenizeBox(atom as! MTMathBox, prevAtom: prevAtom, atomIndex: atomIndex)
 
+        case .brace:
+            return tokenizeBrace(atom as! MTMathBrace)
+
         case .table:
             return tokenizeTable(atom as! MTMathTable, prevAtom: prevAtom, atomIndex: atomIndex)
 
@@ -734,6 +737,11 @@ class MTAtomTokenizer {
     // MARK: - Script Tokenization
 
     private func tokenizeAtomWithScripts(_ atom: MTMathAtom, prevAtom: MTMathAtom?, atomIndex: Int, allAtoms: [MTMathAtom]) -> [MTBreakableElement] {
+        // A brace lays out its own scripts as centered limits. Keep the entire
+        // construct indivisible and don't append duplicate side scripts.
+        if let brace = atom as? MTMathBrace {
+            return tokenizeBrace(brace).map { [$0] } ?? []
+        }
         var elements: [MTBreakableElement] = []
         let groupId = UUID()  // All elements in this group must stay together
 
@@ -1080,6 +1088,29 @@ class MTAtomTokenizer {
         let typesetter = MTTypesetter(withFont: font, style: style, cramped: cramped, spaced: false)
         guard let display = typesetter.makeOverUnderSet(atom) else { return nil }
 
+        return MTBreakableElement(
+            content: .display(display),
+            width: display.width,
+            height: display.ascent + display.descent,
+            ascent: display.ascent,
+            descent: display.descent,
+            isBreakBefore: true,
+            isBreakAfter: true,
+            penaltyBefore: MTBreakPenalty.good,
+            penaltyAfter: MTBreakPenalty.good,
+            groupId: nil,
+            parentId: nil,
+            originalAtom: atom,
+            indexRange: atom.indexRange,
+            color: nil,
+            backgroundColor: nil,
+            indivisible: true
+        )
+    }
+
+    private func tokenizeBrace(_ atom: MTMathBrace) -> MTBreakableElement? {
+        let typesetter = MTTypesetter(withFont: font, style: style, cramped: cramped, spaced: false)
+        guard let display = typesetter.makeBrace(atom) else { return nil }
         return MTBreakableElement(
             content: .display(display),
             width: display.width,
