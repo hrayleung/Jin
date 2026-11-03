@@ -684,6 +684,9 @@ public struct MTMathListBuilder {
                         str += "\\underline"
                         str += "{\(mathListToString(underline.innerList!))}"
                     }
+                } else if let brace = atom as? MTMathBrace {
+                    let command = brace.isOver ? "overbrace" : "underbrace"
+                    str += "\\\(command){\(mathListToString(brace.innerList))}"
                 } else if atom.type == .accent {
                     if let accent = atom as? MTAccent {
                         str += "\\\(MTMathAtomFactory.accentName(accent)!){\(mathListToString(accent.innerList!))}"
@@ -939,6 +942,16 @@ public struct MTMathListBuilder {
             let under = MTUnderLine()
             under.innerList = self.buildInternal(true)
             return under
+        } else if command == "underbrace" || command == "overbrace" {
+            skipSpaces()
+            guard hasCharacters else {
+                setError(.characterNotFound, message: "Missing argument for \\\(command)")
+                return nil
+            }
+            let brace = MTMathBrace()
+            brace.isOver = command == "overbrace"
+            brace.innerList = self.buildInternal(true)
+            return brace
         } else if command == "overset" || command == "stackrel" {
             // \overset{top}{base} / \stackrel{top}{base}: top stacked above base.
             let set = MTOverUnderSet()

@@ -80,7 +80,7 @@ func getInterElementSpaceArrayIndexForType(_ type:MTMathAtomType, row:Bool) -> I
         case .number, .variable, .unaryOperator:
             return 0
         // Decorative types (accent, underline, overline, overUnderSet, box) are treated as ordinary
-        case .accent, .underline, .overline, .overUnderSet, .box:
+        case .accent, .underline, .overline, .overUnderSet, .box, .brace:
             return 0
         // Special types that don't typically participate in spacing are treated as ordinary
         case .boundary, .space, .style, .table:
@@ -1360,6 +1360,35 @@ class MTTypesetter {
         let padding = 4 * styleFont.mathTable!.muUnit
         let lineThickness = styleFont.mathTable!.underbarRuleThickness
         let display = MTBoxDisplay(withInner: inner, padding: padding, lineThickness: lineThickness, range: box.indexRange)
+        display.position = currentPosition
+        return display
+    }
+
+    /// Braces span only the base; a wider annotation expands the layout width
+    /// and centers the base without stretching the brace to the annotation.
+    func makeBrace(_ brace: MTMathBrace) -> MTDisplay? {
+        guard let inner = MTTypesetter.createLineForMathList(brace.innerList, font: font, style: style, cramped: cramped) else {
+            return nil
+        }
+        let base = MTBraceDisplay(
+            inner: inner,
+            isOver: brace.isOver,
+            fontSize: styleFont.fontSize,
+            thickness: styleFont.mathTable!.underbarRuleThickness,
+            range: brace.indexRange
+        )
+        let limitStyle = scriptStyle()
+        let limitFont = font.copy(withSize: MTTypesetter.getStyleSize(limitStyle, font: font))
+        let upper = brace.superScript.flatMap {
+            MTTypesetter.createLineForMathList($0, font: limitFont, style: limitStyle, cramped: superScriptCramped())
+        }
+        let lower = brace.subScript.flatMap {
+            MTTypesetter.createLineForMathList($0, font: limitFont, style: limitStyle, cramped: subscriptCramped())
+        }
+        let display = MTLargeOpLimitsDisplay(withNucleus: base, upperLimit: upper, lowerLimit: lower, limitShift: 0, extraPadding: 0)
+        display.upperLimitGap = styleFont.mathTable!.upperLimitGapMin
+        display.lowerLimitGap = styleFont.mathTable!.lowerLimitGapMin
+        display.range = brace.indexRange
         display.position = currentPosition
         return display
     }
