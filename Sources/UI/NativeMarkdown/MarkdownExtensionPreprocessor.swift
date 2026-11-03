@@ -5,9 +5,9 @@ import Foundation
 /// display-math regions are substituted with fenced code blocks tagged
 /// `math`, which `MarkdownASTWalker` routes to `.mathBlock`.
 ///
-/// Inline math (`$x$`) is preserved as literal text for V1 — see the plan's
-/// "Risks" section. ```mermaid``` fenced blocks need no preprocessing; the
-/// walker routes them by language.
+/// Inline math is subsequently protected by `MarkdownInlineMathPreprocessor`.
+/// ```mermaid``` fenced blocks need no preprocessing; the walker routes them
+/// by language.
 enum MarkdownExtensionPreprocessor {
     static func preprocess(_ source: String) -> String {
         guard source.contains("$$") || source.contains("\\[") else { return source }

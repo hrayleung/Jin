@@ -13,9 +13,11 @@ import Markdown
 struct MarkdownInlineRenderer {
     let theme: MarkdownTheme
     private let sourceLines: [Substring]
+    private let inlineMath: MarkdownInlineMathPreprocessor.Result?
 
-    init(theme: MarkdownTheme, source: String? = nil) {
+    init(theme: MarkdownTheme, source: String? = nil, inlineMath: MarkdownInlineMathPreprocessor.Result? = nil) {
         self.theme = theme
+        self.inlineMath = inlineMath
         // Keep one shared line index for the rare missing-source-range fallback
         // below, rather than rescanning the document for each inline run.
         if let source, source.contains("~") {
@@ -28,7 +30,7 @@ struct MarkdownInlineRenderer {
     }
 
     func render(inlineChildren: some Sequence<any Markup>) -> InlineRun {
-        var acc = Accumulator(theme: theme, sourceLines: sourceLines)
+        var acc = Accumulator(theme: theme, sourceLines: sourceLines, inlineMath: inlineMath)
         for child in inlineChildren {
             acc.render(child)
         }
@@ -40,14 +42,16 @@ private extension MarkdownInlineRenderer {
     struct Accumulator {
         let theme: MarkdownTheme
         let sourceLines: [Substring]
+        let inlineMath: MarkdownInlineMathPreprocessor.Result?
         var attrs = NSMutableAttributedString()
         var plain = ""
         var links: [LinkRange] = []
         var stack: [InlineAttributes]
 
-        init(theme: MarkdownTheme, sourceLines: [Substring]) {
+        init(theme: MarkdownTheme, sourceLines: [Substring], inlineMath: MarkdownInlineMathPreprocessor.Result?) {
             self.theme = theme
             self.sourceLines = sourceLines
+            self.inlineMath = inlineMath
             self.stack = [.base(theme: theme)]
         }
 
@@ -155,11 +159,11 @@ private extension MarkdownInlineRenderer {
         /// linkifies bare URLs); math segments become baseline-aligned image
         /// attachments, or their raw source on a parse failure.
         mutating func appendText(_ string: String, frame: InlineAttributes) {
-            guard InlineMath.mightContainMath(string) else {
+            guard inlineMath != nil || InlineMath.mightContainMath(string) else {
                 append(string, frame: frame)
                 return
             }
-            for segment in InlineMath.split(string) {
+            for segment in inlineMath?.split(string) ?? InlineMath.split(string) {
                 switch segment {
                 case .text(let prose):
                     append(prose, frame: frame)

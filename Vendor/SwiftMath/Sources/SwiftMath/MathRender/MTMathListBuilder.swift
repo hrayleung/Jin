@@ -691,17 +691,19 @@ public struct MTMathListBuilder {
                     if let accent = atom as? MTAccent {
                         str += "\\\(MTMathAtomFactory.accentName(accent)!){\(mathListToString(accent.innerList!))}"
                     }
-                } else if atom.type == .largeOperator {
-                    let op = atom as! MTLargeOperator
-                    let command = MTMathAtomFactory.latexSymbolName(for: atom)
-                    let originalOp = MTMathAtomFactory.atom(forLatexSymbol: command!) as! MTLargeOperator
-                    str += "\\\(command!) "
-                    if originalOp.limits != op.limits {
-                        if op.limits {
-                            str += "\\limits "
-                        } else {
-                            str += "\\nolimits "
+                } else if let op = atom as? MTLargeOperator {
+                    // Custom operators need not have a built-in command. The reverse
+                    // lookup is keyed only by nucleus, so even a match (e.g. alpha)
+                    // is not necessarily a large operator.
+                    if let command = MTMathAtomFactory.latexSymbolName(for: op),
+                       let originalOp = MTMathAtomFactory.atom(forLatexSymbol: command) as? MTLargeOperator {
+                        str += "\\\(command) "
+                        if originalOp.limits != op.limits {
+                            str += op.limits ? "\\limits " : "\\nolimits "
                         }
+                    } else {
+                        let command = op.limits ? "operatorname*" : "operatorname"
+                        str += "\\\(command){\(operatorNameToString(op.nucleus))}"
                     }
                 } else if atom.type == .space {
                     if let space = atom as? MTMathSpace {
@@ -748,6 +750,18 @@ public struct MTMathListBuilder {
         return str
     }
 
+    private static func operatorNameToString(_ name: String) -> String {
+        // Serialize characters individually to escape braces, underscores, etc.
+        // Unknown Unicode must stay in text mode so the parser does not drop it.
+        name.map { character in
+            let atom = MTMathAtom(type: .ordinary, value: String(character))
+            if !character.isASCII && MTMathAtomFactory.latexSymbolName(for: atom) == nil {
+                return "\\text{\(character)}"
+            }
+            return mathListToString(MTMathList(atom: atom))
+        }.joined()
+    }
+
     public static func delimToString(delim: MTMathAtom) -> String {
         if let command = MTMathAtomFactory.getDelimiterName(of: delim) {
             let singleChars = [ "(", ")", "[", "]", "<", ">", "|", ".", "/"]
@@ -762,7 +776,23 @@ public struct MTMathListBuilder {
         return ""
     }
 
+    /// Reclassify a simple symbol as a relation, including the common
+    /// accumulation spelling `\mathrel{+}=`. Complex groups must fail cleanly
+    /// rather than flattening fractions/scripts and silently losing content.
+    private mutating func buildMathRelation() -> MTMathAtom? {
+        guard let content = buildInternal(true), error == nil else { return nil }
+        let supported: Set<MTMathAtomType> = [.ordinary, .number, .binaryOperator, .unaryOperator, .relation, .open, .close, .punctuation]
+        guard content.atoms.count == 1, let atom = content.atoms.first,
+              supported.contains(atom.type), atom.subScript == nil, atom.superScript == nil else {
+            setError(.invalidCommand, message: "Unsupported argument for \\mathrel")
+            return nil
+        }
+        atom.type = .relation
+        return atom
+    }
+
     mutating func atomForCommand(_ command:String) -> MTMathAtom? {
+        if command == "mathrel" { return buildMathRelation() }
         if let atom = MTMathAtomFactory.atom(forLatexSymbol: command) {
             return atom
         }
@@ -1269,6 +1299,7 @@ public struct MTMathListBuilder {
     }
 
     mutating func atom(forCommand command: String) -> MTMathAtom? {
+        if command == "mathrel" { return buildMathRelation() }
         if let atom = MTMathAtomFactory.atom(forLatexSymbol: command) {
             return atom
         }
