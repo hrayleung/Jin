@@ -124,7 +124,7 @@ struct MarkdownTableView: View {
 
     // MARK: - Plain-text export
 
-    private func markdownPlainText(columnCount: Int) -> String {
+    func markdownPlainText(columnCount: Int) -> String {
         var lines: [String] = []
         lines.append(markdownRow(cells: header, columnCount: columnCount))
         lines.append(markdownSeparator(columnCount: columnCount))
@@ -137,7 +137,9 @@ struct MarkdownTableView: View {
     private func markdownRow(cells: [InlineRun], columnCount: Int) -> String {
         var parts: [String] = [""]
         for col in 0..<columnCount {
-            let text = col < cells.count ? escapeMarkdownCell(cells[col].plainText) : ""
+            let text = col < cells.count
+                ? escapeMarkdownCell(JinMessageTextView.latexExpandedPlainString(from: cells[col].attributedString))
+                : ""
             parts.append(" \(text) ")
         }
         parts.append("")
@@ -164,12 +166,19 @@ struct MarkdownTableView: View {
     }
 
     private func escapeMarkdownCell(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: "\n", with: " ")
-            .replacingOccurrences(of: "|", with: "\\|")
+        InlineMath.split(text).map { segment in
+            switch segment {
+            case .text(let prose):
+                return prose.replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "|", with: "\\|")
+            case .math(_, let original):
+                // Math pipes are protected before table parsing. Escaping one
+                // here would change a LaTeX absolute-value bar into a norm.
+                return original.replacingOccurrences(of: "\n", with: " ")
+            }
+        }.joined()
     }
 
-    private func tsvPlainText(columnCount: Int) -> String {
+    func tsvPlainText(columnCount: Int) -> String {
         var lines: [String] = []
         lines.append(tsvRow(cells: header, columnCount: columnCount))
         for row in rows {
@@ -181,7 +190,7 @@ struct MarkdownTableView: View {
     private func tsvRow(cells: [InlineRun], columnCount: Int) -> String {
         (0..<columnCount)
             .map { col in
-                (col < cells.count ? cells[col].plainText : "")
+                (col < cells.count ? JinMessageTextView.latexExpandedPlainString(from: cells[col].attributedString) : "")
                     .replacingOccurrences(of: "\t", with: " ")
                     .replacingOccurrences(of: "\n", with: " ")
             }

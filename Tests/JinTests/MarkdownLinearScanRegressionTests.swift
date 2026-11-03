@@ -91,6 +91,7 @@ final class MarkdownLinearScanRegressionTests: XCTestCase {
             _ = MarkdownInlineTokenizer.tokenize(input)
             let mathSegments = InlineMath.split(strayDollars)
             XCTAssertEqual(mathSegments, [.text(strayDollars)])
+            XCTAssertEqual(MarkdownInlineMathPreprocessor.prepare(input).text, input)
         }
 
         XCTAssertLessThan(elapsed, .seconds(3))

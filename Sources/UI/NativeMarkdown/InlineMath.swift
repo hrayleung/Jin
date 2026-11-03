@@ -6,8 +6,8 @@ import SwiftMath
 /// `NSImage` → baseline-aligned `NSTextAttachment`). On a parse failure the span
 /// degrades to its raw source text — never a WebView.
 ///
-/// Detection runs on `Markdown.Text` nodes *after* swift-markdown has already
-/// split out inline code, so code spans are skipped for free. Currency like
+/// Production detection runs on protected source before swift-markdown parses
+/// escapes, table separators or emphasis inside the formula. Currency like
 /// `$5` is avoided with pandoc's rule: an opening `$` must be followed by a
 /// non-space, and a closing `$` must be preceded by a non-space and not
 /// followed by a digit.
@@ -83,9 +83,9 @@ enum InlineMath {
         return segments.isEmpty ? [.text(s)] : segments
     }
 
-    /// LaTeX never legitimately contains CJK ideographs or CJK punctuation
-    /// (modulo rare `\text{中文}` — accepted tradeoff), and real inline
-    /// formulas are short. Without this, two stray `$` characters around a
+    /// Keep the heuristic conservative around CJK prose (including unsupported
+    /// inline `\text{中文}`), with a narrow exception for symbol separators.
+    /// Without this, two stray `$` characters around a
     /// CJK ticker list (`$AAPL、$TSLA`) or half a paragraph apart would be
     /// rendered as one garbage math span, swallowing the prose between.
     private static let inlineMathMaxLength = 120
@@ -94,6 +94,10 @@ enum InlineMath {
         guard !inner.isEmpty, inner.count <= inlineMathMaxLength else { return false }
         return !inner.unicodeScalars.contains { scalar in
             let v = scalar.value
+            // LLMs commonly separate symbols with a Chinese comma, e.g.
+            // \(\gamma_X、\gamma_O\). Keep ticker lists guarded: a separator
+            // is accepted only alongside an explicit LaTeX command.
+            if (v == 0x3001 || v == 0xFF0C), inner.contains("\\") { return false }
             return (0x2E80...0x303E).contains(v)      // CJK radicals + symbols/punctuation
                 || v == 0x3000                        // ideographic space
                 || (0x3041...0x30FF).contains(v)      // hiragana + katakana
