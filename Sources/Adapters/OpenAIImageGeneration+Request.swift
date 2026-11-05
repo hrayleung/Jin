@@ -12,6 +12,10 @@ extension OpenAIAdapter {
             throw LLMError.invalidRequest(message: "Unsupported OpenAI image model: \(modelID)")
         }
 
+        if profile.family == .gptImage26 {
+            return try buildImage26Request(modelID: modelID, prompt: prompt, inputImages: inputImages, controls: controls)
+        }
+
         let isImageEdit = profile.supportsEdits && !inputImages.isEmpty
 
         if isImageEdit, profile.usesMultipartEdits {

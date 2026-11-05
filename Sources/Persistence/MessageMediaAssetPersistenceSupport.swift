@@ -108,7 +108,7 @@ enum MessageMediaAssetPersistenceSupport {
             return nil
         }
 
-        let ext = AttachmentStorageManager.fileExtension(for: mimeType) ?? "png"
+        let ext = data == nil ? "png" : (AttachmentStorageManager.fileExtension(for: mimeType) ?? "png")
         try? AppDataLocations.ensureDirectoriesExist()
         guard let dir = try? AppDataLocations.attachmentsDirectoryURL() else { return nil }
 

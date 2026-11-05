@@ -7,6 +7,12 @@ extension ModelCatalog {
     // MARK: OpenAI (also used for openaiWebSocket via the entry/seededModels redirects)
 
     static let openAIRecords: [Record] = [
+        // Trusted-access research model announced Oct 30. Exact spec page is unavailable.
+        Record(id: "gpt-6-rosalind", displayName: "GPT-6 Rosalind",
+               capabilities: [],
+               contextWindow: 0,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
         // Seeded — appear in the model picker on first launch
         // GPT-6 Astra (OpenAI flagship frontier model released 2026-09-03).
         // 1,050,000 context / 128,000 output. Modalities: text+vision
@@ -302,6 +308,18 @@ extension ModelCatalog {
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
         // Image generation models
+        // GPT Image 2.6: Images generations/edits only, including markup, SVG and GIF.
+        // No context/output token limit is published; exact profiles drive controls.
+        Record(id: "gpt-image-2.6-sunburst", displayName: "GPT Image 2.6 Sunburst",
+               capabilities: [.vision, .imageGeneration],
+               contextWindow: 0,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
+        Record(id: "gpt-image-2.6-flare", displayName: "GPT Image 2.6 Flare",
+               capabilities: [.vision, .imageGeneration],
+               contextWindow: 0,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         Record(id: "gpt-image-2.5-flare", displayName: "GPT Image 2.5 Flare",
                capabilities: [.imageGeneration],
                contextWindow: 32_000,
@@ -1241,6 +1259,51 @@ extension ModelCatalog {
     // MARK: Vercel AI Gateway
 
     static let vercelAIGatewayRecords: [Record] = [
+        // Official ai-gateway.vercel.sh/v1/models, released Oct 30–Nov 4, 2026.
+        Record(id: "inclusionai/ling-3.1-flash-1019", displayName: "Ling 3.1 Flash 1019",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort,
+                                                     supportedEfforts: [.none, .low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "meituan/longcat-2.5", displayName: "LongCat 2.5",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort,
+                                                     supportedEfforts: [.none, .low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "tencent/hy4", displayName: "Tencent Hy4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_024_000,
+               maxOutputTokens: 64_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort,
+                                                     supportedEfforts: [.none, .high]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "zai/glm-5.3-flashx-legal", displayName: "GLM 5.3 FlashX Legal",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort,
+                                                     supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Image and evaluation endpoints are not implemented by this gateway adapter.
+        Record(id: "openai/gpt-image-2.6-sunburst", displayName: "GPT Image 2.6 Sunburst",
+               capabilities: [.imageGeneration],
+               contextWindow: 0,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "openai/gpt-image-2.6-flare", displayName: "GPT Image 2.6 Flare",
+               capabilities: [.imageGeneration],
+               contextWindow: 0,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "baseten/joey-1", displayName: "Joey 1",
+               capabilities: [],
+               contextWindow: 16_384,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
         // OpenAI
         Record(id: "openai/gpt-6-astra", displayName: "GPT-6 Astra",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],

@@ -20,6 +20,15 @@ extension ModelCatalog {
     /// Verified against the Databricks "Databricks-hosted foundation models" supported-models
     /// docs (AWS/Azure/GCP), 2026-07.
     static let databricksRecords: [Record] = [
+        // Official supported-models, foundation-model-apis/limits, query-reason-models
+        // (2026-11-05): hybrid reasoning, none/low/high/max, default max.
+        Record(id: "databricks-kimi-k3-1-pro", displayName: "Kimi K3.1 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max,
+                                                     supportedEfforts: [.none, .low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
         // MARK: Seeded — appear in the model picker on first launch
 
         // Anthropic Claude — exposed as vision chat models. Reasoning is intentionally omitted:

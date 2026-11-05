@@ -131,10 +131,21 @@ extension ChatView {
                     onSave: { applyImageGenerationDraft() }
                 )
             }
+            .sheet(isPresented: $showingOpenAIImageAnimationSheet) {
+                OpenAIImageAnimationSheetView(controls: controls.openaiImageGeneration) { count, duration in
+                    guard OpenAIImageModelSupport.profile(for: lowerModelID)?.family == .gptImage26,
+                          controls.openaiImageGeneration?.outputFormat == .gif else { return }
+                    updateOpenAIImageGeneration {
+                        $0.frameCount = count
+                        $0.frameDurationMilliseconds = duration
+                    }
+                }
+            }
             .sheet(isPresented: $showingOpenAIImageCustomSizeSheet) {
                 OpenAIImageCustomSizeSheetView(
                     modelID: openAIImageCustomSizeTargetModelID.isEmpty ? lowerModelID : openAIImageCustomSizeTargetModelID,
                     currentSize: controls.openaiImageGeneration?.size,
+                    outputFormat: openAIImageCustomSizeTargetFormat,
                     onCancel: { dismissOpenAIImageCustomSizeSheet() },
                     onSave: { size in
                         handleOpenAIImageCustomSizeSave(size)

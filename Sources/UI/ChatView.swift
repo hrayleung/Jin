@@ -210,6 +210,8 @@ struct ChatView: View {
     @State var showingImageGenerationSheet = false
     // Accessed from ChatView extensions in separate files.
     // swiftlint:disable private_swiftui_state
+    @State var showingOpenAIImageAnimationSheet = false
+    @State var openAIImageCustomSizeTargetFormat: OpenAIImageOutputFormat?
     @State var showingOpenAIImageCustomSizeSheet = false
     @State var openAIImageCustomSizeTargetModelID = ""
     // swiftlint:enable private_swiftui_state

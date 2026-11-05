@@ -1,6 +1,7 @@
 import AppKit
 import ImageIO
 import SwiftUI
+import UniformTypeIdentifiers
 
 extension ContentPartView {
     func renderedImage(_ image: RenderedImageContent) -> some View {
@@ -69,7 +70,8 @@ private struct HistoricalMessageImageView: View {
         guard image.remoteURL == nil else { return }
 
         let cacheKey = MessageImageThumbnailProvider.cacheKey(for: image, isUser: isUser)
-        if let cached = MessageImageThumbnailProvider.cache.object(forKey: cacheKey) {
+        let preservesOriginal = image.mimeType == "image/gif" || image.mimeType == "image/svg+xml"
+        if !preservesOriginal, let cached = MessageImageThumbnailProvider.cache.object(forKey: cacheKey) {
             renderedImage = cached
             loadFailed = false
             return
@@ -83,23 +85,39 @@ private struct HistoricalMessageImageView: View {
             sourceData = await payloadResolver.loadImageData(deferredSource)
         }
 
-        let loadedImage = await Task.detached(priority: .utility) {
+        let isAnimation = !isUser && image.mimeType == "image/gif"
+        let isVector = image.mimeType == "image/svg+xml"
+        let result = await Task.detached(priority: .utility) { () -> (NSImage?, Data?) in
+            if preservesOriginal {
+                let original = sourceData ?? localFileURL.flatMap { try? Data(contentsOf: $0) }
+                guard let original else { return (nil, nil) }
+                let preview: NSImage?
+                if isVector {
+                    preview = SVGImagePreviewSupport.image(data: original, maxPixelSize: maxPixelSize)
+                } else if isAnimation {
+                    preview = AnimatedImagePreviewSupport.image(data: original, maxPixelSize: maxPixelSize)
+                } else {
+                    preview = ImageDownsampler.image(data: original, maxPixelSize: maxPixelSize)
+                }
+                return (preview, original)
+            }
             if let localFileURL {
-                return ImageDownsampler.image(at: localFileURL, maxPixelSize: maxPixelSize)
+                return (ImageDownsampler.image(at: localFileURL, maxPixelSize: maxPixelSize), sourceData)
             }
             if let sourceData {
-                return ImageDownsampler.image(data: sourceData, maxPixelSize: maxPixelSize)
+                return (ImageDownsampler.image(data: sourceData, maxPixelSize: maxPixelSize), sourceData)
             }
-            return nil
+            return (nil, nil)
         }.value
 
         guard !Task.isCancelled else { return }
 
-        renderedImageData = sourceData
+        let loadedImage = result.0
+        renderedImageData = result.1
         renderedImage = loadedImage
         loadFailed = loadedImage == nil
 
-        if let loadedImage {
+        if let loadedImage, !preservesOriginal {
             MessageImageThumbnailProvider.cache.setObject(
                 loadedImage,
                 forKey: cacheKey,
@@ -124,9 +142,16 @@ private struct HistoricalMessageImageView: View {
                 .onDrag(dragProvider)
                 .contextMenu { imageContextMenu(renderedImage) }
         } else {
-            Image(nsImage: renderedImage)
-                .resizable()
-                .scaledToFit()
+            Group {
+                if image.mimeType == "image/gif" {
+                    AnimatedMessageImageView(image: renderedImage)
+                        .aspectRatio(renderedImage.size, contentMode: .fit)
+                } else {
+                    Image(nsImage: renderedImage)
+                        .resizable()
+                        .scaledToFit()
+                }
+            }
                 .frame(maxWidth: 500)
                 .clipShape(RoundedRectangle(cornerRadius: JinRadius.small, style: .continuous))
                 .onTapGesture(perform: openImage)
@@ -183,6 +208,14 @@ private struct HistoricalMessageImageView: View {
         if let fileURL = image.url, fileURL.isFileURL {
             return NSItemProvider(contentsOf: fileURL) ?? NSItemProvider(object: fileURL as NSURL)
         }
+        if let data = renderedImageData, let type = UTType(mimeType: image.mimeType) {
+            let provider = NSItemProvider()
+            provider.registerDataRepresentation(forTypeIdentifier: type.identifier, visibility: .all) { completion in
+                completion(data, nil)
+                return nil
+            }
+            return provider
+        }
         if let renderedImage {
             return NSItemProvider(object: renderedImage)
         }
@@ -223,6 +256,9 @@ private struct HistoricalMessageImageView: View {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.writeObjects([renderedImage])
+            if let data = renderedImageData, let type = UTType(mimeType: image.mimeType) {
+                pasteboard.setData(data, forType: NSPasteboard.PasteboardType(type.identifier))
+            }
         } label: {
             Label("Copy Image", systemImage: "doc.on.doc")
         }

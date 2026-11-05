@@ -712,6 +712,7 @@ enum ModelCapabilityRegistry {
         "fireworks/deepseek-v4p1-flash-1017-us",
         "deepseek-v4p1-flash-1017-us",
         "accounts/fireworks/routers/deepseek-v4p1-flash-1017-spot",
+        "accounts/fireworks/routers/deepseek-v4p1-flash-1017-ultrafast",
         "fireworks/deepseek-v4p1-flash-1017-spot",
         "deepseek-v4p1-flash-1017-spot",
     ]
@@ -1107,6 +1108,21 @@ enum ModelCapabilityRegistry {
         }
     }
 
+    /// These exact gateway entries publish temperature but not top_p (live catalogs,
+    /// 2026-11-05). Keep the two controls separate when reusing conversation settings.
+    static func supportsTopP(for providerType: ProviderType, modelID: String) -> Bool {
+        let lower = modelID.lowercased()
+        switch providerType {
+        case .openrouter:
+            return lower != "tencent/hy4"
+        case .vercelAIGateway:
+            return !["tencent/hy4", "inclusionai/ling-3.1-flash-1019",
+                     "meituan/longcat-2.5", "zai/glm-5.3-flashx-legal"].contains(lower)
+        default:
+            return true
+        }
+    }
+
     static func supportsOpenAIStyleReasoningEffort(for providerType: ProviderType?, modelID: String) -> Bool {
         requestShape(for: providerType, modelID: modelID).supportsOpenAIStyleReasoningEffort
     }
@@ -1135,6 +1151,8 @@ enum ModelCapabilityRegistry {
             || openRouterDeepSeekV4GAReasoningEffortModelIDs.contains(lowerModelID)
             || lowerModelID == "deepseek/deepseek-v4.1-flash-1017"
             || lowerModelID == "moonshotai/kimi-k3.1-pro"
+            || lowerModelID == "stealth/crouton-alpha"
+            || lowerModelID == "z-ai/glm-5.3-flashx-legal"
             || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
             || openRouterOxAlphaReasoningEffortModelIDs.contains(lowerModelID) {
             return true
@@ -1189,6 +1207,7 @@ enum ModelCapabilityRegistry {
             }
         case .vercelAIGateway:
             if vercelKimiK3FastReasoningEffortModelIDs.contains(lowerModelID)
+                || lowerModelID == "zai/glm-5.3-flashx-legal"
                 || glm53LowHighMaxReasoningEffortModelIDs.contains(lowerModelID)
                 || openRouterHighBandEffortModelIDs.contains(lowerModelID)
                 || lowerModelID == "deepseek/deepseek-v4-pro-0813"
@@ -1217,7 +1236,8 @@ enum ModelCapabilityRegistry {
                 return true
             }
         case .databricks:
-            if lowerModelID == "databricks-gpt-6-1-terra" {
+            if lowerModelID == "databricks-gpt-6-1-terra"
+                || lowerModelID == "databricks-kimi-k3-1-pro" {
                 return true
             }
         case .baseten:
@@ -1362,6 +1382,23 @@ enum ModelCapabilityRegistry {
         }
 
         switch providerType {
+        case .openrouter where lowerModelID == "z-ai/glm-5.3-flashx-legal":
+            return [.low, .high, .max]
+        case .vercelAIGateway where lowerModelID == "zai/glm-5.3-flashx-legal":
+            return [.low, .high, .max]
+        case .openrouter where lowerModelID == "tencent/hy4":
+            return [.none, .low, .high]
+        case .openrouter where lowerModelID == "stealth/crouton-alpha":
+            return [.minimal, .low, .medium, .high, .xhigh, .max]
+        case .vercelAIGateway where lowerModelID == "inclusionai/ling-3.1-flash-1019"
+            || lowerModelID == "meituan/longcat-2.5":
+            return [.none, .low, .medium, .high]
+        case .vercelAIGateway where lowerModelID == "tencent/hy4":
+            return [.none, .high]
+        case .opencodeGo where lowerModelID == "hy4":
+            return [.none, .high]
+        case .databricks where lowerModelID == "databricks-kimi-k3-1-pro":
+            return [.none, .low, .high, .max]
         case .perplexity:
             return defaultGeminiReasoningEfforts
         case .anthropic, .claudeManagedAgents:

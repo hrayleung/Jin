@@ -252,6 +252,7 @@ func isFireworksDeepSeekV4GAModel(_ modelID: String) -> Bool {
         || lower == "accounts/fireworks/routers/deepseek-v4p1-flash-1017-us"
         || lower == "fireworks/deepseek-v4p1-flash-1017-us"
         || lower == "accounts/fireworks/routers/deepseek-v4p1-flash-1017-spot"
+        || lower == "accounts/fireworks/routers/deepseek-v4p1-flash-1017-ultrafast"
         || lower == "fireworks/deepseek-v4p1-flash-1017-spot"
         || lower == "accounts/fireworks/routers/deepseek-flash-latest"
         || lower == "fireworks/deepseek-flash-latest" {

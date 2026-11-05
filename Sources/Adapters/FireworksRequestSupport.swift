@@ -89,6 +89,10 @@ extension FireworksAdapter {
         }
 
         for (key, value) in controls.providerSpecific {
+            if modelID.lowercased() == "accounts/fireworks/routers/deepseek-v4p1-flash-1017-ultrafast",
+               key == "service_tier", value.value as? String == "priority" {
+                continue
+            }
             if key == "reasoning_effort", isDeepSeekV4ProModel {
                 if !deepSeekV4ProThinkingDisabled,
                    let normalized = normalizeDeepSeekV4ProReasoningEffort(value.value) {

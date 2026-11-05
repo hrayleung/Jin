@@ -408,7 +408,7 @@ final class JinModelSupportTests: XCTestCase {
         for id in ["gpt-5.6-luna", "grok-4.6", "grok-4.5", "hy3", "hy4-preview", "muse-spark-1.2", "muse-spark-1.2-contributor", "longcat-2.0", "qwen3.8-flash"] {
             XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: id), id)
         }
-        for id in ["gpt-5.6-luna-pro", "gpt-5.6-sol", "grok-4.6-custom", "grok-4.6-fast", "grok-4.5-fast", "hy3-custom", "hy4-preview-custom", "hy4", "muse-spark-1.1", "longcat-2.0-custom", "qwen3.8-flash-preview"] {
+        for id in ["gpt-5.6-luna-pro", "gpt-5.6-sol", "grok-4.6-custom", "grok-4.6-fast", "grok-4.5-fast", "hy3-custom", "hy4-preview-custom", "hy4-custom", "muse-spark-1.1", "longcat-2.0-custom", "qwen3.8-flash-preview"] {
             XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .opencodeGo, modelID: id), id)
         }
     }
@@ -421,7 +421,7 @@ final class JinModelSupportTests: XCTestCase {
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-flash-vision-exp"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .openrouter, modelID: "deepseek/deepseek-v4-flash-vision-exp-custom"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "tencent/hy4-preview"))
-        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "tencent/hy4"))
+        XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "tencent/hy4-custom"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "alibaba/qwen3.8-flash"))
         XCTAssertFalse(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "qwen/qwen3.8-flash"))
         XCTAssertTrue(JinModelSupport.isFullySupported(providerType: .vercelAIGateway, modelID: "deepseek/deepseek-v4-flash-vision-exp"))

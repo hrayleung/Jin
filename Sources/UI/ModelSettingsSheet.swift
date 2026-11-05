@@ -68,11 +68,17 @@ struct ModelSettingsSheet: View {
                         ForEach(ModelType.allCases, id: \.self) { type in Text(type.displayName).tag(type) }
                     }
                 }
-                JinSettingsSection("Token Limits") {
-                    JinSettingsTextFieldRow(
-                        "Context Window", prompt: "200000", text: $contextWindowText, usesMonospacedFont: true)
-                    JinSettingsTextFieldRow(
-                        "Max Output", prompt: "Provider default", text: $maxOutputTokensText, usesMonospacedFont: true)
+                if usesImageDimensionLimits {
+                    Text("Configure image size, quality and complexity in the chat’s Image Generation menu. This model does not use a token limit setting.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    JinSettingsSection("Token Limits") {
+                        JinSettingsTextFieldRow(
+                            "Context Window", prompt: "200000", text: $contextWindowText, usesMonospacedFont: true)
+                        JinSettingsTextFieldRow(
+                            "Max Output", prompt: "Provider default", text: $maxOutputTokensText, usesMonospacedFont: true)
+                    }
                 }
                 JinSettingsSection("Capabilities") {
                     JinSettingsToggleRow("Web Search", isOn: $webSearchSupported)
@@ -160,14 +166,18 @@ struct ModelSettingsSheet: View {
         dismiss()
     }
 
+    private var usesImageDimensionLimits: Bool {
+        ModelSettingsResolver.usesImageDimensionLimits(providerType: providerType, modelID: catalogModelID)
+    }
+
     private func save() {
-        guard let contextWindow = ModelSettingsSheetSupport.positiveInteger(from: contextWindowText) else {
+        guard let contextWindow = usesImageDimensionLimits ? 0 : ModelSettingsSheetSupport.positiveInteger(from: contextWindowText) else {
             validationError = "Context length must be a positive integer."
             return
         }
 
         let maxOutputTokens: Int?
-        switch ModelSettingsSheetSupport.optionalPositiveInteger(from: maxOutputTokensText) {
+        switch ModelSettingsSheetSupport.optionalPositiveInteger(from: usesImageDimensionLimits ? "" : maxOutputTokensText) {
         case .empty:
             maxOutputTokens = nil
         case .value(let value):
@@ -246,7 +256,7 @@ struct ModelSettingsSheet: View {
         if modelType != baseModelType {
             overrides.modelType = modelType
         }
-        if contextWindow != model.contextWindow {
+        if !usesImageDimensionLimits, contextWindow != model.contextWindow {
             overrides.contextWindow = contextWindow
         }
         if let maxOutputTokens, maxOutputTokens != baseMaxOutputTokens {

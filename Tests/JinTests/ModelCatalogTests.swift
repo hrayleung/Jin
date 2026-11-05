@@ -602,7 +602,7 @@ final class ModelCatalogTests: XCTestCase {
         }
 
         // Near-miss IDs must fall back to the conservative default entry, not prefix-match.
-        for id in ["gpt-5.6-luna-pro", "grok-4.6-custom", "grok-4.6-fast", "grok-4.5-fast", "hy3-custom", "hy4-preview-custom", "hy4"] {
+        for id in ["gpt-5.6-luna-pro", "grok-4.6-custom", "grok-4.6-fast", "grok-4.5-fast", "hy3-custom", "hy4-preview-custom", "hy4-custom"] {
             let unknown = ModelCatalog.modelInfo(for: id, provider: .opencodeGo)
             XCTAssertEqual(unknown.capabilities, [.streaming, .toolCalling], id)
             XCTAssertEqual(unknown.contextWindow, 128_000, id)
@@ -2840,7 +2840,7 @@ final class ModelCatalogTests: XCTestCase {
             (ProviderType.openrouter, "tencent/hy4-preview-custom"),
             (.openrouter, "qwen/qwen3.8-flash-custom"),
             (.openrouter, "deepseek/deepseek-v4-flash-vision-exp-custom"),
-            (.vercelAIGateway, "tencent/hy4"),
+            (.vercelAIGateway, "tencent/hy4-custom"),
             (.vercelAIGateway, "qwen/qwen3.8-flash"),
             (.opencodeGo, "hy4-preview-fast"),
         ] {
@@ -3933,7 +3933,7 @@ final class ModelCatalogTests: XCTestCase {
         XCTAssertEqual(longcat.maxOutputTokens, 131_072)
         XCTAssertEqual(longcat.reasoningConfig?.type, .toggle)
         XCTAssertTrue(longcat.capabilities.isSuperset(of: [.toolCalling, .vision, .reasoning]))
-        for id in ["fireworks/ember-2", "stealth/pixel-canary-2", "meituan/longcat-2.5", "anthropic/claude-sonnet-5-5"] {
+        for id in ["fireworks/ember-2", "stealth/pixel-canary-2", "meituan/longcat-2.5-custom", "anthropic/claude-sonnet-5-5"] {
             XCTAssertFalse(ModelCatalog.isFullySupported(modelID: id, provider: .vercelAIGateway), id)
         }
 

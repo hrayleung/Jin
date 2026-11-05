@@ -25,7 +25,8 @@ enum ModelSettingsResolver {
             catalogEntry: catalogEntry,
             fallback: model.capabilities
         )
-        let contextWindow = max(
+        let imageDimensionLimits = usesImageDimensionLimits(providerType: providerType, modelID: lookupID)
+        let contextWindow = imageDimensionLimits ? 0 : max(
             1,
             resolvedContextWindow(
                 overrides: overrides,
@@ -39,7 +40,7 @@ enum ModelSettingsResolver {
             fallback: model.reasoningConfig,
             capabilities: capabilities
         )
-        let maxOutputTokens = resolvedMaxOutputTokens(
+        let maxOutputTokens = imageDimensionLimits ? nil : resolvedMaxOutputTokens(
             overrides: overrides,
             catalogEntry: catalogEntry,
             fallback: model.maxOutputTokens
@@ -75,6 +76,11 @@ enum ModelSettingsResolver {
             supportsOpenAIStyleReasoningEffort: supportsOpenAIStyleReasoningEffort,
             supportsOpenAIStyleExtremeEffort: supportsOpenAIStyleExtremeEffort
         )
+    }
+
+    static func usesImageDimensionLimits(providerType: ProviderType?, modelID: String) -> Bool {
+        (providerType == .openai || providerType == .openaiWebSocket)
+            && OpenAIImageModelSupport.profile(for: modelID)?.family == .gptImage26
     }
 
     static func inferModelType(capabilities: ModelCapability, modelID _: String) -> ModelType {
@@ -406,6 +412,9 @@ enum ModelSettingsResolver {
         // GLM-5.3-FlashX (2026-09-18): same always-on thinking as the rest of
         // the GLM-5.3 family — band low/high/max has no `none`.
         "z-ai/glm-5.3-flashx",
+        "z-ai/glm-5.3-flashx-legal",
+        // OpenRouter declares Crouton reasoning mandatory (minimal through max).
+        "stealth/crouton-alpha",
         // GLM-5.3-Prime (2026-09-24): same always-on thinking — its published
         // band is low/high/max with no `none`.
         "z-ai/glm-5.3-prime",
@@ -458,6 +467,7 @@ enum ModelSettingsResolver {
         "zai/glm-5.3",
         "zai/glm-5.3-flash",
         "zai/glm-5.3-flashx",
+        "zai/glm-5.3-flashx-legal",
         "qwen/qwen3.8-2.4t-a95b",
         // Fable 5.1 is always-on adaptive thinking upstream; Off would emit
         // `reasoning: {effort:"none"}` on the OpenAI-compatible gateway path.

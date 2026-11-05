@@ -112,7 +112,10 @@ extension OpenCodeGoAdapter {
         let lowerModelID = modelID.lowercased()
         let omitReasoningEffort = lowerModelID == "longcat-2.0" || lowerModelID == "iceman-contributor-free"
 
-        if omitReasoningEffort {
+        if lowerModelID == "hy4", let reasoning = controls.reasoning {
+            body["reasoning_effort"] = reasoning.enabled && reasoning.effort != .some(.none)
+                ? "high" : "none"
+        } else if omitReasoningEffort {
             // Leave thinking to the gateway default.
         } else if Self.usesAlwaysOnLowHighMaxReasoningEffort(modelID) {
             let effort: ReasoningEffort

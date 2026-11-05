@@ -18,23 +18,24 @@ enum OpenAIImageCustomSizeSheetSupport {
         return OpenAIImageSize(rawValue: normalized)
     }
 
-    static func validationError(draftText: String, modelID: String) -> String? {
+    static func validationError(draftText: String, modelID: String, outputFormat: OpenAIImageOutputFormat? = nil) -> String? {
         guard let parsedSize = parsedSize(from: draftText) else {
             return invalidSizeMessage
         }
-        return OpenAIImageModelSupport.validate(size: parsedSize, for: modelID)
+        return OpenAIImageModelSupport.validate(size: parsedSize, for: modelID, outputFormat: outputFormat)
     }
 
     static func displayedValidationError(
         explicitError: String?,
         draftText: String,
-        modelID: String
+        modelID: String,
+        outputFormat: OpenAIImageOutputFormat? = nil
     ) -> String? {
         if let explicitError {
             return explicitError
         }
         guard !normalizedDraftText(draftText).isEmpty else { return nil }
-        return validationError(draftText: draftText, modelID: modelID)
+        return validationError(draftText: draftText, modelID: modelID, outputFormat: outputFormat)
     }
 
     static func canSubmit(draftText: String) -> Bool {
