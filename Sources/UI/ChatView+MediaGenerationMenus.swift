@@ -45,6 +45,18 @@ extension ChatView {
             )
         } else if providerType == .openai || providerType == .openaiWebSocket {
             let openAIImageProfile = OpenAIImageModelSupport.profile(for: lowerModelID)
+            Text("OpenAI Image")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Divider()
+            if openAIImageProfile?.family == .gptImage26 {
+                OpenAIImage26ControlsMenuView(
+                    controls: controls.openaiImageGeneration ?? OpenAIImageGenerationControls(),
+                    onUpdate: updateOpenAIImageGeneration,
+                    onEditAnimation: { showingOpenAIImageAnimationSheet = true }
+                )
+                Divider()
+            }
             OpenAIImageGenerationMenuView(
                 isConfigured: isImageGenerationConfigured,
                 availableSizes: openAIImageProfile?.presetSizes ?? [],
@@ -52,6 +64,7 @@ extension ChatView {
                 availableQualities: openAIImageProfile?.qualityOptions ?? [],
                 showsStyle: openAIImageProfile?.supportsStyle == true,
                 availableBackgrounds: openAIImageProfile?.backgroundOptions ?? [],
+                availableOutputFormats: openAIImageProfile?.outputFormats ?? [],
                 showsOutputFormat: openAIImageProfile?.supportsOutputFormat == true,
                 showsModeration: openAIImageProfile?.supportsModeration == true,
                 showsInputFidelity: openAIImageProfile?.supportsInputFidelity == true,
@@ -83,7 +96,13 @@ extension ChatView {
                     updateOpenAIImageGeneration { $0.background = value }
                 },
                 onSetOutputFormat: { value in
-                    updateOpenAIImageGeneration { $0.outputFormat = value }
+                    updateOpenAIImageGeneration {
+                        $0.outputFormat = value
+                        if value?.isGenerationOnly == true {
+                            $0.inputMode = .generate
+                            $0.editGuidance = nil
+                        }
+                    }
                 },
                 onSetOutputCompression: { value in
                     updateOpenAIImageGeneration { $0.outputCompression = value }
@@ -125,6 +144,7 @@ extension ChatView {
 
     func presentOpenAIImageCustomSizeSheet() {
         openAIImageCustomSizeTargetModelID = lowerModelID
+        openAIImageCustomSizeTargetFormat = controls.openaiImageGeneration?.outputFormat
         showingOpenAIImageCustomSizeSheet = true
     }
 
@@ -135,10 +155,11 @@ extension ChatView {
 
     func handleOpenAIImageCustomSizeSave(_ size: OpenAIImageSize) {
         let targetModelID = openAIImageCustomSizeTargetModelID
+        let targetFormat = openAIImageCustomSizeTargetFormat
         dismissOpenAIImageCustomSizeSheet()
 
-        guard targetModelID == lowerModelID else {
-            presentError("The selected OpenAI image model changed while the custom size sheet was open. Reopen the sheet and try again.")
+        guard targetModelID == lowerModelID, targetFormat == controls.openaiImageGeneration?.outputFormat else {
+            presentError("The selected OpenAI image model or output format changed while the custom size sheet was open. Reopen the sheet and try again.")
             return
         }
 

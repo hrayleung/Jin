@@ -20,6 +20,9 @@ extension ChatModelCapabilitySupport {
         }
 
         if providerType == .openai || providerType == .openaiWebSocket {
+            if let format = controls.openaiImageGeneration?.outputFormat, format.isGenerationOnly {
+                return format.displayName
+            }
             if let size = controls.openaiImageGeneration?.size {
                 return size.displayName
             }
@@ -63,6 +66,13 @@ extension ChatModelCapabilitySupport {
         }
 
         if providerType == .openai || providerType == .openaiWebSocket {
+            if let format = controls.openaiImageGeneration?.outputFormat, format.isGenerationOnly {
+                return "Image Generation: \(format.displayName), new images only"
+            }
+            if let guidance = controls.openaiImageGeneration?.editGuidance {
+                return guidance.helpText
+            }
+
             if let size = controls.openaiImageGeneration?.size {
                 return "Image Generation: \(size.displayName)"
             }

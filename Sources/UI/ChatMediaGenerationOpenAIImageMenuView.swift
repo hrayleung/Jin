@@ -7,6 +7,7 @@ struct OpenAIImageGenerationMenuView: View {
     let availableQualities: [OpenAIImageQuality]
     let showsStyle: Bool
     let availableBackgrounds: [OpenAIImageBackground]
+    let availableOutputFormats: [OpenAIImageOutputFormat]
     let showsOutputFormat: Bool
     let showsModeration: Bool
     let showsInputFidelity: Bool
@@ -37,17 +38,11 @@ struct OpenAIImageGenerationMenuView: View {
     }
 
     var body: some View {
-        Text("OpenAI Image")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-        Divider()
-
         Menu(countMenuTitle) {
             JinMenuSelectionItem("Default (1)", isSelected: currentCount == nil) {
                 onSetCount(nil)
             }
-            ForEach([1, 2, 4], id: \.self) { count in
+            ForEach(currentOutputFormat == .svg ? [1] : Array(1...10), id: \.self) { count in
                 JinMenuSelectionItem("\(count)", isSelected: currentCount == count) {
                     onSetCount(count)
                 }
@@ -103,7 +98,7 @@ struct OpenAIImageGenerationMenuView: View {
             .id("openai-image-style-\(currentStyle?.rawValue ?? "default")")
         }
 
-        if !availableBackgrounds.isEmpty {
+        if !availableBackgrounds.isEmpty, currentOutputFormat?.isGenerationOnly != true {
             Menu(backgroundMenuTitle) {
                 JinMenuSelectionItem("Default (Auto)", isSelected: currentBackground == nil) {
                     onSetBackground(nil)
@@ -122,7 +117,7 @@ struct OpenAIImageGenerationMenuView: View {
                 JinMenuSelectionItem("Default (PNG)", isSelected: currentOutputFormat == nil) {
                     onSetOutputFormat(nil)
                 }
-                ForEach(OpenAIImageOutputFormat.allCases, id: \.self) { format in
+                ForEach(availableOutputFormats, id: \.self) { format in
                     JinMenuSelectionItem(format.displayName, isSelected: currentOutputFormat == format) {
                         onSetOutputFormat(format)
                     }

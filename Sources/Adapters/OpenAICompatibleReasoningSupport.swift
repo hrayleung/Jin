@@ -78,6 +78,13 @@ enum OpenAICompatibleReasoningSupport {
             return false
         }
 
+        // DeepInfra publishes a boolean toggle in this exact model's Chat Completions
+        // schema. A nil effort means the server default, not disabled reasoning.
+        if providerConfig.type == .deepinfra, modelID.lowercased() == "moonshotai/kimi-k3.1-pro" {
+            body["reasoning"] = ["enabled": reasoning.enabled && reasoning.effort != .some(.none)]
+            return false
+        }
+
         if isCloudflareKimiK26Model(providerConfig: providerConfig, modelID: modelID) {
             let isDisabled = reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none
             mergeChatTemplateKwargs(

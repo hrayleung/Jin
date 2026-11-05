@@ -109,6 +109,7 @@ func inferImageMIMEType(from url: URL) -> String? {
     case "jpg", "jpeg": return "image/jpeg"
     case "png":         return "image/png"
     case "webp":        return "image/webp"
+    case "svg":         return "image/svg+xml"
     case "gif":         return "image/gif"
     default:            return nil
     }

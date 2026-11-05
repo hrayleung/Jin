@@ -47,7 +47,8 @@ extension OpenRouterAdapter {
             if let temperature = controls.temperature {
                 body["temperature"] = temperature
             }
-            if let topP = controls.topP {
+            if ModelCapabilityRegistry.supportsTopP(for: .openrouter, modelID: modelID),
+               let topP = controls.topP {
                 body["top_p"] = topP
             }
         }
@@ -79,6 +80,10 @@ extension OpenRouterAdapter {
                 continue
             }
             body[key] = value.value
+        }
+
+        if !ModelCapabilityRegistry.supportsTopP(for: .openrouter, modelID: modelID) {
+            body.removeValue(forKey: "top_p")
         }
 
         return try makeAuthorizedJSONRequest(

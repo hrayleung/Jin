@@ -6,12 +6,13 @@ enum OpenAIImageModelFamily: Sendable {
     case gptImage1Mini
     case gptImage2
     case gptImage25
+    case gptImage26
     case dallE3
     case dallE2
 
     var isGPTImageModel: Bool {
         switch self {
-        case .gptImage1, .gptImage15, .gptImage1Mini, .gptImage2, .gptImage25:
+        case .gptImage1, .gptImage15, .gptImage1Mini, .gptImage2, .gptImage25, .gptImage26:
             return true
         case .dallE3, .dallE2:
             return false
@@ -36,6 +37,13 @@ struct OpenAIImageModelProfile: Sendable {
 
     var isGPTImageModel: Bool {
         family.isGPTImageModel
+    }
+
+    var supportsComplexity: Bool { family == .gptImage26 }
+    var supportsEditGuidance: Bool { family == .gptImage26 }
+    var outputFormats: [OpenAIImageOutputFormat] {
+        guard supportsOutputFormat else { return [] }
+        return family == .gptImage26 ? [.png, .jpeg, .webp, .svg, .gif] : OpenAIImageOutputFormat.rasterFormats
     }
 }
 
@@ -136,6 +144,25 @@ enum OpenAIImageModelSupport {
         supportsInputFidelity: false
     )
 
+    // Exact model pages + image guide and its GPT Image 2.6 cost calculator,
+    // verified 2026-11-05: low/medium/high/xhigh/max, 16px steps, 3840px edge,
+    // 655,360...8,294,400 pixels, maximum 3:1 aspect ratio. No dated aliases published.
+    static let gptImage26Profile = OpenAIImageModelProfile(
+        family: .gptImage26,
+        ids: ["gpt-image-2.6-flare", "gpt-image-2.6-sunburst"],
+        supportsEdits: true,
+        usesMultipartEdits: true,
+        presetSizes: OpenAIImageSize.gptImage2SuggestedSizes,
+        supportsCustomSize: true,
+        qualityOptions: [.auto, .low, .medium, .high, .xhigh, .max],
+        supportsStyle: false,
+        backgroundOptions: [.auto, .transparent, .opaque],
+        supportsOutputFormat: true,
+        supportsOutputCompression: true,
+        supportsModeration: true,
+        supportsInputFidelity: false
+    )
+
     static let dallE3Profile = OpenAIImageModelProfile(
         family: .dallE3,
         ids: ["dall-e-3"],
@@ -175,6 +202,7 @@ enum OpenAIImageModelSupport {
         gptImage2Profile,
         gptImage25FlareProfile,
         gptImage25SunburstProfile,
+        gptImage26Profile,
         dallE3Profile,
         dallE2Profile,
     ]
@@ -211,9 +239,21 @@ enum OpenAIImageModelSupport {
         profile(for: modelID)?.usesMultipartEdits == true
     }
 
-    static func validate(size: OpenAIImageSize, for modelID: String) -> String? {
+    static func validate(size: OpenAIImageSize, for modelID: String, outputFormat: OpenAIImageOutputFormat? = nil) -> String? {
         guard let profile = profile(for: modelID) else {
             return "This OpenAI image model is not in Jin's exact support table."
+        }
+
+        // GIF frame dimensions have their own documented rule. Aggregate frame
+        // pixel budgets are enforced by OpenAI; no undocumented cap is guessed.
+        if profile.family == .gptImage26, outputFormat == .gif {
+            if size.isAuto { return nil }
+            guard let (width, height) = size.pixelDimensions,
+                  width > 0, height > 0, width % 16 == 0, height % 16 == 0,
+                  !width.multipliedReportingOverflow(by: height).overflow else {
+                return "GIF frame dimensions must be positive multiples of 16."
+            }
+            return nil
         }
 
         if profile.presetSizes.contains(size) {
@@ -252,8 +292,11 @@ enum OpenAIImageModelSupport {
         return nil
     }
 
-    static func sizeConstraintSummary(for modelID: String) -> String {
+    static func sizeConstraintSummary(for modelID: String, outputFormat: OpenAIImageOutputFormat? = nil) -> String {
         guard let profile = profile(for: modelID) else { return "" }
+        if profile.family == .gptImage26, outputFormat == .gif {
+            return "Frame dimensions must be positive multiples of 16. OpenAI also limits the total pixels across frames and animations; use Auto or reduce dimensions and frame count if the request exceeds that budget."
+        }
         let presetSummary = profile.presetSizes.map(\.displayName).joined(separator: ", ")
 
         if profile.supportsCustomSize {
@@ -270,6 +313,7 @@ enum OpenAIImageModelSupport {
         case .gptImage1Mini: return "GPT Image 1 Mini"
         case .gptImage2: return "GPT Image 2"
         case .gptImage25: return "GPT Image 2.5"
+        case .gptImage26: return "GPT Image 2.6"
         case .dallE3: return "DALL-E 3"
         case .dallE2: return "DALL-E 2"
         case nil: return modelID

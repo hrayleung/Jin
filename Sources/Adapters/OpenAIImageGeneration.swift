@@ -26,7 +26,12 @@ extension OpenAIAdapter {
         modelID: String,
         controls: GenerationControls
     ) throws -> AsyncThrowingStream<StreamEvent, Error> {
-        let inputImages = inputImagesForImageGeneration(from: messages)
+        var controls = controls
+        if var options = controls.openaiImageGeneration {
+            OpenAIImageModelSupport.normalize(&options, for: modelID)
+            controls.openaiImageGeneration = options.isEmpty ? nil : options
+        }
+        let inputImages = try imageGenerationInputs(messages: messages, modelID: modelID, controls: controls)
         let prompt = extractImagePrompt(from: messages)
 
         guard !prompt.isEmpty else {
@@ -53,7 +58,7 @@ extension OpenAIAdapter {
                         )
                     }
 
-                    let images = resolveImageOutputs(from: response.data ?? [], controls: controls)
+                    let images = try resolveImageOutputs(from: response.data ?? [], controls: controls, responseFormat: response.outputFormat)
                     guard !images.isEmpty else {
                         throw LLMError.decodingError(message: "OpenAI image generation returned no image output.")
                     }
@@ -65,7 +70,7 @@ extension OpenAIAdapter {
                     if let revisedPrompt = response.data?.first?.revisedPrompt {
                         continuation.yield(.contentDelta(.text(revisedPrompt)))
                     }
-                    continuation.yield(.messageEnd(usage: nil))
+                    continuation.yield(.messageEnd(usage: response.usage?.value))
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)

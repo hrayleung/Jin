@@ -74,6 +74,8 @@ actor AttachmentStorageManager {
             return "jpg"
         case "image/png":
             return "png"
+        case "image/svg+xml":
+            return "svg"
         case "image/gif":
             return "gif"
         case "image/webp":

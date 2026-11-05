@@ -71,6 +71,10 @@ extension OpenAICompatibleAdapter {
             modelID: modelID
         )
 
+        if !ModelCapabilityRegistry.supportsTopP(for: providerConfig.type, modelID: modelID) {
+            body.removeValue(forKey: "top_p")
+        }
+
         OpenAICompatibleReasoningSupport.finalizeOpenAICompatibleReasoningBody(
             &body,
             controls: controls,

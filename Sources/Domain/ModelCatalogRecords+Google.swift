@@ -517,6 +517,57 @@ extension ModelCatalog {
     // red/yellow/blue/black clip. Models that are colour-approximate but clearly reading
     // frames (they report the crossfade colours — orange/olive) count as reading.
     static let openRouterRecords: [Record] = [
+        // Official /api/v1/models, fetched 2026-11-05. Limits and effort bands are host-specific.
+        Record(id: "ricursiveai/ripple-65b-preview", displayName: "ricursiveAI: Ripple 65B Preview",
+               capabilities: [.streaming, .toolCalling, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        Record(id: "tencent/hy4", displayName: "Tencent: Hy4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.none, .low, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Audio uses the existing input_audio path; PDF/video inputs remain unclaimed.
+        Record(id: "stealth/crouton-alpha", displayName: "Crouton Alpha",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max,
+                                                     supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Video remains unclaimed until the exact hosted route is verified.
+        Record(id: "z-ai/glm-5.3-flashx-legal", displayName: "Z.ai: GLM 5.3 FlashX Legal",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max,
+                                                     supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Cohere distribution announcement: retrieval endpoints, not chat (blocked-adapter).
+        Record(id: "cohere/embed-5-pro", displayName: "Cohere: Embed 5 Pro",
+               capabilities: [],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "cohere/embed-5-fast", displayName: "Cohere: Embed 5 Fast",
+               capabilities: [],
+               contextWindow: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "cohere/rerank-5-pro", displayName: "Cohere: Rerank 5 Pro",
+               capabilities: [],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "cohere/rerank-5-fast", displayName: "Cohere: Rerank 5 Fast",
+               capabilities: [],
+               contextWindow: 32_768,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
         // Ox Alpha stealth preview (verified against live OpenRouter
         // GET /api/v1/model/stealth/ox-alpha + /endpoints, 2026-08-22). Single
         // Stealth upstream. 1,048,576 context / 131,072 max output. Tools +

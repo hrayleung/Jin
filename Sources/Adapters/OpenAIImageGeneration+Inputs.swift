@@ -98,7 +98,7 @@ extension OpenAIAdapter {
         }
     }
 
-    private func resolvedImageData(forUpload image: ImageContent) throws -> Data? {
+    func resolvedImageData(forUpload image: ImageContent) throws -> Data? {
         if let data = image.data {
             return data
         }

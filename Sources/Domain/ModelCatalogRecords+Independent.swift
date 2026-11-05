@@ -234,6 +234,15 @@ extension ModelCatalog {
     // MARK: DeepInfra
 
     static let deepInfraRecords: [Record] = [
+        // Official model metadata + exact-ID schema/openai-chat-completions (Nov 5).
+        // reasoning.enabled is documented. Keep a toggle until model-specific effort
+        // levels are documented; the schema's effort enum is shared across models.
+        Record(id: "moonshotai/Kimi-K3.1-Pro", displayName: "Kimi K3.1 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
         // Seeded
         // Kimi K3 (live on DeepInfra serverless; verified against models.dev `deepinfra`
         // and Moonshot K3 docs, 2026-07-29): 1,048,576 context / 131,072 output,
@@ -584,6 +593,13 @@ extension ModelCatalog {
     // MARK: Together AI
 
     static let togetherRecords: [Record] = [
+        // Official serverless/models table (2026-11-05). Output limit and exact
+        // K3.1 reasoning controls are not published; the K3 guide is not a K3.1 spec.
+        Record(id: "moonshotai/Kimi-K3.1-Pro", displayName: "Kimi K3.1 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
         // Seeded
         // Kimi K3 (Together serverless day-0; verified against together.ai/models/kimi-k3
         // and models.dev `togetherai`, 2026-07-29): 1,048,576 context / 131,072 output,
@@ -1366,6 +1382,15 @@ extension ModelCatalog {
     // MARK: Fireworks
 
     static let fireworksRecords: [Record] = [
+        // Nov 3 Ultra-fast preview route (official serverless-modes + model library).
+        // Same DeepSeek V4.1 Flash 1017 model. Host contextLength is 1,048,576;
+        // no route-specific output cap is published. Priority tier is unavailable.
+        Record(id: "accounts/fireworks/routers/deepseek-v4p1-flash-1017-ultrafast", displayName: "DeepSeek V4.1 Flash 1017 Ultra-fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort,
+                                                     supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
         // `firerouter/opus` (fireworks.ai/models/fireworks/firerouter-opus, created
         // 2026-09-28) is deliberately omitted: it is a FireConnect router that fans
         // out to Claude Opus 5.5 + open models under BYOK Claude-plan auth, not a
@@ -2853,6 +2878,15 @@ extension ModelCatalog {
                maxOutputTokens: 64_000,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // Official inference/go/v1/models, released Nov 4, 2026. Chat Completions,
+        // text+image, temperature supported; explicit none/high effort values.
+        Record(id: "hy4", displayName: "Hy4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .effort,
+                                                     supportedEfforts: [.none, .high]),
+               isFullySupported: true, isSeeded: true),
         // Hy4 preview (live GET /zen/go/v1/models + opencode.ai/docs/go endpoint table,
         // 2026-08-29). Exact ID `hy4-preview` on /zen/go/v1/chat/completions via
         // @ai-sdk/openai-compatible — must NOT join `anthropicMessagesModelIDs` or
@@ -3196,6 +3230,14 @@ extension ModelCatalog {
     // MARK: MorphLLM
 
     static let morphLLMRecords: [Record] = [
+        // Official Morph model feed, 2026-11-05. Catalog-only: image, tool and
+        // reasoning serialization are not implemented by the current adapter.
+        Record(id: "morph-kimik31", displayName: "Kimi K3.1 Pro (Fast)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
         // Seeded — appear in the model picker on first launch
         Record(id: "morph-kimik3", displayName: "Kimi K3 (Fast)",
                capabilities: [.streaming],
@@ -3288,6 +3330,12 @@ extension ModelCatalog {
     // discount → promptCaching on all seeded models. Reasoning wire shapes differ by
     // family — see BasetenRequestSupport.
     static let basetenRecords: [Record] = [
+        // Official decision-models guide: System One scoring endpoint (blocked-adapter).
+        Record(id: "decision-models/baseten-joey-2b-latest", displayName: "Joey 2B",
+               capabilities: [],
+               contextWindow: 16_384,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
         // Seeded — Kimi K3 first so it is the default preferred model.
         Record(id: "moonshotai/Kimi-K3", displayName: "Kimi K3",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],

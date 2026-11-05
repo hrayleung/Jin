@@ -4,7 +4,7 @@ import Foundation
 
 /// OpenAI image-generation controls (`/v1/images/generations` + `/v1/images/edits`).
 ///
-/// Supports `gpt-image-2`, `gpt-image-1`, `gpt-image-1.5`, `gpt-image-1-mini`,
+/// Supports GPT Image 2.6 Sunburst/Flare, `gpt-image-2`, `gpt-image-1`, `gpt-image-1.5`, `gpt-image-1-mini`,
 /// `dall-e-3`, and `dall-e-2`.
 struct OpenAIImageGenerationControls: Codable {
     var count: Int?
@@ -18,6 +18,11 @@ struct OpenAIImageGenerationControls: Codable {
     /// Controls how closely the model matches input image style/features (gpt-image-1 only).
     var inputFidelity: OpenAIImageInputFidelity?
     var user: String?
+    var complexity: OpenAIImageComplexity?
+    var frameCount: Int?
+    var frameDurationMilliseconds: Int?
+    var inputMode: OpenAIImageInputMode?
+    var editGuidance: OpenAIImageEditGuidance?
 
     init(
         count: Int? = nil,
@@ -29,7 +34,12 @@ struct OpenAIImageGenerationControls: Codable {
         outputCompression: Int? = nil,
         moderation: OpenAIImageModeration? = nil,
         inputFidelity: OpenAIImageInputFidelity? = nil,
-        user: String? = nil
+        user: String? = nil,
+        complexity: OpenAIImageComplexity? = nil,
+        frameCount: Int? = nil,
+        frameDurationMilliseconds: Int? = nil,
+        inputMode: OpenAIImageInputMode? = nil,
+        editGuidance: OpenAIImageEditGuidance? = nil
     ) {
         self.count = count
         self.size = size
@@ -41,6 +51,11 @@ struct OpenAIImageGenerationControls: Codable {
         self.moderation = moderation
         self.inputFidelity = inputFidelity
         self.user = user
+        self.complexity = complexity
+        self.frameCount = frameCount
+        self.frameDurationMilliseconds = frameDurationMilliseconds
+        self.inputMode = inputMode
+        self.editGuidance = editGuidance
     }
 
     var isEmpty: Bool {
@@ -54,6 +69,11 @@ struct OpenAIImageGenerationControls: Codable {
             && moderation == nil
             && inputFidelity == nil
             && user?.trimmedNonEmpty == nil
+            && complexity == nil
+            && frameCount == nil
+            && frameDurationMilliseconds == nil
+            && inputMode == nil
+            && editGuidance == nil
     }
 }
 
@@ -196,14 +216,22 @@ enum OpenAIImageOutputFormat: String, Codable, CaseIterable {
     case png
     case jpeg
     case webp
+    case svg
+    case gif
 
     var displayName: String { rawValue.uppercased() }
+
+    var isGenerationOnly: Bool { self == .svg || self == .gif }
+    var supportsCompression: Bool { self == .jpeg || self == .webp }
+    static let rasterFormats: [Self] = [.png, .jpeg, .webp]
 
     var mimeType: String {
         switch self {
         case .png: return "image/png"
         case .jpeg: return "image/jpeg"
         case .webp: return "image/webp"
+        case .svg: return "image/svg+xml"
+        case .gif: return "image/gif"
         }
     }
 }
@@ -225,4 +253,30 @@ enum OpenAIImageInputFidelity: String, Codable, CaseIterable {
     case high
 
     var displayName: String { rawValue.capitalized }
+}
+
+/// Planning depth, independent of rendering quality; both 2.6 models default to high.
+enum OpenAIImageComplexity: String, Codable, CaseIterable {
+    case low, medium, high
+    var displayName: String { rawValue.capitalized }
+}
+
+enum OpenAIImageInputMode: String, Codable, CaseIterable {
+    case generate, edit
+    var displayName: String { self == .generate ? "New Image" : "Edit Images" }
+}
+
+/// The guide remains a normal message attachment, so attachment persistence and
+/// cleanup keep working. It is removed from the reference list before uploading.
+enum OpenAIImageEditGuidance: String, Codable, CaseIterable {
+    case markup, mask
+    var displayName: String { self == .markup ? "Last Image Is Markup" : "Last Image Is a Mask" }
+    var helpText: String {
+        switch self {
+        case .markup:
+            return "Attach the original first and a transparent PNG annotation layer last. Both must have matching dimensions."
+        case .mask:
+            return "Attach the original PNG first and a matching PNG mask last. Transparent areas identify where to edit."
+        }
+    }
 }

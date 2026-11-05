@@ -72,60 +72,6 @@ extension ChatControlNormalizationSupport {
         _ controls: inout OpenAIImageGenerationControls,
         lowerModelID: String
     ) {
-        guard let profile = OpenAIImageModelSupport.profile(for: lowerModelID) else {
-            controls.size = nil
-            controls.quality = nil
-            controls.style = nil
-            controls.background = nil
-            controls.outputFormat = nil
-            controls.outputCompression = nil
-            controls.moderation = nil
-            controls.inputFidelity = nil
-            return
-        }
-
-        if let size = controls.size,
-           OpenAIImageModelSupport.validate(size: size, for: lowerModelID) != nil {
-            controls.size = nil
-        }
-
-        if let quality = controls.quality,
-           !profile.qualityOptions.contains(quality) {
-            controls.quality = nil
-        }
-
-        if !profile.supportsStyle {
-            controls.style = nil
-        }
-
-        if let background = controls.background,
-           !profile.backgroundOptions.contains(background) {
-            controls.background = nil
-        }
-
-        if !profile.supportsOutputFormat {
-            controls.outputFormat = nil
-        }
-
-        if !profile.supportsOutputCompression {
-            controls.outputCompression = nil
-        }
-
-        if !profile.supportsModeration {
-            controls.moderation = nil
-        }
-
-        if !profile.supportsInputFidelity {
-            controls.inputFidelity = nil
-        }
-
-        if controls.background == .transparent,
-           controls.outputFormat == .jpeg {
-            controls.outputFormat = .png
-        }
-
-        if controls.outputFormat == nil || controls.outputFormat == .png {
-            controls.outputCompression = nil
-        }
+        OpenAIImageModelSupport.normalize(&controls, for: lowerModelID)
     }
 }

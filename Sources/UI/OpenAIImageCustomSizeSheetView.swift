@@ -7,17 +7,20 @@ struct OpenAIImageCustomSizeSheetView: View {
 
     let modelID: String
     let currentSize: OpenAIImageSize?
+    let outputFormat: OpenAIImageOutputFormat?
     var onCancel: () -> Void
     var onSave: (OpenAIImageSize) -> Void
 
     init(
         modelID: String,
         currentSize: OpenAIImageSize?,
+        outputFormat: OpenAIImageOutputFormat? = nil,
         onCancel: @escaping () -> Void,
         onSave: @escaping (OpenAIImageSize) -> Void
     ) {
         self.modelID = modelID
         self.currentSize = currentSize
+        self.outputFormat = outputFormat
         self.onCancel = onCancel
         self.onSave = onSave
 
@@ -31,14 +34,15 @@ struct OpenAIImageCustomSizeSheetView: View {
     }
 
     private var currentValidationError: String? {
-        OpenAIImageCustomSizeSheetSupport.validationError(draftText: draftText, modelID: modelID)
+        OpenAIImageCustomSizeSheetSupport.validationError(draftText: draftText, modelID: modelID, outputFormat: outputFormat)
     }
 
     private var displayedValidationError: String? {
         OpenAIImageCustomSizeSheetSupport.displayedValidationError(
             explicitError: validationError,
             draftText: draftText,
-            modelID: modelID
+            modelID: modelID,
+            outputFormat: outputFormat
         )
     }
 
@@ -57,7 +61,7 @@ struct OpenAIImageCustomSizeSheetView: View {
                             validationError = nil
                         }
 
-                    Text(OpenAIImageModelSupport.sizeConstraintSummary(for: modelID))
+                    Text(OpenAIImageModelSupport.sizeConstraintSummary(for: modelID, outputFormat: outputFormat))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -3,13 +3,15 @@ import Foundation
 extension OpenAIAdapter {
     func resolveImageOutputs(
         from items: [OpenAIImageItem],
-        controls: GenerationControls
-    ) -> [ImageContent] {
-        let outputFormat = controls.openaiImageGeneration?.outputFormat
+        controls: GenerationControls,
+        responseFormat: OpenAIImageOutputFormat? = nil
+    ) throws -> [ImageContent] {
+        let outputFormat = responseFormat ?? controls.openaiImageGeneration?.outputFormat
         let defaultMIME = outputFormat?.mimeType ?? "image/png"
 
-        return items.compactMap { item in
+        return try items.compactMap { item in
             if let b64 = item.b64Json, let data = Data(base64Encoded: b64) {
+                if outputFormat == .svg { try OpenAIImageSVGValidation.validate(data) }
                 return ImageContent(mimeType: defaultMIME, data: data, url: nil)
             }
             if let urlString = item.url, let url = URL(string: urlString) {
@@ -29,6 +31,8 @@ struct OpenAIImageGenerationResponse: Codable {
     let created: Int?
     let data: [OpenAIImageItem]?
     let error: OpenAIImageAPIError?
+    let outputFormat: OpenAIImageOutputFormat?
+    let usage: OpenAIImageUsage?
 }
 
 struct OpenAIImageItem: Codable {
@@ -40,4 +44,18 @@ struct OpenAIImageItem: Codable {
 struct OpenAIImageAPIError: Codable {
     let code: String?
     let message: String
+}
+
+struct OpenAIImageUsage: Codable {
+    let inputTokens: Int
+    let outputTokens: Int
+    let inputTokensDetails: InputDetails?
+
+    struct InputDetails: Codable {
+        let cachedTokens: Int?
+    }
+
+    var value: Usage {
+        Usage(inputTokens: inputTokens, outputTokens: outputTokens, cachedTokens: inputTokensDetails?.cachedTokens)
+    }
 }
