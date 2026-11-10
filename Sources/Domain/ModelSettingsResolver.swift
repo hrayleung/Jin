@@ -314,6 +314,8 @@ enum ModelSettingsResolver {
     /// "Adaptive thinking (always on)" — `{type: "disabled"}` must not be sent.
     /// Fable/Mythos 5 / 5.1 reject disabled the same way.
     private static let anthropicAlwaysOnReasoningModelIDs: Set<String> = [
+        "claude-fable-5-2",
+        "claude-mythos-5-2",
         // Opus 5.5 (2026-09-22): adaptive thinking cannot be disabled — both
         // `{type:"disabled"}` and `budget_tokens` are rejected, unlike Opus 5.
         "claude-opus-5-5",
@@ -384,6 +386,11 @@ enum ModelSettingsResolver {
     /// but its catalog record keeps reasoningConfig nil (no reasoning UI, no reasoning
     /// shape sent), making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
+        "thinkingmachines/inkling-2-small:free",
+        "anthropic/claude-fable-5.2",
+        "meta/muse-ember",
+        "liquid/lfm-3-1.7b",
+        "liquid/lfm-3-1.7b:free",
         "openai/gpt-6-astra",
         // Opus 5.5's thinking is adaptive-only upstream (Anthropic what's-new,
         // 2026-09-22) — unlike Opus 5, there is no off switch to pass through.
@@ -453,6 +460,10 @@ enum ModelSettingsResolver {
     /// record keeps reasoningConfig nil (no reasoning UI, no reasoning shape sent),
     /// making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let vercelAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
+        "anthropic/claude-fable-5.2",
+        "anthropic/claude-fable-5.2-fast",
+        "humansand/ampersand-v0.1",
+        "meta/muse-ember",
         "openai/gpt-6-astra",
         "spacexai/grok-4.7",
         "xai/grok-4.6",
@@ -565,6 +576,9 @@ enum ModelSettingsResolver {
     /// `qwen3-8-2-4t-a95b` refuses `reasoning_effort: "none"` with 400
     /// "Disabling thinking is not supported." (chat-completions docs, 2026-08-27).
     private static let runinfraAlwaysOnReasoningModelIDs: Set<String> = [
+        // Step publishes thinking by default, but no API effort/off control.
+        "step-5-preview",
+        "stepfun-ai/step-5-preview",
         "qwen3-8-2-4t-a95b",
         "inferact/qwen3.8-2.4t-a95b-nvfp4",
     ]

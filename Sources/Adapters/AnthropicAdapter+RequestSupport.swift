@@ -193,6 +193,9 @@ extension AnthropicAdapter {
         // (including provider-specific overrides) has had its say.
         AnthropicRequestBodySupport.sanitizeAdaptiveThinking(in: &body, modelID: modelID)
         AnthropicRequestBodySupport.normalizeDisabledThinkingEffort(in: &body, modelID: modelID)
+        if providerConfig.type == .anthropic {
+            AnthropicRequestBodySupport.applyThinkingBindingControls(to: &body, modelID: modelID)
+        }
 
         return (body, preparation.betaHeader)
     }
@@ -252,7 +255,10 @@ extension AnthropicAdapter {
             from: controls,
             messages: normalizedMessages,
             codeExecutionEnabled: codeExecutionEnabled,
-            fastModeEnabled: fastModeEnabled
+            // Fable/Mythos 5.2 fast mode is GA and needs no fast-mode beta header.
+            fastModeEnabled: fastModeEnabled && !AnthropicModelLimits.requiresThinkingBindingControls(for: modelID),
+            thinkingBindingControlsEnabled: providerConfig.type == .anthropic
+                && AnthropicModelLimits.requiresThinkingBindingControls(for: modelID)
         )
 
         return RequestPreparation(

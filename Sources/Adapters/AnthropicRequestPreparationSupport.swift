@@ -5,7 +5,8 @@ enum AnthropicRequestPreparationSupport {
         from controls: GenerationControls,
         messages: [Message],
         codeExecutionEnabled: Bool,
-        fastModeEnabled: Bool = false
+        fastModeEnabled: Bool = false,
+        thinkingBindingControlsEnabled: Bool = false
     ) -> String? {
         var additions: [String] = []
         if requestUsesFilesAPI(messages, codeExecutionEnabled: codeExecutionEnabled) {
@@ -13,6 +14,9 @@ enum AnthropicRequestPreparationSupport {
         }
         if fastModeEnabled {
             additions.append(anthropicFastModeBetaHeader)
+        }
+        if thinkingBindingControlsEnabled {
+            additions.append("thinking-binding-controls-2026-08-01")
         }
         return mergedBetaHeader(extractBetaHeader(from: controls), additions: additions)
     }

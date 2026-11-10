@@ -427,6 +427,8 @@ enum ModelCapabilityRegistry {
     /// names Opus 5.5 and Sonnet 5.5. Haiku 5.5 (2026-10-07) is added from its migration
     /// guide, which accepts `code_execution_20250825` and later — exact ID only.
     private static let anthropicCodeExecutionSupportedModelIDs: Set<String> = [
+        "claude-fable-5-2",
+        "claude-mythos-5-2",
         "claude-fable-5-1",
         "claude-mythos-5-1",
         "claude-fable-5",
@@ -1114,10 +1116,13 @@ enum ModelCapabilityRegistry {
         let lower = modelID.lowercased()
         switch providerType {
         case .openrouter:
-            return lower != "tencent/hy4"
+            return !["tencent/hy4", "anthropic/claude-fable-5.2"].contains(lower)
         case .vercelAIGateway:
             return !["tencent/hy4", "inclusionai/ling-3.1-flash-1019",
-                     "meituan/longcat-2.5", "zai/glm-5.3-flashx-legal"].contains(lower)
+                     "meituan/longcat-2.5", "zai/glm-5.3-flashx-legal",
+                     "anthropic/claude-fable-5.2", "anthropic/claude-fable-5.2-fast",
+                     "deepseek/deepseek-v4.1-flash-1017-ultrafast",
+                     "humansand/ampersand-v0.1", "meta/muse-ember"].contains(lower)
         default:
             return true
         }
@@ -1132,6 +1137,9 @@ enum ModelCapabilityRegistry {
             return false
         }
 
+        if let efforts = catalogReasoningEfforts(for: providerType, modelID: modelID) {
+            return efforts.contains(.xhigh)
+        }
         let canonicalLowerModelID = canonicalOpenAIModelID(lowerModelID: modelID.lowercased())
         return openAIStyleExtremeEffortModelIDs.contains(canonicalLowerModelID)
     }
@@ -1141,6 +1149,9 @@ enum ModelCapabilityRegistry {
             return false
         }
 
+        if let efforts = catalogReasoningEfforts(for: providerType, modelID: modelID) {
+            return efforts.contains(.max)
+        }
         let lowerModelID = modelID.lowercased()
         if providerType == .openrouter,
            openRouterHighBandEffortModelIDs.contains(lowerModelID)
@@ -1368,6 +1379,9 @@ enum ModelCapabilityRegistry {
     ) -> [ReasoningEffort] {
         if let declaredEfforts, !declaredEfforts.isEmpty {
             return declaredEfforts
+        }
+        if let efforts = catalogReasoningEfforts(for: providerType, modelID: modelID) {
+            return efforts
         }
 
         let lowerModelID = modelID.lowercased()
@@ -1758,6 +1772,15 @@ enum ModelCapabilityRegistry {
         return efforts
     }
 
+    /// Exact catalog bands also apply to callers without a fetched/persisted ModelInfo.
+    /// This keeps adapter normalization and parameter menus on the same verified values.
+    private static func catalogReasoningEfforts(for providerType: ProviderType?, modelID: String) -> [ReasoningEffort]? {
+        guard let providerType,
+              let efforts = ModelCatalog.entry(for: modelID, provider: providerType)?.reasoningConfig?.supportedEfforts,
+              !efforts.isEmpty else { return nil }
+        return efforts
+    }
+
     private static func supportedAnthropicEfforts(lowerModelID: String) -> [ReasoningEffort] {
         if AnthropicModelLimits.supportsXHighEffort(for: lowerModelID) {
             return [.low, .medium, .high, .xhigh, .max]
@@ -1926,6 +1949,7 @@ enum ModelCapabilityRegistry {
 
     /// Exact Muse family IDs on the Meta Model API (and bare IDs without gateway prefix).
     static func isMetaMuseSparkModelID(_ lowerModelID: String) -> Bool {
+        if lowerModelID == "muse-ember-1.0" { return true }
         let bare = lowerModelID.hasPrefix("meta/")
             ? String(lowerModelID.dropFirst("meta/".count))
             : lowerModelID
@@ -2251,7 +2275,9 @@ enum ModelCapabilityRegistry {
     static func supportsWebSearchDynamicFiltering(for providerType: ProviderType?, modelID: String) -> Bool {
         guard providerType == .anthropic || providerType == .claudeManagedAgents else { return false }
         let lower = modelID.lowercased()
-        return lower == "claude-fable-5-1"
+        return lower == "claude-fable-5-2"
+            || lower == "claude-mythos-5-2"
+            || lower == "claude-fable-5-1"
             || lower == "claude-mythos-5-1"
             || lower == "claude-fable-5"
             || lower == "claude-mythos-5"

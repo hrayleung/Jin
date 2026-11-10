@@ -64,6 +64,15 @@ extension ModelCatalog {
     // not publish these IDs — Gemini Enterprise Agent Platform slugs are a
     // different product surface.
     private static let geminiOmniVideoRecords: [Record] = [
+        // aistudio.google.com/docs/models/gemini-omni-flash, released 2026-11-05.
+        // Interactions video generation/editing, 3–15 seconds (interpolation/extension: 3–10).
+        Record(id: "gemini-omni-1.2-flash", displayName: "Gemini Omni 1.2 Flash",
+               capabilities: [.videoGeneration],
+               contextWindow: 131_072,
+               maxOutputTokens: 65_536,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+
         Record(id: "gemini-omni-1.1-flash", displayName: "Gemini Omni Flash",
                capabilities: [.videoGeneration],
                contextWindow: 1_048_576,
@@ -517,6 +526,39 @@ extension ModelCatalog {
     // red/yellow/blue/black clip. Models that are colour-approximate but clearly reading
     // frames (they report the crossfade colours — orange/olive) count as reading.
     static let openRouterRecords: [Record] = [
+        // Official live /models, verified 2026-11-10. Limits and effort bands belong to this gateway.
+        Record(id: "thinkingmachines/inkling-2-small:free", displayName: "Thinking Machines: Inkling 2 Small (free)",
+               capabilities: [.streaming, .toolCalling, .reasoning, .vision],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.minimal, .low, .medium, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "anthropic/claude-fable-5.2", displayName: "Anthropic: Claude Fable 5.2",
+               capabilities: [.streaming, .toolCalling, .reasoning, .vision, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Video is advertised, but stays disabled until the required gateway video probe.
+        Record(id: "meta/muse-ember", displayName: "Meta: Muse Ember",
+               capabilities: [.streaming, .toolCalling, .reasoning, .audio, .vision, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max, supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "liquid/lfm-3-1.7b", displayName: "LiquidAI: LFM3-1.7B",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 8_192,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "liquid/lfm-3-1.7b:free", displayName: "LiquidAI: LFM3-1.7B (free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 262_144,
+               maxOutputTokens: 8_192,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+
         // Official /api/v1/models, fetched 2026-11-05. Limits and effort bands are host-specific.
         Record(id: "ricursiveai/ripple-65b-preview", displayName: "ricursiveAI: Ripple 65B Preview",
                capabilities: [.streaming, .toolCalling, .promptCaching],

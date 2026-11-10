@@ -74,6 +74,14 @@ extension OpenAICompatibleAdapter {
         if !ModelCapabilityRegistry.supportsTopP(for: providerConfig.type, modelID: modelID) {
             body.removeValue(forKey: "top_p")
         }
+        if providerConfig.type == .vercelAIGateway,
+           ["anthropic/claude-fable-5.2", "anthropic/claude-fable-5.2-fast"].contains(modelID.lowercased()) {
+            // Neither route publishes sampling parameters. Enforce this after
+            // overrides so persisted controls from an earlier model stay harmless.
+            for key in ["temperature", "top_p", "top_k"] {
+                body.removeValue(forKey: key)
+            }
+        }
 
         OpenAICompatibleReasoningSupport.finalizeOpenAICompatibleReasoningBody(
             &body,

@@ -203,7 +203,9 @@ extension OpenRouterAdapter {
             // normalization; that must not be misread as "none". They use
             // OpenRouter's documented boolean form instead.
             if usesToggleOnlyReasoning(modelID: modelID) {
-                let enabled = reasoning.enabled
+                let enabled = reasoning.enabled || !ModelSettingsResolver.defaultReasoningCanDisable(
+                    for: .openrouter, modelID: modelID
+                )
                 body["include_reasoning"] = enabled
                 body["reasoning"] = ["enabled": enabled]
                 return enabled && requestShape == .openAIResponses

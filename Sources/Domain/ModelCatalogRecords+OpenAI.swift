@@ -1259,6 +1259,38 @@ extension ModelCatalog {
     // MARK: Vercel AI Gateway
 
     static let vercelAIGatewayRecords: [Record] = [
+        // Official live /models, verified 2026-11-10. Limits and effort bands belong to this gateway.
+        Record(id: "anthropic/claude-fable-5.2", displayName: "Claude Fable 5.2",
+               capabilities: [.streaming, .toolCalling, .reasoning, .vision, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "anthropic/claude-fable-5.2-fast", displayName: "Claude Fable 5.2 (Fast)",
+               capabilities: [.streaming, .toolCalling, .reasoning, .vision, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "deepseek/deepseek-v4.1-flash-1017-ultrafast", displayName: "DeepSeek V4.1 Flash 1017 Ultrafast",
+               capabilities: [.streaming, .toolCalling, .reasoning, .vision, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.none, .low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "humansand/ampersand-v0.1", displayName: "Ampersand v0.1",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.low, .medium, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "meta/muse-ember", displayName: "Muse Ember",
+               capabilities: [.streaming, .toolCalling, .reasoning, .vision, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+
         // Official ai-gateway.vercel.sh/v1/models, released Oct 30–Nov 4, 2026.
         Record(id: "inclusionai/ling-3.1-flash-1019", displayName: "Ling 3.1 Flash 1019",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],

@@ -22,7 +22,7 @@ import Foundation
 actor MetaAdapter: LLMProviderAdapter {
     let providerConfig: ProviderConfig
     let capabilities: ModelCapability = [
-        .streaming, .toolCalling, .vision, .videoInput, .nativePDF, .reasoning, .promptCaching
+        .streaming, .toolCalling, .vision, .videoInput, .audio, .nativePDF, .reasoning, .promptCaching
     ]
 
     let networkManager: NetworkManager
