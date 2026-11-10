@@ -12,7 +12,7 @@ enum GoogleVideoGenerationCore {
     /// Gemini Omni Flash exact IDs (Gemini API / Interactions). Do not prefix-match.
     static func isOmniFlashModel(_ modelID: String) -> Bool {
         switch modelID.lowercased() {
-        case "gemini-omni-1.1-flash", "gemini-omni-flash-preview":
+        case "gemini-omni-1.2-flash", "gemini-omni-1.1-flash", "gemini-omni-flash-preview":
             return true
         default:
             return false

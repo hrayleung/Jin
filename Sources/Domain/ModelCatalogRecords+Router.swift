@@ -23,6 +23,20 @@ import Foundation
 extension ModelCatalog {
 
     static let routerRecords: [Record] = [
+        // docs.router.com/supported-models, verified 2026-11-10. Gateway-specific limits.
+        Record(id: "claude-fable-5-2", displayName: "Claude Fable 5.2",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "muse-ember-1.0", displayName: "Muse Ember",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+
         // MARK: Anthropic
         Record(id: "claude-fable-5", displayName: "Claude Fable 5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],

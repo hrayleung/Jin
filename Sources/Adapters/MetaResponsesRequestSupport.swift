@@ -94,7 +94,7 @@ enum MetaResponsesRequestSupport {
         guard let reasoning = controls.reasoning, reasoning.enabled else { return }
 
         let effort = ModelCapabilityRegistry.normalizedReasoningEffort(
-            reasoning.effort ?? .medium,
+            reasoning.effort ?? ModelCatalog.entry(for: modelID, provider: providerType)?.reasoningConfig?.defaultEffort ?? .medium,
             for: providerType,
             modelID: modelID
         )

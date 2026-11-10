@@ -7,6 +7,21 @@ extension ModelCatalog {
     // MARK: Anthropic
 
     static let anthropicRecords: [Record] = [
+        // Fable/Mythos 5.2: official model/migration/effort docs, 2026-11-09.
+        // Always-on adaptive thinking; prefix-bound replay uses the documented drop policy.
+        Record(id: "claude-fable-5-2", displayName: "Claude Fable 5.2",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "claude-mythos-5-2", displayName: "Claude Mythos 5.2",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+
         // Fable/Mythos 5.1 (2026-09-01): same 1M / 128k / always-on adaptive thinking /
         // effort low…max (default high) surface as Fable 5. Official IDs from
         // platform.claude.com/docs/en/models/fable-5-1/overview. Mythos 5.1 is
@@ -3193,6 +3208,14 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: true),
+        // dev.meta.ai/docs/muse-ember (2026-11-09). Standard only; no Contributor alias.
+        Record(id: "muse-ember-1.0", displayName: "Muse Ember",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .videoInput, .audio, .nativePDF, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max, supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
+
         Record(id: "muse-spark-1.3", displayName: "Muse Spark 1.3",
                capabilities: [.streaming, .toolCalling, .vision, .videoInput, .nativePDF, .reasoning, .promptCaching],
                contextWindow: 1_048_576,

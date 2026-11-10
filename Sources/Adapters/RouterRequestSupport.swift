@@ -31,7 +31,9 @@ enum RouterRequestSupport {
         modelID: String,
         reasoningEnabled: Bool
     ) -> Bool {
-        providerType == .router && reasoningEnabled && isAnthropicRoutedModelID(modelID)
+        providerType == .router
+            && (reasoningEnabled || modelID.lowercased() == "claude-fable-5-2")
+            && isAnthropicRoutedModelID(modelID)
     }
 
     /// Anthropic rejects any explicit temperature other than 1 while thinking is on:

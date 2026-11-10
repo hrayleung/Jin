@@ -18,11 +18,12 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
 
     func testSeededModelsMatchOfficialCatalog() {
         let seeded = ModelCatalog.seededModels(for: .runinfra)
-        // The six Model APIs runinfra.ai/llms.txt lists (2026-10-18). DeepSeek V4 Flash / V4 Pro,
+        // Official library plus Step 5 Preview (2026-11-06). DeepSeek V4 Flash / V4 Pro,
         // Qwen3.8 Flash Next and Qwen3.8 2.4T A95B left the library; they stay cataloged, unseeded.
         let expectedIDs = [
             "deepseek-v4-1-flash",
             "deepseek-v4-1-flash-1017",
+            "step-5-preview",
             "glm-5-3-flash",
             "glm-5-3",
             "ornith-1-5-122b",
@@ -42,10 +43,10 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
             // "Accepted input: Text and images" on the model pages / named by the chat-completions contract.
             XCTAssertEqual(
                 info.capabilities.contains(.vision),
-                ["deepseek-v4-1-flash-1017", "qwen3-8-27b", "ornith-1-5-35b", "ornith-1-5-122b", "glm-5-3-flash"].contains(id),
+                ["step-5-preview", "deepseek-v4-1-flash-1017", "qwen3-8-27b", "ornith-1-5-35b", "ornith-1-5-122b", "glm-5-3-flash"].contains(id),
                 id
             )
-            XCTAssertEqual(info.maxOutputTokens, 32_768, id)
+            XCTAssertEqual(info.maxOutputTokens, id == "step-5-preview" ? 1_048_576 : 32_768, id)
             XCTAssertFalse(
                 ModelCapabilityRegistry.supportsWebSearch(for: .runinfra, modelID: id),
                 id
@@ -58,7 +59,7 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(config.type, .runinfra)
         XCTAssertEqual(config.baseURL, "https://api.runinfra.ai/v1")
         XCTAssertEqual(config.models.map(\.id).first, "deepseek-v4-1-flash")
-        XCTAssertEqual(config.models.count, 8)
+        XCTAssertEqual(config.models.count, 9)
         XCTAssertTrue(DefaultProviderSeeds.allProviders().contains(where: { $0.id == "runinfra" }))
 
         let adapter = RunInfraAdapter(providerConfig: config, apiKey: "test-key")

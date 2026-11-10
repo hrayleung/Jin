@@ -54,18 +54,18 @@ enum AnthropicModelLimits {
             || isSonnet5(lower) || isHaiku55(lower)
     }
 
-    /// Fast mode (beta: research preview) is documented for the exact model IDs
-    /// `claude-opus-5`, `claude-opus-5-5`, and `claude-opus-4-8` only. Opus 4.7 fast
-    /// mode has since been removed upstream (`speed: "fast"` on 4.7 now errors) and
-    /// the retired `claude-opus-4-6-fast` route silently falls back to standard
-    /// Opus 4.6, so both are gated off here. Opus 5.5's fast mode is Claude API only
-    /// (not Bedrock/Vertex/Foundry), which matches this provider's direct-API scope.
-    /// Sending `speed: "fast"` to any other model — including date-suffixed
-    /// snapshots of Opus 5/4.8 — returns an API error, and the request still bills
-    /// at the fast-mode rate as extra usage, so we gate strictly on exact-match.
+    /// Exact Messages API fast-mode IDs. Fable/Mythos 5.2 are GA (Nov 9, 2026).
+    /// Older Opus routes retain their existing beta-header behavior; retired 4.7
+    /// and unverified date-suffixed variants remain excluded.
     static func supportsFastMode(for modelID: String) -> Bool {
         let lower = modelID.lowercased()
         return lower == "claude-opus-5" || lower == "claude-opus-5-5" || lower == "claude-opus-4-8"
+            || lower == "claude-fable-5-2" || lower == "claude-mythos-5-2"
+    }
+
+    /// These exact models enforce thinking-prefix binding on every account.
+    static func requiresThinkingBindingControls(for modelID: String) -> Bool {
+        ["claude-fable-5-2", "claude-mythos-5-2"].contains(modelID.lowercased())
     }
 
     static func supportsMaxEffort(for modelID: String) -> Bool {
@@ -151,13 +151,13 @@ enum AnthropicModelLimits {
     }
 
     /// The Fable/Mythos 5 generation (`claude-fable-5`, `claude-fable-5-1`,
-    /// `claude-mythos-5`, `claude-mythos-5-1`). Mythos shares Fable's exact API
+    /// `claude-mythos-5`, `claude-mythos-5-1`, and their exact 5.2 IDs). Mythos shares Fable's exact API
     /// surface (adaptive-thinking-only, no sampling params, 128k output) without the
     /// safety classifiers. Note: the older invitation-only `claude-mythos-preview` is a
     /// different model and is intentionally NOT matched here.
     static func isFableMythos5(_ lowercasedModelID: String) -> Bool {
-        isModelFamily(lowercasedModelID, prefix: "claude-fable-5")
-            || isModelFamily(lowercasedModelID, prefix: "claude-mythos-5")
+        ["claude-fable-5", "claude-fable-5-1", "claude-fable-5-2",
+         "claude-mythos-5", "claude-mythos-5-1", "claude-mythos-5-2"].contains(lowercasedModelID)
     }
 
     /// Claude Opus 5. Same adaptive-thinking-only surface as Opus 4.8 (no `budget_tokens`,

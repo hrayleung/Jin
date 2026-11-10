@@ -106,6 +106,22 @@ extension ModelCatalog {
                 isSeeded: true,
                 capabilities: hostedVisionChat
             ),
+            // RunInfra models reference and exact library page, released 2026-11-06.
+            // Output is the published maximum, not the recommended 16,384 initial budget.
+            // No effort levels or disable control are documented for these exact IDs.
+            Record(id: "step-5-preview", displayName: "Step 5 Preview",
+                   capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                   contextWindow: 1_048_576,
+                   maxOutputTokens: 1_048_576,
+                   reasoningConfig: nil,
+                   isFullySupported: true, isSeeded: true),
+            Record(id: "stepfun-ai/Step-5-Preview", displayName: "Step 5 Preview",
+                   capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                   contextWindow: 1_048_576,
+                   maxOutputTokens: 1_048_576,
+                   reasoningConfig: nil,
+                   isFullySupported: true, isSeeded: false),
+
             hosted(
                 id: "deepseek-v4-flash",
                 displayName: "DeepSeek V4 Flash",

@@ -27,7 +27,7 @@ extension ChatAuxiliaryControlSupport {
     ) -> String {
         guard supportsAnthropicFastModeControl else { return "Fast Mode: Not supported" }
         let state = controls.anthropicSpeed == .fast ? "On" : "Off"
-        return "Fast Mode (beta): \(state) \u{00B7} 2.5x faster output, $30/$150 MTok"
+        return "Fast Mode: \(state) \u{00B7} Faster output at higher token rates"
     }
 
     static func anthropicFastModeBadgeText(

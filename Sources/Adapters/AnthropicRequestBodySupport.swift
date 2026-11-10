@@ -301,6 +301,17 @@ enum AnthropicRequestBodySupport {
         body["thinking"] = thinking
     }
 
+    /// Fable/Mythos 5.2 bind thinking blocks to the original request prefix. Jin can
+    /// edit history and change tools between turns, so let the API drop stale blocks
+    /// instead of rejecting the request. Apply after overrides and budget cleanup.
+    static func applyThinkingBindingControls(to body: inout [String: Any], modelID: String) {
+        guard AnthropicModelLimits.requiresThinkingBindingControls(for: modelID) else { return }
+        var thinking = (body["thinking"] as? [String: Any]) ?? [:]
+        thinking["type"] = "adaptive"
+        thinking["block_binding"] = ["prefix_mismatch_behavior": "drop_block"]
+        body["thinking"] = thinking
+    }
+
     /// Opus 5 rejects `thinking: {type: "disabled"}` paired with an effort of `xhigh`/`max`
     /// with a 400, and the API validates that pairing on every request. Jin's own effort is
     /// only emitted on the thinking-enabled path, but a persisted provider-specific

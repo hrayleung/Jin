@@ -25,11 +25,11 @@ extension ChatView {
 
     @ViewBuilder
     var anthropicFastModeMenuContent: some View {
-        Toggle("Fast mode (beta)", isOn: anthropicFastModeEnabledBinding)
+        Toggle("Fast mode", isOn: anthropicFastModeEnabledBinding)
 
         Divider()
 
-        Text("$30/$150 MTok \u{00B7} extra usage")
+        Text("Faster output at higher token rates")
             .font(.caption)
             .foregroundStyle(.secondary)
     }

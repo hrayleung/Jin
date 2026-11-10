@@ -68,7 +68,7 @@ final class MetaAdapterTests: XCTestCase {
         let seeded = ModelCatalog.seededModels(for: .meta)
         XCTAssertEqual(
             seeded.map(\.id),
-            ["muse-wonder-1.0", "muse-spark-1.3", "muse-spark-1.3-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.2-contributor"]
+            ["muse-wonder-1.0", "muse-ember-1.0", "muse-spark-1.3", "muse-spark-1.3-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.2-contributor"]
         )
 
         for id in ["muse-wonder-1.0", "muse-spark-1.3", "muse-spark-1.3-contributor", "muse-spark-1.2", "muse-spark-1.1", "muse-spark-1.2-contributor"] {

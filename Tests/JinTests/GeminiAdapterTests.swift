@@ -2292,6 +2292,11 @@ final class GeminiAdapterTests: XCTestCase {
     }
 
     func testGeminiOmniFlashUsesInteractionsAPINotVeoPredict() async throws {
+        try await assertOmniFlashUsesInteractions(modelID: "gemini-omni-1.1-flash")
+        try await assertOmniFlashUsesInteractions(modelID: "gemini-omni-1.2-flash")
+    }
+
+    private func assertOmniFlashUsesInteractions(modelID: String) async throws {
         let (configuration, protocolType) = makeMockedSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)
 
@@ -2310,7 +2315,7 @@ final class GeminiAdapterTests: XCTestCase {
 
             let body = try XCTUnwrap(requestBodyData(request))
             let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
-            XCTAssertEqual(root["model"] as? String, "gemini-omni-1.1-flash")
+            XCTAssertEqual(root["model"] as? String, modelID)
             XCTAssertEqual(root["background"] as? Bool, false)
             XCTAssertEqual(root["store"] as? Bool, false)
             XCTAssertEqual(root["stream"] as? Bool, false)
@@ -2331,7 +2336,7 @@ final class GeminiAdapterTests: XCTestCase {
             let response: [String: Any] = [
                 "id": "v1_omni_test",
                 "status": "completed",
-                "model": "gemini-omni-1.1-flash",
+                "model": modelID,
                 "object": "interaction",
                 "steps": [
                     [
@@ -2368,7 +2373,7 @@ final class GeminiAdapterTests: XCTestCase {
                     ]
                 )
             ],
-            modelID: "gemini-omni-1.1-flash",
+            modelID: modelID,
             controls: GenerationControls(
                 googleVideoGeneration: GoogleVideoGenerationControls(
                     durationSeconds: 8,

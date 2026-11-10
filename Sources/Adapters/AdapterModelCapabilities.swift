@@ -455,6 +455,7 @@ func openRouterOmitsSamplingParameters(modelID: String) -> Bool {
 }
 
 private let openRouterSamplingDeniedModelIDs: Set<String> = [
+    "anthropic/claude-fable-5.2",
     // GPT-6 family — OpenAI rejects sampling on these reasoning models and
     // OpenRouter's supported_parameters mirror that (base, `-pro`, `:batch`).
     "openai/gpt-6-astra",
