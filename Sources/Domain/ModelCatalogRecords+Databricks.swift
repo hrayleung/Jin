@@ -121,6 +121,17 @@ extension ModelCatalog {
                maxOutputTokens: 128_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // Claude Fable 5.2 (Databricks supported-models page, updated 2026-11-10):
+        // endpoint `databricks-claude-fable-5-2`. Same catalog-only treatment as
+        // the Fable 5.1 row — Databricks routes Claude through its Anthropic
+        // Messages surface, which Jin's chat-completions DatabricksAdapter does
+        // not use; upstream window/output mirror the Fable family (1M / 128K).
+        Record(id: "databricks-claude-fable-5-2", displayName: "Claude Fable 5.2",
+               capabilities: [.streaming, .toolCalling, .vision],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
         // Claude Sonnet 5.5 (Databricks supported-models docs, 2026-09-29): endpoint
         // `databricks-claude-sonnet-5-5`, "Supported inputs: text", tool use "through the
         // Anthropic Messages API". Databricks publishes no context window, output limit or
@@ -270,6 +281,22 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.low, .medium, .high]),
                isFullySupported: true, isSeeded: false),
+        // Gemini 4 Carbon (Databricks supported-models page, updated 2026-11-10;
+        // Vertex GA 2026-11-10): endpoint `databricks-gemini-4-carbon`,
+        // pay-per-token. Same upstream 1,048,576 / 65,536 envelope and
+        // low/medium/high (default medium) thinkingLevel band as Argon —
+        // Databricks docs state Gemini limits match the origin provider.
+        Record(id: "databricks-gemini-4-carbon", displayName: "Gemini 4 Carbon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Gemini 4 Hydrogen GA'd on Vertex 2026-11-12 but is NOT yet listed on
+        // the Databricks supported-models page (last updated 2026-11-10) —
+        // deliberately not cataloged until the endpoint name is published.
         Record(id: "databricks-gemini-3-8-flash", displayName: "Gemini 3.8 Flash",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                contextWindow: 1_048_576,

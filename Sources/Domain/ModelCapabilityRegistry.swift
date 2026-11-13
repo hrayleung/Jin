@@ -176,10 +176,14 @@ enum ModelCapabilityRegistry {
         "gemini-nano-banana-2.1",
     ]
 
-    /// Gemini 4 Argon and Gemini 3.1 Pro support LOW/MEDIUM/HIGH.
+    /// Gemini 4 Argon / Carbon and Gemini 3.1 Pro support LOW/MEDIUM/HIGH.
+    /// (Hydrogen's wider low…xhigh band has its own arm in
+    /// `supportedGeminiThinkingEfforts`.)
     private static let gemini31ProEffortModelIDs: Set<String> = [
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
+        "gemini-4-carbon",
+        "gemini-4-carbon-cyber-permissive",
         "gemini-3.1-pro-preview",
     ]
 
@@ -332,6 +336,10 @@ enum ModelCapabilityRegistry {
     /// Models documented by Google as supporting code execution in Gemini API.
     private static let geminiCodeExecutionSupportedModelIDs: Set<String> = [
         "gemini-4-argon",
+        "gemini-4-argon-cyber-permissive",
+        "gemini-4-carbon",
+        "gemini-4-carbon-cyber-permissive",
+        "gemini-4-hydrogen",
         "gemini-3-pro",
         "gemini-3-pro-preview",
         "gemini-3.1-pro",
@@ -357,6 +365,9 @@ enum ModelCapabilityRegistry {
     private static let vertexCodeExecutionSupportedModelIDs: Set<String> = [
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
+        "gemini-4-carbon",
+        "gemini-4-carbon-cyber-permissive",
+        "gemini-4-hydrogen",
         "gemini-3-pro",
         "gemini-3-pro-preview",
         "gemini-3.1-pro",
@@ -1822,6 +1833,7 @@ enum ModelCapabilityRegistry {
             || gemini37FlashEffortModelIDs.contains(lowerModelID)
             || gemini31ProEffortModelIDs.contains(lowerModelID)
             || gemini3ProLowHighEffortModelIDs.contains(lowerModelID)
+            || lowerModelID == "gemini-4-hydrogen"
     }
 
     private static func supportedGeminiThinkingEfforts(lowerModelID: String) -> [ReasoningEffort] {
@@ -1843,6 +1855,10 @@ enum ModelCapabilityRegistry {
         }
         if gemini3ProLowHighEffortModelIDs.contains(id) {
             return [.low, .high]
+        }
+        if id == "gemini-4-hydrogen" {
+            // Vertex release notes 2026-11-12: LOW/MEDIUM/HIGH(default)/XHIGH.
+            return [.low, .medium, .high, .xhigh]
         }
         return defaultGeminiReasoningEfforts
     }

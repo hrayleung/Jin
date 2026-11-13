@@ -11,6 +11,9 @@ struct VertexAIModelSupport {
     let knownModels: [(id: String, name: String, contextWindow: Int)] = [
         ("gemini-4-argon", "Gemini 4 Argon", 1_048_576),
         ("gemini-4-argon-cyber-permissive", "Gemini 4 Argon Cyber Permissive", 1_048_576),
+        ("gemini-4-carbon", "Gemini 4 Carbon", 1_048_576),
+        ("gemini-4-carbon-cyber-permissive", "Gemini 4 Carbon Cyber Permissive", 1_048_576),
+        ("gemini-4-hydrogen", "Gemini 4 Hydrogen", 1_048_576),
         ("gemini-3.1-pro-preview", "Gemini 3.1 Pro Preview", 1_048_576),
         ("gemini-3-flash-preview", "Gemini 3 Flash Preview", 1_048_576),
         ("gemini-3.8-flash", "Gemini 3.8 Flash", 1_048_576),
@@ -250,6 +253,27 @@ struct VertexAIModelSupport {
                 type: .effort,
                 defaultEffort: .high,
                 supportedEfforts: [.low, .medium, .high]
+            )
+        }
+        if lower == "gemini-4-carbon" {
+            return ModelReasoningConfig(
+                type: .effort,
+                defaultEffort: .medium,
+                supportedEfforts: [.low, .medium, .high]
+            )
+        }
+        if lower == "gemini-4-carbon-cyber-permissive" {
+            return ModelReasoningConfig(
+                type: .effort,
+                defaultEffort: .high,
+                supportedEfforts: [.low, .medium, .high]
+            )
+        }
+        if lower == "gemini-4-hydrogen" {
+            return ModelReasoningConfig(
+                type: .effort,
+                defaultEffort: .high,
+                supportedEfforts: [.low, .medium, .high, .xhigh]
             )
         }
         if lower == "gemini-nano-banana-2.1" {

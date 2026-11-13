@@ -173,6 +173,12 @@ extension FireworksAdapter {
             extraCapabilities: [.vision],
             reasoning: true
         ),
+        "kimi-k3p1-pro": FireworksFallbackSpec(
+            name: "Kimi K3.1 Pro",
+            contextWindow: 1_048_576,
+            extraCapabilities: [.vision],
+            reasoning: true
+        ),
         "kimi-k2p7-code": FireworksFallbackSpec(name: "Kimi K2.7 Code", contextWindow: 262_144, extraCapabilities: [.vision], reasoning: true),
         "kimi-k2p7-code-fast": FireworksFallbackSpec(name: "Kimi K2.7 Code Fast", contextWindow: 262_144, extraCapabilities: [.vision], reasoning: true),
         "kimi-k2p6": FireworksFallbackSpec(name: "Kimi K2.6", contextWindow: 262_100, extraCapabilities: [.vision], reasoning: true),
