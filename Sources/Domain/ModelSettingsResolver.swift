@@ -172,6 +172,9 @@ enum ModelSettingsResolver {
             // library, 2026-08-12). Kimi K3 / Inkling stay toggleable via `none`.
             return !modalAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType == .zyphra {
+            return !zyphraAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+        }
         if providerType == .makora {
             // GPT-OSS 120B on Makora: reasoning always on (omp-makora-provider).
             return !MakoraModelSupport.isAlwaysOnReasoningModel(modelID)
@@ -280,6 +283,9 @@ enum ModelSettingsResolver {
         "openai/gpt-oss-120b",
         "openai/gpt-oss-20b",
         "thinkingmachines/inkling",
+        // Inkling 2 Small (Together serverless table, 2026-11-13): same
+        // effort-only reasoning surface as Inkling — no off switch.
+        "thinkingmachines/inkling-2-small",
         "meta/muse-spark-1.2",
         "qwen/qwen3.8-2.4t-a95b",
         "zai-org/glm-5.3",
@@ -387,7 +393,20 @@ enum ModelSettingsResolver {
     /// shape sent), making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
         "thinkingmachines/inkling-2-small:free",
+        // Inkling 2 Small paid tier (live /models 2026-11-13): mandatory
+        // reasoning minimal…max, same as its `:free` sibling above.
+        "thinkingmachines/inkling-2-small",
         "anthropic/claude-fable-5.2",
+        // Gemini 4 Carbon/Hydrogen (live /models 2026-11-13): thinkingLevel is
+        // always on upstream (no `none`/`minimal` in the published band).
+        "google/gemini-4-carbon",
+        "google/gemini-4-hydrogen",
+        // Baidu ERNIE 5.5 Flash Preview free (live /models 2026-11-13):
+        // mandatory reasoning, single published effort `high`.
+        "baidu/ernie-5.5-flash-preview:free",
+        // Nex AGI Nex-N2.6 (live /models 2026-11-13): mandatory reasoning
+        // medium/high — no `none` in the band.
+        "nex-agi/nex-n2.6",
         "meta/muse-ember",
         "liquid/lfm-3-1.7b",
         "liquid/lfm-3-1.7b:free",
@@ -510,6 +529,13 @@ enum ModelSettingsResolver {
         "minimax/minimax-m3.1-flash",
         "moonshotai/kimi-k3.1-pro",
         "moonshotai/kimi-k3.1-pro-highspeed",
+        // Gemini 4 Carbon/Hydrogen on Vercel (live /v1/models + changelog
+        // 2026-11-13): thinkingLevel always on upstream, no `none` in band.
+        "google/gemini-4-carbon",
+        "google/gemini-4-hydrogen",
+        // Paper Instruments Ultramarine 1 Flash (released 2026-11-12):
+        // published band low/high/max (+budget_tokens) has no `none`.
+        "paperinstruments/ultramarine-1-flash",
     ]
 
     /// Cloudflare AI Gateway IDs whose reasoning cannot be disabled. Exact-ID only,
@@ -532,6 +558,10 @@ enum ModelSettingsResolver {
         // MiniMax-M3.1-Flash (listed 2026-10-19): always-on reasoning low..max.
         "minimax/m3.1-flash",
         "minimax/minimax-m3.1-flash",
+        // Claude Fable 5.2 + Gemini 4 Carbon (catalog fetched 2026-11-13):
+        // adaptive thinking / thinkingLevel are always on upstream.
+        "anthropic/claude-fable-5.2",
+        "google/gemini-4-carbon",
     ]
 
     /// Databricks foundation models where reasoning cannot be disabled.
@@ -550,6 +580,9 @@ enum ModelSettingsResolver {
         // built into the model and cannot be disabled; use reasoning_effort set
         // to low, medium, high, or xhigh".
         "databricks-grok-4-7",
+        // Gemini 4 Carbon on FMAPI (supported-models page updated 2026-11-10):
+        // same always-on thinkingLevel posture as databricks-gemini-4-argon.
+        "databricks-gemini-4-carbon",
     ]
 
     /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list
@@ -570,6 +603,17 @@ enum ModelSettingsResolver {
         "meta-models/muse-spark-open-816b-a42b",
         "zai-org/glm-5.3-flash",
         "nvidia/glm-5.3-flash-nvfp4",
+        // Kimi K3.1 Pro (Modal Shared Endpoints, 2026-11-04): same always-on
+        // low/high/max thinking-only band as the Vercel/Go copies.
+        "moonshotai/kimi-k3.1-pro",
+    ]
+
+    /// Zyphra Cloud IDs whose thinking cannot be disabled. The hosted
+    /// `zai-org/` GLM-5.3 line rejects disabled thinking upstream
+    /// (z.ai/blog/glm-5.3); GLM-5.3-Flash-FP4 is the same weights.
+    private static let zyphraAlwaysOnReasoningModelIDs: Set<String> = [
+        "zai-org/glm-5.3",
+        "zai-org/glm-5.3-flash-fp4",
     ]
 
     /// RunInfra IDs whose thinking cannot be turned off. Exact-ID only.
@@ -626,6 +670,8 @@ enum ModelSettingsResolver {
             || lower == "fireworks/qwen3p8-max"
             || lower == "accounts/fireworks/models/minimax-m3p1-flash"
             || lower == "fireworks/minimax-m3p1-flash"
+            || lower == "accounts/fireworks/models/kimi-k3p1-pro"
+            || lower == "fireworks/kimi-k3p1-pro"
             || fireworksCanonicalModelID(lower) == "qwen3p8-2p4t-a95b"
             || fireworksCanonicalModelID(lower) == "qwen3p8-max"
             || fireworksCanonicalModelID(lower) == "minimax-m3p1-flash" {

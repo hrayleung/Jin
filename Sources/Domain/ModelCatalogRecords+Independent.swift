@@ -644,6 +644,15 @@ extension ModelCatalog {
                contextWindow: 524_288,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
+        // Inkling 2 Small (Together serverless table + model page, verified
+        // 2026-11-13): 1,048,576 context, native image input ("Vision" tag),
+        // variable reasoning effort, cached-input pricing → promptCaching.
+        // Max output is unpublished on Together — left unset, same as Inkling.
+        Record(id: "thinkingmachines/Inkling-2-Small", displayName: "Inkling 2 Small",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         Record(id: "moonshotai/Kimi-K2.7-Code", displayName: "Kimi K2.7 Code",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 262_144,
@@ -1433,6 +1442,25 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: false),
+        // Kimi K3.1 Pro (Fireworks model library, verified 2026-11-13):
+        // `accounts/fireworks/models/kimi-k3p1-pro`, created 2026-11-02 on the
+        // library card. 1M-class context (card: "1040k tokens"), text+image
+        // input, function calling, cached-input pricing ($0.20/M) → promptCaching.
+        // Moonshot's K3.1 Pro publishes a thinking-only low/high/max effort
+        // ladder (same weights as the OpenCode Go / OpenRouter copies); max
+        // output mirrors those catalog entries at 131,072.
+        Record(id: "accounts/fireworks/models/kimi-k3p1-pro", displayName: "Kimi K3.1 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max, supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "fireworks/kimi-k3p1-pro", displayName: "Kimi K3.1 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max, supportedEfforts: [.low, .high, .max]),
                isFullySupported: true, isSeeded: false),
         Record(id: "fireworks/kimi-k2p6", displayName: "Kimi K2.6",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
@@ -3118,6 +3146,17 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
+        // `longcat-2.5-free` (live GET /zen/go/v1/models, 2026-11-13): the GA-free
+        // spelling of the LongCat 2.5 free tier — same /chat/completions route,
+        // 1,000,000 / 262,144 (feed-published output, wider than the preview-free
+        // twin's 131,072), text+image, tools, toggle-only reasoning. Kept
+        // unseeded alongside the preview-free record so both live IDs resolve.
+        Record(id: "longcat-2.5-free", displayName: "LongCat 2.5 (Free)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
         // `deepseek-flash` on Go (live /zen/go/v1/models) is DeepSeek's official
         // alias for V4.1 Flash — same /chat/completions path, same multimodal
         // successor caps and high/max band as `deepseek-v4.1-flash`
@@ -3607,6 +3646,17 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: false),
+        // Kimi K3.1 Pro (Modal Shared Endpoints, changelog 2026-11-04 +
+        // supported-models page): text+image input, 1M-token context,
+        // cached-input pricing ($0.20/M) → promptCaching. Moonshot publishes a
+        // thinking-only low/high/max ladder for K3.1 Pro; max output mirrors
+        // the other gateways' catalog entries at 131,072.
+        Record(id: "moonshotai/Kimi-K3.1-Pro", displayName: "Kimi K3.1 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max, supportedEfforts: [.low, .high, .max]),
                isFullySupported: true, isSeeded: false),
         Record(id: "zai-org/GLM-5.3", displayName: "GLM-5.3",
                capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],

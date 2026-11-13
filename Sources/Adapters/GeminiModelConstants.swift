@@ -9,6 +9,9 @@ enum GeminiModelConstants {
     static let knownModelIDs: Set<String> = [
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
+        "gemini-4-carbon",
+        "gemini-4-carbon-cyber-permissive",
+        "gemini-4-hydrogen",
         "gemini-3",
         "gemini-3-pro",
         "gemini-3-pro-preview",
@@ -44,12 +47,18 @@ enum GeminiModelConstants {
     static let gemini4ModelIDs: Set<String> = [
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
+        "gemini-4-carbon",
+        "gemini-4-carbon-cyber-permissive",
+        "gemini-4-hydrogen",
     ]
 
     /// Gemini 3 & 4 thinkingLevel-capable models (lowercased).
     static let gemini3ModelIDs: Set<String> = [
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
+        "gemini-4-carbon",
+        "gemini-4-carbon-cyber-permissive",
+        "gemini-4-hydrogen",
         "gemini-3",
         "gemini-3-pro",
         "gemini-3-pro-preview",
@@ -81,6 +90,9 @@ enum GeminiModelConstants {
     static let customSamplingUnsupportedModelIDs: Set<String> = [
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
+        "gemini-4-carbon",
+        "gemini-4-carbon-cyber-permissive",
+        "gemini-4-hydrogen",
         "gemini-3.8-flash",
         "gemini-3.8-flash-preview",
         "gemini-3.7-flash",
@@ -151,6 +163,9 @@ enum GeminiModelConstants {
     static let nativePDFModelIDs: Set<String> = [
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
+        "gemini-4-carbon",
+        "gemini-4-carbon-cyber-permissive",
+        "gemini-4-hydrogen",
         "gemini-3",
         "gemini-3-pro",
         "gemini-3-pro-preview",
@@ -271,7 +286,14 @@ enum GeminiModelConstants {
             return "LOW"
         case .medium:
             return supportsMedium ? "MEDIUM" : "HIGH"
-        case .high, .xhigh, .max:
+        case .high:
+            return "HIGH"
+        case .xhigh:
+            // Gemini 4 Hydrogen is the only model whose published thinkingLevel
+            // ladder includes XHIGH (Vertex model page, GA 2026-11-12); every
+            // other Gemini 4 model tops out at HIGH.
+            return canonicalTerminalModelID(modelID) == "gemini-4-hydrogen" ? "XHIGH" : "HIGH"
+        case .max:
             return "HIGH"
         }
     }
