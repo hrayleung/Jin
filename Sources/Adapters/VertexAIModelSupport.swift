@@ -241,28 +241,14 @@ struct VertexAIModelSupport {
         if GeminiModelConstants.gemini25TextModelIDs.contains(lower) {
             return ModelReasoningConfig(type: .budget, defaultBudget: 2048)
         }
-        if lower == "gemini-4-argon" {
+        if lower == "gemini-4-carbon" || lower == "gemini-4-argon" {
             return ModelReasoningConfig(
                 type: .effort,
                 defaultEffort: .medium,
                 supportedEfforts: [.low, .medium, .high]
             )
         }
-        if lower == "gemini-4-argon-cyber-permissive" {
-            return ModelReasoningConfig(
-                type: .effort,
-                defaultEffort: .high,
-                supportedEfforts: [.low, .medium, .high]
-            )
-        }
-        if lower == "gemini-4-carbon" {
-            return ModelReasoningConfig(
-                type: .effort,
-                defaultEffort: .medium,
-                supportedEfforts: [.low, .medium, .high]
-            )
-        }
-        if lower == "gemini-4-carbon-cyber-permissive" {
+        if lower == "gemini-4-carbon-cyber-permissive" || lower == "gemini-4-argon-cyber-permissive" {
             return ModelReasoningConfig(
                 type: .effort,
                 defaultEffort: .high,

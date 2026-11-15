@@ -392,21 +392,23 @@ enum ModelSettingsResolver {
     /// but its catalog record keeps reasoningConfig nil (no reasoning UI, no reasoning
     /// shape sent), making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
-        "thinkingmachines/inkling-2-small:free",
-        // Inkling 2 Small paid tier (live /models 2026-11-13): mandatory
-        // reasoning minimal…max, same as its `:free` sibling above.
-        "thinkingmachines/inkling-2-small",
-        "anthropic/claude-fable-5.2",
         // Gemini 4 Carbon/Hydrogen (live /models 2026-11-13): thinkingLevel is
         // always on upstream (no `none`/`minimal` in the published band).
         "google/gemini-4-carbon",
+        "google/gemini-4-carbon:batch",
         "google/gemini-4-hydrogen",
-        // Baidu ERNIE 5.5 Flash Preview free (live /models 2026-11-13):
-        // mandatory reasoning, single published effort `high`.
-        "baidu/ernie-5.5-flash-preview:free",
+        "google/gemini-4-hydrogen:batch",
+        // Inkling 2 Small paid & free tiers (live /models 2026-11-13): mandatory
+        // reasoning minimal…max.
+        "thinkingmachines/inkling-2-small",
+        "thinkingmachines/inkling-2-small:free",
         // Nex AGI Nex-N2.6 (live /models 2026-11-13): mandatory reasoning
         // medium/high — no `none` in the band.
         "nex-agi/nex-n2.6",
+        // Baidu ERNIE 5.5 Flash Preview free (live /models 2026-11-13):
+        // mandatory reasoning, single published effort `high`.
+        "baidu/ernie-5.5-flash-preview:free",
+        "anthropic/claude-fable-5.2",
         "meta/muse-ember",
         "liquid/lfm-3-1.7b",
         "liquid/lfm-3-1.7b:free",
@@ -558,10 +560,15 @@ enum ModelSettingsResolver {
         // MiniMax-M3.1-Flash (listed 2026-10-19): always-on reasoning low..max.
         "minimax/m3.1-flash",
         "minimax/minimax-m3.1-flash",
-        // Claude Fable 5.2 + Gemini 4 Carbon (catalog fetched 2026-11-13):
+        // Claude Fable 5.2 + Gemini 4 Carbon/Hydrogen (catalog fetched 2026-11-13/15):
         // adaptive thinking / thinkingLevel are always on upstream.
         "anthropic/claude-fable-5.2",
+        "meta/muse-ember-1.0",
         "google/gemini-4-carbon",
+        "google-vertex-ai/google/gemini-4-carbon",
+        "google-ai-studio/gemini-4-carbon",
+        "google-vertex-ai/google/gemini-4-hydrogen",
+        "google-ai-studio/gemini-4-hydrogen",
     ]
 
     /// Databricks foundation models where reasoning cannot be disabled.

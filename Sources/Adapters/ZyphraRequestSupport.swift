@@ -146,6 +146,8 @@ extension ZyphraAdapter {
             return "deepseek-ai/DeepSeek-V3.2"
         case "zai-org/glm-5.3":
             return "zai-org/GLM-5.3"
+        case "zai-org/glm-5.3-flash-fp4":
+            return "zai-org/GLM-5.3-Flash-FP4"
         case "xiaomimimo/mimo-v2.5":
             return "XiaomiMiMo/MiMo-V2.5"
         case "xiaomimimo/mimo-v2.5-pro":

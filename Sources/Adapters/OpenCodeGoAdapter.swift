@@ -112,6 +112,7 @@ actor OpenCodeGoAdapter: LLMProviderAdapter {
         "kimi-k2.7-code",
         "kimi-k2.6",
         "kimi-k2.5",
+        "longcat-2.5-free",
     ]
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {

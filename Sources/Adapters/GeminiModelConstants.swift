@@ -278,6 +278,7 @@ enum GeminiModelConstants {
         )
         let supportsMinimal = supportedEfforts.contains(.minimal)
         let supportsMedium = supportedEfforts.contains(.medium)
+        let supportsXHigh = supportedEfforts.contains(.xhigh)
 
         switch effort {
         case .none, .minimal:
@@ -288,13 +289,11 @@ enum GeminiModelConstants {
             return supportsMedium ? "MEDIUM" : "HIGH"
         case .high:
             return "HIGH"
-        case .xhigh:
+        case .xhigh, .max:
             // Gemini 4 Hydrogen is the only model whose published thinkingLevel
             // ladder includes XHIGH (Vertex model page, GA 2026-11-12); every
             // other Gemini 4 model tops out at HIGH.
-            return canonicalTerminalModelID(modelID) == "gemini-4-hydrogen" ? "XHIGH" : "HIGH"
-        case .max:
-            return "HIGH"
+            return supportsXHigh ? "XHIGH" : "HIGH"
         }
     }
 

@@ -95,7 +95,6 @@ final class November10ModelSupportTests: XCTestCase {
     func testBlockedRoutesDoNotAcquireFullSupportOrSeeds() {
         let blocked: [(ProviderType, [String])] = [
             (.openai, ["gpt-6-cyber"]), (.openaiWebSocket, ["gpt-6-cyber"]),
-            (.cloudflareAIGateway, ["meta/muse-ember-1.0"]),
             (.openrouter, ["anthropic/claude-fable-5.2:batch", "google/gemini-omni-1.2-flash", "openrouter/auto-code"]),
             (.vercelAIGateway, ["anthropic/claude-fable-5.2-batch", "google/gemini-omni-1.2-flash", "nace-ai/drex-v2.0"]),
             (.vertexai, ["claude-fable-5-2", "meta/muse-ember-1.0"]),
