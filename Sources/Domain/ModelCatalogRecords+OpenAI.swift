@@ -1154,6 +1154,71 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: false),
+        // Workers AI: Inkling 2 Small (developers.cloudflare.com/ai/models/@cf/thinkingmachines/inkling-2-small):
+        // 1,048,576 context, vision, tools, prompt caching, reasoning effort none..max (default high).
+        // Max output is unpublished in Workers AI docs — left unset.
+        Record(id: "@cf/thinkingmachines/inkling-2-small", displayName: "Inkling 2 Small (Workers AI)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .minimal, .low, .medium, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Gemini 4 Hydrogen & Carbon (BYOK AI Studio & Vertex paths on Cloudflare AI Gateway):
+        // 1,048,576 context / 65,536 synchronous output; custom sampling omitted via GeminiModelConstants,
+        // `nativePDF` kept off on gateway.
+        Record(id: "google-vertex-ai/google/gemini-4-hydrogen", displayName: "Gemini 4 Hydrogen",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "google-ai-studio/gemini-4-hydrogen", displayName: "Gemini 4 Hydrogen",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "google-vertex-ai/google/gemini-4-carbon", displayName: "Gemini 4 Carbon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "google-ai-studio/gemini-4-carbon", displayName: "Gemini 4 Carbon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Claude Fable 5.2 (developers.cloudflare.com/ai/models/anthropic/claude-fable-5.2):
+        // 1,000,000 / 128,000, adaptive thinking always on, low..max (default high).
+        Record(id: "anthropic/claude-fable-5.2", displayName: "Claude Fable 5.2",
+               capabilities: [.streaming, .toolCalling, .reasoning, .vision, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Meta Muse Ember 1.0 (developers.cloudflare.com/ai/models/meta/muse-ember-1.0):
+        // 1,048,576 / 524,288, vision, tools, prompt caching, minimal..max (default max).
+        Record(id: "meta/muse-ember-1.0", displayName: "Muse Ember",
+               capabilities: [.streaming, .toolCalling, .reasoning, .vision, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 524_288,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
         // Meta Muse Wonder 1.0 (Cloudflare catalog, added 2026-10-08):
         // `meta/muse-wonder-1.0`, 1,048,576 / 131,072, text+image input,
         // configurable reasoning effort (none/low/medium/high/xhigh/max on the
@@ -1188,19 +1253,8 @@ extension ModelCatalog {
                    supportedEfforts: [.low, .medium, .high]),
                isFullySupported: true, isSeeded: false),
         // --- Cloudflare AI Gateway additions, catalog fetched 2026-11-13 ---
-        // Anthropic Claude Fable 5.2 (developers.cloudflare.com/ai/models/anthropic/claude-fable-5.2):
-        // Anthropic Messages request format, 1,000,000 context / 128,000 output,
-        // cached-input pricing published. Effort band mirrors the upstream
-        // Anthropic surface (adaptive thinking is always-on; low…max).
-        // `.nativePDF` stays off on this gateway like its Fable siblings.
-        Record(id: "anthropic/claude-fable-5.2", displayName: "Claude Fable 5.2",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
-               contextWindow: 1_000_000,
-               maxOutputTokens: 128_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
-               isFullySupported: true, isSeeded: false),
         // Google Gemini 4 Carbon (developers.cloudflare.com/ai/models/google/gemini-4-carbon):
-        // Chat Completions request format, 1,048,576 context, cached-input pricing.
+        // Chat Completions request format, 1,048,576 context, 65,536 synchronous output.
         // Cloudflare publishes no per-model effort ladder on the card; the
         // upstream Gemini 4 Carbon band is low/medium/high (default medium) —
         // same conservative mirror as the Argon entries above.
@@ -1211,16 +1265,6 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.low, .medium, .high]),
-               isFullySupported: true, isSeeded: false),
-        // Thinking Machines Inkling 2 Small on Cloudflare Workers AI
-        // (@cf/thinkingmachines/inkling-2-small, paid tier required): 1,048,576
-        // context, vision + function calling, reasoning efforts
-        // none/minimal/low/medium/high(default)/max per the model card.
-        // Max output is not published — left unset.
-        Record(id: "@cf/thinkingmachines/inkling-2-small", displayName: "Inkling 2 Small",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
-               contextWindow: 1_048_576,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.none, .minimal, .low, .medium, .high, .max]),
                isFullySupported: true, isSeeded: false),
         // --- Cloudflare AI Gateway additions, 2026-10-14..2026-10-18 ---
         // Reflection AI Beam 1.0 501B A23B (Cloudflare catalog + models.dev
@@ -2231,6 +2275,99 @@ extension ModelCatalog {
                contextWindow: 32_768,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
+        // Gemini 4 Hydrogen & Carbon (ai-gateway.vercel.sh/v1/models, Nov 2026):
+        // 1,048,576 context / 65,536 synchronous output matching google/gemini-4-argon,
+        // text+image+pdf, tools, implicit caching; custom sampling omitted via GeminiModelConstants.
+        Record(id: "google/gemini-4-hydrogen", displayName: "Gemini 4 Hydrogen",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "google/gemini-4-carbon", displayName: "Gemini 4 Carbon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Thinking Machines Inkling 2 Small (ai-gateway.vercel.sh/v1/models, 2026-11-12):
+        // 1,048,576 / 262,144, text+image, tools, implicit caching, toggle/effort ladder.
+        Record(id: "thinkingmachines/inkling-2-small", displayName: "Inkling 2 Small",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Paper Instruments Ultramarine 1 Flash (ai-gateway.vercel.sh/v1/models, 2026-11-12):
+        // 1,048,576 / 131,000, text+image, tools, implicit caching, always-on low/high/max.
+        Record(id: "paperinstruments/ultramarine-1-flash", displayName: "Ultramarine 1 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Non-chat / batch / evaluation / image Vercel AI Gateway additions (isFullySupported: false).
+        Record(id: "anthropic/claude-fable-5.2-batch", displayName: "Claude Fable 5.2 (Batch)",
+               capabilities: [.streaming, .toolCalling, .reasoning, .vision, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: false, isSeeded: false),
+        Record(id: "google/gemini-decision-1", displayName: "Gemini Decision 1",
+               capabilities: [],
+               contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "minimax/minimax-h3-image", displayName: "MiniMax H3 Image",
+               capabilities: [.imageGeneration],
+               contextWindow: 0,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "minimax/minimax-h3-image-highspeed", displayName: "MiniMax H3 Image Highspeed",
+               capabilities: [.imageGeneration],
+               contextWindow: 0,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "nace-ai/drex-max-finance", displayName: "Drex Max Finance",
+               capabilities: [],
+               contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "nace-ai/drex-max-v1.1", displayName: "Drex Max v1.1",
+               capabilities: [],
+               contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "nace-ai/drex-v2.0", displayName: "Drex 2.0",
+               capabilities: [],
+               contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "parallel/parallel-decisions-fast", displayName: "Decisions Fast",
+               capabilities: [],
+               contextWindow: 32_000,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "perplexity/pplx-decider-v1.3", displayName: "Decider V1.3",
+               capabilities: [],
+               contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
+        Record(id: "perplexity/pplx-decider-flash-v1.3", displayName: "Decider Flash V1.3",
+               capabilities: [],
+               contextWindow: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: false, isSeeded: false),
 
         // --- Vercel AI Gateway models table additions, fetched 2026-10-14 ---
         // Google Gemini 4 Argon (released 2026-10-08): 1,048,576 / 65,536,
@@ -2245,81 +2382,6 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.low, .medium, .high]),
                isFullySupported: true, isSeeded: false),
-        // --- Vercel AI Gateway additions, live /v1/models + changelog 2026-11-13 ---
-        // Google Gemini 4 Carbon (released 2026-11-10): gateway feed publishes
-        // 1M context / effort low/medium/high; upstream-documented sync output
-        // cap 65,536 (same mirror as the Argon record above). Input modalities
-        // text/image/pdf/video — `.videoInput` withheld pending a gateway probe.
-        Record(id: "google/gemini-4-carbon", displayName: "Gemini 4 Carbon",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 65_536,
-               reasoningConfig: ModelReasoningConfig(
-                   type: .effort, defaultEffort: .medium,
-                   supportedEfforts: [.low, .medium, .high]),
-               isFullySupported: true, isSeeded: false),
-        // Google Gemini 4 Hydrogen (released 2026-11-12): same surface; effort
-        // low/medium/high/xhigh, upstream default high.
-        Record(id: "google/gemini-4-hydrogen", displayName: "Gemini 4 Hydrogen",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 65_536,
-               reasoningConfig: ModelReasoningConfig(
-                   type: .effort, defaultEffort: .high,
-                   supportedEfforts: [.low, .medium, .high, .xhigh]),
-               isFullySupported: true, isSeeded: false),
-        // Thinking Machines Inkling 2 Small (released 2026-11-12): 1,048,576 /
-        // 262,144, text+image input, tools, toggle + effort none/low/medium/high
-        // (no `max` on this gateway's published band).
-        Record(id: "thinkingmachines/inkling-2-small", displayName: "Inkling 2 Small",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 262_144,
-               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.none, .low, .medium, .high]),
-               isFullySupported: true, isSeeded: false),
-        // Paper Instruments Ultramarine 1 Flash (released 2026-11-12):
-        // 1,048,576 / 131,000, text+image input, tools, effort low/high/max plus
-        // a budget_tokens option (min 1024) — effort band recorded conservatively.
-        Record(id: "paperinstruments/ultramarine-1-flash", displayName: "Ultramarine 1 Flash",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 131_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.low, .high, .max]),
-               isFullySupported: true, isSeeded: false),
-        // Catalog-only — recognized when fetched, not usable through Jin's
-        // chat-completions Vercel adapter.
-        // `google/gemini-decision-1` (released 2026-11-11): `evaluation` type,
-        // zero output tokens — Decisions API surface, not text generation.
-        Record(id: "google/gemini-decision-1", displayName: "Gemini Decision 1",
-               capabilities: [.vision],
-               contextWindow: 262_144,
-               reasoningConfig: nil,
-               isFullySupported: false, isSeeded: false),
-        // `perplexity/pplx-decider-v1.3` + `-flash-v1.3` (released 2026-11-12):
-        // `evaluation` type, zero output tokens — same Decisions-style surface.
-        Record(id: "perplexity/pplx-decider-v1.3", displayName: "PPLX Decider v1.3",
-               capabilities: [.vision],
-               contextWindow: 262_144,
-               reasoningConfig: nil,
-               isFullySupported: false, isSeeded: false),
-        Record(id: "perplexity/pplx-decider-flash-v1.3", displayName: "PPLX Decider Flash v1.3",
-               capabilities: [.vision],
-               contextWindow: 262_144,
-               reasoningConfig: nil,
-               isFullySupported: false, isSeeded: false),
-        // `minimax/minimax-h3-image` + `-highspeed` (released 2026-11-10):
-        // `image` type — image generation; the Vercel adapter has no
-        // image-generation request surface (blocked-adapter).
-        Record(id: "minimax/minimax-h3-image", displayName: "MiniMax H3 Image",
-               capabilities: [],
-               contextWindow: 0,
-               reasoningConfig: nil,
-               isFullySupported: false, isSeeded: false),
-        Record(id: "minimax/minimax-h3-image-highspeed", displayName: "MiniMax H3 Image Highspeed",
-               capabilities: [],
-               contextWindow: 0,
-               reasoningConfig: nil,
-               isFullySupported: false, isSeeded: false),
         // Meta Muse Wonder 1.0 (released 2026-10-08): 1,048,576 / 131,072,
         // text+image input, tags file-input + implicit-caching + reasoning +
         // structured-output + tool-use + vision. models.dev `vercel` publishes

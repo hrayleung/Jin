@@ -24,7 +24,8 @@ extension BasetenAdapter {
         if let maxTokens = controls.maxTokens {
             body["max_tokens"] = maxTokens
         }
-        if let topP = controls.topP {
+        if ModelCapabilityRegistry.supportsTopP(for: .baseten, modelID: modelID),
+           let topP = controls.topP {
             body["top_p"] = topP
         }
 
@@ -36,6 +37,10 @@ extension BasetenAdapter {
 
         for (key, value) in controls.providerSpecific {
             body[key] = value.value
+        }
+
+        if !ModelCapabilityRegistry.supportsTopP(for: .baseten, modelID: modelID) {
+            body.removeValue(forKey: "top_p")
         }
 
         return try makeAuthorizedJSONRequest(

@@ -116,6 +116,8 @@ extension ChatView {
 
     static let geminiPreferredModelOrder: [String] = [
         "gemini-4-argon",
+        "gemini-4-carbon",
+        "gemini-4-hydrogen",
         "gemini-3.1-pro-preview",
         "gemini-3-pro-preview",
         "gemini-3-pro",

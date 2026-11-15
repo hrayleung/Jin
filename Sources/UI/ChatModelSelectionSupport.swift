@@ -70,6 +70,7 @@ enum ChatModelSelectionSupport {
     ]
     static let preferredBasetenModelOrder: [String] = [
         "moonshotai/Kimi-K3",
+        "moonshotai/Kimi-K3.1-Pro",
         "moonshotai/Kimi-K2.7-Code",
         "moonshotai/Kimi-K2.6",
         "thinkingmachines/inkling",

@@ -625,89 +625,6 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: false),
 
-        // --- OpenRouter additions, live /api/v1/models 2026-11-13 ---
-        // Thinking Machines Inkling 2 Small paid tier (created 2026-11-10): same
-        // 1,048,576 / 131,072 envelope, text+image input, mandatory reasoning
-        // minimal…max (default high) as the `:free` copy above.
-        Record(id: "thinkingmachines/inkling-2-small", displayName: "Thinking Machines: Inkling 2 Small",
-               capabilities: [.streaming, .toolCalling, .reasoning, .vision],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 131_072,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.minimal, .low, .medium, .high, .max]),
-               isFullySupported: true, isSeeded: false),
-        // Google Gemini 4 Carbon (created 2026-11-09): 1,048,576 context,
-        // text+image+file+audio+video→text, tools, mandatory reasoning
-        // low/medium/high (default medium), cache read/write pricing.
-        // `.videoInput` withheld pending the gateway video probe (same policy
-        // as gemini-4-argon above).
-        Record(id: "google/gemini-4-carbon", displayName: "Google: Gemini 4 Carbon",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 65_536,
-               reasoningConfig: ModelReasoningConfig(
-                   type: .effort, defaultEffort: .medium,
-                   supportedEfforts: [.low, .medium, .high]),
-               isFullySupported: true, isSeeded: false),
-        // Google Gemini 4 Hydrogen (created 2026-11-12): same modality/capability
-        // surface as Carbon; mandatory reasoning low/medium/high/xhigh
-        // (live /models default medium — narrower default than upstream HIGH).
-        Record(id: "google/gemini-4-hydrogen", displayName: "Google: Gemini 4 Hydrogen",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 65_536,
-               reasoningConfig: ModelReasoningConfig(
-                   type: .effort, defaultEffort: .medium,
-                   supportedEfforts: [.low, .medium, .high, .xhigh]),
-               isFullySupported: true, isSeeded: false),
-        // Baidu ERNIE 5.5 Flash Preview (free, created 2026-11-11): 1,024,000
-        // context, text-only, tools + structured outputs, mandatory reasoning
-        // with a single published effort `high`.
-        Record(id: "baidu/ernie-5.5-flash-preview:free", displayName: "Baidu: ERNIE-5.5-Flash-Preview (free)",
-               capabilities: [.streaming, .toolCalling, .reasoning],
-               contextWindow: 1_024_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.high]),
-               isFullySupported: true, isSeeded: false),
-        // Baidu ERNIE Light DT 1.0 Intl (created 2026-11-11): 1,024,000 context,
-        // text-only, tools, reasoning optional with efforts none/low/high/max
-        // (live /models default max).
-        Record(id: "baidu/ernie-light-dt-1.0-intl", displayName: "Baidu: ERNIE-Light-DT-1.0-Intl",
-               capabilities: [.streaming, .toolCalling, .reasoning],
-               contextWindow: 1_024_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max, supportedEfforts: [.none, .low, .high, .max]),
-               isFullySupported: true, isSeeded: false),
-        // Nex AGI Nex-N2.6 (created 2026-11-11): 262,144 context, text+image
-        // input, tools, mandatory reasoning medium/high (default high).
-        Record(id: "nex-agi/nex-n2.6", displayName: "Nex AGI: Nex-N2.6",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
-               contextWindow: 262_144,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.medium, .high]),
-               isFullySupported: true, isSeeded: false),
-        // Batch copies of the Gemini 4 / Fable 5.2 releases: live /models exposes
-        // only `/api/v1/batches` for these IDs — Jin has no synchronous batch
-        // adapter, so they stay catalog-only (same policy as gemini-4-argon:batch).
-        Record(id: "google/gemini-4-carbon:batch", displayName: "Google: Gemini 4 Carbon (batch)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 65_536,
-               reasoningConfig: ModelReasoningConfig(
-                   type: .effort, defaultEffort: .medium,
-                   supportedEfforts: [.low, .medium, .high]),
-               isFullySupported: false, isSeeded: false),
-        Record(id: "google/gemini-4-hydrogen:batch", displayName: "Google: Gemini 4 Hydrogen (batch)",
-               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 65_536,
-               reasoningConfig: ModelReasoningConfig(
-                   type: .effort, defaultEffort: .medium,
-                   supportedEfforts: [.low, .medium, .high, .xhigh]),
-               isFullySupported: false, isSeeded: false),
-        Record(id: "anthropic/claude-fable-5.2:batch", displayName: "Anthropic: Claude Fable 5.2 (batch)",
-               capabilities: [.streaming, .toolCalling, .reasoning, .vision, .promptCaching],
-               contextWindow: 1_000_000,
-               maxOutputTokens: 128_000,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
-               isFullySupported: false, isSeeded: false),
-
         // Official /api/v1/models, fetched 2026-11-05. Limits and effort bands are host-specific.
         Record(id: "ricursiveai/ripple-65b-preview", displayName: "ricursiveAI: Ripple 65B Preview",
                capabilities: [.streaming, .toolCalling, .promptCaching],
@@ -2560,5 +2477,103 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: false),
+        // Gemini 4 Hydrogen & Carbon (OpenRouter live /api/v1/models + /endpoints + RSC,
+        // 2026-11-12): 1,048,576 / 943,718, audio+image+file+text(+video withheld without live probe),
+        // mandatory reasoning (`is_mandatory_reasoning: true`), Web Search ($0.014/req),
+        // custom sampling omitted via GeminiModelConstants.
+        Record(id: "google/gemini-4-hydrogen", displayName: "Google: Gemini 4 Hydrogen",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "google/gemini-4-carbon", displayName: "Google: Gemini 4 Carbon",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Thinking Machines: Inkling 2 Small (paid twin of `:free`; live /api/v1/models):
+        // 1,048,576 / 943,718, text+image, tools + structured outputs, cached-input ($0.03/M),
+        // mandatory reasoning (`is_mandatory_reasoning: true`, minimal..max, default high).
+        Record(id: "thinkingmachines/inkling-2-small", displayName: "Thinking Machines: Inkling 2 Small",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.minimal, .low, .medium, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Nex AGI: Nex-N2.6 (live /api/v1/models + RSC, 2026-11-10): 262,144 / 235,929,
+        // text+image, tools + structured outputs, cached-input ($0.024/M),
+        // mandatory reasoning (`is_mandatory_reasoning: true`, medium/high, default high).
+        Record(id: "nex-agi/nex-n2.6", displayName: "Nex AGI: Nex-N2.6",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 235_929,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Baidu: ERNIE-Light-DT-1.0 (live /api/v1/models + RSC, 2026-11-10): 1,024,000 / 131,072,
+        // text-only, tools + structured outputs, cached-input ($0.113/M),
+        // optional reasoning (`is_mandatory_reasoning: false`, none/low/high/max, default max).
+        Record(id: "baidu/ernie-light-dt-1.0-intl", displayName: "Baidu: ERNIE-Light-DT-1.0",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_024_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.none, .low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        // Baidu: ERNIE-5.5-Flash-Preview (free) (live /api/v1/models + RSC, 2026-11-10):
+        // 1,024,000 / 921,600, text-only, tools + structured outputs, no paid cache,
+        // mandatory reasoning (`is_mandatory_reasoning: true`, only `high`).
+        Record(id: "baidu/ernie-5.5-flash-preview:free", displayName: "Baidu: ERNIE-5.5-Flash-Preview (free)",
+               capabilities: [.streaming, .toolCalling, .reasoning],
+               contextWindow: 1_024_000,
+               maxOutputTokens: 921_600,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.high]),
+               isFullySupported: true, isSeeded: false),
+        // inclusionAI: Ling 3.2 Flash (free) (live /api/v1/models + RSC, 2026-11-13):
+        // 1,048,576 / 262,144, text+image, tools + structured outputs, no paid cache,
+        // optional toggle reasoning (`is_mandatory_reasoning: false`, `supports_reasoning_effort: false`).
+        Record(id: "inclusionai/ling-3.2-flash:free", displayName: "inclusionAI: Ling 3.2 Flash (free)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Batch-only twins (`:batch` async pricing/batch queue; catalog-only `isFullySupported: false`).
+        Record(id: "google/gemini-4-hydrogen:batch", displayName: "Google: Gemini 4 Hydrogen (batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: false, isSeeded: false),
+        Record(id: "google/gemini-4-carbon:batch", displayName: "Google: Gemini 4 Carbon (batch)",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: false, isSeeded: false),
+        Record(id: "anthropic/claude-fable-5.2:batch", displayName: "Anthropic: Claude Fable 5.2 (batch)",
+               capabilities: [.streaming, .toolCalling, .reasoning, .vision, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: false, isSeeded: false),
     ]
 }

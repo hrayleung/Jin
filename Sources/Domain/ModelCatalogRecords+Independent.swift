@@ -249,6 +249,18 @@ extension ModelCatalog {
     // MARK: DeepInfra
 
     static let deepInfraRecords: [Record] = [
+        // Thinking Machines Inkling 2 Small (deepinfra.com/thinkingmachines/Inkling-2-Small):
+        // DeepInfra caps context window at 262,144 tokens (model card is 1M upstream).
+        // Text+image, tools, structured outputs, prompt caching; reasoning_effort
+        // none/low/medium/high/xhigh (on by default; high default, none turns off).
+        Record(id: "thinkingmachines/Inkling-2-Small", displayName: "Inkling 2 Small",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
         // Official model metadata + exact-ID schema/openai-chat-completions (Nov 5).
         // reasoning.enabled is documented. Keep a toggle until model-specific effort
         // levels are documented; the schema's effort enum is shared across models.
@@ -615,6 +627,23 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                reasoningConfig: nil,
                isFullySupported: false, isSeeded: false),
+        // Thinking Machines Inkling 2 Small (docs.together.ai/docs/serverless-models,
+        // verified 2026-11-13): 1,048,576 context, native image input ("Vision" tag),
+        // function calling, cached-input pricing → promptCaching, variable reasoning
+        // effort (low/medium/high, default high). Max output is unpublished -> unset.
+        Record(id: "thinkingmachines/Inkling-2-Small", displayName: "Inkling 2 Small",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
+        // Elorian Labs Glimpse 1.0 (docs.together.ai/docs/serverless-models, Nov 10):
+        // 262,144 context, text+image, function calling, JSON, cached input ($0.06/M).
+        Record(id: "elorian-labs/glimpse-1.0", displayName: "Glimpse 1.0",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
+               isFullySupported: true, isSeeded: false),
         // Seeded
         // Kimi K3 (Together serverless day-0; verified against together.ai/models/kimi-k3
         // and models.dev `togetherai`, 2026-07-29): 1,048,576 context / 131,072 output,
@@ -644,15 +673,6 @@ extension ModelCatalog {
                contextWindow: 524_288,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
                isFullySupported: true, isSeeded: true),
-        // Inkling 2 Small (Together serverless table + model page, verified
-        // 2026-11-13): 1,048,576 context, native image input ("Vision" tag),
-        // variable reasoning effort, cached-input pricing → promptCaching.
-        // Max output is unpublished on Together — left unset, same as Inkling.
-        Record(id: "thinkingmachines/Inkling-2-Small", displayName: "Inkling 2 Small",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
-               contextWindow: 1_048_576,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high),
-               isFullySupported: true, isSeeded: false),
         Record(id: "moonshotai/Kimi-K2.7-Code", displayName: "Kimi K2.7 Code",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 262_144,
@@ -2689,6 +2709,15 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        // LongCat 2.5 Free (opencode.ai/zen/go/v1/models, released 2026-11-02):
+        // 1,000,000 / 262,144, text+image, tools, toggle reasoning (effort_updates: false,
+        // temperature: false, no paid caching).
+        Record(id: "longcat-2.5-free", displayName: "LongCat 2.5 Free",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 262_144,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: true),
         // Kimi K2.7 Code (live on the Go /models list since 2026-06-12; verified against
         // models.dev `opencode-go`): 262,144 context AND output, reasoning always-on with
         // NO effort control (empty reasoning_options — the gateway ignores reasoning_effort
@@ -3146,17 +3175,6 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
-        // `longcat-2.5-free` (live GET /zen/go/v1/models, 2026-11-13): the GA-free
-        // spelling of the LongCat 2.5 free tier — same /chat/completions route,
-        // 1,000,000 / 262,144 (feed-published output, wider than the preview-free
-        // twin's 131,072), text+image, tools, toggle-only reasoning. Kept
-        // unseeded alongside the preview-free record so both live IDs resolve.
-        Record(id: "longcat-2.5-free", displayName: "LongCat 2.5 (Free)",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
-               contextWindow: 1_000_000,
-               maxOutputTokens: 262_144,
-               reasoningConfig: nil,
-               isFullySupported: true, isSeeded: false),
         // `deepseek-flash` on Go (live /zen/go/v1/models) is DeepSeek's official
         // alias for V4.1 Flash — same /chat/completions path, same multimodal
         // successor caps and high/max band as `deepseek-v4.1-flash`
@@ -3405,6 +3423,18 @@ extension ModelCatalog {
                maxOutputTokens: 262_144,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: true),
+        // Kimi K3.1 Pro (docs.baseten.co/inference/model-apis/overview + reasoning.md):
+        // 1,000k (1,000,000) context / 1,048k (1,048,576) max output, text+image (no video),
+        // sampling parameters temperature/stop (no top_p), reasoning_effort none/low/high/max
+        // (default max; `none` disables).
+        Record(id: "moonshotai/Kimi-K3.1-Pro", displayName: "Kimi K3.1 Pro",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.none, .low, .high, .max]),
+               isFullySupported: true, isSeeded: true),
         Record(id: "moonshotai/Kimi-K2.7-Code", displayName: "Kimi K2.7 Code",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
                contextWindow: 262_144,
@@ -3639,6 +3669,17 @@ extension ModelCatalog {
     // that workspace deployed (or Shared Endpoints the token is allowed to hit).
     // modal.com/docs/guide/endpoints — one token, many endpoint URLs.
     static let modalRecords: [Record] = [
+        // Thinking Machines Inkling 2 Small (modal.com/library/thinking-machines/inkling-2-small):
+        // 1,048,576 / 131,072, text+image, tools, cached input ($0.03/M), adjustable effort
+        // none/minimal/low/medium/high (default)/max.
+        Record(id: "thinkingmachines/inkling-2-small", displayName: "Inkling 2 Small",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .minimal, .low, .medium, .high, .max]),
+               isFullySupported: true, isSeeded: false),
         // Kimi K3: 2.8T MoE with native vision and a 1M window (config.json
         // max_length 1048576). Reasoning is effort-controlled, not a true toggle.
         Record(id: "moonshotai/Kimi-K3", displayName: "Kimi K3",

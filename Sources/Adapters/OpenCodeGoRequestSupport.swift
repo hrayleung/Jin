@@ -110,7 +110,9 @@ extension OpenCodeGoAdapter {
         // (`reasoning_options: []`) and their catalog entries keep `reasoningConfig` nil;
         // do not emit `reasoning_effort` for them.
         let lowerModelID = modelID.lowercased()
-        let omitReasoningEffort = lowerModelID == "longcat-2.0" || lowerModelID == "iceman-contributor-free"
+        let omitReasoningEffort = lowerModelID == "longcat-2.0"
+            || lowerModelID == "longcat-2.5-free"
+            || lowerModelID == "iceman-contributor-free"
 
         if lowerModelID == "hy4", let reasoning = controls.reasoning {
             body["reasoning_effort"] = reasoning.enabled && reasoning.effort != .some(.none)

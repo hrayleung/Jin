@@ -34,7 +34,12 @@ enum OpenAICompatibleReasoningSupport {
             return applyAnthropicReasoning(to: &body, reasoning: reasoning, modelID: modelID)
 
         case .gemini:
-            applyGeminiReasoning(to: &body, reasoning: reasoning)
+            applyGeminiReasoning(
+                to: &body,
+                reasoning: reasoning,
+                providerConfig: providerConfig,
+                modelID: modelID
+            )
             return false
         }
     }
@@ -419,18 +424,27 @@ enum OpenAICompatibleReasoningSupport {
 
     private static func applyGeminiReasoning(
         to body: inout [String: Any],
-        reasoning: ReasoningControls
+        reasoning: ReasoningControls,
+        providerConfig: ProviderConfig,
+        modelID: String
     ) {
         var thinkingConfig: [String: Any] = [:]
         if reasoning.enabled {
             thinkingConfig["includeThoughts"] = true
             if let effort = reasoning.effort {
-                thinkingConfig["thinkingLevel"] = mapGeminiThinkingLevel(effort)
+                thinkingConfig["thinkingLevel"] = GeminiModelConstants.mapEffortToThinkingLevel(
+                    effort,
+                    for: providerConfig.type,
+                    modelID: modelID
+                )
             } else if let budget = reasoning.budgetTokens {
                 thinkingConfig["thinkingBudget"] = budget
             }
         } else {
-            thinkingConfig["thinkingLevel"] = "MINIMAL"
+            thinkingConfig["thinkingLevel"] = GeminiModelConstants.defaultThinkingLevelWhenOff(
+                for: providerConfig.type,
+                modelID: modelID
+            )
         }
 
         if !thinkingConfig.isEmpty {
@@ -649,19 +663,6 @@ enum OpenAICompatibleReasoningSupport {
             return "xhigh"
         case .max:
             return "max"
-        }
-    }
-
-    private static func mapGeminiThinkingLevel(_ effort: ReasoningEffort) -> String {
-        switch effort {
-        case .none, .minimal:
-            return "MINIMAL"
-        case .low:
-            return "LOW"
-        case .medium:
-            return "MEDIUM"
-        case .high, .xhigh, .max:
-            return "HIGH"
         }
     }
 

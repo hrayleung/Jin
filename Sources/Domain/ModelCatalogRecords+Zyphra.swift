@@ -25,23 +25,23 @@ extension ModelCatalog {
                contextWindow: 256_000,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
+        // GLM-5.3-Flash-FP4 (api.zyphra.com/v1/models, released 2026-11-12):
+        // MXFP4-quantized checkpoint of GLM-5.3-Flash; 1,048,576 / 131,072,
+        // text+image, function calling, cached input ($0.0225/M), always-on low/high/max.
+        Record(id: "zai-org/GLM-5.3-Flash-FP4", displayName: "GLM-5.3-Flash-FP4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: true),
         Record(id: "zai-org/GLM-5.3", displayName: "GLM-5.3",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 139_264,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: true),
-        // GLM-5.3-Flash-FP4 (Zyphra model feed, releaseDate 2026-11-12): MXFP4
-        // quantization of GLM-5.3-Flash — 1,048,576 context / 131,072 output,
-        // text+image input, function calling. Same weights as the GLM-5.3-Flash
-        // copies on other gateways whose published effort band is low/high/max
-        // (always-on thinking); reasoningConfig mirrors that band conservatively.
-        Record(id: "zai-org/GLM-5.3-Flash-FP4", displayName: "GLM-5.3-Flash-FP4",
-               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
-               contextWindow: 1_048_576,
-               maxOutputTokens: 131_072,
-               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max, supportedEfforts: [.low, .high, .max]),
-               isFullySupported: true, isSeeded: false),
         // `zyphra/ZONOS3-Mini` (feed releaseDate 2026-11-09) is a TTS/voice-
         // cloning model — Zyphra's adapter has no audio-generation surface
         // (blocked-adapter). `zai-org/GLM-5.3-Flash` (2026-08-26) predates this
