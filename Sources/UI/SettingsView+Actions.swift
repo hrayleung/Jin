@@ -33,6 +33,15 @@ extension SettingsView {
         )
     }
 
+    func navigateToPlugin(_ notification: Notification) {
+        guard
+            let pluginID = notification.userInfo?[SettingsNavigationUserInfoKey.pluginID] as? String,
+            Self.availablePlugins.contains(where: { $0.id == pluginID })
+        else { return }
+        selectedSection = .plugins
+        selectedPluginID = pluginID
+    }
+
     func showOperationError(_ message: String) {
         operationErrorMessage = message
         showingOperationError = true

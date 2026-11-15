@@ -30,6 +30,15 @@ enum AppPreferenceKeys {
     static let showConversationMinimap = "showConversationMinimap"
     static let mainSidebarWidth = "mainSidebarWidth"
 
+    // MARK: - Settings Window
+
+    // Sidebar group expansion. Every collapsible group shares one policy:
+    // expanded on first run, then whatever the user last left (like Finder's
+    // sidebar), so the layout is uniform and stable across launches.
+    static let settingsSidebarProvidersExpanded = "settingsSidebar.providersExpanded"
+    static let settingsSidebarMCPServersExpanded = "settingsSidebar.mcpServersExpanded"
+    static let settingsSidebarPluginsExpanded = "settingsSidebar.pluginsExpanded"
+
     // MARK: - Updates
 
     // Update checker

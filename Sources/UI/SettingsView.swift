@@ -108,6 +108,39 @@ struct SettingsView: View {
     // MARK: - Body
 
     var body: some View {
+        splitView
+            .frame(minWidth: 780, idealWidth: 980, minHeight: 600, idealHeight: 720)
+            .sheet(isPresented: $showingAddProvider) {
+                AddProviderView { id in
+                    selectedSection = .providers
+                    selectedProviderID = id
+                }
+            }
+            .sheet(isPresented: $showingAddServer) {
+                AddMCPServerView { id in
+                    selectedSection = .mcpServers
+                    selectedServerID = id
+                }
+            }
+            .onAppear { ensureValidSelection() }
+            .onChange(of: selectedSection) { _, _ in ensureValidSelection() }
+            .onChange(of: providers.count) { _, _ in ensureValidSelection() }
+            .onChange(of: mcpServers.count) { _, _ in ensureValidSelection() }
+            .task { await refreshPluginStatus() }
+            .onReceive(NotificationCenter.default.publisher(for: .pluginCredentialsDidChange)) { _ in
+                Task { await refreshPluginStatus() }
+            }
+            .onReceive(
+                NotificationCenter.default
+                    .publisher(for: .settingsNavigateToPlugin)
+                    .receive(on: RunLoop.main),
+                perform: navigateToPlugin
+            )
+    }
+
+    // Kept as a separate `some View` island: one giant modifier chain on `body`
+    // pushes the type-checker past its timeout on newer toolchains.
+    private var splitView: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarColumn
         } detail: {
@@ -121,43 +154,10 @@ struct SettingsView: View {
             JinSettingsWindowChrome()
                 .allowsHitTesting(false)
         }
-        .frame(minWidth: 780, idealWidth: 980, minHeight: 600, idealHeight: 720)
-        .sheet(isPresented: $showingAddProvider) {
-            AddProviderView { id in
-                selectedSection = .providers
-                selectedProviderID = id
-            }
-        }
-        .sheet(isPresented: $showingAddServer) {
-            AddMCPServerView { id in
-                selectedSection = .mcpServers
-                selectedServerID = id
-            }
-        }
-        .onAppear { ensureValidSelection() }
-        .onChange(of: selectedSection) { _, _ in ensureValidSelection() }
-        .onChange(of: providers.count) { _, _ in ensureValidSelection() }
-        .onChange(of: mcpServers.count) { _, _ in ensureValidSelection() }
         .alert("Couldn't update settings", isPresented: $showingOperationError) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(operationErrorMessage ?? "Please try again.")
-        }
-        .task { await refreshPluginStatus() }
-        .onReceive(NotificationCenter.default.publisher(for: .pluginCredentialsDidChange)) { _ in
-            Task { await refreshPluginStatus() }
-        }
-        .onReceive(
-            NotificationCenter.default
-                .publisher(for: .settingsNavigateToPlugin)
-                .receive(on: RunLoop.main)
-        ) { notification in
-            guard
-                let pluginID = notification.userInfo?[SettingsNavigationUserInfoKey.pluginID] as? String,
-                Self.availablePlugins.contains(where: { $0.id == pluginID })
-            else { return }
-            selectedSection = .plugins
-            selectedPluginID = pluginID
         }
         .confirmationDialog(
             "Delete provider?",

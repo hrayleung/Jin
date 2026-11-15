@@ -12,9 +12,12 @@ struct SettingsSidebarColumn: View {
     let onDeleteServer: (MCPServerConfigEntity) -> Void
     let pluginEnabled: (String) -> Binding<Bool>
 
-    @State private var providersExpanded = false
-    @State private var serversExpanded = false
-    @State private var pluginsExpanded = true
+    @AppStorage(AppPreferenceKeys.settingsSidebarProvidersExpanded)
+    private var providersExpanded = true
+    @AppStorage(AppPreferenceKeys.settingsSidebarMCPServersExpanded)
+    private var serversExpanded = true
+    @AppStorage(AppPreferenceKeys.settingsSidebarPluginsExpanded)
+    private var pluginsExpanded = true
 
     private var isSearching: Bool { !SettingsSearchSupport.trimmedSearchText(searchText).isEmpty }
     private var categories: [GeneralSettingsCategory] {
