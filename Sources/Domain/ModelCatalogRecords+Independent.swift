@@ -261,6 +261,11 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .high,
                    supportedEfforts: [.none, .low, .medium, .high, .xhigh]),
                isFullySupported: true, isSeeded: false),
+        Record(id: "Qwen/Qwen4-Max", displayName: "Qwen4 Max",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput],
+               contextWindow: 1_000_000,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
         // Official model metadata + exact-ID schema/openai-chat-completions (Nov 5).
         // reasoning.enabled is documented. Keep a toggle until model-specific effort
         // levels are documented; the schema's effort enum is shared across models.

@@ -379,6 +379,8 @@ private let openAIResponsesSamplingAllowedModelIDs: Set<String> = [
 /// slugs are OpenRouter's naming (canonicalized `openai/gpt-6-*-pro` lookups land
 /// here); they are harmless on the native surface where the IDs do not exist.
 private let openAIResponsesSamplingDeniedExactModelIDs: Set<String> = [
+    "gpt-6.2-astra",
+    "gpt-6.2-sol",
     "gpt-6-astra",
     "gpt-6-astra-pro",
     "gpt-6-sol",
@@ -402,6 +404,10 @@ func supportsOpenAIResponsesSamplingParameters(
     reasoningEnabled: Bool,
     providerType: ProviderType? = nil
 ) -> Bool {
+    if providerType == .vercelAIGateway, ModelCapabilityRegistry.isVercelGPT62Model(modelID) {
+        return false
+    }
+
     // Router relays one Responses payload to whichever upstream serves the model, so
     // Anthropic's own rule leaks through: "`temperature` may only be set to 1 when
     // thinking is enabled." That is invisible from the model ID's shape alone, hence
@@ -455,6 +461,10 @@ func openRouterOmitsSamplingParameters(modelID: String) -> Bool {
 }
 
 private let openRouterSamplingDeniedModelIDs: Set<String> = [
+    "openai/gpt-6.2-astra",
+    "openai/gpt-6.2-astra-pro",
+    "openai/gpt-6.2-sol",
+    "openai/gpt-6.2-sol-pro",
     "anthropic/claude-fable-5.2",
     "anthropic/claude-fable-5.2:batch",
     // GPT-6 family — OpenAI rejects sampling on these reasoning models and
@@ -530,13 +540,19 @@ private let openRouterSamplingDeniedModelIDs: Set<String> = [
 /// Resolves OpenAI `service_tier` from structured controls, with legacy fallback.
 ///
 /// Legacy fallback keeps compatibility with older persisted `providerSpecific["service_tier"]`.
-func resolvedOpenAIServiceTier(from controls: GenerationControls) -> String? {
-    if let serviceTier = controls.openAIServiceTier {
-        return serviceTier.rawValue
-    }
-
+func resolvedOpenAIServiceTier(
+    from controls: GenerationControls,
+    modelID: String,
+    providerType: ProviderType
+) -> String? {
     let legacyRaw = controls.providerSpecific["service_tier"]?.value as? String
-    return OpenAIServiceTier.normalized(rawValue: legacyRaw)?.rawValue
+    let tier = controls.openAIServiceTier ?? OpenAIServiceTier.normalized(rawValue: legacyRaw)
+    if tier == .ultrafast {
+        return OpenAIServiceTier.supportsUltrafast(modelID: modelID, providerType: providerType)
+            ? tier?.rawValue : nil
+    }
+    guard providerType == .openai || providerType == .openaiWebSocket else { return nil }
+    return tier?.rawValue
 }
 
 // MARK: - OpenAI-Compatible Streaming Dispatch

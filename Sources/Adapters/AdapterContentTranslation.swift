@@ -102,6 +102,7 @@ struct SplitContentResult {
 ///   - includeImages: Whether to detect images as rich content (default: true).
 ///   - includeAudio: Whether to detect audio as rich content (default: false).
 ///   - includeVideo: Whether to detect video as rich content (default: false).
+///   - includePDF: Whether to detect PDFs as rich content (default: false).
 ///   - imageUnsupportedMessage: If non-nil, appends this message for image parts instead of
 ///     flagging as rich content. Used by text-only providers (DeepSeek, Cerebras).
 ///
@@ -113,6 +114,7 @@ func splitContentParts(
     includeImages: Bool = true,
     includeAudio: Bool = false,
     includeVideo: Bool = false,
+    includePDF: Bool = false,
     imageUnsupportedMessage: String? = nil
 ) -> SplitContentResult {
     var visibleParts: [String] = []
@@ -130,6 +132,9 @@ func splitContentParts(
             visibleParts.append(quote.quotedText)
         case .file(let file):
             visibleParts.append(AttachmentPromptRenderer.fallbackText(for: file))
+            if includePDF, normalizedMIMEType(file.mimeType) == "application/pdf" {
+                hasRichUserContent = true
+            }
         case .image(let image):
             if let message = imageUnsupportedMessage {
                 if image.url != nil || image.data != nil {
@@ -185,7 +190,8 @@ func splitContentParts(
 func translateUserContentPartsToOpenAIFormat(
     _ parts: [ContentPart],
     audioPartBuilder: ((AudioContent) throws -> [String: Any]?)? = openAIInputAudioPart,
-    videoPartBuilder: ((VideoContent) throws -> [String: Any]?)? = nil
+    videoPartBuilder: ((VideoContent) throws -> [String: Any]?)? = nil,
+    filePartBuilder: ((FileContent) throws -> [String: Any]?)? = nil
 ) throws -> [[String: Any]] {
     var out: [[String: Any]] = []
     out.reserveCapacity(parts.count)
@@ -214,7 +220,8 @@ func translateUserContentPartsToOpenAIFormat(
             }
 
         case .file(let file):
-            out.append([
+            let nativePart = try filePartBuilder?(file)
+            out.append(nativePart ?? [
                 "type": "text",
                 "text": AttachmentPromptRenderer.fallbackText(for: file)
             ])

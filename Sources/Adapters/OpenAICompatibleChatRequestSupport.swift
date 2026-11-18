@@ -47,7 +47,8 @@ extension OpenAICompatibleAdapter {
         OpenAICompatibleRequestSupport.applyOpenAIServiceTier(
             to: &body,
             controls: controls,
-            providerType: providerConfig.type
+            providerType: providerConfig.type,
+            modelID: modelID
         )
 
         let functionTools = tools.isEmpty ? [] : (translateTools(tools) as? [[String: Any]] ?? [])

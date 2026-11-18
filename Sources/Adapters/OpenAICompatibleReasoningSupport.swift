@@ -90,6 +90,16 @@ enum OpenAICompatibleReasoningSupport {
             return false
         }
 
+        if providerConfig.type == .deepinfra, modelID.lowercased() == "thinkingmachines/inkling-2-small" {
+            // Omission preserves the provider's default depth when thinking is enabled.
+            if !reasoning.enabled {
+                body["reasoning_effort"] = "none"
+            } else if let effort = reasoning.effort {
+                body["reasoning_effort"] = mapReasoningEffort(effort, providerConfig: providerConfig, modelID: modelID)
+            }
+            return false
+        }
+
         if isCloudflareKimiK26Model(providerConfig: providerConfig, modelID: modelID) {
             let isDisabled = reasoning.enabled == false || (reasoning.effort ?? ReasoningEffort.none) == .none
             mergeChatTemplateKwargs(

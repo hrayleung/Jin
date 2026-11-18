@@ -42,6 +42,9 @@ extension DatabricksAdapter {
     /// cataloged capabilities. Uncataloged endpoints are treated conservatively (no vision)
     /// rather than guessing from the name.
     func modelSupportsVision(_ modelID: String) -> Bool {
+        if modelID.lowercased() == "system.ai.gemini-4-hydrogen" {
+            return false
+        }
         if let configured = findConfiguredModel(in: providerConfig, for: modelID) {
             return configured.capabilities.contains(.vision)
         }

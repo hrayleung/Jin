@@ -25,6 +25,15 @@ actor OpenAICompatibleAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        if providerConfig.type == .vercelAIGateway, ModelCapabilityRegistry.isVercelGPT62Model(modelID) {
+            var config = providerConfig
+            config.baseURL = baseURL
+            let adapter = OpenAIAdapter(providerConfig: config, apiKey: apiKey, networkManager: networkManager)
+            return try await adapter.sendMessage(
+                messages: messages, modelID: modelID, controls: controls, tools: tools, streaming: streaming
+            )
+        }
+
         if providerConfig.type == .mistral, isMistralTranscriptionOnlyModelID(modelID.lowercased()) {
             throw LLMError.invalidRequest(
                 message: "Model \(modelID) is transcription-only on Mistral /v1/audio/transcriptions. Use voxtral-mini-latest or voxtral-small-latest for chat."

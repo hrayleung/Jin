@@ -67,7 +67,7 @@ extension ChatModelCapabilitySupport {
             return GeminiModelConstants.supportsNativePDF(modelID)
         case .vertexai:
             return GeminiModelConstants.supportsVertexNativePDF(modelID)
-        case .anthropic, .claudeManagedAgents:
+        case .anthropic, .claudeManagedAgents, .openrouter:
             return JinModelSupport.supportsNativePDF(providerType: providerType, modelID: modelID)
         case .openai, .openaiWebSocket, .xai, .meta:
             return true
@@ -75,6 +75,8 @@ extension ChatModelCapabilitySupport {
             // Responses-routed Muse Spark IDs emit inline `input_file`. Exact IDs from
             // live `/models` — a near-miss must not light Native PDF on /chat/completions.
             return ModelCapabilityRegistry.isOpenCodeGoMuseSparkModelID(modelID.lowercased())
+        case .vercelAIGateway:
+            return ModelCapabilityRegistry.isVercelGPT62Model(modelID)
         default:
             return false
         }

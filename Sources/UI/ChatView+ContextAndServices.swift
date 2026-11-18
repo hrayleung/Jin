@@ -91,7 +91,10 @@ extension ChatView {
     }
 
     var supportsOpenAIServiceTierControl: Bool {
-        ChatAuxiliaryControlSupport.supportsOpenAIServiceTierControl(
+        if providerType == .vercelAIGateway {
+            return OpenAIServiceTier.supportsUltrafast(modelID: activeModelID, providerType: providerType)
+        }
+        return ChatAuxiliaryControlSupport.supportsOpenAIServiceTierControl(
             providerType: providerType,
             supportsMediaGenerationControl: supportsMediaGenerationControl
         )

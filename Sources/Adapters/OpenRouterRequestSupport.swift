@@ -26,7 +26,12 @@ extension OpenRouterAdapter {
 
         var body: [String: Any] = [
             "model": modelID,
-            "messages": try translateMessages(messages, modelID: modelID),
+            "messages": try translateMessages(
+                messages,
+                modelID: modelID,
+                includePDF: (controls.pdfProcessingMode ?? .native) == .native
+                    && JinModelSupport.supportsNativePDF(providerType: .openrouter, modelID: modelID)
+            ),
             "stream": streaming
         ]
 
@@ -106,19 +111,24 @@ extension OpenRouterAdapter {
         return ModelCatalog.entry(for: modelID, provider: .openrouter)?.capabilities.contains(.videoGeneration) == true
     }
 
-    private func translateMessages(_ messages: [Message], modelID: String) throws -> [[String: Any]] {
+    private func translateMessages(
+        _ messages: [Message], modelID: String, includePDF: Bool
+    ) throws -> [[String: Any]] {
         let includeVideo = modelSupportsVideoInput(providerConfig: providerConfig, modelID: modelID)
         return try translateMessagesToOpenAIFormat(messages) { message in
-            try translateNonToolMessage(message, includeVideo: includeVideo)
+            try translateNonToolMessage(message, includeVideo: includeVideo, includePDF: includePDF)
         }
     }
 
-    private func translateNonToolMessage(_ message: Message, includeVideo: Bool) throws -> [String: Any] {
+    private func translateNonToolMessage(
+        _ message: Message, includeVideo: Bool, includePDF: Bool
+    ) throws -> [String: Any] {
         let split = splitContentParts(
             message.content,
             includeImages: true,
             includeAudio: true,
-            includeVideo: includeVideo
+            includeVideo: includeVideo,
+            includePDF: includePDF
         )
 
         var dict: [String: Any] = [
@@ -133,7 +143,8 @@ extension OpenRouterAdapter {
             if split.hasRichUserContent {
                 dict["content"] = try translateUserContentPartsToOpenAIFormat(
                     message.content,
-                    videoPartBuilder: includeVideo ? openAIInputVideoPart : nil
+                    videoPartBuilder: includeVideo ? openAIInputVideoPart : nil,
+                    filePartBuilder: includePDF ? pdfFilePart : nil
                 )
             } else {
                 dict["content"] = split.visible
@@ -160,6 +171,21 @@ extension OpenRouterAdapter {
         }
 
         return dict
+    }
+
+    private func pdfFilePart(_ file: FileContent) throws -> [String: Any]? {
+        guard normalizedMIMEType(file.mimeType) == "application/pdf" else { return nil }
+        let fileData: String
+        if let data = file.data {
+            fileData = mediaDataURI(mimeType: "application/pdf", data: data)
+        } else if let url = file.url {
+            fileData = url.isFileURL
+                ? mediaDataURI(mimeType: "application/pdf", data: try resolveFileData(from: url))
+                : url.absoluteString
+        } else {
+            return nil
+        }
+        return ["type": "file", "file": ["filename": file.filename, "file_data": fileData]]
     }
 
     private func applyImageGeneration(

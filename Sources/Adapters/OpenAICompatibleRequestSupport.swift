@@ -65,10 +65,11 @@ enum OpenAICompatibleRequestSupport {
     static func applyOpenAIServiceTier(
         to body: inout [String: Any],
         controls: GenerationControls,
-        providerType: ProviderType
+        providerType: ProviderType,
+        modelID: String
     ) {
         guard providerType == .openai,
-              let serviceTier = resolvedOpenAIServiceTier(from: controls) else {
+              let serviceTier = resolvedOpenAIServiceTier(from: controls, modelID: modelID, providerType: providerType) else {
             return
         }
         body["service_tier"] = serviceTier

@@ -8,13 +8,14 @@ extension DatabricksAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
+        let isUnityHydrogen = modelID.lowercased() == "system.ai.gemini-4-hydrogen"
         var body: [String: Any] = [
             "model": modelID,
             "messages": try translateMessages(messages, modelID: modelID),
             "stream": streaming
         ]
 
-        if streaming, isOpenAIGateway {
+        if streaming, isOpenAIGateway, !isUnityHydrogen {
             // The AI Gateway OpenAI surface forwards to native OpenAI, which returns a trailing
             // usage chunk when asked. The Foundation Model APIs chat schema does not document
             // `stream_options`, so it is omitted there to avoid request rejection (FMAPI streaming
@@ -25,7 +26,7 @@ extension DatabricksAdapter {
         // OpenAI GPT-5 and o-series reasoning models only accept the default temperature/top_p
         // (value 1). Sending a custom value returns a 400 (`unsupported_value`). This applies to
         // both the AI Gateway OpenAI surface and Databricks-hosted `databricks-gpt-5-*` endpoints.
-        if !modelRejectsCustomSampling(modelID) {
+        if !isUnityHydrogen, !modelRejectsCustomSampling(modelID) {
             if let temperature = controls.temperature {
                 body["temperature"] = temperature
             }
@@ -36,12 +37,14 @@ extension DatabricksAdapter {
         if let maxTokens = controls.maxTokens {
             // The AI Gateway OpenAI surface forwards to the native OpenAI API, whose GPT-5 /
             // o-series models reject `max_tokens` and require `max_completion_tokens`.
-            body[isOpenAIGateway ? "max_completion_tokens" : "max_tokens"] = maxTokens
+            body[isOpenAIGateway && !isUnityHydrogen ? "max_completion_tokens" : "max_tokens"] = maxTokens
         }
 
-        applyReasoning(to: &body, controls: controls, modelID: modelID)
+        if !isUnityHydrogen {
+            applyReasoning(to: &body, controls: controls, modelID: modelID)
+        }
 
-        if !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
+        if !isUnityHydrogen, !tools.isEmpty, let functionTools = translateTools(tools) as? [[String: Any]] {
             body["tools"] = functionTools
         }
 
@@ -50,12 +53,14 @@ extension DatabricksAdapter {
         }
 
         var additionalHeaders: [String: String] = [:]
-        if isOpenAIGateway, let service = gatewayProviderService {
+        if !isUnityHydrogen, isOpenAIGateway, let service = gatewayProviderService {
             additionalHeaders[DatabricksGateway.modelProviderServiceHeader] = service
         }
 
         return try makeAuthorizedJSONRequest(
-            url: validatedURL(chatCompletionsURLString),
+            url: validatedURL(isUnityHydrogen
+                ? "\(workspaceRoot)/ai-gateway/mlflow/v1/chat/completions"
+                : chatCompletionsURLString),
             apiKey: apiKey,
             body: body,
             additionalHeaders: additionalHeaders
