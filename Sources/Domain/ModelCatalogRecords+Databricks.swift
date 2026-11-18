@@ -20,6 +20,13 @@ extension ModelCatalog {
     /// Verified against the Databricks "Databricks-hosted foundation models" supported-models
     /// docs (AWS/Azure/GCP), 2026-07.
     static let databricksRecords: [Record] = [
+        // Unity Gateway documents only text input and does not list Hydrogen effort controls.
+        Record(id: "system.ai.gemini-4-hydrogen", displayName: "Gemini 4 Hydrogen",
+               capabilities: [.streaming],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
         // Official supported-models, foundation-model-apis/limits, query-reason-models
         // (2026-11-05): hybrid reasoning, none/low/high/max, default max.
         Record(id: "databricks-kimi-k3-1-pro", displayName: "Kimi K3.1 Pro",

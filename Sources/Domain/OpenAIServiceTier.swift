@@ -6,6 +6,7 @@ import Foundation
 /// - `default`: force standard tier processing
 /// - `flex`: use flex processing
 /// - `priority`: use priority processing
+/// - `ultrafast`: use the highest-speed tier on eligible models
 /// - `scale`: use scale tier processing (if enabled on the project)
 ///
 /// `auto` is represented by `nil` in `GenerationControls.openAIServiceTier`
@@ -14,6 +15,7 @@ enum OpenAIServiceTier: String, Codable, CaseIterable {
     case defaultTier = "default"
     case flex
     case priority
+    case ultrafast
     case scale
 
     var displayName: String {
@@ -24,6 +26,8 @@ enum OpenAIServiceTier: String, Codable, CaseIterable {
             return "Flex"
         case .priority:
             return "Priority"
+        case .ultrafast:
+            return "Ultrafast"
         case .scale:
             return "Scale"
         }
@@ -37,6 +41,8 @@ enum OpenAIServiceTier: String, Codable, CaseIterable {
             return "F"
         case .priority:
             return "P"
+        case .ultrafast:
+            return "U"
         case .scale:
             return "S"
         }
@@ -48,5 +54,18 @@ enum OpenAIServiceTier: String, Codable, CaseIterable {
         guard !normalized.isEmpty else { return nil }
         guard normalized != "auto" else { return nil }
         return OpenAIServiceTier(rawValue: normalized)
+    }
+
+    static func supportsUltrafast(modelID: String?, providerType: ProviderType?) -> Bool {
+        guard let modelID else { return false }
+        let lower = modelID.lowercased()
+        switch providerType {
+        case .openai, .openaiWebSocket:
+            return ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6-astra", "gpt-6.1-sol"].contains(lower)
+        case .vercelAIGateway:
+            return ["openai/gpt-6.2-astra", "openai/gpt-6.2-sol"].contains(lower)
+        default:
+            return false
+        }
     }
 }

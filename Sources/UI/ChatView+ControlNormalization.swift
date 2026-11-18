@@ -206,6 +206,12 @@ extension ChatView {
         ChatControlNormalizationSupport.normalizeOpenAIServiceTierControls(
             controls: &controls
         )
+        if controls.openAIServiceTier == .ultrafast,
+           !OpenAIServiceTier.supportsUltrafast(modelID: activeModelID, providerType: providerType) {
+            controls.openAIServiceTier = nil
+        } else if providerType == .vercelAIGateway, controls.openAIServiceTier != .ultrafast {
+            controls.openAIServiceTier = nil
+        }
     }
 
     nonisolated static func sanitizeProviderSpecificForProvider(_ providerType: ProviderType?, controls: inout GenerationControls) {

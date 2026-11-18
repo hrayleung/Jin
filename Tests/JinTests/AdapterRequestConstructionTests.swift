@@ -7,6 +7,34 @@ final class AdapterRequestConstructionTests: XCTestCase {
         AdapterRequestConstructionMockURLProtocol.requestHandler = nil
     }
 
+    func testVercelGPT62SendUsesResponsesAtNormalizedGatewayURL() async throws {
+        let (configuration, protocolType) = makeAdapterRequestConstructionSessionConfiguration()
+        let provider = ProviderConfig(id: "vercel", name: "Vercel", type: .vercelAIGateway,
+                                      baseURL: "https://ai-gateway.vercel.sh/")
+        let modelID = "openai/gpt-6.2-astra-fast"
+        protocolType.requestHandler = { request in
+            let url = try XCTUnwrap(request.url)
+            XCTAssertEqual(url.absoluteString, "https://ai-gateway.vercel.sh/v1/responses")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+            let data = try XCTUnwrap(adapterRequestBodyData(request))
+            let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            XCTAssertEqual(body["model"] as? String, modelID)
+            XCTAssertNotNil(body["input"])
+            let response = try XCTUnwrap(HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"]
+            ))
+            return (response, Data(#"{"id":"test-response","output":[]}"#.utf8))
+        }
+
+        let adapter = OpenAICompatibleAdapter(providerConfig: provider, apiKey: "test-key",
+                                              networkManager: NetworkManager(configuration: configuration))
+        let stream = try await adapter.sendMessage(
+            messages: [Message(role: .user, content: [.text("Hello")])],
+            modelID: modelID, controls: GenerationControls(), tools: [], streaming: false
+        )
+        for try await _ in stream {}
+    }
+
     func testOpenRouterAdapterFetchModelsIncludesOpenRouterHeaders() async throws {
         let (configuration, protocolType) = makeAdapterRequestConstructionSessionConfiguration()
         let networkManager = NetworkManager(configuration: configuration)

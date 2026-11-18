@@ -121,7 +121,8 @@ enum ModelSettingsResolver {
             return !openRouterAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
         if providerType == .vercelAIGateway {
-            return !vercelAIGatewayAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+            return !ModelCapabilityRegistry.isVercelGPT62Model(modelID)
+                && !vercelAIGatewayAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
         if providerType == .cloudflareAIGateway {
             return !cloudflareAIGatewayAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
@@ -263,6 +264,8 @@ enum ModelSettingsResolver {
     /// GPT-6.1 Sol (2026-09-29) publishes effort low…max only — no `none`/`minimal`
     /// (developers.openai.com/api/docs/models/gpt-6.1-sol) — so Off is never offered.
     private static let openAIAlwaysOnReasoningModelIDs: Set<String> = [
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
         "gpt-6-astra",
         "gpt-6.1-sol",
     ]
@@ -392,6 +395,10 @@ enum ModelSettingsResolver {
     /// but its catalog record keeps reasoningConfig nil (no reasoning UI, no reasoning
     /// shape sent), making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
+        "openai/gpt-6.2-astra",
+        "openai/gpt-6.2-astra-pro",
+        "openai/gpt-6.2-sol",
+        "openai/gpt-6.2-sol-pro",
         // Gemini 4 Carbon/Hydrogen (live /models 2026-11-13): thinkingLevel is
         // always on upstream (no `none`/`minimal` in the published band).
         "google/gemini-4-carbon",
@@ -481,6 +488,7 @@ enum ModelSettingsResolver {
     /// record keeps reasoningConfig nil (no reasoning UI, no reasoning shape sent),
     /// making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let vercelAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
+        "recursive/flint-v1.0",
         "anthropic/claude-fable-5.2",
         "anthropic/claude-fable-5.2-fast",
         "humansand/ampersand-v0.1",

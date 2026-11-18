@@ -101,9 +101,11 @@ enum ModelCapabilityRegistry {
         "gpt-5.6-luna-pro",
     ]
 
-    /// Models that accept Responses API `reasoning.mode = "pro"` (GPT-5.6 family).
+    /// Models that accept Responses API `reasoning.mode = "pro"`.
     /// Pro is a request-time mode on the same model ID, not a separate OpenAI slug.
     private static let openAIStyleProModeModelIDs: Set<String> = [
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
         "gpt-5.6",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
@@ -413,6 +415,8 @@ enum ModelCapabilityRegistry {
     /// Exact model IDs that OpenAI currently documents as supporting the built-in Code interpreter tool.
     /// Keep this conservative: do not broaden to unlisted realtime/audio families.
     private static let openAICodeInterpreterSupportedModelIDs: Set<String> = [
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
         "gpt-6-astra",
         "gpt-6-sol",
         "gpt-6.1-sol",
@@ -1123,10 +1127,23 @@ enum ModelCapabilityRegistry {
         "imagine-video",
     ]
 
-    static func requestShape(for providerType: ProviderType?, modelID _: String) -> ModelRequestShape {
+    private static let vercelGPT62ModelIDs: Set<String> = [
+        "openai/gpt-6.2-astra",
+        "openai/gpt-6.2-astra-fast",
+        "openai/gpt-6.2-sol",
+        "openai/gpt-6.2-sol-fast",
+    ]
+
+    static func isVercelGPT62Model(_ modelID: String) -> Bool {
+        vercelGPT62ModelIDs.contains(modelID.lowercased())
+    }
+
+    static func requestShape(for providerType: ProviderType?, modelID: String) -> ModelRequestShape {
         switch providerType {
         case .openai, .openaiWebSocket, .router:
             // Router is Responses-only — `POST /v1/chat/completions` 404s there.
+            return .openAIResponses
+        case .vercelAIGateway where isVercelGPT62Model(modelID):
             return .openAIResponses
         case .anthropic, .claudeManagedAgents, .mimoTokenPlanAnthropic, .kimiForCoding:
             return .anthropic
@@ -1148,11 +1165,14 @@ enum ModelCapabilityRegistry {
         case .openrouter:
             return ![
                 "tencent/hy4",
+                "tencent/hy4-flash",
                 "anthropic/claude-fable-5.2",
                 "anthropic/claude-fable-5.2:batch",
             ].contains(lower)
         case .vercelAIGateway:
-            return !["tencent/hy4", "inclusionai/ling-3.1-flash-1019",
+            return !isVercelGPT62Model(lower) &&
+                !["tencent/hy4", "tencent/hy4-flash", "alibaba/qwen4-max", "recursive/flint-v1.0",
+                     "inclusionai/ling-3.1-flash-1019",
                      "meituan/longcat-2.5", "zai/glm-5.3-flashx-legal",
                      "anthropic/claude-fable-5.2", "anthropic/claude-fable-5.2-fast",
                      "deepseek/deepseek-v4.1-flash-1017-ultrafast",
@@ -1976,6 +1996,8 @@ enum ModelCapabilityRegistry {
             return supportsOpenAIWebSearch(lowerModelID: lowerModelID)
         case .openrouter:
             return supportsOpenRouterWebSearch(lowerModelID: lowerModelID)
+        case .vercelAIGateway:
+            return isVercelGPT62Model(lowerModelID)
         case .anthropic:
             // Server-side web search is available on current Claude models including Fable 5.1 /
             // Mythos 5.1 and Fable 5 / Mythos 5 (dynamic filtering docs list them as of 2026-07).
@@ -2002,7 +2024,7 @@ enum ModelCapabilityRegistry {
             // (verified 2026-08-22). Fireworks-served `gpt-oss-*` share the naming but
             // not the backend, so the allowlist is by exact ID.
             return routerWebSearchModelIDs.contains(lowerModelID)
-        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .groq,
+        case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .groq,
              .cohere, .mistral, .deepinfra, .together, .baseten, .runinfra, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan,
              .mimoTokenPlanAnthropic, .fireworks, .cerebras, .sambanova, .databricks, .modal, .morphllm, .zyphra, .makora, .kimiForCoding, .none:
             return false

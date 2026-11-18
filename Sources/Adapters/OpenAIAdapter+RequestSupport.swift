@@ -61,7 +61,7 @@ extension OpenAIAdapter {
                 body["max_output_tokens"] = maxTokens
             }
         }
-        if usesNativeOpenAIPlatform, let serviceTier = resolvedOpenAIServiceTier(from: controls) {
+        if let serviceTier = resolvedOpenAIServiceTier(from: controls, modelID: modelID, providerType: providerConfig.type) {
             body["service_tier"] = serviceTier
         }
         OpenAIResponsesRequestSupport.applyReasoningConfig(

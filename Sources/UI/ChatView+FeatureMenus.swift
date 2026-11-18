@@ -7,13 +7,18 @@ extension ChatView {
 
     @ViewBuilder
     var openAIServiceTierMenuContent: some View {
-        JinMenuSelectionItem("Auto (OpenAI default)", isSelected: controls.openAIServiceTier == nil) {
+        JinMenuSelectionItem("Auto", isSelected: controls.openAIServiceTier == nil) {
             setOpenAIServiceTier(nil)
         }
 
         Divider()
 
-        ForEach(OpenAIServiceTier.allCases, id: \.self) { serviceTier in
+        ForEach(OpenAIServiceTier.allCases.filter {
+            if $0 == .ultrafast {
+                return OpenAIServiceTier.supportsUltrafast(modelID: activeModelID, providerType: providerType)
+            }
+            return providerType != .vercelAIGateway
+        }, id: \.self) { serviceTier in
             JinMenuSelectionItem(
                 serviceTier.displayName,
                 isSelected: controls.openAIServiceTier == serviceTier

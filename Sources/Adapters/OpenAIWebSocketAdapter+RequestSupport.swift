@@ -43,7 +43,7 @@ extension OpenAIWebSocketAdapter {
             body["max_output_tokens"] = maxTokens
         }
 
-        if let serviceTier = resolvedOpenAIServiceTier(from: controls) {
+        if let serviceTier = resolvedOpenAIServiceTier(from: controls, modelID: modelID, providerType: providerConfig.type) {
             body["service_tier"] = serviceTier
         }
 
