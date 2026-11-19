@@ -359,6 +359,7 @@ final class ChatTimelineHostingCell: NSTableCellView {
     /// Latest height waiting to flush on the next main-queue turn.
     private var pendingMeasuredHeight: CGFloat?
     private var heightFlushScheduled = false
+    private var flushGeneration: UInt64 = 0
     /// Set on every rootView swap; cleared once `layout()` has forced the
     /// SwiftUI commit. `host.rootView =` only SCHEDULES the view-graph
     /// rebuild, and AppKit layout is top-down (our `layout()` runs before
@@ -461,6 +462,15 @@ final class ChatTimelineHostingCell: NSTableCellView {
         syncFrameToRowView()
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncFrameToRowView()
+    }
+
+    func syncFrameToRowViewIfNeeded() {
+        syncFrameToRowView()
+    }
+
     /// Resizes to fill the row view, preserving the vertical margins AppKit
     /// placed us with (half the table's intercell spacing on each side). A
     /// no-op in the overwhelmingly common case, so the per-scroll frame
@@ -545,6 +555,8 @@ final class ChatTimelineHostingCell: NSTableCellView {
     func resetHeightReportingBaseline() {
         lastReportedHeight = -1
         pendingMeasuredHeight = nil
+        heightFlushScheduled = false
+        flushGeneration &+= 1
         lastSwiftUIReportedHeight = 0
         // Match configure(): the first post-reset measurement may publish
         // synchronously, so a width change doesn't leave the row on its
@@ -553,12 +565,27 @@ final class ChatTimelineHostingCell: NSTableCellView {
         needsLayout = true
     }
 
-    func configure(identity: String, content: AnyView, commitHostImmediately: Bool = true) {
+    func recordPublishedHeightBaseline(_ height: CGFloat) {
+        guard height > 0 else { return }
+        lastReportedHeight = height
+        pendingMeasuredHeight = nil
+        heightFlushScheduled = false
+        flushFirstMeasureImmediately = false
+        flushGeneration &+= 1
+    }
+
+    func configure(
+        identity: String,
+        content: AnyView,
+        commitHostImmediately: Bool = true,
+        publishMeasuredHeightSynchronously: Bool = true
+    ) {
         JinLayoutCostCounters.cellConfigures += 1
         currentIdentity = identity
         lastReportedHeight = -1
         pendingMeasuredHeight = nil
         heightFlushScheduled = false
+        flushGeneration &+= 1
         // Streaming Generating is a tight estimate. Sync first-measure
         // `noteHeightOfRows` on Enter was a full-table re-layout on the
         // same turn as the user-row host commit — the send hitch.
@@ -580,7 +607,12 @@ final class ChatTimelineHostingCell: NSTableCellView {
                 let measured = measuredContentHeight()
                 if measured > 0 {
                     pendingMeasuredHeight = measured
-                    scheduleHeightFlush(for: identity)
+                    if publishMeasuredHeightSynchronously {
+                        scheduleHeightFlush(for: identity)
+                    } else {
+                        flushFirstMeasureImmediately = false
+                        scheduleCoalescedHeightFlush(for: identity)
+                    }
                 }
             }
         }
@@ -620,7 +652,13 @@ final class ChatTimelineHostingCell: NSTableCellView {
         // publish a single report per turn.
         if measured == lastReportedHeight, pendingMeasuredHeight == nil { return }
         pendingMeasuredHeight = measured
-        scheduleHeightFlush(for: identity)
+        // Never invoke `onMeasuredHeight` (`noteHeightOfRows`) synchronously
+        // from inside `NSView.layout()`: when `tableView.layout()` is running,
+        // a nested `noteHeightOfRows` updates `rect(ofRow:)` while leaving
+        // already-tiled `NSTableRowView`s at stale Y origins with
+        // `needsLayout == false`.
+        flushFirstMeasureImmediately = false
+        scheduleCoalescedHeightFlush(for: identity)
     }
 
     private func scheduleHeightFlush(for identity: String) {
@@ -656,12 +694,14 @@ final class ChatTimelineHostingCell: NSTableCellView {
     private func scheduleCoalescedHeightFlush(for identity: String) {
         guard !heightFlushScheduled else { return }
         heightFlushScheduled = true
+        let generation = flushGeneration
         Task { @MainActor [weak self] in
             await Task.yield()
-            guard let self else { return }
+            guard let self,
+                  self.flushGeneration == generation,
+                  self.currentIdentity == identity else { return }
             self.heightFlushScheduled = false
-            guard self.currentIdentity == identity,
-                  let measured = self.pendingMeasuredHeight else { return }
+            guard let measured = self.pendingMeasuredHeight else { return }
             self.pendingMeasuredHeight = nil
             guard measured != self.lastReportedHeight else { return }
             self.lastReportedHeight = measured
@@ -687,6 +727,39 @@ final class ChatTimelineScrollView: NSScrollView {
     }
 }
 
+private final class ChatTimelineNSTableView: NSTableView {
+    override func layout() {
+        super.layout()
+        syncResidentRowFramesToTableRects()
+    }
+
+    func syncResidentRowFramesToTableRects() {
+        let count = numberOfRows
+        guard count > 0 else { return }
+        var needsCellSync: [ChatTimelineHostingCell] = []
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            context.allowsImplicitAnimation = false
+            for subview in subviews {
+                guard let rowView = subview as? NSTableRowView, !rowView.isHidden else { continue }
+                let row = self.row(for: rowView)
+                guard row >= 0, row < count else { continue }
+                let expected = self.rect(ofRow: row)
+                if abs(rowView.frame.minY - expected.minY) > 0.5
+                    || abs(rowView.frame.height - expected.height) > 0.5 {
+                    rowView.frame = expected
+                    if let cell = rowView.view(atColumn: 0) as? ChatTimelineHostingCell {
+                        needsCellSync.append(cell)
+                    }
+                }
+            }
+        }
+        for cell in needsCellSync {
+            cell.syncFrameToRowViewIfNeeded()
+        }
+    }
+}
+
 // MARK: - Controller
 
 @MainActor
@@ -709,7 +782,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     }
 
     private let scrollView = ChatTimelineScrollView()
-    private let tableView = NSTableView()
+    private let tableView = ChatTimelineNSTableView()
 
     private var rows: [ChatTimelineRow] = []
     private var model: Model?
@@ -1007,6 +1080,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // 0/0.12/0.5s settle timers missed content that measured late
             // (a big code block at the tail) and left the view parked short
             // of the bottom.
+            tableView.layoutSubtreeIfNeeded()
             view.layoutSubtreeIfNeeded()
             scrollToBottom(animated: false, force: true)
             // Longer settle window on open: async markdown parses of the
@@ -1024,6 +1098,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         }
 
         if rowIDsChanged {
+            let previousPlan = ChatTimelineReconcilePlanner.plan(
+                oldIDs: previousRows.map(\.identity),
+                newIDs: newModel.rows.map(\.identity)
+            )
             // Pass newModel.rows explicitly; `self.rows` is still previous.
             reconcile(
                 old: previousRows,
@@ -1037,8 +1115,15 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 // Match maintainBottomIfNeeded: never yank the viewport while
                 // the user is mid-gesture (scrollToBottom has no live-scroll guard).
                 if shouldMaintainBottom, !isUserLiveScrolling {
+                    tableView.layoutSubtreeIfNeeded()
                     view.layoutSubtreeIfNeeded()
                     scrollToBottom(animated: false, force: false)
+                }
+            }
+            if widthChanged, previousPlan != .fullReload, !rows.isEmpty {
+                reloadVisibleContent(noteChangedHeights: false)
+                withoutTableAnimation {
+                    tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<rows.count))
                 }
             }
             // Identity mutations do not reconfigure surviving cells.
@@ -1067,6 +1152,15 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         }
     }
 
+    private func withoutTableAnimation(_ body: () -> Void) {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            context.allowsImplicitAnimation = false
+            body()
+        }
+        tableView.syncResidentRowFramesToTableRects()
+    }
+
     /// Settles measurements whose row was absent from `rows` when they landed
     /// AND whose one-shot retry also missed. The height cache is already
     /// correct for these — the table just never re-queried `heightOfRow`.
@@ -1083,8 +1177,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         }
         orphanMeasuredIdentities.removeAll(keepingCapacity: true)
         guard !indexes.isEmpty else { return }
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0
+        withoutTableAnimation {
             tableView.noteHeightOfRows(withIndexesChanged: indexes)
         }
         if shouldMaintainBottom { maintainBottomIfNeeded() }
@@ -1168,22 +1261,28 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 }
                 return
             }
+            cell.syncFrameToRowViewIfNeeded()
             cell.layoutSubtreeIfNeeded()
             let measured = cell.measuredContentHeight()
             let cached = self.heightCache[self.heightKey(rowModel.identity)]
+            let rowRect = self.tableView.rect(ofRow: row)
+            let frameDesync = abs(rowView.frame.minY - rowRect.minY) > 1.5
+                || abs(rowView.frame.height - rowRect.height) > 1.5
             let action = ChatTimelineHeightAuditPlanner.action(
                 appliedRowHeight: applied,
                 measuredHeight: measured,
                 cachedHeight: cached
             )
-            guard action != .none else { return }
+            let resolvedAction: ChatTimelineHeightAuditPlanner.Action =
+                action != .none ? action : (frameDesync ? .renoteOnly : .none)
+            guard resolvedAction != .none else { return }
             samples.append(Sample(
                 identity: rowModel.identity,
                 index: row,
                 applied: applied,
                 measured: measured,
                 cached: cached,
-                action: action
+                action: resolvedAction
             ))
         }
         guard !samples.isEmpty else { return }
@@ -1205,20 +1304,21 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 action: sample.action,
                 reason: reason
             )
-            heightCache[heightKey(sample.identity)] = sample.measured
-            lastHeightCommitUptime[sample.identity] = now
-            if sample.measured > 1.5 {
-                // Layout-derived value — safe to write through so a stale
-                // warm-start seed doesn't re-poison the next open.
-                storeMeasuredHeight(identity: sample.identity, height: sample.measured)
+            if sample.measured > 0 {
+                heightCache[heightKey(sample.identity)] = sample.measured
+                lastHeightCommitUptime[sample.identity] = now
+                if sample.measured > 1.5 {
+                    // Layout-derived value — safe to write through so a stale
+                    // warm-start seed doesn't re-poison the next open.
+                    storeMeasuredHeight(identity: sample.identity, height: sample.measured)
+                }
+                if tableView.rect(ofRow: sample.index).minY < visibleTop - 0.5 {
+                    aboveViewportDelta += sample.measured - sample.applied
+                }
             }
             correctedIndexes.insert(sample.index)
-            if tableView.rect(ofRow: sample.index).minY < visibleTop - 0.5 {
-                aboveViewportDelta += sample.measured - sample.applied
-            }
         }
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0
+        withoutTableAnimation {
             tableView.noteHeightOfRows(withIndexesChanged: correctedIndexes)
         }
         if shouldMaintainBottom {
@@ -1279,8 +1379,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             self?.logResidentTextViewCount("loaded")
         }
         guard !rows.isEmpty else { return }
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0
+        withoutTableAnimation {
             tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<rows.count))
         }
     }
@@ -1308,7 +1407,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 maintainBottomIfNeeded()
                 return
             }
-            reloadVisibleContent()
+            reloadVisibleContent(noteChangedHeights: !widthChanged)
             // Width changes re-wrap every row — must re-note all heights.
             // Epoch-only changes (TTS, tools, streaming model label, expand
             // set) used to also noteHeightOfRows(0..<count), which re-laid out
@@ -1316,7 +1415,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // jumps / fonts reflow"). Cells that actually resize self-report
             // via the coalesced height flush instead.
             if widthChanged, !new.isEmpty {
-                tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<new.count))
+                withoutTableAnimation {
+                    tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<new.count))
+                }
             }
             maintainBottomIfNeeded()
 
@@ -1326,8 +1427,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             // No soft-enter here: the finished assistant message must appear
             // fully opaque immediately (appear animation is streaming-only).
             rows = new
-            tableView.reloadData(forRowIndexes: changed, columnIndexes: IndexSet(integer: 0))
-            tableView.noteHeightOfRows(withIndexesChanged: changed)
+            withoutTableAnimation {
+                tableView.reloadData(forRowIndexes: changed, columnIndexes: IndexSet(integer: 0))
+                tableView.noteHeightOfRows(withIndexesChanged: changed)
+            }
             maintainBottomIfNeeded()
 
         case .appendTail(let inserted):
@@ -1394,9 +1497,12 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             let oldDocHeight = tableView.frame.height
             let savedOriginY = clip.bounds.origin.y
             rows = new
-            tableView.beginUpdates()
-            tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
-            tableView.endUpdates()
+            withoutTableAnimation {
+                tableView.beginUpdates()
+                tableView.insertRows(at: IndexSet(integersIn: inserted), withAnimation: [])
+                tableView.endUpdates()
+            }
+            tableView.layoutSubtreeIfNeeded()
             view.layoutSubtreeIfNeeded()
             let delta = tableView.frame.height - oldDocHeight
             isProgrammaticScrolling = true
@@ -1489,7 +1595,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         }
 
         if shouldMaintainBottom, !isUserLiveScrolling {
-            scrollToBottom(animated: false, force: false, skipForcedLayout: true)
+            scrollToBottom(animated: false, force: false)
             if !insertions.isEmpty {
                 scheduleTrailingBottomPin(delayNanoseconds: 160_000_000)
             }
@@ -1500,6 +1606,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         // document coordinates, so the origin moves by the same amount from
         // its pre-update value (robust even if AppKit adjusted the clip
         // during endUpdates).
+        tableView.layoutSubtreeIfNeeded()
         view.layoutSubtreeIfNeeded()
         let delta = tableView.rect(ofRow: anchor.newIndex).minY - anchorMinYBefore
         guard abs(delta) > 0.5 else { return }
@@ -1546,8 +1653,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         guard case .loadEarlier(let oldHidden, _)? = old.first,
               case .loadEarlier(let newHidden, _)? = new.first,
               oldHidden != newHidden else { return }
-        tableView.reloadData(forRowIndexes: IndexSet(integer: 0), columnIndexes: IndexSet(integer: 0))
-        tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: 0))
+        withoutTableAnimation {
+            tableView.reloadData(forRowIndexes: IndexSet(integer: 0), columnIndexes: IndexSet(integer: 0))
+            tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: 0))
+        }
     }
 
     /// On-device proof of the reconcile behavior: sends in a long conversation
@@ -1588,6 +1697,51 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         )
     }
 
+    private func availableCells() -> [(row: Int, cell: ChatTimelineHostingCell)] {
+        var result: [(Int, ChatTimelineHostingCell)] = []
+        tableView.enumerateAvailableRowViews { rowView, row in
+            guard let cell = rowView.view(atColumn: 0) as? ChatTimelineHostingCell else { return }
+            result.append((row, cell))
+        }
+        return result
+    }
+
+    private func configureResidentCells(
+        _ targets: [(row: Int, cell: ChatTimelineHostingCell)],
+        resetBaselines: Bool,
+        noteChangedHeights: Bool
+    ) {
+        var changedIndexes = IndexSet()
+        for (row, cell) in targets {
+            guard row >= 0, row < rows.count else { continue }
+            let rowModel = rows[row]
+            let identity = rowModel.identity
+            if resetBaselines {
+                cell.resetHeightReportingBaseline()
+            }
+            cell.configure(
+                identity: identity,
+                content: content(for: rowModel),
+                publishMeasuredHeightSynchronously: false
+            )
+            let measured = cell.measuredContentHeight()
+            guard measured > 0, !nonRenderingIdentities.contains(identity) else { continue }
+            let key = heightKey(identity)
+            let previous = heightCache[key]
+            if abs((previous ?? -1) - measured) > 0.5 {
+                heightCache[key] = measured
+                storeMeasuredHeight(identity: identity, height: measured)
+                changedIndexes.insert(row)
+            }
+            cell.recordPublishedHeightBaseline(measured)
+        }
+        if noteChangedHeights, !changedIndexes.isEmpty {
+            withoutTableAnimation {
+                tableView.noteHeightOfRows(withIndexesChanged: changedIndexes)
+            }
+        }
+    }
+
     /// Reconfigures resident cells whose identity survived a row-list
     /// mutation but whose content, editing state, or live activity chrome
     /// did not. `batchDiff` only inserts/removes — without this, an edited
@@ -1612,13 +1766,10 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         guard !identities.isEmpty else { return }
 
         invalidateHeightCache(for: identities)
-        tableView.enumerateAvailableRowViews { [weak self] rowView, row in
-            guard let self, row >= 0, row < self.rows.count,
-                  identities.contains(self.rows[row].identity),
-                  let cell = rowView.view(atColumn: 0) as? ChatTimelineHostingCell else { return }
-            cell.resetHeightReportingBaseline()
-            cell.configure(identity: self.rows[row].identity, content: self.content(for: self.rows[row]))
+        let targets = availableCells().filter { row, _ in
+            row >= 0 && row < rows.count && identities.contains(rows[row].identity)
         }
+        configureResidentCells(targets, resetBaselines: true, noteChangedHeights: true)
     }
 
     private func invalidateHeightCache(for identities: Set<String>) {
@@ -1635,16 +1786,9 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// around the viewport, and a cell there receives no `viewFor` when it
     /// scrolls back in — a visibleRect-only reload left those cells showing
     /// pre-epoch content (and pre-epoch heights) forever.
-    private func reloadVisibleContent() {
-        tableView.enumerateAvailableRowViews { [weak self] rowView, row in
-            guard let self, row >= 0, row < self.rows.count,
-                  let cell = rowView.view(atColumn: 0) as? ChatTimelineHostingCell else { return }
-            // Token/tool deltas still flow through ObservedObject without an
-            // apply. This path is for real content-epoch changes (width,
-            // appearance, model metadata, or a new state object), so the
-            // streaming root must be refreshed too.
-            cell.configure(identity: self.rows[row].identity, content: self.content(for: self.rows[row]))
-        }
+    private func reloadVisibleContent(noteChangedHeights: Bool = true) {
+        let targets = availableCells()
+        configureResidentCells(targets, resetBaselines: false, noteChangedHeights: noteChangedHeights)
     }
 
     /// Resets every resident cell's height-report baseline alongside a
@@ -1652,8 +1796,8 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// first report against the fresh cache (see
     /// `ChatTimelineHostingCell.resetHeightReportingBaseline`).
     private func resetResidentHeightReportingBaselines() {
-        tableView.enumerateAvailableRowViews { rowView, _ in
-            (rowView.view(atColumn: 0) as? ChatTimelineHostingCell)?.resetHeightReportingBaseline()
+        for (_, cell) in availableCells() {
+            cell.resetHeightReportingBaseline()
         }
     }
 
@@ -1678,7 +1822,8 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         cell.configure(
             identity: identity,
             content: content(for: rows[row]),
-            commitHostImmediately: identity != "streaming"
+            commitHostImmediately: identity != "streaming",
+            publishMeasuredHeightSynchronously: false
         )
         return cell
     }
@@ -1805,8 +1950,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
                 guard let self,
                       let retryIndex = self.rows.firstIndex(where: { $0.identity == identity }) else { return }
                 self.orphanMeasuredIdentities.remove(identity)
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0
+                self.withoutTableAnimation {
                     self.tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: retryIndex))
                 }
                 if self.shouldMaintainBottom { self.maintainBottomIfNeeded() }
@@ -1863,8 +2007,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         // Apply the new height immediately (duration 0). Smoothness comes from
         // coalesced once-per-turn reports + matching SwiftUI easeInOut, not
         // from AppKit interpolating against a thrashing target.
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0
+        withoutTableAnimation {
             tableView.noteHeightOfRows(withIndexesChanged: IndexSet(integer: index))
         }
 
@@ -2147,6 +2290,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
             cell.layoutSubtreeIfNeeded()
             let measured = cell.measuredContentHeight()
             guard measured > 0 else { continue }
+            cell.recordPublishedHeightBaseline(measured)
             cellDidMeasureHeight(identity: identity, height: measured)
         }
     }
@@ -2207,6 +2351,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     }
 
     @objc private func boundsDidChange() {
+        tableView.syncResidentRowFramesToTableRects()
         reportMinimapPosition()
         let distance = distanceFromBottom()
         let tolerance = model.map { max(0, $0.bottomTolerance) } ?? 40
@@ -2356,6 +2501,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         guard force || shouldMaintainBottom else { return }
         guard !rows.isEmpty else { return }
         if !skipForcedLayout {
+            tableView.layoutSubtreeIfNeeded()
             view.layoutSubtreeIfNeeded()
         }
 
@@ -2367,23 +2513,21 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
 
         if force { shouldMaintainBottom = true }
 
-        isProgrammaticScrolling = true
-        let apply = {
-            clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
-            self.scrollView.reflectScrolledClipView(clip)
-        }
         if animated {
             NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.2
-                context.allowsImplicitAnimation = true
-                apply()
+                clip.animator().setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
             }, completionHandler: { [weak self] in
                 // The completion handler runs on the main thread; hop back onto
                 // the main actor explicitly to satisfy strict concurrency.
                 MainActor.assumeIsolated { self?.finishProgrammaticScroll() }
             })
+            scrollView.reflectScrolledClipView(clip)
+            tableView.syncResidentRowFramesToTableRects()
         } else {
-            apply()
+            clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
+            scrollView.reflectScrolledClipView(clip)
+            tableView.syncResidentRowFramesToTableRects()
             // Let the just-set bounds settle before re-enabling unpin detection.
             DispatchQueue.main.async { [weak self] in self?.finishProgrammaticScroll() }
         }
@@ -2418,6 +2562,7 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
     /// above resolve.
     func scrollTo(messageID: UUID, animated: Bool) {
         guard let index = rowIndex(forMessageID: messageID) else { return }
+        tableView.layoutSubtreeIfNeeded()
         view.layoutSubtreeIfNeeded()
 
         let clip = scrollView.contentView
@@ -2430,20 +2575,19 @@ final class ChatTimelineTableController: NSViewController, NSTableViewDataSource
         shouldMaintainBottom = false
         isProgrammaticScrolling = true
 
-        let apply = {
-            clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
-            self.scrollView.reflectScrolledClipView(clip)
-        }
         if animated {
             NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.2
-                context.allowsImplicitAnimation = true
-                apply()
+                clip.animator().setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
             }, completionHandler: { [weak self] in
                 MainActor.assumeIsolated { self?.finishMinimapJump() }
             })
+            scrollView.reflectScrolledClipView(clip)
+            tableView.syncResidentRowFramesToTableRects()
         } else {
-            apply()
+            clip.setBoundsOrigin(NSPoint(x: clip.bounds.origin.x, y: targetY))
+            scrollView.reflectScrolledClipView(clip)
+            tableView.syncResidentRowFramesToTableRects()
             DispatchQueue.main.async { [weak self] in self?.finishMinimapJump() }
         }
     }
