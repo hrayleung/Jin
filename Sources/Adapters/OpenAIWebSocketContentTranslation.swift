@@ -7,7 +7,8 @@ extension OpenAIWebSocketAdapter {
     func translateInput(
         _ messages: [Message],
         supportsNativeFileInput: Bool,
-        allowNativePDF: Bool
+        allowNativePDF: Bool,
+        usesDeveloperRole: Bool
     ) throws -> [[String: Any]] {
         var items: [[String: Any]] = []
 
@@ -21,11 +22,14 @@ extension OpenAIWebSocketAdapter {
                 }
 
             case .system, .user, .assistant:
-                if let translated = try translateMessage(
+                if var translated = try translateMessage(
                     message,
                     supportsNativeFileInput: supportsNativeFileInput,
                     allowNativePDF: allowNativePDF
                 ) {
+                    if usesDeveloperRole, message.role == .system {
+                        translated["role"] = "developer"
+                    }
                     items.append(translated)
                 }
 

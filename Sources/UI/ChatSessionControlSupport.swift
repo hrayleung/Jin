@@ -27,6 +27,7 @@ extension ChatAuxiliaryControlSupport {
     ) -> GenerationControls {
         var controls = controls
         controls.openAIServiceTier = serviceTier
+        controls.providerSpecific.removeValue(forKey: "service_tier")
         return controls
     }
 

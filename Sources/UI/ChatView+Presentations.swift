@@ -84,6 +84,7 @@ extension ChatView {
                     supportsExplicitMode: supportsExplicitContextCacheMode,
                     supportsStrategy: supportsContextCacheStrategy,
                     supportsTTL: supportsContextCacheTTL,
+                    usesGPT62CacheTTL: usesGPT62CacheTTL,
                     supportsAdvancedOptions: contextCacheSupportsAdvancedOptions,
                     summaryText: contextCacheSummaryText,
                     guidanceText: contextCacheGuidanceText,

@@ -14,6 +14,19 @@ import Foundation
 enum DatabricksGateway {
     static let modelProviderServiceHeader = "Databricks-Model-Provider-Service"
 
+    static func usesModelServiceResponses(_ modelID: String) -> Bool {
+        switch modelID.lowercased() {
+        case "system.ai.gpt-6-2-astra", "system.ai.gpt-6-2-sol":
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func modelServiceBaseURL(from rawURL: String) -> String {
+        "\(workspaceRoot(from: rawURL))/ai-gateway/mlflow/v1"
+    }
+
     static func isGateway(_ baseURL: String?) -> Bool {
         normalized(baseURL).contains("/ai-gateway/")
     }

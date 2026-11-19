@@ -88,6 +88,7 @@ enum OpenRouterVideoModelSupport {
         "bytedance/seedance-2.0",
         "bytedance/seedance-2.0-fast",
         "bytedance/seedance-2.5",
+        "bytedance/seedance-2.5-flash",
     ]
 
     static let genericAspectRatios: [OpenRouterVideoAspectRatio] = [
@@ -120,6 +121,8 @@ enum OpenRouterVideoModelSupport {
         case "bytedance/seedance-2.5":
             // API accepts every integer 4...30; curate the menu for scanability.
             return [4, 6, 8, 10, 12, 15, 20, 25, 30]
+        case "bytedance/seedance-2.5-flash":
+            return [-1] + Array(4...30)
         case "x-ai/grok-imagine-video-1.5-lite":
             return Array(1...15)
         case "heygen/heygen-video-1":
@@ -131,7 +134,7 @@ enum OpenRouterVideoModelSupport {
 
     static func supportedAspectRatios(for modelID: String) -> [OpenRouterVideoAspectRatio] {
         switch modelID.lowercased() {
-        case "bytedance/seedance-2.5":
+        case "bytedance/seedance-2.5", "bytedance/seedance-2.5-flash":
             return seedance25AspectRatios
         case "bytedance/seedance-1-5-pro",
              "bytedance/seedance-2.0",
@@ -153,7 +156,7 @@ enum OpenRouterVideoModelSupport {
         case "bytedance/seedance-2.0":
             // OpenRouter also lists 4K; keep the enum-backed subset until 4K is added.
             return [.res480p, .res720p, .res1080p]
-        case "bytedance/seedance-2.0-fast", "bytedance/seedance-2.5":
+        case "bytedance/seedance-2.0-fast", "bytedance/seedance-2.5", "bytedance/seedance-2.5-flash":
             return [.res480p, .res720p]
         case "x-ai/grok-imagine-video-1.5-lite":
             return [.res480p, .res720p, .res1080p]

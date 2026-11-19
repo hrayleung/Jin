@@ -23,6 +23,26 @@ import Foundation
 extension ModelCatalog {
 
     static let routerRecords: [Record] = [
+        // Exact callable names and limits from router.com/models/{model}, November 17–18.
+        Record(id: "gpt-6.2-astra", displayName: "GPT-6.2 Astra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "gpt-6.2-sol", displayName: "GPT-6.2 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "gemini-4-neon", displayName: "Gemini 4 Neon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high, supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+
         // docs.router.com/supported-models, verified 2026-11-10. Gateway-specific limits.
         Record(id: "claude-fable-5-2", displayName: "Claude Fable 5.2",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],

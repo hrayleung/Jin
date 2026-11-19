@@ -135,11 +135,16 @@ extension AnthropicAdapter {
 
         try AnthropicRequestPreflight.validate(messages: translatedMessages)
 
-        let resolvedMaxTokens = AnthropicModelLimits.resolvedMaxTokens(
+        let isOpenCodeGoQwen4Max = providerConfig.type == .opencodeGo && modelID.lowercased() == "qwen4-max"
+        var resolvedMaxTokens = AnthropicModelLimits.resolvedMaxTokens(
             requested: controls.maxTokens,
             for: modelID,
             fallback: 4096
         )
+        if isOpenCodeGoQwen4Max,
+           let limit = ModelCatalog.entry(for: modelID, provider: .opencodeGo)?.maxOutputTokens {
+            resolvedMaxTokens = min(limit, resolvedMaxTokens)
+        }
 
         var body: [String: Any] = [
             "model": modelID,
@@ -193,6 +198,9 @@ extension AnthropicAdapter {
         // (including provider-specific overrides) has had its say.
         AnthropicRequestBodySupport.sanitizeAdaptiveThinking(in: &body, modelID: modelID)
         AnthropicRequestBodySupport.normalizeDisabledThinkingEffort(in: &body, modelID: modelID)
+        if isOpenCodeGoQwen4Max {
+            AnthropicRequestBodySupport.applyQwen4MaxThinking(to: &body, controls: controls, modelID: modelID)
+        }
         if providerConfig.type == .anthropic {
             AnthropicRequestBodySupport.applyThinkingBindingControls(to: &body, modelID: modelID)
         }
@@ -201,8 +209,14 @@ extension AnthropicAdapter {
     }
 
     func makeMessagesRequest(body: [String: Any], betaHeader: String?) throws -> URLRequest {
-        try NetworkRequestFactory.makeJSONRequest(
-            url: validatedURL("\(baseURL)/messages"),
+        let endpointBaseURL: String
+        if providerConfig.type == .opencodeGo, let modelID = body["model"] as? String {
+            endpointBaseURL = OpenCodeGoAdapter.inferenceBaseURL(for: modelID, defaultBaseURL: baseURL)
+        } else {
+            endpointBaseURL = baseURL
+        }
+        return try NetworkRequestFactory.makeJSONRequest(
+            url: validatedURL("\(endpointBaseURL)/messages"),
             headers: anthropicHeaders(apiKey: apiKey, betaHeader: betaHeader),
             body: body
         )

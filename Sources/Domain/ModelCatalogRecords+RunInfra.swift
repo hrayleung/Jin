@@ -121,6 +121,13 @@ extension ModelCatalog {
                    maxOutputTokens: 1_048_576,
                    reasoningConfig: nil,
                    isFullySupported: true, isSeeded: false),
+            // RightNow's public model card documents none/high reasoning and no prompt caching.
+            Record(id: "hy4-flash", displayName: "Hy4 flash",
+                   capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+                   contextWindow: 1_048_576,
+                   maxOutputTokens: 65_536,
+                   reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.none, .high]),
+                   isFullySupported: true, isSeeded: true),
 
             hosted(
                 id: "deepseek-v4-flash",

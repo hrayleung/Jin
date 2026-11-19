@@ -7,6 +7,7 @@ enum GeminiModelConstants {
 
     /// All known Gemini model IDs (lowercased) used for capability inference.
     static let knownModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
         "gemini-4-carbon",
@@ -45,6 +46,7 @@ enum GeminiModelConstants {
     /// Gemini 4 family models (lowercased). Thinking cannot be disabled and legacy
     /// `thinkingBudget` returns HTTP 400 (ai.google.dev thinking docs, 2026-10-13).
     static let gemini4ModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
         "gemini-4-carbon",
@@ -52,8 +54,14 @@ enum GeminiModelConstants {
         "gemini-4-hydrogen",
     ]
 
+    static let geminiXHighThinkingModelIDs: Set<String> = [
+        "gemini-4-hydrogen",
+        "gemini-4-neon",
+    ]
+
     /// Gemini 3 & 4 thinkingLevel-capable models (lowercased).
     static let gemini3ModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
         "gemini-4-carbon",
@@ -88,6 +96,7 @@ enum GeminiModelConstants {
     /// Gemini 4 Argon model card, GA 2026-10-13: temperature/top_p/top_k aren't supported and
     /// return an API error if set).
     static let customSamplingUnsupportedModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
         "gemini-4-carbon",
@@ -161,6 +170,7 @@ enum GeminiModelConstants {
     /// Models that accept native PDF via `inlineData` (lowercased).
     /// Gemini 3 & 4 family models, plus Gemini 2.5 text models for Vertex.
     static let nativePDFModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
         "gemini-4-carbon",
@@ -246,6 +256,10 @@ enum GeminiModelConstants {
         !imageSeedUnsupportedModelIDs.contains(canonicalTerminalModelID(modelID))
     }
 
+    static func supportsExplicitContextCaching(_ modelID: String) -> Bool {
+        canonicalTerminalModelID(modelID) != "gemini-4-neon"
+    }
+
     /// Terminal model ID from path-qualified forms used by Gemini/Vertex routing.
     static func canonicalTerminalModelID(_ modelID: String) -> String {
         let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -290,9 +304,6 @@ enum GeminiModelConstants {
         case .high:
             return "HIGH"
         case .xhigh, .max:
-            // Gemini 4 Hydrogen is the only model whose published thinkingLevel
-            // ladder includes XHIGH (Vertex model page, GA 2026-11-12); every
-            // other Gemini 4 model tops out at HIGH.
             return supportsXHigh ? "XHIGH" : "HIGH"
         }
     }

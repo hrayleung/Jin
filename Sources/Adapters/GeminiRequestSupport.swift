@@ -57,8 +57,9 @@ enum GeminiRequestSupport {
         """
     }
 
-    static func explicitCachedContentName(from controls: GenerationControls) -> String? {
-        guard controls.contextCache?.mode == .explicit else { return nil }
+    static func explicitCachedContentName(from controls: GenerationControls, modelID: String) -> String? {
+        guard controls.contextCache?.mode == .explicit,
+              GeminiModelConstants.supportsExplicitContextCaching(modelID) else { return nil }
         return normalizedTrimmedString(controls.contextCache?.cachedContentName)
     }
 

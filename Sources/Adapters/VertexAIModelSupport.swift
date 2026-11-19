@@ -9,6 +9,7 @@ struct VertexAIModelSupport {
     }
 
     let knownModels: [(id: String, name: String, contextWindow: Int)] = [
+        ("gemini-4-neon", "Gemini 4 Neon", 1_048_576),
         ("gemini-4-argon", "Gemini 4 Argon", 1_048_576),
         ("gemini-4-argon-cyber-permissive", "Gemini 4 Argon Cyber Permissive", 1_048_576),
         ("gemini-4-carbon", "Gemini 4 Carbon", 1_048_576),
@@ -255,7 +256,7 @@ struct VertexAIModelSupport {
                 supportedEfforts: [.low, .medium, .high]
             )
         }
-        if lower == "gemini-4-hydrogen" {
+        if GeminiModelConstants.geminiXHighThinkingModelIDs.contains(lower) {
             return ModelReasoningConfig(
                 type: .effort,
                 defaultEffort: .high,

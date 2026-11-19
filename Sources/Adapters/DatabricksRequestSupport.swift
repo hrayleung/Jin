@@ -59,7 +59,7 @@ extension DatabricksAdapter {
 
         return try makeAuthorizedJSONRequest(
             url: validatedURL(isUnityHydrogen
-                ? "\(workspaceRoot)/ai-gateway/mlflow/v1/chat/completions"
+                ? "\(DatabricksGateway.modelServiceBaseURL(from: configuredBaseURL))/chat/completions"
                 : chatCompletionsURLString),
             apiKey: apiKey,
             body: body,

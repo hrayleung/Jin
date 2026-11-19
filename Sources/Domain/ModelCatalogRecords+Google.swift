@@ -121,6 +121,15 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.low, .medium, .high]),
                isFullySupported: true, isSeeded: true),
+        // Gemini 4 Neon supports 65,536 tokens per synchronous response. Longer
+        // decodes require a continuation token and multiple response segments.
+        Record(id: "gemini-4-neon", displayName: "Gemini 4 Neon",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: true),
         // Gemini 4 Carbon (GA 2026-11-10, ai.google.dev/gemini-api/docs/models/gemini-4-carbon
         // + Vertex release notes 2026-11-10): same 1,048,576 unified envelope as Argon;
         // single foreground segment emits up to 65,536 output tokens (long decodes can
@@ -370,6 +379,15 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .medium,
                    supportedEfforts: [.low, .medium, .high]),
                isFullySupported: true, isSeeded: true),
+        // Vertex GA, November 18. The verified-enterprise model uses the same
+        // single-segment output limit on GenerateContent.
+        Record(id: "gemini-4-neon", displayName: "Gemini 4 Neon",
+               capabilities: [.streaming, .toolCalling, .vision, .videoInput, .audio, .reasoning, .promptCaching, .nativePDF, .codeExecution],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .high,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: true),
         // Gemini 4 Argon Cyber Permissive (GA 2026-10-08, Vertex-only allowlisted
         // model: docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/4-argon-cyber-permissive):
         // Same 1,048,576 / 65,536 envelope, multimodal inputs, and tool support
@@ -592,6 +610,19 @@ extension ModelCatalog {
     // red/yellow/blue/black clip. Models that are colour-approximate but clearly reading
     // frames (they report the crossfade colours — orange/olive) count as reading.
     static let openRouterRecords: [Record] = [
+        // OpenRouter chat inventory and serving endpoints (2026-11-18).
+        Record(id: "google/gemini-4-neon", displayName: "Google: Gemini 4 Neon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .audio],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 943_718,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium, supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        // OpenRouter's dedicated video generation inventory (2026-11-16).
+        Record(id: "bytedance/seedance-2.5-flash", displayName: "ByteDance: Seedance 2.5 Flash",
+               capabilities: [.videoGeneration],
+               contextWindow: 0,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
         // OpenRouter /api/v1/models (2026-11-18). Pro is routed by its own ID.
         Record(id: "openai/gpt-6.2-astra", displayName: "OpenAI: GPT-6.2 Astra",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],

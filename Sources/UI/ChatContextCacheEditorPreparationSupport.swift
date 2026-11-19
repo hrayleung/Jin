@@ -4,11 +4,12 @@ extension ChatAuxiliaryControlSupport {
     static func prepareContextCacheEditorDraft(
         current: ContextCacheControls?,
         providerType: ProviderType?,
-        supportsContextCacheTTL: Bool
+        supportsContextCacheTTL: Bool,
+        usesGPT62CacheTTL: Bool = false
     ) -> PreparedContextCacheEditorDraft {
         let defaultMode: ContextCacheMode = (providerType == .anthropic) ? .implicit : .off
         let draft = current ?? ContextCacheControls(mode: defaultMode)
-        let ttlPreset = ContextCacheTTLPreset.from(ttl: draft.ttl)
+        let ttlPreset = ContextCacheTTLPreset.from(ttl: draft.ttl, usesGPT62CacheTTL: usesGPT62CacheTTL)
         let customTTLDraft: String
         if case .customSeconds(let seconds) = draft.ttl {
             customTTLDraft = "\(seconds)"

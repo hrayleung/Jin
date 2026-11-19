@@ -85,7 +85,7 @@ extension ChatView {
             if supportsOpenAIServiceTierControl {
                 composerMenuControl(
                     systemName: "speedometer",
-                    isActive: controls.openAIServiceTier != nil,
+                    isActive: selectedOpenAIServiceTier != nil,
                     badgeText: openAIServiceTierBadgeText,
                     help: openAIServiceTierHelpText
                 ) {

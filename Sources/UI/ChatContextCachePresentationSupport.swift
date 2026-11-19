@@ -1,9 +1,12 @@
 import Foundation
 
 extension ChatAuxiliaryControlSupport {
-    static func contextCacheSummaryText(providerType: ProviderType?) -> String {
+    static func contextCacheSummaryText(providerType: ProviderType?, supportsExplicitMode: Bool = true) -> String {
         switch providerType {
         case .gemini, .vertexai:
+            if !supportsExplicitMode {
+                return "Implicit caching reuses repeated prompt prefixes."
+            }
             return "Use implicit caching for normal chats, or explicit caching with a cached content resource for long reusable context."
         case .anthropic, .claudeManagedAgents:
             return "Anthropic caches tagged prompt blocks. Keep stable system/tool prefixes to improve cache hit rates."
@@ -20,9 +23,12 @@ extension ChatAuxiliaryControlSupport {
         }
     }
 
-    static func contextCacheGuidanceText(providerType: ProviderType?) -> String {
+    static func contextCacheGuidanceText(providerType: ProviderType?, supportsExplicitMode: Bool = true) -> String {
         switch providerType {
         case .gemini, .vertexai:
+            if !supportsExplicitMode {
+                return "Keep shared prompt text at the beginning of each request to improve reuse."
+            }
             return "Explicit mode requires a valid cached content resource name. Keep it stable across requests to reuse cached tokens."
         case .openai, .openaiWebSocket, .xai, .meta:
             return "Use a stable cache key when your prompt prefix is consistent."

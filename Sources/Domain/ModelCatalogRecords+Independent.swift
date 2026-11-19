@@ -261,10 +261,12 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .high,
                    supportedEfforts: [.none, .low, .medium, .high, .xhigh]),
                isFullySupported: true, isSeeded: false),
+        // The model card lists cached-input pricing and the exact-ID chat schema
+        // accepts reasoning.enabled without a published model-specific effort band.
         Record(id: "Qwen/Qwen4-Max", displayName: "Qwen4 Max",
-               capabilities: [.streaming, .toolCalling, .vision, .videoInput],
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .videoInput],
                contextWindow: 1_000_000,
-               reasoningConfig: nil,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
                isFullySupported: true, isSeeded: false),
         // Official model metadata + exact-ID schema/openai-chat-completions (Nov 5).
         // reasoning.enabled is documented. Keep a toggle until model-specific effort
@@ -660,6 +662,13 @@ extension ModelCatalog {
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
+               isFullySupported: true, isSeeded: true),
+        // Together's November 17 serverless release documents reasoning but
+        // does not list exact effort values or a maximum output length.
+        Record(id: "Qwen/Qwen4-Max", displayName: "Qwen4 Max",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
         Record(id: "moonshotai/Kimi-K2.5", displayName: "Kimi K2.5",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
@@ -2469,6 +2478,20 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: true),
+        // OpenCode Go /inference/go/v1/models, November 16.
+        Record(id: "hy4-flash-free", displayName: "Hy4 flash Free",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.none, .high]),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "qwen4-max", displayName: "Qwen4 Max",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.none, .low, .high, .xhigh]),
+               isFullySupported: true, isSeeded: true),
+
         // GLM-5.3-Flash (models.dev `opencode-go` + docs.z.ai/guides/vlm/glm-5.3-flash,
         // 2026-08-26). Exact ID `glm-5.3-flash` on /zen/go/v1/chat/completions — keep
         // it out of `anthropicMessagesModelIDs` and `openAIResponsesModelIDs`. 1M /

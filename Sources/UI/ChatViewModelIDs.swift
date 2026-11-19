@@ -58,6 +58,7 @@ extension ChatView {
     ]
 
     static let geminiAudioInputModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
         "gemini-4-carbon",

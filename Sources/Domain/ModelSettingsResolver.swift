@@ -127,6 +127,9 @@ enum ModelSettingsResolver {
         if providerType == .cloudflareAIGateway {
             return !cloudflareAIGatewayAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
+        if providerType.isGoogleFamily, modelID.lowercased() == "gemini-4-neon" {
+            return false
+        }
         if providerType == .minimax || providerType == .minimaxCodingPlan {
             // MiniMax-M3.1-Flash-Preview always thinks (`disabled` and effort `none` 400);
             // MiniMax-M3 and the M2.x line keep the default toggle.
@@ -142,7 +145,8 @@ enum ModelSettingsResolver {
             return !zhipuAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
         if providerType == .databricks {
-            return !databricksAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
+            return !DatabricksGateway.usesModelServiceResponses(modelID)
+                && !databricksAlwaysOnReasoningModelIDs.contains(modelID.lowercased())
         }
         if providerType == .meta {
             // Muse Spark's reasoning cannot be disabled (Meta docs: thinking
@@ -395,6 +399,7 @@ enum ModelSettingsResolver {
     /// but its catalog record keeps reasoningConfig nil (no reasoning UI, no reasoning
     /// shape sent), making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let openRouterAlwaysOnReasoningModelIDs: Set<String> = [
+        "google/gemini-4-neon",
         "openai/gpt-6.2-astra",
         "openai/gpt-6.2-astra-pro",
         "openai/gpt-6.2-sol",
@@ -488,6 +493,7 @@ enum ModelSettingsResolver {
     /// record keeps reasoningConfig nil (no reasoning UI, no reasoning shape sent),
     /// making this default moot — same precedent as `k3` on Kimi for Coding.
     private static let vercelAIGatewayAlwaysOnReasoningModelIDs: Set<String> = [
+        "google/gemini-4-neon",
         "recursive/flint-v1.0",
         "anthropic/claude-fable-5.2",
         "anthropic/claude-fable-5.2-fast",

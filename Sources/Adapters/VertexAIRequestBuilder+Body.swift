@@ -13,7 +13,7 @@ extension VertexAIRequestBuilder {
             "generationConfig": makeGenerationConfig(controls, modelID: modelID)
         ]
 
-        let explicitCachedContent = explicitCachedContentName(from: controls)
+        let explicitCachedContent = GeminiRequestSupport.explicitCachedContentName(from: controls, modelID: modelID)
         let modelSupportsGoogleMaps = modelSupport.supportsGoogleMaps(modelID)
 
         if let cachedContent = explicitCachedContent {
@@ -71,11 +71,6 @@ extension VertexAIRequestBuilder {
 
         guard !parts.isEmpty else { return nil }
         return ["parts": parts]
-    }
-
-    func explicitCachedContentName(from controls: GenerationControls) -> String? {
-        guard controls.contextCache?.mode == .explicit else { return nil }
-        return normalizedTrimmedString(controls.contextCache?.cachedContentName)
     }
 
     func supportsNativePDF(modelID: String, controls: GenerationControls) -> Bool {
