@@ -14,10 +14,10 @@ extension ChatAuxiliaryControlSupport {
         return .off
     }
 
-    static func supportsExplicitContextCacheMode(providerType: ProviderType?) -> Bool {
+    static func supportsExplicitContextCacheMode(providerType: ProviderType?, modelID: String? = nil) -> Bool {
         switch providerType {
         case .gemini, .vertexai:
-            return true
+            return modelID.map(GeminiModelConstants.supportsExplicitContextCaching) ?? true
         case .openai, .openaiWebSocket, .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway,
              .openrouter, .anthropic, .claudeManagedAgents, .perplexity, .groq, .cohere, .mistral, .deepinfra, .together, .baseten, .runinfra,
              .xai, .deepseek, .zhipuCodingPlan, .minimax, .minimaxCodingPlan, .mimoTokenPlanAnthropic, .mimoTokenPlanOpenAI,

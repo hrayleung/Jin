@@ -430,7 +430,8 @@ func supportsOpenAIResponsesSamplingParameters(
         canonical = String(canonical.dropLast(":batch".count))
     }
 
-    if openAIResponsesSamplingDeniedExactModelIDs.contains(canonical) {
+    if (providerType == .databricks && DatabricksGateway.usesModelServiceResponses(modelID))
+        || openAIResponsesSamplingDeniedExactModelIDs.contains(canonical) {
         return false
     }
 
@@ -545,14 +546,7 @@ func resolvedOpenAIServiceTier(
     modelID: String,
     providerType: ProviderType
 ) -> String? {
-    let legacyRaw = controls.providerSpecific["service_tier"]?.value as? String
-    let tier = controls.openAIServiceTier ?? OpenAIServiceTier.normalized(rawValue: legacyRaw)
-    if tier == .ultrafast {
-        return OpenAIServiceTier.supportsUltrafast(modelID: modelID, providerType: providerType)
-            ? tier?.rawValue : nil
-    }
-    guard providerType == .openai || providerType == .openaiWebSocket else { return nil }
-    return tier?.rawValue
+    OpenAIServiceTier.selected(in: controls, modelID: modelID, providerType: providerType)?.rawValue
 }
 
 // MARK: - OpenAI-Compatible Streaming Dispatch

@@ -14,7 +14,8 @@ final class OpenAIResponsesRequestSupportTests: XCTestCase {
                     cacheKey: " stable-prefix ",
                     minTokensThreshold: 1024
                 )
-            )
+            ),
+            modelID: "gpt-5.4"
         )
 
         XCTAssertEqual(body["prompt_cache_key"] as? String, "stable-prefix")
@@ -33,7 +34,8 @@ final class OpenAIResponsesRequestSupportTests: XCTestCase {
                     ttl: .hour1,
                     cacheKey: "stable-prefix"
                 )
-            )
+            ),
+            modelID: "gpt-5.4"
         )
 
         XCTAssertTrue(body.isEmpty)

@@ -16,7 +16,8 @@ extension OpenAIWebSocketAdapter {
             "input": try translateInput(
                 messages,
                 supportsNativeFileInput: supportsNativeFileInput,
-                allowNativePDF: allowNativePDF
+                allowNativePDF: allowNativePDF,
+                usesDeveloperRole: OpenAIModelSupport.isGPT62(modelID)
             ),
         ]
 
@@ -24,7 +25,7 @@ extension OpenAIWebSocketAdapter {
             body["previous_response_id"] = previousResponseID
         }
 
-        OpenAIResponsesRequestSupport.applyContextCacheControls(to: &body, controls: controls)
+        OpenAIResponsesRequestSupport.applyContextCacheControls(to: &body, controls: controls, modelID: modelID)
 
         let reasoningEffort = (controls.reasoning?.enabled == true) ? controls.reasoning?.effort : nil
         let reasoningEnabled = (reasoningEffort ?? .none) != .none

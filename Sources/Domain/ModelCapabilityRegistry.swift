@@ -123,6 +123,8 @@ enum ModelCapabilityRegistry {
 
     /// Models that accept Responses API `text.verbosity`.
     private static let openAIStyleVerbosityModelIDs: Set<String> = [
+        "gpt-6.2-astra",
+        "gpt-6.2-sol",
         "gpt-6-astra",
         "gpt-6-sol",
         "gpt-6.1-sol",
@@ -189,11 +191,6 @@ enum ModelCapabilityRegistry {
         "gemini-3.1-pro-preview",
     ]
 
-    /// Gemini 4 Hydrogen supports LOW/MEDIUM/HIGH/XHIGH (MINIMAL rejected).
-    private static let gemini4HydrogenEffortModelIDs: Set<String> = [
-        "gemini-4-hydrogen",
-    ]
-
     /// Gemini 3 Pro family supports LOW/HIGH.
     private static let gemini3ProLowHighEffortModelIDs: Set<String> = [
         "gemini-3",
@@ -206,6 +203,7 @@ enum ModelCapabilityRegistry {
     /// Models documented by Google as supporting grounding with Google Search in Gemini API,
     /// plus narrow runtime trials we intentionally enable in Jin.
     private static let geminiGoogleSearchSupportedModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-hydrogen",
         "gemini-4-carbon",
         "gemini-4-argon",
@@ -236,6 +234,7 @@ enum ModelCapabilityRegistry {
     /// Models supporting grounding with Google Search in Vertex AI.
     /// Includes Gemini 3.1 Flash Image based on runtime validation.
     private static let vertexGoogleSearchSupportedModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-hydrogen",
         "gemini-4-carbon",
         "gemini-4-carbon-cyber-permissive",
@@ -267,6 +266,7 @@ enum ModelCapabilityRegistry {
     /// OpenRouter `plugins: [{id: "web"}]` support stays conservative and does not
     /// inherit Gemini-only runtime trials automatically.
     private static let openRouterGoogleSearchSupportedModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-hydrogen",
         "gemini-4-carbon",
         "gemini-4-argon",
@@ -300,6 +300,7 @@ enum ModelCapabilityRegistry {
 
     /// Models documented by Google as supporting grounding with Google Maps in Gemini API.
     private static let geminiGoogleMapsSupportedModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-hydrogen",
         "gemini-4-carbon",
         "gemini-3.8-flash",
@@ -325,6 +326,7 @@ enum ModelCapabilityRegistry {
     /// Align with Vertex generative-ai Maps page + Enterprise model cards (2026-07).
     /// Keep exact IDs only; legacy aliases retained for persisted conversations.
     private static let vertexGoogleMapsSupportedModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-hydrogen",
         "gemini-4-carbon",
         "gemini-4-carbon-cyber-permissive",
@@ -354,6 +356,7 @@ enum ModelCapabilityRegistry {
 
     /// Models documented by Google as supporting code execution in Gemini API.
     private static let geminiCodeExecutionSupportedModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
         "gemini-4-carbon",
@@ -382,6 +385,7 @@ enum ModelCapabilityRegistry {
 
     /// Models documented by Google as supporting code execution in Vertex AI.
     private static let vertexCodeExecutionSupportedModelIDs: Set<String> = [
+        "gemini-4-neon",
         "gemini-4-argon",
         "gemini-4-argon-cyber-permissive",
         "gemini-4-carbon",
@@ -1147,6 +1151,10 @@ enum ModelCapabilityRegistry {
             return .openAIResponses
         case .anthropic, .claudeManagedAgents, .mimoTokenPlanAnthropic, .kimiForCoding:
             return .anthropic
+        case .opencodeGo where modelID.lowercased() == "qwen4-max":
+            return .anthropic
+        case .databricks where DatabricksGateway.usesModelServiceResponses(modelID):
+            return .openAIResponses
         case .gemini, .vertexai:
             return .gemini
         case .githubCopilot, .openaiCompatible, .cloudflareAIGateway, .vercelAIGateway, .openrouter,
@@ -1172,6 +1180,7 @@ enum ModelCapabilityRegistry {
         case .vercelAIGateway:
             return !isVercelGPT62Model(lower) &&
                 !["tencent/hy4", "tencent/hy4-flash", "alibaba/qwen4-max", "recursive/flint-v1.0",
+                     "google/gemini-4-neon",
                      "inclusionai/ling-3.1-flash-1019",
                      "meituan/longcat-2.5", "zai/glm-5.3-flashx-legal",
                      "anthropic/claude-fable-5.2", "anthropic/claude-fable-5.2-fast",
@@ -1909,7 +1918,7 @@ enum ModelCapabilityRegistry {
             || geminiNanoBanana21EffortModelIDs.contains(lowerModelID)
             || gemini3FlashEffortModelIDs.contains(lowerModelID)
             || gemini37FlashEffortModelIDs.contains(lowerModelID)
-            || gemini4HydrogenEffortModelIDs.contains(lowerModelID)
+            || GeminiModelConstants.geminiXHighThinkingModelIDs.contains(lowerModelID)
             || gemini31ProEffortModelIDs.contains(lowerModelID)
             || gemini3ProLowHighEffortModelIDs.contains(lowerModelID)
     }
@@ -1928,7 +1937,7 @@ enum ModelCapabilityRegistry {
         if gemini37FlashEffortModelIDs.contains(id) {
             return defaultReasoningEfforts
         }
-        if gemini4HydrogenEffortModelIDs.contains(id) {
+        if GeminiModelConstants.geminiXHighThinkingModelIDs.contains(id) {
             return [.low, .medium, .high, .xhigh]
         }
         if gemini31ProEffortModelIDs.contains(id) {

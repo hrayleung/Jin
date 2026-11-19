@@ -1353,6 +1353,13 @@ extension ModelCatalog {
     // MARK: Vercel AI Gateway
 
     static let vercelAIGatewayRecords: [Record] = [
+        // AI Gateway /v1/models (2026-11-18).
+        Record(id: "google/gemini-4-neon", displayName: "Gemini 4 Neon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 1_000_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.low, .medium, .high, .xhigh]),
+               isFullySupported: true, isSeeded: false),
         // AI Gateway /v1/models (2026-11-18). Limits and effort bands are gateway-specific.
         Record(id: "openai/gpt-6.2-astra", displayName: "GPT-6.2 Astra",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],

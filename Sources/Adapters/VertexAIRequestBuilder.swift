@@ -35,6 +35,9 @@ struct VertexAIRequestBuilder {
         if !controls.providerSpecific.isEmpty {
             deepMergeDictionary(into: &body, additional: controls.providerSpecific.mapValues { $0.value })
         }
+        if !GeminiModelConstants.supportsExplicitContextCaching(normalizedModelID) {
+            body.removeValue(forKey: "cachedContent")
+        }
 
         return try NetworkRequestFactory.makeJSONRequest(
             url: endpoint,

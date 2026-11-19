@@ -22,7 +22,7 @@ extension ChatView {
     }
 
     var supportsExplicitContextCacheMode: Bool {
-        ChatAuxiliaryControlSupport.supportsExplicitContextCacheMode(providerType: providerType)
+        ChatAuxiliaryControlSupport.supportsExplicitContextCacheMode(providerType: providerType, modelID: activeModelID)
     }
 
     var supportsContextCacheStrategy: Bool {
@@ -33,6 +33,11 @@ extension ChatView {
         ChatAuxiliaryControlSupport.supportsContextCacheTTL(providerType: providerType)
     }
 
+    var usesGPT62CacheTTL: Bool {
+        (providerType == .openai || providerType == .openaiWebSocket)
+            && OpenAIModelSupport.isGPT62(activeModelID)
+    }
+
     var contextCacheSupportsAdvancedOptions: Bool {
         ChatAuxiliaryControlSupport.contextCacheSupportsAdvancedOptions(
             providerType: providerType,
@@ -41,11 +46,15 @@ extension ChatView {
     }
 
     var contextCacheSummaryText: String {
-        ChatAuxiliaryControlSupport.contextCacheSummaryText(providerType: providerType)
+        ChatAuxiliaryControlSupport.contextCacheSummaryText(
+            providerType: providerType, supportsExplicitMode: supportsExplicitContextCacheMode
+        )
     }
 
     var contextCacheGuidanceText: String {
-        ChatAuxiliaryControlSupport.contextCacheGuidanceText(providerType: providerType)
+        ChatAuxiliaryControlSupport.contextCacheGuidanceText(
+            providerType: providerType, supportsExplicitMode: supportsExplicitContextCacheMode
+        )
     }
 
     func automaticContextCacheControls(
@@ -98,6 +107,10 @@ extension ChatView {
             providerType: providerType,
             supportsMediaGenerationControl: supportsMediaGenerationControl
         )
+    }
+
+    var selectedOpenAIServiceTier: OpenAIServiceTier? {
+        OpenAIServiceTier.selected(in: controls, modelID: activeModelID, providerType: providerType)
     }
 
     var supportsAnthropicFastModeControl: Bool {

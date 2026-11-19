@@ -83,7 +83,9 @@ extension ChatView {
     }
 
     var openAIServiceTierLabel: String {
-        ChatAuxiliaryControlSupport.openAIServiceTierLabel(controls: controls)
+        ChatAuxiliaryControlSupport.openAIServiceTierLabel(
+            controls: controls, modelID: activeModelID, providerType: providerType
+        )
     }
 
     var webSearchSourcesLabel: String {
@@ -104,7 +106,9 @@ extension ChatView {
     var openAIServiceTierBadgeText: String? {
         ChatAuxiliaryControlSupport.openAIServiceTierBadgeText(
             supportsOpenAIServiceTierControl: supportsOpenAIServiceTierControl,
-            controls: controls
+            controls: controls,
+            modelID: activeModelID,
+            providerType: providerType
         )
     }
 

@@ -7,7 +7,8 @@ extension OpenAIAdapter {
     func translateInput(
         _ messages: [Message],
         supportsNativeFileInput: Bool,
-        allowNativePDF: Bool
+        allowNativePDF: Bool,
+        usesDeveloperRole: Bool
     ) async throws -> [[String: Any]] {
         var items: [[String: Any]] = []
 
@@ -21,11 +22,14 @@ extension OpenAIAdapter {
                 }
 
             case .system, .user, .assistant:
-                if let translated = try await translateMessage(
+                if var translated = try await translateMessage(
                     message,
                     supportsNativeFileInput: supportsNativeFileInput,
                     allowNativePDF: allowNativePDF
                 ) {
+                    if usesDeveloperRole, message.role == .system {
+                        translated["role"] = "developer"
+                    }
                     items.append(translated)
                 }
 

@@ -25,13 +25,14 @@ extension OpenAIAdapter {
             "input": try await translateInput(
                 messages,
                 supportsNativeFileInput: supportsNativeFileInput,
-                allowNativePDF: allowNativePDF
+                allowNativePDF: allowNativePDF,
+                usesDeveloperRole: usesNativeOpenAIPlatform && OpenAIModelSupport.isGPT62(modelID)
             ),
             "stream": streaming
         ]
 
         if usesNativeOpenAIPlatform {
-            OpenAIResponsesRequestSupport.applyContextCacheControls(to: &body, controls: controls)
+            OpenAIResponsesRequestSupport.applyContextCacheControls(to: &body, controls: controls, modelID: modelID)
         }
         OpenAIResponsesRequestSupport.applySamplingControls(
             to: &body,

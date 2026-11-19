@@ -22,11 +22,19 @@ actor DatabricksAdapter: LLMProviderAdapter {
 
     let networkManager: NetworkManager
     let apiKey: String
+    private let responsesAdapter: OpenAIAdapter
 
     init(providerConfig: ProviderConfig, apiKey: String, networkManager: NetworkManager = NetworkManager()) {
         self.providerConfig = providerConfig
         self.apiKey = apiKey
         self.networkManager = networkManager
+        var responsesConfig = providerConfig
+        responsesConfig.baseURL = DatabricksGateway.modelServiceBaseURL(from: Self.configuredBaseURL(for: providerConfig))
+        self.responsesAdapter = OpenAIAdapter(
+            providerConfig: responsesConfig,
+            apiKey: apiKey,
+            networkManager: networkManager
+        )
     }
 
     func sendMessage(
@@ -36,6 +44,16 @@ actor DatabricksAdapter: LLMProviderAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) async throws -> AsyncThrowingStream<StreamEvent, Error> {
+        if DatabricksGateway.usesModelServiceResponses(modelID) {
+            return try await responsesAdapter.sendMessage(
+                messages: messages,
+                modelID: modelID,
+                controls: controls,
+                tools: tools,
+                streaming: streaming
+            )
+        }
+
         let request = try buildRequest(
             messages: messages,
             modelID: modelID,
@@ -54,7 +72,11 @@ actor DatabricksAdapter: LLMProviderAdapter {
 
     /// The configured base URL, trimmed (falling back to the provider default).
     var configuredBaseURL: String {
-        (providerConfig.baseURL?.trimmedNonEmpty
+        Self.configuredBaseURL(for: providerConfig)
+    }
+
+    private static func configuredBaseURL(for config: ProviderConfig) -> String {
+        (config.baseURL?.trimmedNonEmpty
             ?? ProviderType.databricks.defaultBaseURL
             ?? "https://dbc-00000000-0000.cloud.databricks.com").trimmed
     }

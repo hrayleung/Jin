@@ -100,6 +100,10 @@ private extension ChatAuxiliaryControlSupport {
             draft.ttl = .minutes5
         case .hour1:
             draft.ttl = .hour1
+        case .minutes30:
+            draft.ttl = .customSeconds(1_800)
+        case .hours12:
+            draft.ttl = .customSeconds(43_200)
         case .custom:
             guard let value = positiveContextCacheInteger(from: customTTLDraft) else {
                 return .failure(.message("Custom TTL must be a positive integer (seconds)."))

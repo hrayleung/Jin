@@ -85,6 +85,7 @@ struct ContextCacheAdvancedCard: View {
 
     let providerType: ProviderType?
     let supportsTTL: Bool
+    let usesGPT62CacheTTL: Bool
 
     var body: some View {
         JinSettingsCard {
@@ -102,7 +103,7 @@ struct ContextCacheAdvancedCard: View {
                 ttlSection
             }
 
-            if providerType == .xai || providerType == .openai {
+            if providerType == .xai || providerType == .openai || providerType == .openaiWebSocket {
                 cacheKeySection
             }
 
@@ -127,9 +128,14 @@ struct ContextCacheAdvancedCard: View {
             VStack(alignment: .leading, spacing: JinSpacing.small) {
                 JinSettingsMenuPicker("TTL", selection: $ttlPreset) {
                     Text("Provider default").tag(ContextCacheTTLPreset.providerDefault)
-                    Text("5 minutes").tag(ContextCacheTTLPreset.minutes5)
-                    Text("1 hour").tag(ContextCacheTTLPreset.hour1)
-                    Text("Custom").tag(ContextCacheTTLPreset.custom)
+                    if usesGPT62CacheTTL {
+                        Text("30 minutes").tag(ContextCacheTTLPreset.minutes30)
+                        Text("12 hours").tag(ContextCacheTTLPreset.hours12)
+                    } else {
+                        Text("5 minutes").tag(ContextCacheTTLPreset.minutes5)
+                        Text("1 hour").tag(ContextCacheTTLPreset.hour1)
+                        Text("Custom").tag(ContextCacheTTLPreset.custom)
+                    }
                 }
 
                 if ttlPreset == .custom {

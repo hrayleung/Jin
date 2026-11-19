@@ -16,14 +16,21 @@ enum OpenAIResponsesRequestSupport {
 
     static func applyContextCacheControls(
         to body: inout [String: Any],
-        controls: GenerationControls
+        controls: GenerationControls,
+        modelID: String
     ) {
         guard controls.contextCache?.mode != .off else { return }
 
         if let cacheKey = normalizedTrimmedString(controls.contextCache?.cacheKey) {
             body["prompt_cache_key"] = cacheKey
         }
-        if let retention = controls.contextCache?.ttl?.providerTTLString {
+        if OpenAIModelSupport.isGPT62(modelID) {
+            switch controls.contextCache?.ttl {
+            case .customSeconds(1800): body["prompt_cache_options"] = ["ttl": "30m"]
+            case .customSeconds(43200): body["prompt_cache_options"] = ["ttl": "12h"]
+            default: break
+            }
+        } else if let retention = controls.contextCache?.ttl?.providerTTLString {
             body["prompt_cache_retention"] = retention
         }
     }
@@ -136,11 +143,15 @@ enum OpenAIResponsesRequestSupport {
         providerType: ProviderType?,
         supportsSamplingParameters: Bool
     ) {
+        let isGPT62 = (body["model"] as? String).map(OpenAIModelSupport.isGPT62) ?? false
         for (key, value) in controls.providerSpecific {
             guard key != "prompt_cache_min_tokens", key != "service_tier" else {
                 continue
             }
             if !supportsSamplingParameters, key == "temperature" || key == "top_p" {
+                continue
+            }
+            if isGPT62, key == "prompt_cache_retention" || key == "top_logprobs" {
                 continue
             }
             // On a strict gateway, never let a custom param overwrite the computed `reasoning`

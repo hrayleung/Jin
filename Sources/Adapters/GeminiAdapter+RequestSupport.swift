@@ -20,7 +20,7 @@ extension GeminiAdapter {
             "generationConfig": GeminiRequestSupport.generationConfig(controls: controls, modelID: modelID)
         ]
 
-        let explicitCachedContent = GeminiRequestSupport.explicitCachedContentName(from: controls)
+        let explicitCachedContent = GeminiRequestSupport.explicitCachedContentName(from: controls, modelID: modelID)
 
         let modelSupportsGoogleMaps = supportsGoogleMaps(modelID)
 
@@ -63,6 +63,9 @@ extension GeminiAdapter {
 
         if !controls.providerSpecific.isEmpty {
             deepMergeDictionary(into: &body, additional: controls.providerSpecific.mapValues { $0.value })
+        }
+        if !GeminiModelConstants.supportsExplicitContextCaching(modelID) {
+            body.removeValue(forKey: "cachedContent")
         }
 
         return try NetworkRequestFactory.makeJSONRequest(

@@ -9,16 +9,22 @@ extension ChatAuxiliaryControlSupport {
         return "Service Tier: \(label)"
     }
 
-    static func openAIServiceTierLabel(controls: GenerationControls) -> String {
-        controls.openAIServiceTier?.displayName ?? "Auto"
+    static func openAIServiceTierLabel(
+        controls: GenerationControls,
+        modelID: String? = nil,
+        providerType: ProviderType? = .openai
+    ) -> String {
+        OpenAIServiceTier.selected(in: controls, modelID: modelID, providerType: providerType)?.displayName ?? "Auto"
     }
 
     static func openAIServiceTierBadgeText(
         supportsOpenAIServiceTierControl: Bool,
-        controls: GenerationControls
+        controls: GenerationControls,
+        modelID: String? = nil,
+        providerType: ProviderType? = .openai
     ) -> String? {
         guard supportsOpenAIServiceTierControl else { return nil }
-        return controls.openAIServiceTier?.badgeText
+        return OpenAIServiceTier.selected(in: controls, modelID: modelID, providerType: providerType)?.badgeText
     }
 
     static func anthropicFastModeHelpText(

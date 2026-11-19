@@ -21,7 +21,7 @@ extension OpenCodeGoAdapter {
                 headers["x-api-key"] = key
                 headers["anthropic-version"] = "2023-06-01"
                 request = try NetworkRequestFactory.makeJSONRequest(
-                    url: validatedURL("\(Self.hardcodedBaseURL)/messages"),
+                    url: validatedURL("\(Self.inferenceBaseURL(for: modelID))/messages"),
                     headers: headers,
                     body: body
                 )
@@ -44,7 +44,7 @@ extension OpenCodeGoAdapter {
                 )
             } else {
                 request = try makeAuthorizedJSONRequest(
-                    url: validatedURL("\(Self.hardcodedBaseURL)/chat/completions"),
+                    url: validatedURL("\(Self.inferenceBaseURL(for: modelID))/chat/completions"),
                     apiKey: key,
                     body: body,
                     additionalHeaders: sessionHeaders

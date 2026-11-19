@@ -268,7 +268,8 @@ extension ChatView {
         let prepared = ChatAuxiliaryControlSupport.prepareContextCacheEditorDraft(
             current: controls.contextCache,
             providerType: providerType,
-            supportsContextCacheTTL: supportsContextCacheTTL
+            supportsContextCacheTTL: supportsContextCacheTTL,
+            usesGPT62CacheTTL: usesGPT62CacheTTL
         )
         contextCacheDraft = prepared.draft
         contextCacheTTLPreset = prepared.ttlPreset

@@ -12,6 +12,7 @@ struct ContextCacheSheetView: View {
     let supportsExplicitMode: Bool
     let supportsStrategy: Bool
     let supportsTTL: Bool
+    let usesGPT62CacheTTL: Bool
     let supportsAdvancedOptions: Bool
     let summaryText: String
     let guidanceText: String
@@ -38,7 +39,8 @@ struct ContextCacheSheetView: View {
                             minTokensDraft: $minTokensDraft,
                             advancedExpanded: $advancedExpanded,
                             providerType: providerType,
-                            supportsTTL: supportsTTL
+                            supportsTTL: supportsTTL,
+                            usesGPT62CacheTTL: usesGPT62CacheTTL
                         )
                     }
 
@@ -77,8 +79,17 @@ enum ContextCacheTTLPreset: String, CaseIterable {
     case minutes5
     case hour1
     case custom
+    case minutes30
+    case hours12
 
-    static func from(ttl: ContextCacheTTL?) -> ContextCacheTTLPreset {
+    static func from(ttl: ContextCacheTTL?, usesGPT62CacheTTL: Bool = false) -> ContextCacheTTLPreset {
+        if usesGPT62CacheTTL {
+            switch ttl {
+            case .customSeconds(1_800): return .minutes30
+            case .customSeconds(43_200): return .hours12
+            default: return .providerDefault
+            }
+        }
         switch ttl {
         case .minutes5:
             return .minutes5

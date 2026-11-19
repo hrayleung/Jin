@@ -408,7 +408,8 @@ final class GeminiRequestSupportTests: XCTestCase {
         let explicitCache = GeminiRequestSupport.explicitCachedContentName(
             from: GenerationControls(
                 contextCache: ContextCacheControls(mode: .explicit, cachedContentName: " cachedContents/cache-123 ")
-            )
+            ),
+            modelID: "gemini-3.8-flash"
         )
         XCTAssertEqual(explicitCache, "cachedContents/cache-123")
 

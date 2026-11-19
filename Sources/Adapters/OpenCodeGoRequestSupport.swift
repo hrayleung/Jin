@@ -46,6 +46,17 @@ extension OpenCodeGoAdapter {
         anthropicMessagesModelIDs.contains(modelID.lowercased())
     }
 
+    static func inferenceBaseURL(for modelID: String, defaultBaseURL: String? = nil) -> String {
+        switch modelID.lowercased() {
+        case "qwen4-max":
+            return "https://opencode.ai/inference/go/anthropic/v1"
+        case "hy4-flash-free":
+            return "https://opencode.ai/inference/go/openai/v1"
+        default:
+            return defaultBaseURL ?? hardcodedBaseURL
+        }
+    }
+
     /// Models OpenCode Go serves via the OpenAI Responses `/responses` endpoint (per
     /// opencode.ai/docs/go's endpoint table + models.dev `opencode-go` → `@ai-sdk/openai`):
     /// GPT-5.6 Luna, Grok 4.6, and Muse Spark 1.2 / 1.2 Contributor. Matched by exact ID
@@ -114,7 +125,7 @@ extension OpenCodeGoAdapter {
             || lowerModelID == "longcat-2.5-free"
             || lowerModelID == "iceman-contributor-free"
 
-        if lowerModelID == "hy4", let reasoning = controls.reasoning {
+        if ["hy4", "hy4-flash-free"].contains(lowerModelID), let reasoning = controls.reasoning {
             body["reasoning_effort"] = reasoning.enabled && reasoning.effort != .some(.none)
                 ? "high" : "none"
         } else if omitReasoningEffort {
@@ -162,7 +173,7 @@ extension OpenCodeGoAdapter {
         }
 
         return try makeAuthorizedJSONRequest(
-            url: validatedURL("\(Self.hardcodedBaseURL)/chat/completions"),
+            url: validatedURL("\(Self.inferenceBaseURL(for: modelID))/chat/completions"),
             apiKey: apiKey,
             body: body,
             additionalHeaders: Self.outboundHeaders()

@@ -39,6 +39,32 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
 
     // MARK: - Seeds
 
+    func testUnityGatewayGPT62ModelServicesUseResponses() async throws {
+        let session = URLSessionConfiguration.ephemeral
+        session.protocolClasses = [DatabricksModelServiceURLProtocol.self]
+        let config = ProviderConfig(
+            id: "test-databricks", name: "Databricks", type: .databricks,
+            baseURL: "https://workspace.example/serving-endpoints"
+        )
+        let adapter = DatabricksAdapter(
+            providerConfig: config, apiKey: "test-token", networkManager: NetworkManager(configuration: session)
+        )
+        for modelID in ["system.ai.gpt-6-2-astra", "system.ai.gpt-6-2-sol"] {
+            let stream = try await adapter.sendMessage(
+                messages: [Message(role: .user, content: [.text("Hello")])],
+                modelID: modelID,
+                controls: .init(reasoning: .init(effort: .max)),
+                tools: [],
+                streaming: false
+            )
+            var responseID: String?
+            for try await event in stream {
+                if case .messageStart(let id) = event { responseID = id }
+            }
+            XCTAssertEqual(responseID, "resp_databricks")
+        }
+    }
+
     func testDefaultProviderSeedsIncludeDatabricksWithSeededModels() {
         let providers = DefaultProviderSeeds.allProviders()
         guard let provider = providers.first(where: { $0.type == .databricks }) else {
@@ -60,6 +86,8 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
                 "databricks-llama-4-maverick",
                 "databricks-meta-llama-3-3-70b-instruct",
                 "databricks-gemma-3-12b",
+                "system.ai.gpt-6-2-astra",
+                "system.ai.gpt-6-2-sol",
             ]
         )
     }
@@ -531,4 +559,27 @@ final class DatabricksProviderIntegrationTests: XCTestCase {
         let terraDisabledBody = try JSONSerialization.jsonObject(with: try XCTUnwrap(terraDisabledReq.httpBody)) as? [String: Any]
         XCTAssertEqual(terraDisabledBody?["reasoning_effort"] as? String, "none")
     }
+}
+
+private final class DatabricksModelServiceURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard request.url?.absoluteString == "https://workspace.example/ai-gateway/mlflow/v1/responses",
+              request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token",
+              let url = request.url,
+              let response = HTTPURLResponse(
+                url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"]
+              ) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+            return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"id":"resp_databricks","output":[]}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }

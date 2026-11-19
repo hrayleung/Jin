@@ -261,7 +261,7 @@ struct OpenRouterVideoGenerationMenuView: View {
                 onSetDurationSeconds(nil)
             }
             ForEach(supportedDurations, id: \.self) { seconds in
-                JinMenuSelectionItem("\(seconds)s", isSelected: currentDurationSeconds == seconds) {
+                JinMenuSelectionItem(durationLabel(seconds), isSelected: currentDurationSeconds == seconds) {
                     onSetDurationSeconds(seconds)
                 }
             }
@@ -321,8 +321,12 @@ struct OpenRouterVideoGenerationMenuView: View {
     private var durationMenuTitle: String {
         ChatAuxiliaryControlSupport.nestedMenuTitle(
             "Duration",
-            current: currentDurationSeconds.map { "\($0)s" }
+            current: currentDurationSeconds.map(durationLabel)
         )
+    }
+
+    private func durationLabel(_ seconds: Int) -> String {
+        seconds == -1 ? "Automatic" : "\(seconds)s"
     }
 
     private var aspectMenuTitle: String {

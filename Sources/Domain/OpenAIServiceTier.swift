@@ -48,6 +48,33 @@ enum OpenAIServiceTier: String, Codable, CaseIterable {
         }
     }
 
+    static func available(for modelID: String?, providerType: ProviderType?) -> [OpenAIServiceTier] {
+        switch providerType {
+        case .openai, .openaiWebSocket:
+            if let modelID, OpenAIModelSupport.isGPT62(modelID) {
+                return [.defaultTier, .priority, .ultrafast]
+            }
+            return allCases.filter { $0 != .ultrafast || supportsUltrafast(modelID: modelID, providerType: providerType) }
+        case .vercelAIGateway:
+            return supportsUltrafast(modelID: modelID, providerType: providerType) ? [.ultrafast] : []
+        default:
+            return []
+        }
+    }
+
+    static func selected(
+        in controls: GenerationControls,
+        modelID: String?,
+        providerType: ProviderType?
+    ) -> OpenAIServiceTier? {
+        let legacy = controls.providerSpecific["service_tier"]?.value as? String
+        guard let tier = controls.openAIServiceTier ?? normalized(rawValue: legacy),
+              available(for: modelID, providerType: providerType).contains(tier) else {
+            return nil
+        }
+        return tier
+    }
+
     static func normalized(rawValue: String?) -> OpenAIServiceTier? {
         guard let rawValue else { return nil }
         let normalized = rawValue.trimmedLowercased

@@ -113,6 +113,20 @@ extension ModelCatalog {
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: true),
 
+        // Unity Gateway model service names from the November 17 release.
+        Record(id: "system.ai.gpt-6-2-astra", displayName: "GPT-6.2 Astra",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
+        Record(id: "system.ai.gpt-6-2-sol", displayName: "GPT-6.2 Sol",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: true),
+
         // MARK: Catalog-only — recognized when fetched from the workspace
 
         // Anthropic Claude

@@ -46,6 +46,10 @@ enum AnthropicRequestBodySupport {
         modelID: String
     ) {
         let thinkingEnabled = controls.reasoning?.enabled == true
+        if providerType == .opencodeGo, modelID.lowercased() == "qwen4-max" {
+            applySamplingControls(to: &body, controls: controls, modelID: modelID)
+            return
+        }
         let providerSpecificThinking = AnthropicThinkingConfigSupport.providerSpecificThinkingDictionary(
             from: controls.providerSpecific["thinking"]?.value
         )
@@ -339,6 +343,30 @@ enum AnthropicRequestBodySupport {
             return codable.value as? String
         }
         return nil
+    }
+
+    static func applyQwen4MaxThinking(
+        to body: inout [String: Any],
+        controls: GenerationControls,
+        modelID: String
+    ) {
+        guard let reasoning = controls.reasoning else { return }
+        var outputConfig = body["output_config"] as? [String: Any] ?? [:]
+
+        if reasoning.enabled, reasoning.effort != .some(.none) {
+            body["thinking"] = ["type": "enabled"]
+            if let effort = reasoning.effort {
+                outputConfig["effort"] = ModelCapabilityRegistry.normalizedReasoningEffort(
+                    effort,
+                    for: .opencodeGo,
+                    modelID: modelID
+                ).rawValue
+            }
+        } else {
+            body["thinking"] = ["type": "disabled"]
+            outputConfig.removeValue(forKey: "effort")
+        }
+        body["output_config"] = outputConfig.isEmpty ? nil : outputConfig
     }
 
     private static func mergeOutputConfig(into body: inout [String: Any], additional: [String: Any]) {
