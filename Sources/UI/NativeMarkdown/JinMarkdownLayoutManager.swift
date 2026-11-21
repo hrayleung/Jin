@@ -136,6 +136,147 @@ final class JinMarkdownLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
         super.drawBackground(forGlyphRange: glyphsToShow, at: origin)
     }
 
+    struct InlineCodePillSegment: Equatable {
+        let rect: NSRect
+        let roundLeft: Bool
+        let roundRight: Bool
+    }
+
+    /// Computes per-line pill segments for a single inline-code glyph run.
+    ///
+    /// Uses `enumerateLineFragments` instead of `enumerateEnclosingRects`
+    /// because AppKit's enclosing-rect API is built for multi-line text
+    /// selection: it stretches the first wrapped line to the right margin and
+    /// subsequent wrapped lines back to `x = 0` (crossing list `headIndent`
+    /// gutters). Measuring the actual glyph span per line fragment keeps each
+    /// segment tightly hugged to its glyphs, trims trailing wrap-point spaces,
+    /// and opens the interior edges (`box-decoration-break: slice`) so wrapped
+    /// inline code reads as one continuous span.
+    func inlineCodePillSegments(
+        forGlyphRange glyphRange: NSRange,
+        in container: NSTextContainer,
+        storage: NSTextStorage,
+        origin: NSPoint
+    ) -> [InlineCodePillSegment] {
+        guard glyphRange.length > 0 else { return [] }
+        let startCharIndex = characterIndexForGlyph(at: glyphRange.location)
+        let codeFont = storage.attribute(.font, at: startCharIndex, effectiveRange: nil) as? NSFont
+        let nsString = storage.string as NSString
+
+        struct RawLineSegment {
+            let glyphRange: NSRange
+            let lineRect: NSRect
+            let lineUsedRect: NSRect
+        }
+
+        var rawSegments: [RawLineSegment] = []
+        enumerateLineFragments(forGlyphRange: glyphRange) { lineRect, usedRect, _, lineGlyphRange, _ in
+            let intersection = NSIntersectionRange(lineGlyphRange, glyphRange)
+            guard intersection.length > 0 else { return }
+            rawSegments.append(RawLineSegment(
+                glyphRange: intersection,
+                lineRect: lineRect,
+                lineUsedRect: usedRect
+            ))
+        }
+        guard !rawSegments.isEmpty else { return [] }
+
+        struct MeasuredLine {
+            let drawRect: NSRect
+        }
+
+        var measured: [MeasuredLine] = []
+        let totalRaw = rawSegments.count
+        let containerRightEdge: CGFloat? = container.size.width.isFinite && container.size.width > 0
+            ? origin.x + container.size.width
+            : nil
+
+        for (index, raw) in rawSegments.enumerated() {
+            var trimmed = raw.glyphRange
+            let isLastRaw = index == totalRaw - 1
+
+            // Trim trailing wrap-point whitespace on non-final wrapped lines
+            // (and control/newline glyphs on any line) so we never draw an
+            // empty pill tail at a soft line break.
+            while trimmed.length > 0 {
+                let lastGlyph = NSMaxRange(trimmed) - 1
+                let charIndex = characterIndexForGlyph(at: lastGlyph)
+                guard charIndex < nsString.length else { break }
+                let unit = nsString.character(at: charIndex)
+                let isLineBreak = unit == 0x0A || unit == 0x0D || unit == 0x2028 || unit == 0x2029
+                let isWrapTrailingSpace = !isLastRaw && isInlineWhitespace(unit)
+                if isLineBreak || isWrapTrailingSpace {
+                    trimmed.length -= 1
+                } else {
+                    break
+                }
+            }
+            guard trimmed.length > 0 else { continue }
+
+            let glyphBounds = boundingRect(forGlyphRange: trimmed, in: container)
+            let clampedMinX = max(glyphBounds.minX, raw.lineUsedRect.minX)
+            let clampedMaxX = min(glyphBounds.maxX, raw.lineUsedRect.maxX)
+            guard clampedMaxX > clampedMinX else { continue }
+
+            let baselineFromTop = location(forGlyphAt: trimmed.location).y
+            // `capHeight` clears caps, digits and lowercase ascenders;
+            // `descender` clears the tails. A little breathing room above,
+            // almost none below — the baseline sits low in the line box.
+            let ascent = codeFont?.capHeight ?? raw.lineRect.height * 0.45
+            let descent = abs(codeFont?.descender ?? 0)
+            let padTop: CGFloat = 2.5
+            let padBottom: CGFloat = 1
+
+            let lineTop = raw.lineRect.minY + origin.y
+            let lineBottom = raw.lineRect.maxY + origin.y
+            let baselineY = lineTop + baselineFromTop
+            // Hug the glyphs, but never spill into the neighbouring lines.
+            let top = max(baselineY - ascent - padTop, lineTop)
+            let bottom = min(baselineY + descent + padBottom, lineBottom)
+            guard bottom > top else { continue }
+
+            measured.append(MeasuredLine(
+                drawRect: NSRect(
+                    x: clampedMinX + origin.x,
+                    y: top,
+                    width: clampedMaxX - clampedMinX,
+                    height: bottom - top
+                )
+            ))
+        }
+
+        guard !measured.isEmpty else { return [] }
+        let closedPad: CGFloat = 2.5
+        let openPad: CGFloat = 1.5
+        let count = measured.count
+
+        return measured.enumerated().compactMap { index, item in
+            let roundLeft = index == 0
+            let roundRight = index == count - 1
+            let leftPad = roundLeft ? closedPad : openPad
+            let rightPad = roundRight ? closedPad : openPad
+
+            let paddedMinX = max(origin.x, item.drawRect.minX - leftPad)
+            var paddedMaxX = item.drawRect.maxX + rightPad
+            if let containerRightEdge {
+                paddedMaxX = min(paddedMaxX, containerRightEdge)
+            }
+            let width = paddedMaxX - paddedMinX
+            guard width > 0, item.drawRect.height > 0 else { return nil }
+
+            return InlineCodePillSegment(
+                rect: NSRect(
+                    x: paddedMinX,
+                    y: item.drawRect.minY,
+                    width: width,
+                    height: item.drawRect.height
+                ),
+                roundLeft: roundLeft,
+                roundRight: roundRight
+            )
+        }
+    }
+
     /// Rounded, padded pills for `.jinInlineCodeBackground` runs. Sized from
     /// the code font's metrics and anchored on the text baseline — not by
     /// insetting the full line-fragment rect (body font + `lineHeightMultiple`
@@ -159,54 +300,148 @@ final class JinMarkdownLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
                 effectiveRange: nil
             ) as? NSColor
 
-            let codeFont = storage.attribute(.font, at: attrRange.location, effectiveRange: nil) as? NSFont
             let glyphRange = self.glyphRange(forCharacterRange: attrRange, actualCharacterRange: nil)
-            guard glyphRange.length > 0 else { return }
-            // Baseline distance from the line-fragment top. Uniform within a
-            // paragraph, so one sample anchors every enclosing rect.
-            let baselineFromTop = self.location(forGlyphAt: glyphRange.location).y
-
-            enumerateEnclosingRects(
+            let segments = self.inlineCodePillSegments(
                 forGlyphRange: glyphRange,
-                withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
-                in: container
-            ) { rect, _ in
-                // `capHeight` clears caps, digits and lowercase ascenders;
-                // `descender` clears the tails. A little breathing room above,
-                // almost none below — the baseline sits low in the line box.
-                let ascent = codeFont?.capHeight ?? rect.height * 0.45
-                let descent = abs(codeFont?.descender ?? 0)
-                let padTop: CGFloat = 2.5
-                let padBottom: CGFloat = 1
-                let horizontalPad: CGFloat = 2.5
+                in: container,
+                storage: storage,
+                origin: origin
+            )
+            guard !segments.isEmpty else { return }
 
-                let lineTop = rect.minY + origin.y
-                let lineBottom = rect.maxY + origin.y
-                let baselineY = lineTop + baselineFromTop
-                // Hug the glyphs, but never spill into the neighbouring lines.
-                let top = max(baselineY - ascent - padTop, lineTop)
-                let bottom = min(baselineY + descent + padBottom, lineBottom)
-                let drawRect = NSRect(
-                    x: rect.minX + origin.x - horizontalPad,
-                    y: top,
-                    width: rect.width + 2 * horizontalPad,
-                    height: bottom - top
-                )
-                guard drawRect.height > 0, drawRect.width > 0 else { return }
-
+            let radius: CGFloat = 4
+            for segment in segments {
                 context.saveGState()
-                let radius: CGFloat = 4
-                let path = NSBezierPath(roundedRect: drawRect, xRadius: radius, yRadius: radius)
+                let fillPath = Self.inlineCodeFillPath(for: segment, radius: radius)
                 fillColor.setFill()
-                path.fill()
+                fillPath.fill()
                 if let borderColor {
+                    let strokePath = Self.inlineCodeStrokePath(for: segment, radius: radius)
                     borderColor.setStroke()
-                    path.lineWidth = 0.5
-                    path.stroke()
+                    strokePath.lineWidth = 0.5
+                    strokePath.stroke()
                 }
                 context.restoreGState()
             }
         }
+    }
+
+    /// Closed path for filling an inline-code segment with optional per-side
+    /// corner rounding (flipped coordinate system: `minY` is top, `maxY` is bottom).
+    private static func inlineCodeFillPath(for segment: InlineCodePillSegment, radius: CGFloat) -> NSBezierPath {
+        let rect = segment.rect
+        let r = min(radius, min(rect.width, rect.height) / 2)
+        if segment.roundLeft && segment.roundRight {
+            return NSBezierPath(roundedRect: rect, xRadius: r, yRadius: r)
+        }
+        let rl: CGFloat = segment.roundLeft ? r : 0
+        let rr: CGFloat = segment.roundRight ? r : 0
+
+        let path = NSBezierPath()
+        path.move(to: NSPoint(x: rect.minX + rl, y: rect.minY))
+        path.line(to: NSPoint(x: rect.maxX - rr, y: rect.minY))
+        if rr > 0 {
+            path.appendArc(
+                withCenter: NSPoint(x: rect.maxX - rr, y: rect.minY + rr),
+                radius: rr,
+                startAngle: 270,
+                endAngle: 0,
+                clockwise: false
+            )
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - rr))
+            path.appendArc(
+                withCenter: NSPoint(x: rect.maxX - rr, y: rect.maxY - rr),
+                radius: rr,
+                startAngle: 0,
+                endAngle: 90,
+                clockwise: false
+            )
+        } else {
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY))
+        }
+        path.line(to: NSPoint(x: rect.minX + rl, y: rect.maxY))
+        if rl > 0 {
+            path.appendArc(
+                withCenter: NSPoint(x: rect.minX + rl, y: rect.maxY - rl),
+                radius: rl,
+                startAngle: 90,
+                endAngle: 180,
+                clockwise: false
+            )
+            path.line(to: NSPoint(x: rect.minX, y: rect.minY + rl))
+            path.appendArc(
+                withCenter: NSPoint(x: rect.minX + rl, y: rect.minY + rl),
+                radius: rl,
+                startAngle: 180,
+                endAngle: 270,
+                clockwise: false
+            )
+        } else {
+            path.line(to: NSPoint(x: rect.minX, y: rect.minY))
+        }
+        path.close()
+        return path
+    }
+
+    /// Border path matching CSS `box-decoration-break: slice`: strokes closed
+    /// sides and top/bottom edges, leaving wrapped continuation edges open.
+    private static func inlineCodeStrokePath(for segment: InlineCodePillSegment, radius: CGFloat) -> NSBezierPath {
+        let rect = segment.rect
+        let r = min(radius, min(rect.width, rect.height) / 2)
+        if segment.roundLeft && segment.roundRight {
+            return NSBezierPath(roundedRect: rect, xRadius: r, yRadius: r)
+        }
+
+        let path = NSBezierPath()
+        switch (segment.roundLeft, segment.roundRight) {
+        case (true, false):
+            // Open on the right: top-right → top-left arc → left → bottom-left arc → bottom-right.
+            path.move(to: NSPoint(x: rect.maxX, y: rect.minY))
+            path.line(to: NSPoint(x: rect.minX + r, y: rect.minY))
+            path.appendArc(
+                withCenter: NSPoint(x: rect.minX + r, y: rect.minY + r),
+                radius: r,
+                startAngle: 270,
+                endAngle: 180,
+                clockwise: true
+            )
+            path.line(to: NSPoint(x: rect.minX, y: rect.maxY - r))
+            path.appendArc(
+                withCenter: NSPoint(x: rect.minX + r, y: rect.maxY - r),
+                radius: r,
+                startAngle: 180,
+                endAngle: 90,
+                clockwise: true
+            )
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY))
+        case (false, true):
+            // Open on the left: top-left → top-right arc → right → bottom-right arc → bottom-left.
+            path.move(to: NSPoint(x: rect.minX, y: rect.minY))
+            path.line(to: NSPoint(x: rect.maxX - r, y: rect.minY))
+            path.appendArc(
+                withCenter: NSPoint(x: rect.maxX - r, y: rect.minY + r),
+                radius: r,
+                startAngle: 270,
+                endAngle: 0,
+                clockwise: false
+            )
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY - r))
+            path.appendArc(
+                withCenter: NSPoint(x: rect.maxX - r, y: rect.maxY - r),
+                radius: r,
+                startAngle: 0,
+                endAngle: 90,
+                clockwise: false
+            )
+            path.line(to: NSPoint(x: rect.minX, y: rect.maxY))
+        default:
+            // Middle segment: open on both left and right — top and bottom strokes only.
+            path.move(to: NSPoint(x: rect.minX, y: rect.minY))
+            path.line(to: NSPoint(x: rect.maxX, y: rect.minY))
+            path.move(to: NSPoint(x: rect.minX, y: rect.maxY))
+            path.line(to: NSPoint(x: rect.maxX, y: rect.maxY))
+        }
+        return path
     }
 
     /// One 3pt rounded vertical bar per quote depth level, spanning each

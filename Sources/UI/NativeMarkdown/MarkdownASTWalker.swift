@@ -63,7 +63,7 @@ struct MarkdownASTWalker {
             switch language {
             case "mermaid":
                 blocks.append(.mermaidBlock(source: codeBlock.code))
-            case "math", "latex", "tex":
+            case "math":
                 blocks.append(.mathBlock(latex: codeBlock.code))
             default:
                 blocks.append(.codeBlock(
