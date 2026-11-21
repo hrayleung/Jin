@@ -100,20 +100,39 @@ require_architecture() {
 
 echo "Cleaning stale SwiftPM resource bundles…"
 shopt -s nullglob
-for bundle in "$ROOT/.build/release"/*.bundle "$ROOT/.build/arm64-apple-macosx/release"/*.bundle; do
+for bundle in \
+  "$ROOT/.build/release"/*.bundle \
+  "$ROOT/.build/arm64-apple-macosx/release"/*.bundle \
+  "$ROOT/.build/out/Products/Release"/*.bundle; do
   rm -rf "$bundle"
 done
+shopt -u nullglob
 
 ARCH="arm64"
 
+# SwiftPM's legacy `native` build system generates Bundle.module accessors that
+# search `Bundle.main.bundleURL/<Name>.bundle` (the .app root, not
+# Contents/Resources) and fall back to a hardcoded `.build/...` path on the
+# build machine, causing an immediate fatalError on other Macs when SwiftMath,
+# Highlighter, or Jin loads resources. Always use `swiftbuild`, which resolves
+# `Bundle.main.resourceURL` (Contents/Resources) and emits standard macOS
+# resource bundles.
+BUILD_SYSTEM_ARGS=()
+if swift build --help 2>&1 | grep -Fq -- "--build-system"; then
+  BUILD_SYSTEM_ARGS=(--build-system swiftbuild)
+else
+  echo "Error: installed Swift toolchain does not support '--build-system swiftbuild'." >&2
+  echo "Use Xcode / Swift 6.3+ so Bundle.module resolves Contents/Resources in macOS .app bundles." >&2
+  exit 1
+fi
+
 echo "Building (Release) for Apple Silicon…"
-swift build -c release --disable-sandbox --arch "$ARCH"
+swift build "${BUILD_SYSTEM_ARGS[@]}" -c release --disable-sandbox --arch "$ARCH"
 
 # Resolve the products dir AFTER building, from SwiftPM itself — its layout
-# changed in 6.4 (.build/release, no per-triple dir), and a stale
-# arm64-apple-macosx/release left by an older toolchain must not shadow the
-# fresh binary.
-BUILD_OUTPUT_DIR="$(swift build -c release --disable-sandbox --arch "$ARCH" --show-bin-path)"
+# varies across SwiftPM versions/build systems, and a stale build dir must not
+# shadow the fresh binary.
+BUILD_OUTPUT_DIR="$(swift build "${BUILD_SYSTEM_ARGS[@]}" -c release --disable-sandbox --arch "$ARCH" --show-bin-path)"
 
 BIN="$BUILD_OUTPUT_DIR/$APP_NAME"
 if [[ ! -f "$BIN" ]]; then
@@ -149,8 +168,23 @@ done
 shopt -u nullglob
 
 if [[ "$copied_bundle_count" -eq 0 ]]; then
-  echo "Warning: no SwiftPM resource bundles found in release build outputs."
+  echo "Error: no SwiftPM resource bundles found in release build outputs." >&2
+  exit 1
 fi
+
+echo "Verifying SwiftPM resource bundles…"
+if strings "$APP_BUNDLE/Contents/MacOS/$APP_NAME" | grep -Fq "could not load resource bundle: from "; then
+  echo "Error: packaged binary contains legacy native SwiftPM Bundle.module accessors that crash outside the build machine." >&2
+  exit 1
+fi
+
+for required_bundle in Jin_Jin.bundle SwiftMath_SwiftMath.bundle Highlighter_Highlighter.bundle; do
+  bundle_path="$APP_BUNDLE/Contents/Resources/$required_bundle"
+  if [[ ! -f "$bundle_path/Contents/Info.plist" ]]; then
+    echo "Error: required macOS resource bundle is missing or malformed: $bundle_path" >&2
+    exit 1
+  fi
+done
 
 echo "Embedding SwiftPM dynamic frameworks…"
 shopt -s nullglob
