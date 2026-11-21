@@ -3,16 +3,6 @@
     <channel>
         <title>Jin</title>
         <item>
-            <title>1.4.2</title>
-            <pubDate>Sat, 21 Nov 2026 03:58:02 -0800</pubDate>
-            <link>https://github.com/hrayleung/Jin/releases</link>
-            <sparkle:version>806</sparkle:version>
-            <sparkle:shortVersionString>1.4.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v1.4.2/Jin-1.4.2.zip" length="29945812" type="application/octet-stream" sparkle:edSignature="HApZcfmMQi1LdlBPcGTT2VzEDoB3mrKJvaRj/yttte4MUKMuYZ2y5p+UNs8PNg0NZI91fxEanujVPCeiBhQOBA=="/>
-        </item>
-        <item>
             <title>1.4.1</title>
             <pubDate>Thu, 19 Nov 2026 01:50:19 -0800</pubDate>
             <link>https://github.com/hrayleung/Jin/releases</link>
@@ -101,6 +91,16 @@
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <enclosure url="https://github.com/hrayleung/Jin/releases/download/v1.3.3/Jin-1.3.3.zip" length="30064033" type="application/octet-stream" sparkle:edSignature="d4zgXRgco323MceoTlG4odPiDz+6bqAiEYGwr3RGlbO6kzjD8yQHoqV3PTq9VjH1QxNFbZYo3kFRc3LZOBu9Dw=="/>
+        </item>
+        <item>
+            <title>1.3.2</title>
+            <pubDate>Tue, 20 Oct 2026 15:00:37 +0800</pubDate>
+            <link>https://github.com/hrayleung/Jin/releases</link>
+            <sparkle:version>782</sparkle:version>
+            <sparkle:shortVersionString>1.3.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/hrayleung/Jin/releases/download/v1.3.2/Jin-1.3.2.zip" length="30058818" type="application/octet-stream" sparkle:edSignature="XJmmV9sfjnM9U2fSFM63p4enBMnSDk061gP9ap8IRpvVtfXBOmRiO1oYw6ZCYiyyJzKlp7oXCuQ5jVSOLatsCw=="/>
         </item>
         <item>
             <title>0.70</title>
