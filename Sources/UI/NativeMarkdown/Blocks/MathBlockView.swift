@@ -133,14 +133,20 @@ private struct NativeMathDisplay: NSViewRepresentable {
 
     /// Synchronous sizing. When SwiftUI proposes a finite width we feed it to
     /// SwiftMath's `preferredMaxLayoutWidth` so long equations wrap (its native
-    /// interatom line breaking) instead of overflowing the bubble.
+    /// interatom line breaking) instead of overflowing the bubble. If an
+    /// unbreakable expression still exceeds `width`, we clamp the reported
+    /// frame to `width` and let `ClickableMathHost`'s horizontal scroll view
+    /// clip and scroll it inside the bubble.
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: ClickableMathHost, context: Context) -> CGSize? {
         if let width = proposal.width, width.isFinite, width > 0 {
             nsView.label.preferredMaxLayoutWidth = width
             let size = nsView.label.sizeThatFits(CGSize(width: width, height: 0))
+            nsView.updateContentSize(CGSize(width: max(0, size.width), height: max(0, size.height)))
             return CGSize(width: min(size.width, width), height: max(0, size.height))
         }
+        nsView.label.preferredMaxLayoutWidth = 0
         let size = nsView.label.intrinsicContentSize
+        nsView.updateContentSize(CGSize(width: max(0, size.width), height: max(0, size.height)))
         return CGSize(width: max(0, size.width), height: max(0, size.height))
     }
 }
@@ -148,33 +154,62 @@ private struct NativeMathDisplay: NSViewRepresentable {
 /// Host around `MTMathUILabel`. The vendor label is a non-open class, so
 /// click-to-copy cannot subclass it; the host claims the hit test, turns a
 /// click (not a drag) into the shared LaTeX copy popover, and paints a
-/// pointing-hand cursor so the target is discoverable. Trackpad two-finger
-/// scroll is unaffected — it never goes through `mouseDown`.
+/// pointing-hand cursor so the target is discoverable.
+///
+/// The label sits inside a borderless horizontal `NSScrollView` with
+/// `masksToBounds = true`: normal equations fit within `bounds` with no
+/// horizontal scroll range, while wide unbreakable equations (matrices,
+/// long fractions) stay clipped inside the bubble and scroll sideways
+/// without trapping vertical timeline scrolling.
 private final class ClickableMathHost: NSView {
     let label = MTMathUILabel()
     var onClick: (() -> Void)?
     var latexSource: String = ""
+    private let scrollView = NSScrollView()
+    private var contentSize: CGSize = .zero
     private var downPointInWindow: NSPoint?
+    private var wheelRouter = CodeBlockWheelRouter()
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
         layer?.isOpaque = false
+        layer?.masksToBounds = true
+
         label.labelMode = .display
         label.textAlignment = .left
         // A touch of vertical breathing room; horizontal handled by the cell.
         label.contentInsets = MTEdgeInsets(top: 1, left: 0, bottom: 1, right: 0)
         label.setAccessibilityElement(false)
-        addSubview(label)
+
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasHorizontalScroller = false
+        scrollView.hasVerticalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.horizontalScrollElasticity = .allowed
+        scrollView.verticalScrollElasticity = .none
+        scrollView.documentView = label
+        scrollView.setAccessibilityElement(false)
+        addSubview(scrollView)
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
+    func updateContentSize(_ size: CGSize) {
+        guard contentSize != size else { return }
+        contentSize = size
+        needsLayout = true
+    }
+
     override func layout() {
         super.layout()
-        label.frame = bounds
+        scrollView.frame = bounds
+        let docWidth = max(bounds.width, contentSize.width)
+        let docHeight = max(bounds.height, contentSize.height)
+        label.frame = NSRect(x: 0, y: 0, width: docWidth, height: docHeight)
     }
 
     /// Claim every pixel of the equation so the vendor label cannot swallow
@@ -182,6 +217,20 @@ private final class ClickableMathHost: NSView {
     /// right is not part of this view.
     override func hitTest(_ point: NSPoint) -> NSView? {
         bounds.contains(point) ? self : nil
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        let canScrollHorizontally = contentSize.width > bounds.width + 0.5
+        if !canScrollHorizontally {
+            nextResponder?.scrollWheel(with: event)
+            return
+        }
+        switch wheelRouter.route(event: event, from: self) {
+        case .forwardToTimeline(let timeline):
+            timeline.scrollWheel(with: event)
+        case .passToSuper:
+            scrollView.scrollWheel(with: event)
+        }
     }
 
     override func mouseDown(with event: NSEvent) {

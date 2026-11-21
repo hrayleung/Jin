@@ -121,10 +121,7 @@ struct CodeBlockView: View {
 
     private var header: some View {
         HStack(spacing: 6) {
-            Image(systemName: iconSymbol(forLanguage: language))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(iconTint(forLanguage: language))
-                .frame(width: 14)
+            languageIcon
             Text(displayLanguage)
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.secondary)
@@ -174,6 +171,20 @@ struct CodeBlockView: View {
         }
     }
 
+    @ViewBuilder
+    private var languageIcon: some View {
+        let normalized = LanguageAliases.normalize(language) ?? ""
+        if normalized == "latex" || normalized == "tex" {
+            TeXLanguageMonogramIcon()
+                .foregroundStyle(iconTint(forLanguage: language))
+        } else {
+            Image(systemName: iconSymbol(forLanguage: language))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(iconTint(forLanguage: language))
+                .frame(width: 14)
+        }
+    }
+
     private func iconSymbol(forLanguage language: String?) -> String {
         let normalized = LanguageAliases.normalize(language) ?? ""
         let candidate: String
@@ -188,7 +199,8 @@ struct CodeBlockView: View {
         case "markdown", "md": candidate = "text.alignleft"
         case "diff": candidate = "plus.forwardslash.minus"
         case "mermaid": candidate = "flowchart"
-        case "math", "latex", "tex": candidate = "function"
+        case "math": candidate = "function"
+        case "latex", "tex": candidate = "doc.richtext"
         // No SF Symbol covers most language logos (python, js, ts, go,
         // rust, etc.) — rely on the language label + tint color to convey
         // identity, with the generic code icon as the glyph.
@@ -218,9 +230,30 @@ struct CodeBlockView: View {
         case "json": return Color(red: 0.66, green: 0.40, blue: 0.20)
         case "sql": return Color(red: 0.40, green: 0.40, blue: 0.45)
         case "mermaid": return Color(red: 0.86, green: 0.36, blue: 0.55)
-        case "math", "latex", "tex": return Color(red: 0.45, green: 0.35, blue: 0.78)
+        case "latex", "tex":
+            return colorScheme == .dark
+                ? Color(red: 0.22, green: 0.74, blue: 0.72)
+                : Color(red: 0.0, green: 0.50, blue: 0.50)
+        case "math": return Color(red: 0.45, green: 0.35, blue: 0.78)
         default: return Color.secondary
         }
+    }
+}
+
+private struct TeXLanguageMonogramIcon: View {
+    var body: some View {
+        HStack(spacing: -1.6) {
+            Text("T")
+                .font(.system(size: 10.5, weight: .semibold, design: .serif))
+            Text("E")
+                .font(.system(size: 9.8, weight: .semibold, design: .serif))
+                .offset(y: 1.6)
+            Text("X")
+                .font(.system(size: 10.5, weight: .semibold, design: .serif))
+        }
+        .offset(y: -0.5)
+        .fixedSize()
+        .accessibilityHidden(true)
     }
 }
 
