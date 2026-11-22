@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-// MARK: - Version Hero
+// MARK: - Installed Version
 
 struct UpdateSettingsVersionHero: View {
     let version: String
@@ -15,51 +15,36 @@ struct UpdateSettingsVersionHero: View {
 
     var body: some View {
         JinSettingsSection("Installed Version") {
-            VStack(alignment: .leading, spacing: JinSpacing.large) {
-                identityRow
-                metadataRow
-                checkActionRow
+            VStack(alignment: .leading, spacing: JinSpacing.small) {
+                HStack(alignment: .center, spacing: JinSpacing.medium) {
+                    identity
+                    Spacer(minLength: JinSpacing.medium)
+                    checkControl
+                }
 
                 if let checkError {
-                    Text(checkError)
-                        .jinInlineErrorText()
+                    JinSettingsStatusText(text: checkError, isError: true)
                 }
             }
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, JinSpacing.xSmall)
         }
     }
 
-    private var identityRow: some View {
-        HStack(alignment: .center, spacing: JinSpacing.large) {
+    private var identity: some View {
+        HStack(alignment: .center, spacing: JinSpacing.medium) {
             appIcon
 
-            VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-                Text("Jin")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Jin \(version)")
+                    .font(.headline)
+                    .monospacedDigit()
 
-                HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
-                    Text("v\(version)")
-                        .font(.system(.title3, design: .rounded).weight(.medium))
-                        .foregroundStyle(.primary)
-                        .monospacedDigit()
-
-                    if let build, !build.isEmpty {
-                        Text("·")
-                            .foregroundStyle(JinSemanticColor.textTertiary)
-
-                        Text("Build \(build)")
-                            .font(.subheadline)
-                            .foregroundStyle(JinSemanticColor.textSecondary)
-                            .monospacedDigit()
-                    }
-                }
-
-                channelBadge
+                Text(detailSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .fixedSize(horizontal: false, vertical: true)
             }
-
-            Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityIdentityLabel)
@@ -76,61 +61,35 @@ struct UpdateSettingsVersionHero: View {
                 Image(systemName: "app.fill")
                     .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(width: 64, height: 64)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(JinSemanticColor.borderSubtle, lineWidth: JinStrokeWidth.hairline)
-        }
-        .shadow(color: JinSemanticColor.shadowSubtle, radius: 8, x: 0, y: 2)
+        .frame(width: 44, height: 44)
         .accessibilityHidden(true)
     }
 
-    private var channelBadge: some View {
-        Text(allowPreRelease ? "Pre-release channel" : "Stable channel")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-    }
-
-    private var metadataRow: some View {
-        HStack(alignment: .center, spacing: 6) {
-            Image(systemName: "clock")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(JinSemanticColor.textTertiary)
-                .frame(width: 14, height: 14, alignment: .center)
-
-            Text(lastCheckSummary)
-                .font(.caption)
-                .foregroundStyle(JinSemanticColor.textSecondary)
-                .lineLimit(1)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var checkActionRow: some View {
-        Button(action: onCheckForUpdates) {
+    @ViewBuilder
+    private var checkControl: some View {
+        if sessionInProgress {
             HStack(spacing: JinSpacing.small) {
-                if sessionInProgress {
-                    ProgressView()
-                        .controlSize(.small)
-                        .scaleEffect(0.85)
-                } else {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 12, weight: .semibold))
-                }
-
-                Text(sessionInProgress ? "Checking…" : "Check for Updates")
-                    .fontWeight(.medium)
+                ProgressView()
+                    .controlSize(.small)
+                Text("Checking…")
+                    .foregroundStyle(.secondary)
             }
-            .frame(minWidth: 168)
+        } else {
+            Button("Check for Updates", action: onCheckForUpdates)
+                .disabled(!canCheckForUpdates)
+                .help(canCheckForUpdates ? "Check for a newer version" : "Update checks are unavailable")
         }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .disabled(!canCheckForUpdates || sessionInProgress)
-        .help(canCheckForUpdates ? "Check for a newer build" : "Update checks unavailable")
+    }
+
+    private var detailSummary: String {
+        var parts: [String] = []
+        if let build, !build.isEmpty {
+            parts.append("Build \(build)")
+        }
+        parts.append(lastCheckSummary)
+        return parts.joined(separator: " · ")
     }
 
     private var lastCheckSummary: String {
@@ -145,62 +104,28 @@ struct UpdateSettingsVersionHero: View {
         if let build, !build.isEmpty {
             parts.append("build \(build)")
         }
-        parts.append(allowPreRelease ? "pre-release" : "stable")
+        parts.append(allowPreRelease ? "pre-release channel" : "stable channel")
+        parts.append(lastCheckSummary)
         return parts.joined(separator: ", ")
     }
 }
 
-// MARK: - Automatic Updates
+// MARK: - Preferences
 
-struct UpdateSettingsAutomaticSection: View {
-    @Binding var isOn: Bool
-
-    var body: some View {
-        JinSettingsSection("Automatic Updates") {
-            UpdateSettingsPreferenceRow(
-                title: "Check on launch",
-                systemImage: "arrow.triangle.2.circlepath.circle",
-                isOn: $isOn
-            )
-        }
-    }
-}
-
-// MARK: - Channel
-
-struct UpdateSettingsChannelSection: View {
+struct UpdateSettingsPreferencesSection: View {
+    @Binding var automaticallyChecks: Bool
     @Binding var allowPreRelease: Bool
 
     var body: some View {
-        JinSettingsSection("Release Channel") {
-            UpdateSettingsPreferenceRow(
-                title: "Include pre-release versions",
-                systemImage: "flask",
+        JinSettingsSection("Preferences") {
+            JinSettingsToggleRow("Check for updates on launch", isOn: $automaticallyChecks)
+            JinSettingsToggleRow(
+                "Include pre-release versions",
+                supportingText: "Pre-release builds arrive sooner and may be unstable.",
                 isOn: $allowPreRelease
             )
-
-            if allowPreRelease {
-                Text("Pre-release builds may be unstable.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, JinSpacing.xSmall)
-            }
         }
     }
-}
-
-// MARK: - Shared Preference Row
-
-struct UpdateSettingsPreferenceRow: View {
-    let title: String
-    let systemImage: String
-    @Binding var isOn: Bool
-
-    var body: some View {
-        JinSettingsToggleRow(title, isOn: $isOn)
-    }
-
 }
 
 // MARK: - Formatting

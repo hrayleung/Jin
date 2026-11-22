@@ -7,24 +7,18 @@ struct PluginCredentialActionsView: View {
     var showsProgress: Bool? = nil
     let statusMessage: String?
     let statusIsError: Bool
-    var spacing: CGFloat = JinSpacing.medium
     let onTestConnection: () -> Void
     let onClear: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            actionRow
+        HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
             statusText
-        }
-    }
-
-    private var actionRow: some View {
-        HStack(spacing: spacing) {
-            testConnectionButton
-            clearButton
-            Spacer()
+            Spacer(minLength: 0)
             progressIndicator
+            clearButton
+            testConnectionButton
         }
+        .controlSize(.small)
     }
 
     private var testConnectionButton: some View {

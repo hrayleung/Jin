@@ -50,19 +50,7 @@ extension ProviderConfigFormView {
     // MARK: - Test Connection Button
 
     var testConnectionButton: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.small) {
-            HStack(spacing: JinSpacing.small) {
-                Button("Test Connection") {
-                    testConnection()
-                }
-                .disabled(isTestDisabled)
-
-                if testStatus == .testing {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            }
-
+        HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
             switch testStatus {
             case .idle, .testing:
                 EmptyView()
@@ -74,6 +62,19 @@ extension ProviderConfigFormView {
             case .failure(let message):
                 JinSettingsStatusText(text: message, isError: true)
             }
+
+            Spacer(minLength: 0)
+
+            if testStatus == .testing {
+                ProgressView()
+                    .controlSize(.small)
+            }
+
+            Button("Test Connection") {
+                testConnection()
+            }
+            .controlSize(.small)
+            .disabled(isTestDisabled)
         }
     }
 

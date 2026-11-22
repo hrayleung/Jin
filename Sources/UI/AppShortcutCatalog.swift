@@ -6,17 +6,6 @@ enum AppShortcutSection: String, CaseIterable {
     var title: String {
         rawValue.capitalized
     }
-
-    var subtitle: String {
-        switch self {
-        case .workspace:
-            return "Window and sidebar navigation."
-        case .composer:
-            return "Drafting and sending controls."
-        case .conversation:
-            return "Actions for the selected chat."
-        }
-    }
 }
 
 enum AppShortcutAction: String, CaseIterable, Identifiable {

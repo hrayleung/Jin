@@ -11,13 +11,15 @@ struct ChatNamingPluginSettingsView: View {
 
     var body: some View {
         JinSettingsPage(title: "Chat Naming") {
-            JinSettingsSection("Chat Naming") {
-                JinSettingsPickerRow("Rename Mode", selection: $chatNamingMode) {
+            JinSettingsSection("Timing") {
+                JinSettingsPickerRow("Rename chats", selection: $chatNamingMode) {
                     ForEach(ChatNamingMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
+            }
 
+            JinSettingsSection("Model") {
                 if allProviderModelPairs.isEmpty {
                     Text("No providers with chat-capable models found. Add or enable a chat model under Settings → Providers.")
                         .jinInfoCallout()
@@ -54,16 +56,18 @@ struct ChatNamingPluginSettingsView: View {
                     )
                     .accessibilityLabel("Chat title prompt template")
 
-                    HStack(alignment: .center) {
-                        Text("Placeholders: \(ConversationTitleGenerator.maxCharactersPlaceholder) (character limit), \(ConversationTitleGenerator.languagePlaceholder) (detected user language).")
+                    HStack(alignment: .firstTextBaseline, spacing: JinSpacing.medium) {
+                        Text("\(ConversationTitleGenerator.maxCharactersPlaceholder) inserts the character limit. \(ConversationTitleGenerator.languagePlaceholder) inserts the chat's language.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                        Spacer()
+                        Spacer(minLength: 0)
 
                         Button("Reset to Default") {
                             chatNamingPromptTemplate = ""
                         }
+                        .controlSize(.small)
                         .disabled(chatNamingPromptTemplate.isEmpty)
                     }
                 }

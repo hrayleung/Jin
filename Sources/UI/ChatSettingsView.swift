@@ -21,19 +21,40 @@ struct ChatSettingsView: View {
     }
 
     private var sendBehaviorSection: some View {
-        JinSettingsSection("Send Behavior") {
-            JinSettingsToggleRow("Use \u{2318}Return to send", isOn: $sendWithCommandEnter)
+        JinSettingsSection("Sending") {
+            JinSettingsToggleRow(
+                "Send with \u{2318}Return",
+                supportingText: "Return starts a new line instead of sending.",
+                isOn: $sendWithCommandEnter
+            )
+        }
+    }
+
+    private var notificationsSection: some View {
+        JinSettingsSection("Notifications") {
+            JinSettingsToggleRow(
+                "Notify when a reply finishes in the background",
+                supportingText: responseCompletionNotifier.authorizationStatus == .denied
+                    ? "Notifications for Jin are turned off in System Settings."
+                    : nil,
+                isOn: $notifyOnBackgroundResponseCompletion
+            )
+            .onChange(of: notifyOnBackgroundResponseCompletion) { _, enabled in
+                handleNotificationToggle(enabled: enabled)
+            }
         }
     }
 
     private var networkTraceSection: some View {
         JinSettingsSection("Network Trace") {
-            JinSettingsToggleRow("Enable Network Trace", isOn: $networkDebugLoggingEnabled)
-            JinSettingsStatusText(text: "Stores redacted request/response metadata in JSON time folders. Body contents, API keys, cookies, and sensitive URL parameters are omitted.")
+            JinSettingsToggleRow(
+                "Record network traces",
+                supportingText: "Saves request and response metadata as JSON. Bodies, API keys, cookies, and sensitive URL parameters are left out.",
+                isOn: $networkDebugLoggingEnabled
+            )
 
             ChatSettingsLogActionsRow(
-                openTitle: "Open Trace Folder",
-                clearTitle: "Clear Traces",
+                title: "Trace files",
                 isOpenDisabled: !networkDebugLoggingEnabled,
                 onOpen: openNetworkTraceFolder,
                 onClear: clearNetworkTraces
@@ -43,29 +64,18 @@ struct ChatSettingsView: View {
 
     private var chatDiagnosticsSection: some View {
         JinSettingsSection("Chat Diagnostics") {
-            JinSettingsToggleRow("Enable Chat Diagnostics", isOn: $chatDiagnosticLoggingEnabled)
-            JinSettingsStatusText(text: "Lightweight NDJSON timing logs for the chat send/stream pipeline.")
+            JinSettingsToggleRow(
+                "Record chat diagnostics",
+                supportingText: "Saves timing logs for sending and streaming a reply.",
+                isOn: $chatDiagnosticLoggingEnabled
+            )
 
             ChatSettingsLogActionsRow(
-                openTitle: "Open Diagnostic Folder",
-                clearTitle: "Clear Diagnostics",
+                title: "Diagnostic files",
                 isOpenDisabled: !chatDiagnosticLoggingEnabled,
                 onOpen: openChatDiagnosticFolder,
                 onClear: clearChatDiagnostics
             )
-        }
-    }
-
-    private var notificationsSection: some View {
-        JinSettingsSection("Notifications") {
-            JinSettingsToggleRow("Notify when replies finish in background", isOn: $notifyOnBackgroundResponseCompletion)
-                .onChange(of: notifyOnBackgroundResponseCompletion) { _, enabled in
-                    handleNotificationToggle(enabled: enabled)
-                }
-
-            if responseCompletionNotifier.authorizationStatus == .denied {
-                JinSettingsStatusText(text: "Notifications are disabled for Jin in System Settings > Notifications.")
-            }
         }
     }
 
@@ -120,18 +130,20 @@ struct ChatSettingsView: View {
 }
 
 private struct ChatSettingsLogActionsRow: View {
-    let openTitle: String
-    let clearTitle: String
+    let title: String
     let isOpenDisabled: Bool
     let onOpen: () -> Void
     let onClear: () -> Void
 
     var body: some View {
-        HStack(spacing: JinSpacing.small) {
-            Button(openTitle, action: onOpen)
-                .disabled(isOpenDisabled)
+        JinSettingsControlRow(title) {
+            HStack(spacing: JinSpacing.small) {
+                Button("Show in Finder", action: onOpen)
+                    .disabled(isOpenDisabled)
 
-            Button(clearTitle, action: onClear)
+                Button("Clear", action: onClear)
+            }
+            .controlSize(.small)
         }
     }
 }

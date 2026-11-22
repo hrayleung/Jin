@@ -17,39 +17,34 @@ struct FirecrawlOCRPluginSettingsView: View {
     }
 
     var body: some View {
-        JinSettingsPage(title: "Firecrawl OCR", maxWidth: 620) {
-            JinSettingsSection(
-                "Connection",
-                detail: "Shared with the Web Search plugin."
-            ) {
+        JinSettingsPage(title: "Firecrawl OCR") {
+            JinSettingsSection("Connection") {
                 JinSettingsSecureFieldRow(
                     "API Key",
                     prompt: "Paste API key",
+                    supportingText: "Shared with the Web Search plugin.",
                     text: $apiKey,
                     isRevealed: $isKeyVisible,
-                    usesMonospacedFont: true,
                     revealHelp: "Show API key",
                     concealHelp: "Hide API key"
                 )
 
-                HStack(spacing: JinSpacing.medium) {
+                HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
+                    if let statusMessage {
+                        JinSettingsStatusText(text: statusMessage)
+                    }
+
+                    Spacer(minLength: 0)
+
                     Button("Clear", role: .destructive) {
                         clearKey()
                     }
+                    .controlSize(.small)
                     .disabled(!hasConfiguredKey)
-
-                    Spacer()
-                }
-
-                if let statusMessage {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            r2RequirementCallout
+            r2RequirementSection
         }
         .task {
             await loadExistingKey()
@@ -65,23 +60,21 @@ struct FirecrawlOCRPluginSettingsView: View {
         }
     }
 
-    private var r2RequirementCallout: some View {
-        HStack(alignment: .firstTextBaseline, spacing: JinSpacing.medium) {
-            Text("Requires Cloudflare R2 Upload to be enabled and configured before PDFs can be sent to Firecrawl.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: JinSpacing.small)
-
-            Button("Configure R2 Upload…") {
-                NotificationCenter.default.post(
-                    name: .settingsNavigateToPlugin,
-                    object: nil,
-                    userInfo: [SettingsNavigationUserInfoKey.pluginID: "cloudflare_r2_upload"]
-                )
+    private var r2RequirementSection: some View {
+        JinSettingsSection("Requirements") {
+            JinSettingsControlRow(
+                "Cloudflare R2 Upload",
+                supportingText: "PDFs are uploaded to R2 so Firecrawl can read them. Enable and configure it first."
+            ) {
+                Button("Open Settings…") {
+                    NotificationCenter.default.post(
+                        name: .settingsNavigateToPlugin,
+                        object: nil,
+                        userInfo: [SettingsNavigationUserInfoKey.pluginID: "cloudflare_r2_upload"]
+                    )
+                }
+                .controlSize(.small)
             }
-            .buttonStyle(.link)
         }
     }
 

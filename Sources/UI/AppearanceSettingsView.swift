@@ -35,31 +35,30 @@ struct AppearanceSettingsView: View {
                     .padding(.vertical, 6)
             }
 
-            JinSettingsSection("Typography") {
-                JinSettingsControlRow("App Font") {
+            JinSettingsSection("Fonts") {
+                JinSettingsControlRow("App font") {
                     fontPickerButton(title: appFontDisplayName) { showingAppFontPicker = true }
                 }
-                JinSettingsControlRow("Code Font") {
+                JinSettingsControlRow("Code font") {
                     fontPickerButton(title: codeFontDisplayName) { showingCodeFontPicker = true }
                 }
             }
 
             JinSettingsSection("Conversation") {
-                JinSettingsToggleRow("Overlay Scrollbars", isOn: $useOverlayScrollbars)
+                JinSettingsToggleRow("Overlay scrollbars", isOn: $useOverlayScrollbars)
                 JinSettingsToggleRow(
-                    "Conversation Minimap",
+                    "Conversation minimap",
                     supportingText: "Preview and jump between turns from the edge of the chat.",
                     isOn: $showConversationMinimap
                 )
-                JinSettingsToggleRow("Code Line Numbers", isOn: $codeBlockShowLineNumbers)
+                JinSettingsToggleRow("Line numbers in code blocks", isOn: $codeBlockShowLineNumbers)
                 JinSettingsPickerRow("Thinking", selection: thinkingDisplayMode) {
                     ForEach(ThinkingBlockDisplayMode.allCases) { mode in Text(mode.label).tag(mode) }
                 }
-                JinSettingsPickerRow("Code Execution", selection: codeExecutionDisplayMode) {
+                JinSettingsPickerRow("Code execution", selection: codeExecutionDisplayMode) {
                     ForEach(CodeExecutionDisplayMode.allCases) { mode in Text(mode.label).tag(mode) }
                 }
             }
-
         }
         .sheet(isPresented: $showingAppFontPicker) {
             FontPickerSheet(
@@ -81,15 +80,14 @@ struct AppearanceSettingsView: View {
     }
 
     private func fontPickerButton(title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: JinSpacing.small) {
-                Text(title)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
+        HStack(spacing: JinSpacing.medium) {
+            Text(title)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Button("Change…", action: action)
+                .controlSize(.small)
         }
-        .buttonStyle(.borderless)
     }
 
     private var appFontDisplayName: String {

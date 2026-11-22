@@ -4,6 +4,7 @@ struct WebSearchAPIKeyRow: View {
     let label: String
     @Binding var text: String
     @Binding var isRevealed: Bool
+    var signupURL: URL?
     let onClear: () -> Void
 
     var body: some View {
@@ -13,7 +14,6 @@ struct WebSearchAPIKeyRow: View {
                     prompt: "Paste API key",
                     text: $text,
                     isRevealed: $isRevealed,
-                    usesMonospacedFont: true,
                     revealHelp: "Show API key",
                     concealHelp: "Hide API key"
                 )
@@ -23,6 +23,10 @@ struct WebSearchAPIKeyRow: View {
                         .buttonStyle(.borderless)
                         .controlSize(.small)
                 }
+            }
+
+            if let signupURL {
+                JinSettingsHelpLink("Get an API key", destination: signupURL)
             }
         }
     }
