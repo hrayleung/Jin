@@ -169,13 +169,9 @@ struct WebSearchPluginSettingsView: View {
     private var defaultsSection: some View {
         JinSettingsSection(
             "Defaults",
-            detail: "Used when a chat does not override the engine, result count, or recency."
+            detail: "Each chat can override these from the web search menu."
         ) {
-            JinSettingsPickerRow(
-                "Engine",
-                supportingText: "Keys and options below apply to this engine.",
-                selection: $defaultProviderRaw
-            ) {
+            JinSettingsPickerRow("Engine", selection: $defaultProviderRaw) {
                 ForEach(SearchPluginProvider.allCases) { provider in
                     enginePickerLabel(provider).tag(provider.rawValue)
                 }
@@ -204,16 +200,12 @@ struct WebSearchPluginSettingsView: View {
                 label: "API Key",
                 text: apiKeyBinding(for: defaultProvider),
                 isRevealed: keyVisibilityBinding(for: defaultProvider),
+                signupURL: defaultProvider.signupURL,
                 onClear: {
                     apiKeyBinding(for: defaultProvider).wrappedValue = ""
                     keyVisibilityBinding(for: defaultProvider).wrappedValue = false
                 }
             )
-
-            if let signupURL = defaultProvider.signupURL {
-                Link("Get an API key", destination: signupURL)
-                    .font(.caption)
-            }
 
             providerAdvancedContent()
         }

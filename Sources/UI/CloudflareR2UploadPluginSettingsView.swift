@@ -40,26 +40,37 @@ struct CloudflareR2UploadPluginSettingsView: View {
 
     var body: some View {
         JinSettingsPage(title: "Cloudflare R2 Upload") {
-            JinSettingsSection(
-                "Credentials",
-                detail: "Open dash.cloudflare.com to manage R2 API tokens."
-            ) {
-                JinSettingsTextFieldRow("Account ID", text: $accountID, usesMonospacedFont: true)
+            JinSettingsSection("Credentials") {
+                JinSettingsTextFieldRow(
+                    "Account ID",
+                    prompt: "Cloudflare account ID",
+                    text: $accountID,
+                    usesMonospacedFont: true
+                )
 
-                JinSettingsTextFieldRow("Access Key ID", text: $accessKeyID, usesMonospacedFont: true)
+                JinSettingsTextFieldRow(
+                    "Access Key ID",
+                    prompt: "R2 token access key",
+                    text: $accessKeyID,
+                    usesMonospacedFont: true
+                )
 
                 JinSettingsSecureFieldRow(
                     "Secret Access Key",
+                    prompt: "R2 token secret",
                     text: $secretAccessKey,
                     isRevealed: $isSecretVisible,
                     usesMonospacedFont: true,
                     revealHelp: "Show secret key",
-                    concealHelp: "Hide secret key"
+                    concealHelp: "Hide secret key",
+                    helpLink: URL(string: "https://dash.cloudflare.com/?to=/:account/r2/api-tokens").map {
+                        JinSettingsHelpLink("Create an R2 API token", destination: $0)
+                    }
                 )
             }
 
             JinSettingsSection("Storage") {
-                JinSettingsTextFieldRow("Bucket", text: $bucket, usesMonospacedFont: true)
+                JinSettingsTextFieldRow("Bucket", prompt: "my-bucket", text: $bucket, usesMonospacedFont: true)
 
                 JinSettingsTextFieldRow(
                     "Public Base URL",
@@ -70,6 +81,7 @@ struct CloudflareR2UploadPluginSettingsView: View {
 
                 JinSettingsTextFieldRow(
                     "Key Prefix",
+                    prompt: "Optional, e.g. jin/uploads",
                     text: $keyPrefix,
                     usesMonospacedFont: true
                 )
@@ -80,7 +92,6 @@ struct CloudflareR2UploadPluginSettingsView: View {
                     isTesting: isTesting,
                     statusMessage: statusMessage,
                     statusIsError: statusIsError,
-                    spacing: 12,
                     onTestConnection: testConnection,
                     onClear: clearSettings
                 )

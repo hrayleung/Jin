@@ -148,6 +148,7 @@ extension TextToSpeechPluginSettingsView {
             if currentSynthesisCapabilities?.supportsInstructions == true {
                 JinSettingsTextFieldRow(
                     "Instructions",
+                    prompt: "Optional, e.g. Speak calmly and slowly",
                     text: $openAIInstructions
                 )
             }

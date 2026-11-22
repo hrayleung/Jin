@@ -53,25 +53,29 @@ extension View {
     }
 }
 
-struct JinSettingsPage<Content: View>: View {
+struct JinSettingsPage<Content: View, Accessory: View>: View {
     @Environment(\.jinSettingsEnabledBinding) private var enabledBinding
     let title: String?
     var maxWidth: CGFloat = 680
     var horizontalPadding: CGFloat = 16
     var verticalPadding: CGFloat = 16
+    private let accessory: () -> Accessory
     private let content: () -> Content
 
+    /// - Parameter accessory: A page-level action shown opposite the title.
     init(
         title: String? = nil,
         maxWidth: CGFloat = 680,
         horizontalPadding: CGFloat = 16,
         verticalPadding: CGFloat = 16,
+        @ViewBuilder accessory: @escaping () -> Accessory,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
         self.maxWidth = maxWidth
         self.horizontalPadding = horizontalPadding
         self.verticalPadding = verticalPadding
+        self.accessory = accessory
         self.content = content
     }
 
@@ -85,6 +89,8 @@ struct JinSettingsPage<Content: View>: View {
                         .textSelection(.enabled)
                         .accessibilityAddTraits(.isHeader)
                     Spacer(minLength: 8)
+                    accessory()
+                        .controlSize(.small)
                     if let enabledBinding {
                         Toggle("Enabled", isOn: enabledBinding)
                             .toggleStyle(.switch)
@@ -115,6 +121,25 @@ struct JinSettingsPage<Content: View>: View {
     }
 }
 
+extension JinSettingsPage where Accessory == EmptyView {
+    init(
+        title: String? = nil,
+        maxWidth: CGFloat = 680,
+        horizontalPadding: CGFloat = 16,
+        verticalPadding: CGFloat = 16,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.init(
+            title: title,
+            maxWidth: maxWidth,
+            horizontalPadding: horizontalPadding,
+            verticalPadding: verticalPadding,
+            accessory: { EmptyView() },
+            content: content
+        )
+    }
+}
+
 struct JinSettingsSection<Content: View>: View {
     let title: String
     let detail: String?
@@ -140,9 +165,32 @@ struct JinSettingsSection<Content: View>: View {
                 .textCase(nil)
         } footer: {
             if let detail, !detail.isEmpty {
-                Text(detail)
+                JinSettingsSectionFooter(detail)
             }
         }
         .listRowBackground(JinSemanticColor.controlGroup)
+    }
+}
+
+/// Section footnote, pinned to the leading edge.
+///
+/// A grouped `Form` on macOS 14/15 right-aligns footer content that is
+/// narrower than the section, so a bare `Text` ends up under the controls
+/// instead of under the labels it describes. Filling the width makes the
+/// alignment ours on every OS version.
+struct JinSettingsSectionFooter: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

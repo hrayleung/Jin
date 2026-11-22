@@ -8,6 +8,12 @@ struct KeyboardShortcutsSettingsView: View {
 
     var body: some View {
         JinSettingsPage(title: "Keyboard Shortcuts") {
+            Button("Restore Defaults") {
+                shortcutsStore.resetAllToDefaults()
+            }
+            .disabled(!hasCustomizations)
+            .help("Reset every shortcut to its default")
+        } content: {
             JinSettingsSection("Discovery") {
                 JinSettingsToggleRow(
                     "Hold ⌘ to preview shortcuts",
@@ -17,18 +23,11 @@ struct KeyboardShortcutsSettingsView: View {
             }
 
             ForEach(AppShortcutSection.allCases, id: \.rawValue) { section in
-                JinSettingsSection(section.title, detail: section.subtitle) {
+                JinSettingsSection(section.title) {
                     ForEach(actions(in: section)) { action in
                         shortcutRow(for: action)
                     }
                 }
-            }
-
-            JinSettingsSection("Actions") {
-                Button("Restore All Defaults") {
-                    shortcutsStore.resetAllToDefaults()
-                }
-                .disabled(!hasCustomizations)
             }
         }
         .onChange(of: showShortcutHints) { _, enabled in
@@ -59,7 +58,7 @@ struct KeyboardShortcutsSettingsView: View {
     private func shortcutRow(for action: AppShortcutAction) -> some View {
         KeyboardShortcutSettingsRow(
             title: action.title,
-            displayLabel: shortcutsStore.displayLabel(for: action),
+            binding: shortcutsStore.binding(for: action),
             isCustomized: shortcutsStore.isCustomized(action)
         ) {
             editingAction = action

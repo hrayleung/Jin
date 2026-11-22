@@ -8,8 +8,8 @@ enum NewChatModelMode: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .fixed: return "Use Specific Model"
-        case .lastUsed: return "Use Last Used Model"
+        case .fixed: return "A Specific Model"
+        case .lastUsed: return "Last Used Model"
         }
     }
 }
@@ -22,8 +22,8 @@ enum NewChatMCPMode: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .fixed: return "Use Custom Defaults"
-        case .lastUsed: return "Use Last Chat's MCP"
+        case .fixed: return "Custom Selection"
+        case .lastUsed: return "Same as Last Chat"
         }
     }
 }
@@ -70,9 +70,9 @@ enum ChatNamingMode: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .firstRoundFixed:
-            return "First Round Only"
+            return "After the First Reply"
         case .everyRound:
-            return "Rename Every Round"
+            return "After Every Reply"
         }
     }
 }

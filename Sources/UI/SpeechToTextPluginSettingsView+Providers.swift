@@ -273,6 +273,7 @@ extension SpeechToTextPluginSettingsView {
             if capabilities.supportsPrompt {
                 JinSettingsTextFieldRow(
                     "Prompt",
+                    prompt: "Optional context or spelling hints",
                     text: prompt
                 )
             }

@@ -21,7 +21,6 @@ struct JinSettingsStepperRow: View {
 
                 Stepper(title, value: $value, in: range)
                     .labelsHidden()
-                    .controlSize(.small)
                     .accessibilityLabel(title)
                     .accessibilityValue(value.formatted())
             }

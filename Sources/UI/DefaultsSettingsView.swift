@@ -15,8 +15,8 @@ struct DefaultsSettingsView: View {
 
     var body: some View {
         JinSettingsPage(title: "Defaults") {
-            JinSettingsSection("New Chat Model") {
-                JinSettingsPickerRow("When starting a chat", selection: $newChatModelMode) {
+            JinSettingsSection("Model") {
+                JinSettingsPickerRow("New chats start with", selection: $newChatModelMode) {
                     ForEach(NewChatModelMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
@@ -34,8 +34,10 @@ struct DefaultsSettingsView: View {
 
                     let models = modelsForProvider(newChatFixedProviderID)
                     if models.isEmpty {
-                        Text("No models found for this provider.")
-                            .jinInfoCallout()
+                        JinSettingsControlRow("Model") {
+                            Text("No models for this provider")
+                                .foregroundStyle(.secondary)
+                        }
                     } else {
                         JinSettingsPickerRow("Model", selection: $newChatFixedModelID) {
                             ForEach(models) { model in
@@ -49,18 +51,18 @@ struct DefaultsSettingsView: View {
                 }
             }
 
-            JinSettingsSection("New Chat MCP") {
-                JinSettingsPickerRow("MCP Tools", selection: $newChatMCPMode) {
+            JinSettingsSection("MCP Tools") {
+                JinSettingsPickerRow("New chats start with", selection: $newChatMCPMode) {
                     ForEach(NewChatMCPMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
 
                 if newChatMCPMode == .fixed {
-                    JinSettingsToggleRow("Enable MCP Tools by default", isOn: $newChatFixedMCPEnabled)
+                    JinSettingsToggleRow("Turn on MCP tools", isOn: $newChatFixedMCPEnabled)
 
                     if newChatFixedMCPEnabled {
-                        JinSettingsToggleRow("Use all enabled servers", isOn: $newChatFixedMCPUseAllServers)
+                        JinSettingsToggleRow("Use every enabled server", isOn: $newChatFixedMCPUseAllServers)
                             .onChange(of: newChatFixedMCPUseAllServers) { _, isOn in
                                 guard !isOn else { return }
                                 let current = AppPreferences.decodeStringArrayJSON(newChatFixedMCPServerIDsJSON)
@@ -68,31 +70,40 @@ struct DefaultsSettingsView: View {
                                 let eligibleIDs = eligibleMCPServers.map(\.id)
                                 newChatFixedMCPServerIDsJSON = AppPreferences.encodeStringArrayJSON(eligibleIDs)
                             }
-
-                        if !newChatFixedMCPUseAllServers {
-                            let eligibleServers = eligibleMCPServers
-                            if eligibleServers.isEmpty {
-                                Text("No eligible MCP servers. Enable servers in Settings → MCP Servers.")
-                                    .jinInfoCallout()
-                            } else {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Default servers")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-
-                                    ForEach(eligibleServers, id: \.id) { server in
-                                        Toggle(server.name, isOn: fixedMCPServerBinding(serverID: server.id))
-                                    }
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
                     }
                 }
+            }
+
+            if showsFixedMCPServerList {
+                fixedMCPServersSection
             }
         }
         .onAppear {
             ensureValidFixedModelSelection()
+        }
+    }
+
+    private var showsFixedMCPServerList: Bool {
+        newChatMCPMode == .fixed && newChatFixedMCPEnabled && !newChatFixedMCPUseAllServers
+    }
+
+    @ViewBuilder
+    private var fixedMCPServersSection: some View {
+        let eligibleServers = eligibleMCPServers
+        JinSettingsSection(
+            "Servers",
+            detail: eligibleServers.isEmpty
+                ? "Only enabled servers that run tools automatically can be chosen. Set one up in MCP Servers."
+                : nil
+        ) {
+            if eligibleServers.isEmpty {
+                Text("No servers available")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(eligibleServers, id: \.id) { server in
+                    JinSettingsToggleRow(server.name, isOn: fixedMCPServerBinding(serverID: server.id))
+                }
+            }
         }
     }
 

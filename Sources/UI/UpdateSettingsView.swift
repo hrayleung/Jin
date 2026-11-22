@@ -27,11 +27,8 @@ struct UpdateSettingsView: View {
                 onCheckForUpdates: runCheck
             )
 
-            UpdateSettingsAutomaticSection(
-                isOn: automaticallyChecksBinding
-            )
-
-            UpdateSettingsChannelSection(
+            UpdateSettingsPreferencesSection(
+                automaticallyChecks: automaticallyChecksBinding,
                 allowPreRelease: preReleaseBinding
             )
         }

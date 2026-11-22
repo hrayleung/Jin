@@ -17,7 +17,7 @@ struct OpenRouterOCRPluginSettingsView: View {
     }
 
     var body: some View {
-        JinSettingsPage(title: "OpenRouter OCR", maxWidth: 620) {
+        JinSettingsPage(title: "OpenRouter OCR") {
             JinSettingsSection("Connection") {
                 JinSettingsSecureFieldRow(
                     "API Key",
@@ -39,7 +39,7 @@ struct OpenRouterOCRPluginSettingsView: View {
                 )
             }
 
-            JinSettingsSection("OCR Model") {
+            JinSettingsSection("OCR") {
                 JinSettingsPickerRow("Model", selection: $selectedModelID) {
                     ForEach(OpenRouterOCRModelCatalog.entries) { model in
                         Text(model.name).tag(model.id)

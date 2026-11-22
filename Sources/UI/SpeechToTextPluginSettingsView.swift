@@ -98,14 +98,6 @@ struct SpeechToTextPluginSettingsView: View {
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
 
-                JinSettingsToggleRow(
-                    "Add recording as file",
-                    supportingText: "Attach audio file instead of transcribing — for models with audio input.",
-                    isOn: $addRecordingAsFile
-                )
-            }
-
-            JinSettingsSection("Connection") {
                 JinSettingsSecureFieldRow(
                     "API Key",
                     prompt: "Paste API key",
@@ -122,9 +114,16 @@ struct SpeechToTextPluginSettingsView: View {
                     showsProgress: isTesting || isLoadingModels,
                     statusMessage: statusMessage,
                     statusIsError: statusIsError,
-                    spacing: 12,
                     onTestConnection: testConnection,
                     onClear: clearKey
+                )
+            }
+
+            JinSettingsSection("Recording") {
+                JinSettingsToggleRow(
+                    "Attach recordings as audio files",
+                    supportingText: "Skips transcription and sends the audio itself, for models that accept audio input.",
+                    isOn: $addRecordingAsFile
                 )
             }
 

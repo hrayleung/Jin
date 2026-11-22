@@ -191,6 +191,7 @@ struct JinSettingsSecureFieldRow: View {
     var usesMonospacedFont = false
     var revealHelp = "Show value"
     var concealHelp = "Hide value"
+    var helpLink: JinSettingsHelpLink?
 
     init(
         _ title: String,
@@ -200,8 +201,10 @@ struct JinSettingsSecureFieldRow: View {
         isRevealed: Binding<Bool>,
         usesMonospacedFont: Bool = false,
         revealHelp: String = "Show value",
-        concealHelp: String = "Hide value"
+        concealHelp: String = "Hide value",
+        helpLink: JinSettingsHelpLink? = nil
     ) {
+        self.helpLink = helpLink
         self.title = title
         self.prompt = prompt ?? ""
         self.supportingText = supportingText
@@ -222,7 +225,27 @@ struct JinSettingsSecureFieldRow: View {
                 revealHelp: revealHelp,
                 concealHelp: concealHelp
             )
+
+            if let helpLink {
+                helpLink
+            }
         }
+    }
+}
+
+/// A caption-sized link that sits under the field it helps fill in.
+struct JinSettingsHelpLink: View {
+    let title: String
+    let destination: URL
+
+    init(_ title: String, destination: URL) {
+        self.title = title
+        self.destination = destination
+    }
+
+    var body: some View {
+        Link(title, destination: destination)
+            .font(.caption)
     }
 }
 
@@ -355,7 +378,7 @@ struct JinSettingsSliderValueRow: View {
             HStack {
                 slider
                 Text(value.formatted(.number.precision(.fractionLength(2))))
-                    .font(.system(.body, design: .monospaced))
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .frame(width: valueWidth, alignment: .trailing)
             }

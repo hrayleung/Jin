@@ -7,12 +7,14 @@ struct DataSettingsStorageSection: View {
     let onRecalculate: () -> Void
 
     var body: some View {
-        JinSettingsSection("Storage", detail: "Storage used by Jin on this Mac.") {
-            DataSettingsCompositionBar(snapshots: snapshots, totalBytes: totalBytes)
-                .padding(.vertical, JinSpacing.xSmall)
-            DataSettingsTotalStorageRow(totalBytes: totalBytes) {
-                recalculateControl
+        JinSettingsSection("Storage") {
+            VStack(alignment: .leading, spacing: JinSpacing.small) {
+                DataSettingsTotalStorageRow(totalBytes: totalBytes) {
+                    recalculateControl
+                }
+                DataSettingsCompositionBar(snapshots: snapshots, totalBytes: totalBytes)
             }
+            .padding(.vertical, JinSpacing.xSmall)
         }
     }
 
@@ -21,17 +23,11 @@ struct DataSettingsStorageSection: View {
         if isCalculating {
             ProgressView()
                 .controlSize(.small)
-                .scaleEffect(0.7)
         } else {
-            Button {
-                onRecalculate()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11, weight: .medium))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Recalculate storage sizes")
+            Button("Recalculate", systemImage: "arrow.clockwise", action: onRecalculate)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .help("Recalculate storage")
         }
     }
 }
@@ -61,7 +57,7 @@ struct DataSettingsBreakdownSection: View {
     private var emptyState: some View {
         HStack(spacing: 8) {
             if isCalculating { ProgressView().controlSize(.small) }
-            Text(isCalculating ? "Calculating storage…" : "No storage information available.")
+            Text(isCalculating ? "Calculating…" : "Storage details are unavailable.")
                 .foregroundStyle(.secondary)
         }
     }
@@ -85,26 +81,18 @@ struct DataSettingsChatsSection: View {
 
     var body: some View {
         JinSettingsSection("Chats") {
-            chatCountRow
-            deleteAllChatsButton
-        }
-    }
+            JinSettingsControlRow("All chats") {
+                HStack(spacing: JinSpacing.medium) {
+                    Text(chatCount.formatted())
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
 
-    private var chatCountRow: some View {
-        LabeledContent("Total Chats") {
-            Text("\(chatCount)")
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.secondary)
+                    Button("Delete All…", role: .destructive, action: onRequestDeleteAllChats)
+                        .controlSize(.small)
+                        .disabled(chatCount == 0)
+                }
+            }
         }
-    }
-
-    private var deleteAllChatsButton: some View {
-        Button(role: .destructive) {
-            onRequestDeleteAllChats()
-        } label: {
-            Label("Delete All Chats", systemImage: "trash")
-        }
-        .disabled(chatCount == 0)
     }
 }
 
@@ -115,43 +103,22 @@ struct DataSettingsRecoverySection: View {
     let onImportRecoveryPack: () -> Void
 
     var body: some View {
-        JinSettingsSection("Recovery") {
-            exportRecoveryButton
-            importRecoveryButton
-            recoveryStatusMessages
-        }
-    }
+        JinSettingsSection("Recovery Pack") {
+            JinSettingsControlRow(
+                "Export",
+                supportingText: exportStatusMessage ?? "Save your chats, assistants, and settings to a single file."
+            ) {
+                Button("Export…", action: onExportRecoveryPack)
+                    .controlSize(.small)
+            }
 
-    private var exportRecoveryButton: some View {
-        Button {
-            onExportRecoveryPack()
-        } label: {
-            Label("Export Recovery Pack", systemImage: "square.and.arrow.up")
+            JinSettingsControlRow(
+                "Import",
+                supportingText: importStatusMessage ?? "Replace the data on this Mac with a recovery pack. Jin restarts to apply it."
+            ) {
+                Button("Import…", action: onImportRecoveryPack)
+                    .controlSize(.small)
+            }
         }
-    }
-
-    private var importRecoveryButton: some View {
-        Button {
-            onImportRecoveryPack()
-        } label: {
-            Label("Import Recovery Pack", systemImage: "square.and.arrow.down")
-        }
-    }
-
-    @ViewBuilder
-    private var recoveryStatusMessages: some View {
-        if let exportStatusMessage {
-            recoveryStatusText(exportStatusMessage)
-        }
-
-        if let importStatusMessage {
-            recoveryStatusText(importStatusMessage)
-        }
-    }
-
-    private func recoveryStatusText(_ message: String) -> some View {
-        Text(message)
-            .font(.caption)
-            .foregroundStyle(.secondary)
     }
 }

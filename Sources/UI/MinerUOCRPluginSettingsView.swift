@@ -53,13 +53,11 @@ struct MinerUOCRPluginSettingsView: View {
                     text: $apiToken,
                     isRevealed: $isTokenVisible,
                     revealHelp: "Show API token",
-                    concealHelp: "Hide API token"
+                    concealHelp: "Hide API token",
+                    helpLink: URL(string: "https://mineru.net/").map {
+                        JinSettingsHelpLink("Get an API token", destination: $0)
+                    }
                 )
-
-                if let signupURL = URL(string: "https://mineru.net/") {
-                    Link("Get a MinerU API token", destination: signupURL)
-                        .font(.caption)
-                }
 
                 JinSettingsTextFieldRow(
                     "User Header",
@@ -74,7 +72,6 @@ struct MinerUOCRPluginSettingsView: View {
                     isTesting: isTesting,
                     statusMessage: statusMessage,
                     statusIsError: statusIsError,
-                    spacing: 12,
                     onTestConnection: runTestConnection,
                     onClear: clearSettings
                 )

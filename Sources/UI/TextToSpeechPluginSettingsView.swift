@@ -114,9 +114,7 @@ struct TextToSpeechPluginSettingsView: View {
                     Task { await loadExistingKeyAndMaybeProviderResources() }
                     NotificationCenter.default.post(name: .pluginCredentialsDidChange, object: nil)
                 }
-            }
 
-            JinSettingsSection("Connection") {
                 JinSettingsSecureFieldRow(
                     "API Key",
                     prompt: "Paste API key",
@@ -133,7 +131,6 @@ struct TextToSpeechPluginSettingsView: View {
                     showsProgress: isTesting || isLoadingModels || isLoadingVoices,
                     statusMessage: statusMessage,
                     statusIsError: statusIsError,
-                    spacing: 12,
                     onTestConnection: testConnection,
                     onClear: clearKey
                 )

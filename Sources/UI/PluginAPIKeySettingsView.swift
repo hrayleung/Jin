@@ -37,6 +37,7 @@ struct PluginAPIKeySettingsView: View {
                 JinSettingsSecureFieldRow(
                     "API Key",
                     prompt: "Paste API key",
+                    supportingText: apiKeyHint?.isEmpty == false ? apiKeyHint : nil,
                     text: $apiKey,
                     isRevealed: $isKeyVisible,
                     revealHelp: "Show API key",
@@ -52,12 +53,6 @@ struct PluginAPIKeySettingsView: View {
                     onTestConnection: runTestConnection,
                     onClear: clearKey
                 )
-
-                if let apiKeyHint, !apiKeyHint.isEmpty {
-                    Text(apiKeyHint)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
         }
         .task {

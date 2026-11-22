@@ -21,25 +21,14 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         }
     }
 
-    var systemImage: String {
-        switch self {
-        case .attachments: return "paperclip"
-        case .database: return "cylinder"
-        case .networkLogs: return "doc.text"
-        case .chatDiagnostics: return "waveform.path.ecg"
-        case .mcpData: return "server.rack"
-        case .legacySpeechModels: return "waveform"
-        }
-    }
-
     var description: String {
         switch self {
-        case .attachments: return "Images, videos, audio, and files from conversations."
-        case .database: return "Chat history, assistants, and provider configurations."
-        case .networkLogs: return "HTTP/WebSocket debug trace files."
-        case .chatDiagnostics: return "Chat send and stream pipeline timing logs."
-        case .mcpData: return "Node isolation directories for MCP servers."
-        case .legacySpeechModels: return "Leftover on-device WhisperKit / TTSKit model files from earlier Jin builds. Safe to remove."
+        case .attachments: return "Images, video, audio, and files from your chats."
+        case .database: return "Chats, assistants, and provider settings."
+        case .networkLogs: return "Request traces recorded from Chat settings."
+        case .chatDiagnostics: return "Timing logs recorded from Chat settings."
+        case .mcpData: return "Working folders for local MCP servers."
+        case .legacySpeechModels: return "On-device speech models from earlier versions. No longer used."
         }
     }
 

@@ -10,22 +10,14 @@ struct DataSettingsTotalStorageRow<Accessory: View>: View {
     }
 
     var body: some View {
-        HStack {
-            Label {
-                Text("Total")
-                    .fontWeight(.medium)
-            } icon: {
-                Image(systemName: "externaldrive")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
+        HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
+            Text("Used by Jin")
 
-            Spacer()
+            Spacer(minLength: JinSpacing.small)
 
             Text(DataSettingsFormatting.formattedSize(totalBytes))
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.primary)
-                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
 
             accessory()
         }
@@ -60,7 +52,7 @@ struct DataSettingsCompositionBar: View {
             let width = geometry.size.width
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(JinSemanticColor.subtleSurface)
+                    .fill(JinSemanticColor.controlFill)
 
                 if !segments.isEmpty {
                     HStack(spacing: 1) {
@@ -107,77 +99,67 @@ struct DataSettingsStorageCategoryRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: JinSpacing.xSmall) {
-            HStack {
-                Label {
+        HStack(alignment: .center, spacing: JinSpacing.medium) {
+            HStack(alignment: .firstTextBaseline, spacing: JinSpacing.small) {
+                Circle()
+                    .fill(snapshot.category.chartColor)
+                    .frame(width: 8, height: 8)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 2) {
                     Text(snapshot.category.label)
-                } icon: {
-                    Image(systemName: snapshot.category.systemImage)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(snapshot.category.chartColor)
-                        .frame(width: 16)
-                }
-
-                Spacer()
-
-                sizeLabel
-            }
-
-            HStack(spacing: JinSpacing.small) {
-                Text(snapshot.category.description)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-
-                Spacer(minLength: JinSpacing.small)
-
-                if snapshot.url != nil {
-                    Button {
-                        onReveal(snapshot)
-                    } label: {
-                        Image(systemName: "folder")
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("Show in Finder")
-                }
-
-                if snapshot.category.isClearable {
-                    Button {
-                        onRequestClear(snapshot.category)
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(snapshot.byteCount > 0 ? Color.red.opacity(0.8) : Color.secondary.opacity(0.4))
-                    .disabled(snapshot.byteCount == 0)
-                    .help(snapshot.byteCount > 0 ? "Clear \(snapshot.category.label)" : "Nothing to clear")
+                    Text(snapshot.category.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
+
+            Spacer(minLength: JinSpacing.small)
+
+            sizeLabel
+            actions
         }
-        .padding(.vertical, JinSpacing.xSmall)
-        .accessibilityElement(children: .combine)
+        .padding(.vertical, 2)
     }
 
-    @ViewBuilder
     private var sizeLabel: some View {
-        HStack(spacing: 4) {
-            Text(DataSettingsFormatting.formattedSize(snapshot.byteCount))
-                .font(.system(.callout, design: .monospaced))
-                .foregroundStyle(.secondary)
+        Text(snapshot.byteCount > 0 ? DataSettingsFormatting.formattedSize(snapshot.byteCount) : "Empty")
+            .foregroundStyle(snapshot.byteCount > 0 ? .secondary : .tertiary)
+            .monospacedDigit()
+            .lineLimit(1)
+            .accessibilityLabel(sizeAccessibilityLabel)
+    }
 
-            if let shareText {
-                Text("·")
-                    .font(.system(.callout, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+    private var sizeAccessibilityLabel: String {
+        let size = DataSettingsFormatting.formattedSize(snapshot.byteCount)
+        guard let shareText else { return size }
+        return "\(size), \(shareText) of total"
+    }
 
-                Text(shareText)
-                    .font(.system(.callout, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+    /// Both slots are always laid out so the size column lines up across rows
+    /// whether or not a category can be cleared.
+    private var actions: some View {
+        HStack(spacing: JinSpacing.small) {
+            Button("Show in Finder", systemImage: "folder") {
+                onReveal(snapshot)
             }
+            .help("Show in Finder")
+            .opacity(snapshot.url == nil ? 0 : 1)
+            .disabled(snapshot.url == nil)
+            .accessibilityHidden(snapshot.url == nil)
+
+            Button("Clear \(snapshot.category.label)", systemImage: "trash") {
+                onRequestClear(snapshot.category)
+            }
+            .help(snapshot.byteCount > 0 ? "Clear \(snapshot.category.label)…" : "Nothing to clear")
+            .opacity(snapshot.category.isClearable ? 1 : 0)
+            .disabled(!snapshot.category.isClearable || snapshot.byteCount == 0)
+            .accessibilityHidden(!snapshot.category.isClearable)
         }
+        .labelStyle(.iconOnly)
+        .buttonStyle(.borderless)
     }
 }
 
