@@ -999,6 +999,14 @@ final class JinMessageTextView: NSTextView {
         return LatexSourceCopy.inlineMathHit(at: point, in: self)
     }
 
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        // Layer-backed text views (`wantsLayer` + `.duringViewResize`) can
+        // retain a stale raster across Light/Dark appearance flips unless
+        // marked dirty so inline-math attachments redraw under the new theme.
+        needsDisplay = true
+    }
+
     override func setSelectedRange(_ charRange: NSRange, affinity: NSSelectionAffinity, stillSelecting: Bool) {
         super.setSelectedRange(charRange, affinity: affinity, stillSelecting: stillSelecting)
         // Layer-backed views (`wantsLayer` + `.duringViewResize`) can retain a

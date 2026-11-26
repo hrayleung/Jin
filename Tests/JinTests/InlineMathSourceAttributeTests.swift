@@ -161,7 +161,7 @@ final class InlineMathSourceAttributeTests: XCTestCase {
     func testParseFailureFallbackStillCarriesSourceForClick() {
         // Commands SwiftMath does not know degrade to raw text; the copy
         // popover still needs the delimited source on the run.
-        let original = "$(x_0, y_0), (x_1, y_1), \\dots, (x_n, y_n)$"
+        let original = "$(x_0, y_0), \\jinUnknownCmd, (x_n, y_n)$"
         let inner = String(original.dropFirst().dropLast())
         let result = InlineMath.attributedString(
             inner: inner,
@@ -169,6 +169,7 @@ final class InlineMathSourceAttributeTests: XCTestCase {
             font: font,
             color: .black
         )
+        XCTAssertEqual(result.string, original)
         XCTAssertEqual(
             result.attribute(.jinInlineMathSource, at: 0, effectiveRange: nil) as? String,
             original

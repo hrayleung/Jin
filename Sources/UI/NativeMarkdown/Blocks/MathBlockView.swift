@@ -116,6 +116,7 @@ private struct NativeMathDisplay: NSViewRepresentable {
     private func configure(_ host: ClickableMathHost, coordinator: Coordinator) {
         coordinator.source = copySource
         host.latexSource = copySource
+        host.dynamicTextColor = textColor
         host.label.fontSize = fontSize
         host.label.textColor = MathColorResolver.resolve(textColor, for: colorScheme)
         // Avoid re-stringifying an unchanged list (the parsed list is cached, so
@@ -165,6 +166,7 @@ private final class ClickableMathHost: NSView {
     let label = MTMathUILabel()
     var onClick: (() -> Void)?
     var latexSource: String = ""
+    var dynamicTextColor: NSColor?
     private let scrollView = NSScrollView()
     private var contentSize: CGSize = .zero
     private var downPointInWindow: NSPoint?
@@ -261,6 +263,16 @@ private final class ClickableMathHost: NSView {
 
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: .pointingHand)
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        guard let dynamicTextColor else { return }
+        var resolved = dynamicTextColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            resolved = dynamicTextColor.usingColorSpace(.sRGB) ?? dynamicTextColor
+        }
+        label.textColor = resolved
     }
 
     override func viewDidMoveToWindow() {

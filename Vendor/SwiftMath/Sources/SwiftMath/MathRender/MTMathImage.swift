@@ -89,12 +89,12 @@ extension MTMathImage {
         intrinsicContentSize = intrinsicContentSize(displayList)
         ascent = displayList.ascent
         descent = displayList.descent
-        displayList.textColor = textColor
 
         let size = intrinsicContentSize
         layoutImage(size: size, displayList: displayList)
 
         #if os(iOS) || os(visionOS)
+            displayList.textColor = textColor
             let renderer = UIGraphicsImageRenderer(size: size)
             let image = renderer.image { rendererContext in
                 rendererContext.cgContext.saveGState()
@@ -105,13 +105,28 @@ extension MTMathImage {
             return (nil, image)
         #endif
         #if os(macOS)
-            let image = NSImage(size: size, flipped: false) { bounds in
+            // Resolve dynamic NSColors at draw time under NSAppearance.currentDrawing()
+            // so cached inline-math attachments automatically adapt when macOS or Jin
+            // switches between Light and Dark mode without re-parsing the markdown.
+            let dynamicTextColor = textColor
+            let drawLock = NSLock()
+            var lastDrawnCGColor: CGColor?
+            let image = NSImage(size: size, flipped: false) { _ in
                 guard let context = NSGraphicsContext.current?.cgContext else { return false }
+                let resolved = dynamicTextColor.usingColorSpace(.sRGB) ?? dynamicTextColor
+                let cgColor = resolved.cgColor
+                drawLock.lock()
+                defer { drawLock.unlock() }
+                if lastDrawnCGColor != cgColor {
+                    displayList.textColor = resolved
+                    lastDrawnCGColor = cgColor
+                }
                 context.saveGState()
                 displayList.draw(context)
                 context.restoreGState()
                 return true
             }
+            image.cacheMode = .never
             return (nil, image)
         #endif
     }

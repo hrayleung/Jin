@@ -505,6 +505,12 @@ public class MTMathAtomFactory {
         "|" : MTMathAtom(type: .ordinary, value: "\u{2016}"),
         "vert" : MTMathAtom(type: .ordinary, value: "|"),
         "ldots" : MTMathAtom(type: .ordinary, value: "\u{2026}"),
+        "dots" : MTMathAtom(type: .ordinary, value: "\u{2026}"),
+        "dotsc" : MTMathAtom(type: .ordinary, value: "\u{2026}"),
+        "dotso" : MTMathAtom(type: .ordinary, value: "\u{2026}"),
+        "dotsb" : MTMathAtom(type: .ordinary, value: "\u{22EF}"),
+        "dotsm" : MTMathAtom(type: .ordinary, value: "\u{22EF}"),
+        "dotsi" : MTMathAtom(type: .ordinary, value: "\u{22EF}"),
         "prime" : MTMathAtom(type: .ordinary, value: "\u{2032}"),
         "hbar" : MTMathAtom(type: .ordinary, value: "\u{210F}"),
         "lbar" : MTMathAtom(type: .ordinary, value: "\u{019B}"),  // NEW ƛ
