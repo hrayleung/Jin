@@ -213,4 +213,159 @@ final class MarkdownMathRenderingRegressionTests: XCTestCase {
         assertMath(rows[0][1], sources: [])
         assertMath(rows[0][2], sources: [#"\(y\)"#])
     }
+
+    func testInlineMathAttachmentAdaptsToDarkAndLightAppearances() throws {
+        let theme = MarkdownTheme.resolved(appFontFamily: "", codeFontFamily: "")
+        let attributed = InlineMath.attributedString(
+            inner: #"F(S) = c + j + 1"#,
+            original: #"$F(S) = c + j + 1$"#,
+            font: theme.bodyFont,
+            color: theme.baseColor
+        )
+        guard attributed.string == "\u{FFFC}",
+              let attachment = attributed.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment,
+              let image = attachment.image else {
+            return XCTFail("Expected rendered inline math attachment")
+        }
+
+        let lightLuminance = try averageInkLuminance(of: image, appearanceName: .aqua)
+        let darkLuminance = try averageInkLuminance(of: image, appearanceName: .darkAqua)
+        let lightAgainLuminance = try averageInkLuminance(of: image, appearanceName: .aqua)
+
+        XCTAssertLessThan(lightLuminance, 0.30, "Light mode math should draw dark ink (got \(lightLuminance))")
+        XCTAssertGreaterThan(darkLuminance, 0.75, "Dark mode math should draw bright ink (got \(darkLuminance))")
+        XCTAssertLessThan(lightAgainLuminance, 0.30, "Switching back to Light mode should redraw dark ink (got \(lightAgainLuminance))")
+    }
+
+    func testJinMessageTextViewRedrawsCachedInlineMathAcrossLightAndDarkAppearances() throws {
+        let theme = MarkdownTheme.resolved(appFontFamily: "", codeFontFamily: "")
+        let mathOnly = InlineMath.attributedString(
+            inner: #"K \in \{8, \dots, 64\}"#,
+            original: #"$K \in \{8, \dots, 64\}$"#,
+            font: theme.bodyFont,
+            color: theme.baseColor
+        )
+        XCTAssertEqual(mathOnly.string, "\u{FFFC}")
+
+        let textView = JinMessageTextView()
+        textView.frame = NSRect(x: 0, y: 0, width: 240, height: 44)
+        textView.textContainer?.containerSize = NSSize(width: 240, height: CGFloat.greatestFiniteMagnitude)
+        textView.textStorage?.setAttributedString(mathOnly)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 240, height: 44),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = textView
+
+        window.appearance = NSAppearance(named: .aqua)
+        let lightLum = try averageViewInkLuminance(of: textView)
+
+        window.appearance = NSAppearance(named: .darkAqua)
+        let darkLum = try averageViewInkLuminance(of: textView)
+
+        XCTAssertLessThan(lightLum, 0.30, "NSTextView in Light mode should draw dark inline math (got \(lightLum))")
+        XCTAssertGreaterThan(darkLum, 0.75, "NSTextView in Dark mode should draw bright inline math (got \(darkLum))")
+    }
+
+    private func averageViewInkLuminance(of view: NSView) throws -> CGFloat {
+        view.layoutSubtreeIfNeeded()
+        let rep = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        view.cacheDisplay(in: view.bounds, to: rep)
+
+        var weightedLuminance: CGFloat = 0
+        var totalAlpha: CGFloat = 0
+        for y in 0..<rep.pixelsHigh {
+            for x in 0..<rep.pixelsWide {
+                guard let pixel = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+                let alpha = pixel.alphaComponent
+                guard alpha > 0.2 else { continue }
+                let lum = 0.2126 * pixel.redComponent + 0.7152 * pixel.greenComponent + 0.0722 * pixel.blueComponent
+                weightedLuminance += lum * alpha
+                totalAlpha += alpha
+            }
+        }
+        XCTAssertGreaterThan(totalAlpha, 1.0, "Expected visible ink pixels in NSTextView")
+        return weightedLuminance / max(totalAlpha, 0.0001)
+    }
+
+    func testInlineMathCacheSeparatesDistinctColors() throws {
+        let theme = MarkdownTheme.resolved(appFontFamily: "", codeFontFamily: "")
+        let body = InlineMath.attributedString(
+            inner: "K",
+            original: "$K$",
+            font: theme.bodyFont,
+            color: theme.baseColor
+        )
+        let link = InlineMath.attributedString(
+            inner: "K",
+            original: "$K$",
+            font: theme.bodyFont,
+            color: theme.linkColor
+        )
+        let bodyAttachment = try XCTUnwrap(body.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
+        let linkAttachment = try XCTUnwrap(link.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
+        XCTAssertFalse(bodyAttachment === linkAttachment, "Different semantic colors must not collide in InlineMath cache")
+    }
+
+    func testDotsCommandsRenderNatively() throws {
+        let formulas = [
+            #"$1, \dots, K$"#,
+            #"$K \in \{8, \dots, 64\}$"#,
+            #"$a_1 + \dotsb + a_n$"#,
+            #"$a_1 \dotsm a_n$"#,
+        ]
+        for formula in formulas {
+            guard case .paragraph(let run) = try XCTUnwrap(render("prefix \(formula) suffix").first) else {
+                XCTFail("Expected paragraph for \(formula)")
+                continue
+            }
+            assertMath(run, sources: [formula])
+        }
+    }
+
+    private func averageInkLuminance(of image: NSImage, appearanceName: NSAppearance.Name) throws -> CGFloat {
+        let width = max(1, Int(ceil(image.size.width * 2)))
+        let height = max(1, Int(ceil(image.size.height * 2)))
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: width,
+            pixelsHigh: height,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .calibratedRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else {
+            throw XCTSkip("Could not allocate bitmap rep")
+        }
+        rep.size = image.size
+        let appearance = try XCTUnwrap(NSAppearance(named: appearanceName))
+        let context = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: rep))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        appearance.performAsCurrentDrawingAppearance {
+            image.draw(in: NSRect(origin: .zero, size: image.size))
+        }
+        NSGraphicsContext.restoreGraphicsState()
+
+        var weightedLuminance: CGFloat = 0
+        var totalAlpha: CGFloat = 0
+        for y in 0..<height {
+            for x in 0..<width {
+                guard let pixel = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+                let alpha = pixel.alphaComponent
+                guard alpha > 0.2 else { continue }
+                let lum = 0.2126 * pixel.redComponent + 0.7152 * pixel.greenComponent + 0.0722 * pixel.blueComponent
+                weightedLuminance += lum * alpha
+                totalAlpha += alpha
+            }
+        }
+        XCTAssertGreaterThan(totalAlpha, 1.0, "Expected visible ink pixels for \(appearanceName.rawValue)")
+        return weightedLuminance / max(totalAlpha, 0.0001)
+    }
 }

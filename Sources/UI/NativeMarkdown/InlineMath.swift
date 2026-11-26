@@ -166,15 +166,17 @@ enum InlineMath {
     /// attachment on success, or the raw delimited source on failure. `nil` is
     /// never returned — callers always get something renderable.
     static func attributedString(inner: String, original: String, font: NSFont, color: NSColor) -> NSAttributedString {
-        let resolvedColor = resolveForCurrentAppearance(color)
         // Key on `original` (delimiters + inner), not bare `inner`: `$x$` and
         // `\(x\)` share an `inner` but must persist their own delimited source
         // on the attachment, so an inner-only key would hand back whichever
         // spelling rendered first and corrupt the copied/quoted LaTeX.
-        let key = "\(font.pointSize)|\(appearanceTag())|\(original)" as NSString
+        // Pass the dynamic `color` through unresolved so `MTMathImage`'s
+        // drawing handler resolves it against `NSAppearance.currentDrawing()`
+        // at draw time (adapting automatically to Light/Dark mode flips).
+        let key = "\(font.pointSize)|\(colorCacheKey(for: color))|\(original)" as NSString
         if let cached = cache.object(forKey: key) { return cached.value }
 
-        let attachment = makeAttachment(inner: inner, original: original, font: font, color: resolvedColor)
+        let attachment = makeAttachment(inner: inner, original: original, font: font, color: color)
         let result = attachment?.string ?? fallbackString(original: original, font: font, color: color)
         cache.setObject(Box(result), forKey: key, cost: attachment?.bitmapCost ?? original.utf16.count * 2)
         return result
@@ -237,17 +239,15 @@ enum InlineMath {
         return (string, bitmapCost)
     }
 
-    private static func resolveForCurrentAppearance(_ color: NSColor) -> NSColor {
-        let appearance = NSApp?.effectiveAppearance ?? NSAppearance.currentDrawing()
-        var resolved = color
-        appearance.performAsCurrentDrawingAppearance {
-            resolved = color.usingColorSpace(.sRGB) ?? color
+    private static func colorCacheKey(for color: NSColor) -> String {
+        if color.type == .componentBased, let srgb = color.usingColorSpace(.sRGB) {
+            var r: CGFloat = 0
+            var g: CGFloat = 0
+            var b: CGFloat = 0
+            var a: CGFloat = 0
+            srgb.getRed(&r, green: &g, blue: &b, alpha: &a)
+            return String(format: "srgb:%.3f,%.3f,%.3f,%.3f", r, g, b, a)
         }
-        return resolved
-    }
-
-    private static func appearanceTag() -> String {
-        let appearance = NSApp?.effectiveAppearance ?? NSAppearance.currentDrawing()
-        return appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? "d" : "l"
+        return "dyn:\(UInt(bitPattern: ObjectIdentifier(color)))"
     }
 }
