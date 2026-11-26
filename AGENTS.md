@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+when create PRs, do not include images that contains any actual conversations contents.
+
 ## Project Structure & Module Organization
 
 - `Package.swift` defines a Swift Package Manager (SPM) executable target (`Jin`) for macOS 14+.
