@@ -7,11 +7,16 @@ import QuartzCore
 /// interpolates stable dot layers at the display refresh rate, so streaming
 /// markdown/layout work never triggers per-frame model generation or drawing.
 final class JinActivityOrbNSView: NSView {
+    private static let reducedMotionBreathDuration: CFTimeInterval = 2.4
+    private static let reducedMotionMinAlphaFactor: Double = 0.28
+    private static let reducedMotionMaxStagger: CFTimeInterval = 0.72
+
     private let dotContainerLayer = CALayer()
 
     private var kind: JinActivityKind = .working
     private var orbSize: JinActivityOrbSize = .inline
     private var paused = false
+    private var reduceMotion = false
     private var pose: JinActivityOrbPose = .live
     private var isDark = true
     private var installedKey: InstalledKey?
@@ -20,18 +25,20 @@ final class JinActivityOrbNSView: NSView {
         let kind: JinActivityKind
         let size: JinActivityOrbSize
         let paused: Bool
+        let reduceMotion: Bool
         let pose: JinActivityOrbPose
         let isDark: Bool
     }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        let rootLayer = CALayer()
+        rootLayer.backgroundColor = NSColor.clear.cgColor
+        layer = rootLayer
         wantsLayer = true
-        layer = CALayer()
-        layer?.backgroundColor = NSColor.clear.cgColor
         dotContainerLayer.backgroundColor = NSColor.clear.cgColor
         dotContainerLayer.isGeometryFlipped = true
-        layer?.addSublayer(dotContainerLayer)
+        rootLayer.addSublayer(dotContainerLayer)
     }
 
     @available(*, unavailable)
@@ -53,6 +60,7 @@ final class JinActivityOrbNSView: NSView {
         kind: JinActivityKind,
         size: JinActivityOrbSize,
         paused: Bool,
+        reduceMotion: Bool = false,
         pose: JinActivityOrbPose = .live,
         isDark: Bool
     ) {
@@ -61,6 +69,7 @@ final class JinActivityOrbNSView: NSView {
             kind: kind,
             size: size,
             paused: paused,
+            reduceMotion: reduceMotion,
             pose: pose,
             isDark: isDark
         )
@@ -69,6 +78,7 @@ final class JinActivityOrbNSView: NSView {
         self.kind = kind
         orbSize = size
         self.paused = paused
+        self.reduceMotion = reduceMotion
         self.pose = pose
         self.isDark = isDark
 
@@ -126,6 +136,7 @@ final class JinActivityOrbNSView: NSView {
             kind: kind,
             size: orbSize,
             paused: paused,
+            reduceMotion: reduceMotion,
             pose: pose,
             isDark: isDark
         )
@@ -133,6 +144,8 @@ final class JinActivityOrbNSView: NSView {
 
         if paused || pose == .settled {
             installStaticFrame(staticFrame())
+        } else if reduceMotion {
+            installReducedMotionBreathing(staticFrame())
         } else {
             installAnimation(JinActivityOrbEngine.animationPlan(kind: kind, size: orbSize))
         }
@@ -161,6 +174,42 @@ final class JinActivityOrbNSView: NSView {
         CATransaction.commit()
     }
 
+    private func installReducedMotionBreathing(_ frame: ActivityOrbFrame) {
+        guard !frame.dots.isEmpty else {
+            clearDotLayers()
+            return
+        }
+
+        rebuildDotLayers(count: frame.dots.count)
+        let side = max(1, orbSize.value)
+        let easeInOut = CAMediaTimingFunction(name: .easeInEaseOut)
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (dotLayer, dot) in zip(dotContainerLayer.sublayers ?? [], frame.dots) {
+            applyModel(dot, to: dotLayer)
+
+            let lowAlpha = dot.a * Self.reducedMotionMinAlphaFactor
+            let highAlpha = dot.a
+            let normalizedX = min(1, max(0, dot.x / side))
+
+            let pulse = CAKeyframeAnimation(keyPath: "opacity")
+            pulse.values = [
+                NSNumber(value: lowAlpha),
+                NSNumber(value: highAlpha),
+                NSNumber(value: lowAlpha),
+            ]
+            pulse.keyTimes = [0, 0.5, 1]
+            pulse.timingFunctions = [easeInOut, easeInOut]
+            pulse.duration = Self.reducedMotionBreathDuration
+            pulse.timeOffset = normalizedX * Self.reducedMotionMaxStagger
+            pulse.repeatCount = .infinity
+            pulse.isRemovedOnCompletion = false
+            dotLayer.add(pulse, forKey: "jin.activity.reduceMotion")
+        }
+        CATransaction.commit()
+    }
+
     private func installAnimation(_ plan: ActivityOrbAnimationPlan) {
         guard let firstFrame = plan.frames.first, plan.dotCount > 0 else {
             clearDotLayers()
@@ -171,7 +220,6 @@ final class JinActivityOrbNSView: NSView {
         let keyTimes = plan.frames.indices.map {
             NSNumber(value: Double($0) / Double(max(1, plan.frames.count - 1)))
         }
-        let beginTime = CACurrentMediaTime() + 0.02
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -204,7 +252,6 @@ final class JinActivityOrbNSView: NSView {
             let group = CAAnimationGroup()
             group.animations = [position, scale, opacity]
             group.duration = plan.duration
-            group.beginTime = beginTime
             group.repeatCount = .infinity
             group.isRemovedOnCompletion = false
             group.timingFunction = CAMediaTimingFunction(name: .linear)
