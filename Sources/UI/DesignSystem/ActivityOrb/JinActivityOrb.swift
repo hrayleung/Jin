@@ -6,7 +6,7 @@ import SwiftUI
 /// is fixed-size, so a table-hosted `NSHostingView` is never invalidated by a
 /// frame.
 enum JinActivityOrbPose: Equatable, Sendable {
-    /// In-flight verb. Clock-driven unless `paused` / reduce-motion.
+    /// In-flight verb. Clock-driven unless `paused`; uses in-place breathing under Reduce Motion.
     case live
     /// Finished thought. `solving` rest — lattice clicked back, not a
     /// frozen live frame and not a face-on ring.
@@ -30,7 +30,8 @@ struct JinActivityOrb: View {
         JinActivityOrbRepresentable(
             kind: kind,
             size: size,
-            paused: settled || paused || reduceMotion,
+            paused: settled || paused,
+            reduceMotion: reduceMotion,
             pose: pose,
             isDark: colorScheme == .dark
         )
@@ -47,17 +48,32 @@ private struct JinActivityOrbRepresentable: NSViewRepresentable {
     var kind: JinActivityKind
     var size: JinActivityOrbSize
     var paused: Bool
+    var reduceMotion: Bool
     var pose: JinActivityOrbPose
     var isDark: Bool
 
     func makeNSView(context: Context) -> JinActivityOrbNSView {
         let view = JinActivityOrbNSView()
-        view.apply(kind: kind, size: size, paused: paused, pose: pose, isDark: isDark)
+        view.apply(
+            kind: kind,
+            size: size,
+            paused: paused,
+            reduceMotion: reduceMotion,
+            pose: pose,
+            isDark: isDark
+        )
         return view
     }
 
     func updateNSView(_ nsView: JinActivityOrbNSView, context: Context) {
-        nsView.apply(kind: kind, size: size, paused: paused, pose: pose, isDark: isDark)
+        nsView.apply(
+            kind: kind,
+            size: size,
+            paused: paused,
+            reduceMotion: reduceMotion,
+            pose: pose,
+            isDark: isDark
+        )
     }
 
     func sizeThatFits(

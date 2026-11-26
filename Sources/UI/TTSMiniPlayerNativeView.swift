@@ -50,6 +50,7 @@ final class TTSMiniPlayerNativeView: NSView {
                 kind: .composing,
                 size: .inline,
                 paused: false,
+                reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
                 isDark: drawsAsDark
             )
             primaryButton.isHidden = true
@@ -58,6 +59,7 @@ final class TTSMiniPlayerNativeView: NSView {
                 kind: .composing,
                 size: .inline,
                 paused: true,
+                reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
                 isDark: drawsAsDark
             )
             primaryOrb.isHidden = true
