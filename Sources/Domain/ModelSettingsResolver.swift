@@ -270,8 +270,12 @@ enum ModelSettingsResolver {
     private static let openAIAlwaysOnReasoningModelIDs: Set<String> = [
         "gpt-6.2-astra",
         "gpt-6.2-sol",
+        "gpt-6.2-astra-healthcare",
+        "gpt-6.2-sol-healthcare",
         "gpt-6-astra",
+        "gpt-6-astra-healthcare",
         "gpt-6.1-sol",
+        "gpt-6.1-sol-healthcare",
     ]
 
     /// Exact-ID allowlist for SambaNova models where reasoning cannot be disabled.
@@ -301,6 +305,7 @@ enum ModelSettingsResolver {
         // toggle) on models.dev `togetherai` — same always-on shape as Inkling.
         "deepseek-ai/deepseek-v4.1-flash",
         "deepseek-ai/deepseek-v4.1-flash-1017",
+        "deepseek-ai/deepseek-v4.1-flash-1017-fast",
         // Beam 1.0 501B A23B + Muse Spark Open 816B A42B (2026-10-15):
         // effort-only reasoning options (low..max / low..xhigh, no toggle or `none`).
         "reflection/beam-1.0-501b-a23b",
@@ -389,6 +394,7 @@ enum ModelSettingsResolver {
     /// rejects `thinking.type: "disabled"` (z.ai/blog/glm-5.3); the coding-plan
     /// endpoint converts that to `low`. Exact IDs only.
     private static let zhipuAlwaysOnReasoningModelIDs: Set<String> = [
+        "glm-5.4",
         "glm-5.3",
         "glm-5.3[1m]",
         "glm-5.3-flash",
@@ -604,6 +610,9 @@ enum ModelSettingsResolver {
         // Gemini 4 Carbon on FMAPI (supported-models page updated 2026-11-10):
         // same always-on thinkingLevel posture as databricks-gemini-4-argon.
         "databricks-gemini-4-carbon",
+        // Gemini 4 Neon on Unity Gateway (query-reason-models.md, 2026-11-25):
+        // always-on reasoning (low/medium/high, default medium; none/minimal rejected).
+        "system.ai.gemini-4-neon",
     ]
 
     /// Kimi for Coding IDs whose thinking is always-on (Kimi Code docs list
@@ -646,6 +655,9 @@ enum ModelSettingsResolver {
         "stepfun-ai/step-5-preview",
         "qwen3-8-2-4t-a95b",
         "inferact/qwen3.8-2.4t-a95b-nvfp4",
+        // Kimi K3.1 Pro on RightNow publishes low/high/max only (no `none`).
+        "kimi-k3-1-pro",
+        "moonshotai/kimi-k3.1-pro",
     ]
 
     /// Baseten IDs whose thinking cannot be turned off. GLM-5.3-Flash rejects
@@ -693,6 +705,7 @@ enum ModelSettingsResolver {
             || lower == "fireworks/minimax-m3p1-flash"
             || lower == "accounts/fireworks/models/kimi-k3p1-pro"
             || lower == "fireworks/kimi-k3p1-pro"
+            || lower == "accounts/fireworks/routers/kimi-k3p1-pro-ultrafast"
             || fireworksCanonicalModelID(lower) == "qwen3p8-2p4t-a95b"
             || fireworksCanonicalModelID(lower) == "qwen3p8-max"
             || fireworksCanonicalModelID(lower) == "minimax-m3p1-flash" {

@@ -20,6 +20,37 @@ extension ModelCatalog {
     /// Verified against the Databricks "Databricks-hosted foundation models" supported-models
     /// docs (AWS/Azure/GCP), 2026-07.
     static let databricksRecords: [Record] = [
+        // Unity Gateway (supported-models.md + query-reason-models.md, 2026-11-25):
+        // Gemini 4 Neon is Unity Gateway only (`databricks-gemini-4-neon` is unsupported).
+        // Always-on reasoning with `low`/`medium` (default)/`high`; `none`/`minimal` rejected.
+        // Databricks chat adapter sends text + image_url only (audio/video omitted).
+        Record(id: "system.ai.gemini-4-neon", displayName: "Gemini 4 Neon",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.low, .medium, .high]),
+               isFullySupported: true, isSeeded: false),
+        // Unity Gateway & FMAPI (supported-models.md + query-reason-models.md, 2026-11-25):
+        // Kimi K3.1 Pro Fast shares Kimi K3.1 Pro's 1,048,576 context and hybrid reasoning
+        // (`none`/`low`/`high`/`max`, default `max`).
+        Record(id: "system.ai.kimi-k3-1-pro-fast", displayName: "Kimi K3.1 Pro Fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.none, .low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "databricks-kimi-k3-1-pro-fast", displayName: "Kimi K3.1 Pro Fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.none, .low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
         // Unity Gateway documents only text input and does not list Hydrogen effort controls.
         Record(id: "system.ai.gemini-4-hydrogen", displayName: "Gemini 4 Hydrogen",
                capabilities: [.streaming],

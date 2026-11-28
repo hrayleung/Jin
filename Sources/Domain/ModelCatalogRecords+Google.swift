@@ -610,6 +610,58 @@ extension ModelCatalog {
     // red/yellow/blue/black clip. Models that are colour-approximate but clearly reading
     // frames (they report the crossfade colours — orange/olive) count as reading.
     static let openRouterRecords: [Record] = [
+        // OpenRouter chat inventory (live /api/v1/models, 2026-11-20 through 2026-11-26).
+        Record(id: "inclusionai/lingsante-3.1-air-vl", displayName: "inclusionAI: LingSante 3.1 Air VL",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 131_072,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "upstage/solar-pro-4-contributor", displayName: "Upstage: Solar Pro 4 Contributor",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 524_288,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.none, .minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "upstage/solar-mini-4-5", displayName: "Upstage: Solar Mini 4.5 (Preview)",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 524_288,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .medium,
+                   supportedEfforts: [.none, .minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        // `video` is advertised in input_modalities but not claimed without a live video probe.
+        Record(id: "xiaomi/mimo-v2.6-flash-mopd", displayName: "Xiaomi: MiMo-V2.6-Flash-MOPD",
+               capabilities: [.streaming, .toolCalling, .vision, .audio, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 32_768,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "thinkingmachines/inkling-2-mini", displayName: "Thinking Machines: Inkling 2 Mini",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .minimal, .low, .medium, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "radixark/daisyrose-27b", displayName: "RadixArk: DaisyRose 27B",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               maxOutputTokens: 235_929,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .xhigh,
+                   supportedEfforts: [.none, .low, .medium, .xhigh]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "mistralai/pixtral-large-2502", displayName: "Mistral: Pixtral Large 2502",
+               capabilities: [.streaming, .vision],
+               contextWindow: 128_000,
+               maxOutputTokens: 102_400,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
         // OpenRouter chat inventory and serving endpoints (2026-11-18).
         Record(id: "google/gemini-4-neon", displayName: "Google: Gemini 4 Neon",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .audio],

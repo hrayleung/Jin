@@ -228,12 +228,20 @@ func isFireworksGLM53Model(_ modelID: String) -> Bool {
         || lower == "fireworks/glm-5p3"
         || lower == "accounts/fireworks/routers/glm-5p3-fast"
         || lower == "fireworks/glm-5p3-fast"
+        || lower == "accounts/fireworks/routers/glm-5p3-flex"
+        || lower == "fireworks/glm-5p3-flex"
         || lower == "accounts/fireworks/models/glm-5p3-flash"
-        || lower == "fireworks/glm-5p3-flash" {
+        || lower == "fireworks/glm-5p3-flash"
+        || lower == "accounts/fireworks/routers/glm-5p3-flash-flex"
+        || lower == "fireworks/glm-5p3-flash-flex" {
         return true
     }
     guard let canonical = fireworksCanonicalModelID(lower) else { return false }
-    return canonical == "glm-5p3" || canonical == "glm-5p3-fast" || canonical == "glm-5p3-flash"
+    return canonical == "glm-5p3"
+        || canonical == "glm-5p3-fast"
+        || canonical == "glm-5p3-flex"
+        || canonical == "glm-5p3-flash"
+        || canonical == "glm-5p3-flash-flex"
 }
 
 /// Fireworks DeepSeek V4 GA snapshots (`0813`, `flash-0731`, `v4p1-flash`, `v4p1-flash-1017`).
@@ -381,7 +389,10 @@ private let openAIResponsesSamplingAllowedModelIDs: Set<String> = [
 private let openAIResponsesSamplingDeniedExactModelIDs: Set<String> = [
     "gpt-6.2-astra",
     "gpt-6.2-sol",
+    "gpt-6.2-astra-healthcare",
+    "gpt-6.2-sol-healthcare",
     "gpt-6-astra",
+    "gpt-6-astra-healthcare",
     "gpt-6-astra-pro",
     "gpt-6-sol",
     "gpt-6-sol-pro",
@@ -389,6 +400,7 @@ private let openAIResponsesSamplingDeniedExactModelIDs: Set<String> = [
     // GPT-6 reasoning family — OpenAI's model pages list only reasoning params;
     // temperature/top_p are not documented and upstream rejects them.
     "gpt-6.1-sol",
+    "gpt-6.1-sol-healthcare",
     "gpt-6.1-sol-pro",
     "gpt-6.1-terra",
     "gpt-6.1-terra-pro",

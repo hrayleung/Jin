@@ -24,6 +24,8 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
             "deepseek-v4-1-flash",
             "deepseek-v4-1-flash-1017",
             "step-5-preview",
+            "rightnow-writing-1",
+            "kimi-k3-1-pro",
             "hy4-flash",
             "glm-5-3-flash",
             "glm-5-3",
@@ -38,18 +40,27 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
             XCTAssertTrue(ModelCatalog.isFullySupported(modelID: id, provider: .runinfra), id)
             let info = ModelCatalog.modelInfo(for: id, provider: .runinfra)
             XCTAssertTrue(info.capabilities.contains(.streaming), id)
-            XCTAssertTrue(info.capabilities.contains(.toolCalling), id)
+            XCTAssertEqual(info.capabilities.contains(.toolCalling), id != "rightnow-writing-1", id)
             XCTAssertTrue(info.capabilities.contains(.reasoning), id)
-            XCTAssertEqual(info.capabilities.contains(.promptCaching), id != "hy4-flash", id)
+            XCTAssertEqual(
+                info.capabilities.contains(.promptCaching),
+                id != "hy4-flash" && id != "rightnow-writing-1",
+                id
+            )
             // "Accepted input: Text and images" on the model pages / named by the chat-completions contract.
             XCTAssertEqual(
                 info.capabilities.contains(.vision),
-                ["step-5-preview", "hy4-flash", "deepseek-v4-1-flash-1017", "qwen3-8-27b",
+                ["step-5-preview", "kimi-k3-1-pro", "hy4-flash", "deepseek-v4-1-flash-1017", "qwen3-8-27b",
                  "ornith-1-5-35b", "ornith-1-5-122b", "glm-5-3-flash"].contains(id),
                 id
             )
-            let outputLimits = ["step-5-preview": 1_048_576, "hy4-flash": 65_536]
-            XCTAssertEqual(info.maxOutputTokens, outputLimits[id] ?? 32_768, id)
+            let outputLimits: [String: Int?] = [
+                "step-5-preview": 1_048_576,
+                "hy4-flash": 65_536,
+                "rightnow-writing-1": nil,
+            ]
+            let expectedOutput: Int? = outputLimits.keys.contains(id) ? outputLimits[id]! : 32_768
+            XCTAssertEqual(info.maxOutputTokens, expectedOutput, id)
             XCTAssertFalse(
                 ModelCapabilityRegistry.supportsWebSearch(for: .runinfra, modelID: id),
                 id
@@ -62,7 +73,7 @@ final class RunInfraProviderIntegrationTests: XCTestCase {
         XCTAssertEqual(config.type, .runinfra)
         XCTAssertEqual(config.baseURL, "https://api.runinfra.ai/v1")
         XCTAssertEqual(config.models.map(\.id).first, "deepseek-v4-1-flash")
-        XCTAssertEqual(config.models.count, 10)
+        XCTAssertEqual(config.models.count, 12)
         XCTAssertTrue(DefaultProviderSeeds.allProviders().contains(where: { $0.id == "runinfra" }))
 
         let adapter = RunInfraAdapter(providerConfig: config, apiKey: "test-key")
