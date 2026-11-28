@@ -122,6 +122,35 @@ extension ModelCatalog {
                    reasoningConfig: nil,
                    isFullySupported: true, isSeeded: false),
             // RightNow's public model card documents none/high reasoning and no prompt caching.
+            // RightNow Writing 1.0 (rightnowai.co/models/rightnow-writing-1, 2026-11):
+            // 1,048,576 context, text-only, streaming, reasoning effort none/low/high/xhigh/max.
+            // Tool calling and prompt caching are explicitly listed as not supported.
+            Record(id: "rightnow-writing-1", displayName: "RightNow Writing 1.0",
+                   capabilities: [.streaming, .reasoning],
+                   contextWindow: 1_048_576,
+                   reasoningConfig: ModelReasoningConfig(
+                       type: .effort, defaultEffort: .high,
+                       supportedEfforts: [.none, .low, .high, .xhigh, .max]),
+                   isFullySupported: true, isSeeded: true),
+            // Kimi K3.1 Pro (rightnowai.co/models/kimi-k3-1-pro, 2026-11):
+            // 1,048,576 context / 32,768 max output, text+image, tools, prompt caching,
+            // reasoning effort low/high/max (always-on; no `none`).
+            Record(id: "kimi-k3-1-pro", displayName: "Kimi K3.1 Pro",
+                   capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                   contextWindow: 1_048_576,
+                   maxOutputTokens: 32_768,
+                   reasoningConfig: ModelReasoningConfig(
+                       type: .effort, defaultEffort: .max,
+                       supportedEfforts: [.low, .high, .max]),
+                   isFullySupported: true, isSeeded: true),
+            Record(id: "moonshotai/Kimi-K3.1-Pro", displayName: "Kimi K3.1 Pro",
+                   capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+                   contextWindow: 1_048_576,
+                   maxOutputTokens: 32_768,
+                   reasoningConfig: ModelReasoningConfig(
+                       type: .effort, defaultEffort: .max,
+                       supportedEfforts: [.low, .high, .max]),
+                   isFullySupported: true, isSeeded: false),
             Record(id: "hy4-flash", displayName: "Hy4 flash",
                    capabilities: [.streaming, .toolCalling, .vision, .reasoning],
                    contextWindow: 1_048_576,

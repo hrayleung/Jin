@@ -22,6 +22,39 @@ extension ModelCatalog {
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
                                                      supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
                isFullySupported: true, isSeeded: true),
+        // Healthcare model configurations (OpenAI API changelog 2026-11-24;
+        // help.openai.com/en/articles/20001656-healthcare-model-configurations-in-the-openai-api):
+        // Responses API only, pairs the underlying GPT-6/6.1/6.2 models with clinical
+        // instructions and a dedicated medical web search index. Code interpreter is
+        // omitted conservatively until documented on per-ID model cards.
+        Record(id: "gpt-6.2-astra-healthcare", displayName: "GPT-6.2 Astra Healthcare",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "gpt-6.2-sol-healthcare", displayName: "GPT-6.2 Sol Healthcare",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "gpt-6-astra-healthcare", displayName: "GPT-6 Astra Healthcare",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "gpt-6.1-sol-healthcare", displayName: "GPT-6.1 Sol Healthcare",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching, .nativePDF],
+               contextWindow: 1_050_000,
+               maxOutputTokens: 128_000,
+               reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .medium,
+                                                     supportedEfforts: [.low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
         // Trusted-access research model announced Oct 30. Exact spec page is unavailable.
         Record(id: "gpt-6-rosalind", displayName: "GPT-6 Rosalind",
                capabilities: [],
@@ -1353,6 +1386,15 @@ extension ModelCatalog {
     // MARK: Vercel AI Gateway
 
     static let vercelAIGatewayRecords: [Record] = [
+        // AI Gateway /v1/models (2026-11-24). Supports temperature only (no top_p).
+        Record(id: "thinkingmachines/inkling-2-mini", displayName: "Inkling 2 Mini",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_000_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.none, .minimal, .low, .medium, .high, .xhigh, .max]),
+               isFullySupported: true, isSeeded: false),
         // AI Gateway /v1/models (2026-11-18).
         Record(id: "google/gemini-4-neon", displayName: "Gemini 4 Neon",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],

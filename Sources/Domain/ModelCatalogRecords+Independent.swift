@@ -249,6 +249,34 @@ extension ModelCatalog {
     // MARK: DeepInfra
 
     static let deepInfraRecords: [Record] = [
+        // DeepInfra live /models/list + model pages (2026-11-20 through 2026-11-26).
+        // Toggle reasoning kept conservative where model-specific effort bands are
+        // unpublished on DeepInfra. Video is omitted without a live video probe.
+        Record(id: "inclusionAI/LingSante-3.1-air-VL", displayName: "LingSante 3.1 Air VL",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 131_072,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "thinkingmachines/Inkling-2-Mini", displayName: "Inkling 2 Mini",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "tencent/Hy4-flash", displayName: "Hy4 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "tencent/Hy4", displayName: "Hy4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "RadixArk/DaisyRose-27B", displayName: "DaisyRose 27B",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 262_144,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
         // Thinking Machines Inkling 2 Small (deepinfra.com/thinkingmachines/Inkling-2-Small):
         // DeepInfra caps context window at 262,144 tokens (model card is 1M upstream).
         // Text+image, tools, structured outputs, prompt caching; reasoning_effort
@@ -781,6 +809,18 @@ extension ModelCatalog {
                    type: .effort, defaultEffort: .high,
                    supportedEfforts: [.low, .high, .max]),
                isFullySupported: true, isSeeded: true),
+        // DeepSeek-V4.1-Flash-1017-fast (docs.together.ai/docs/changelog, 2026-11-23):
+        // High-throughput FP8 variant of DeepSeek-V4.1-Flash-1017 with the same
+        // weights, 1,000,000 context, function calling, structured outputs, and
+        // always-on low/high/max reasoning band.
+        Record(id: "deepseek-ai/DeepSeek-V4.1-Flash-1017-fast", displayName: "DeepSeek V4.1 Flash 1017 Fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 384_000,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .high,
+                   supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
         Record(id: "openai/gpt-oss-120b", displayName: "GPT-OSS 120B",
                capabilities: [.streaming, .toolCalling, .reasoning],
                contextWindow: 128_000,
@@ -1260,6 +1300,19 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: true),
+        // GLM-5.4 (docs.z.ai/guides/llm/glm-5.4, z.ai/blog/glm-5.4, 2026-11-23):
+        // Live on all GLM Coding Plan tiers (1M context, 128K / 131,072 max output,
+        // text+image input, function calling, structured output, context caching,
+        // reasoning effort low/high/max default max). Video/file input omitted
+        // conservatively until live-probed on the coding-plan endpoint.
+        Record(id: "glm-5.4", displayName: "GLM-5.4",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: true),
         // Z.ai exposes GLM-5.2 via a two-ID scheme: plain `glm-5.2` runs the standard
         // 200K window, and `glm-5.2[1m]` opts into the full 1,000,000-token context.
         // Both take `reasoning_effort` (high/max). https://docs.z.ai/devpack/latest-model
@@ -1440,6 +1493,50 @@ extension ModelCatalog {
     // MARK: Fireworks
 
     static let fireworksRecords: [Record] = [
+        // Fireworks serverless additions (2026-11-20 through 2026-11-25):
+        // Hy4 Flash (fireworks.ai/models/fireworks/hy4-flash, 524K context, image, tools).
+        Record(id: "accounts/fireworks/models/hy4-flash", displayName: "Hy4 Flash",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 524_288,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Inkling 2 Mini & Small (fireworks.ai/models/fireworks/inkling-2-{mini,small},
+        // 1,040k context, image, function calling, serverless).
+        Record(id: "accounts/fireworks/models/inkling-2-mini", displayName: "Inkling 2 Mini",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "accounts/fireworks/models/inkling-2-small", displayName: "Inkling 2 Small",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: false),
+        // Nov 25 serverless router modes (docs.fireworks.ai/serverless/serverless-modes).
+        Record(id: "accounts/fireworks/routers/kimi-k3p1-pro-ultrafast", displayName: "Kimi K3.1 Pro Ultra-fast",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "accounts/fireworks/routers/glm-5p3-flex", displayName: "GLM-5.3 (Flex)",
+               capabilities: [.streaming, .toolCalling, .reasoning, .promptCaching],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
+        Record(id: "accounts/fireworks/routers/glm-5p3-flash-flex", displayName: "GLM-5.3-Flash (Flex)",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning, .promptCaching],
+               contextWindow: 1_040_000,
+               maxOutputTokens: 131_072,
+               reasoningConfig: ModelReasoningConfig(
+                   type: .effort, defaultEffort: .max,
+                   supportedEfforts: [.low, .high, .max]),
+               isFullySupported: true, isSeeded: false),
         // Nov 3 Ultra-fast preview route (official serverless-modes + model library).
         // Same DeepSeek V4.1 Flash 1017 model. Host contextLength is 1,048,576;
         // no route-specific output cap is published. Priority tier is unavailable.
@@ -2478,6 +2575,14 @@ extension ModelCatalog {
                maxOutputTokens: 131_072,
                reasoningConfig: ModelReasoningConfig(type: .effort, defaultEffort: .max),
                isFullySupported: true, isSeeded: true),
+        // OpenCode Go /inference/go/v1/models, November 24.
+        // `video` is listed in input modalities but omitted without a live video probe.
+        Record(id: "hungerg-free", displayName: "HungerG Free",
+               capabilities: [.streaming, .toolCalling, .vision, .reasoning],
+               contextWindow: 1_000_000,
+               maxOutputTokens: 65_536,
+               reasoningConfig: ModelReasoningConfig(type: .toggle),
+               isFullySupported: true, isSeeded: true),
         // OpenCode Go /inference/go/v1/models, November 16.
         Record(id: "hy4-flash-free", displayName: "Hy4 flash Free",
                capabilities: [.streaming, .toolCalling, .vision, .reasoning],
@@ -3426,6 +3531,15 @@ extension ModelCatalog {
                capabilities: [.streaming],
                contextWindow: 1_048_576,
                maxOutputTokens: 131_072,
+               reasoningConfig: nil,
+               isFullySupported: true, isSeeded: false),
+        // Morph Kimi K3.1 Abliterated (morphllm.com/blog/kimi-k3-1-abliterated + live feed,
+        // 2026-11-23): 1,048,576 context / 1,048,576 output, text-only. Morph adapter
+        // stays streaming-only without Jin's tool/reasoning controls.
+        Record(id: "morph-kimik3-abliterated", displayName: "Kimi K3.1 Abliterated (Fast)",
+               capabilities: [.streaming],
+               contextWindow: 1_048_576,
+               maxOutputTokens: 1_048_576,
                reasoningConfig: nil,
                isFullySupported: true, isSeeded: false),
     ]

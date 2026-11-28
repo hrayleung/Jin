@@ -8,14 +8,18 @@ extension DatabricksAdapter {
         tools: [ToolDefinition],
         streaming: Bool
     ) throws -> URLRequest {
-        let isUnityHydrogen = modelID.lowercased() == "system.ai.gemini-4-hydrogen"
+        let lowerModelID = modelID.lowercased()
+        let isUnityHydrogen = lowerModelID == "system.ai.gemini-4-hydrogen"
+        let usesModelServiceChatCompletions = isUnityHydrogen
+            || lowerModelID == "system.ai.gemini-4-neon"
+            || lowerModelID == "system.ai.kimi-k3-1-pro-fast"
         var body: [String: Any] = [
             "model": modelID,
             "messages": try translateMessages(messages, modelID: modelID),
             "stream": streaming
         ]
 
-        if streaming, isOpenAIGateway, !isUnityHydrogen {
+        if streaming, isOpenAIGateway, !usesModelServiceChatCompletions {
             // The AI Gateway OpenAI surface forwards to native OpenAI, which returns a trailing
             // usage chunk when asked. The Foundation Model APIs chat schema does not document
             // `stream_options`, so it is omitted there to avoid request rejection (FMAPI streaming
@@ -37,7 +41,7 @@ extension DatabricksAdapter {
         if let maxTokens = controls.maxTokens {
             // The AI Gateway OpenAI surface forwards to the native OpenAI API, whose GPT-5 /
             // o-series models reject `max_tokens` and require `max_completion_tokens`.
-            body[isOpenAIGateway && !isUnityHydrogen ? "max_completion_tokens" : "max_tokens"] = maxTokens
+            body[isOpenAIGateway && !usesModelServiceChatCompletions ? "max_completion_tokens" : "max_tokens"] = maxTokens
         }
 
         if !isUnityHydrogen {
@@ -53,12 +57,12 @@ extension DatabricksAdapter {
         }
 
         var additionalHeaders: [String: String] = [:]
-        if !isUnityHydrogen, isOpenAIGateway, let service = gatewayProviderService {
+        if !usesModelServiceChatCompletions, isOpenAIGateway, let service = gatewayProviderService {
             additionalHeaders[DatabricksGateway.modelProviderServiceHeader] = service
         }
 
         return try makeAuthorizedJSONRequest(
-            url: validatedURL(isUnityHydrogen
+            url: validatedURL(usesModelServiceChatCompletions
                 ? "\(DatabricksGateway.modelServiceBaseURL(from: configuredBaseURL))/chat/completions"
                 : chatCompletionsURLString),
             apiKey: apiKey,
